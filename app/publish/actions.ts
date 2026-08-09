@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { accept } from "@/lib/gallery/publish";
+import { publishItem } from "@/lib/gallery/publish";
 import { createClient } from "@/lib/supabase/server";
 
 export interface PublishState {
@@ -43,41 +43,14 @@ export async function publish(
     return fail("Sign in with Discord before publishing.");
   }
 
-  const result = accept(values.code);
-  if (!result.ok) {
-    return fail(result.reason);
-  }
-
-  const title = values.title.trim();
-  if (title === "") {
-    return fail("Give it a title so people know what it is.");
-  }
-
-  const tags = values.tags
-    .split(",")
-    .map((tag) => tag.trim().toLowerCase())
-    .filter((tag) => tag !== "")
-    .slice(0, 8);
-
-  const { accepted } = result;
-  const { data, error } = await supabase
-    .from("item")
-    .insert({
-      kind: accepted.kind,
-      kind_version: accepted.kindVersion,
-      title,
-      description: values.description.trim(),
-      game_name: accepted.gameName,
-      map_name: accepted.mapName,
-      tags,
-      container: accepted.container,
-      author_id: user.id,
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    return fail(`Could not publish it: ${error.message}`);
+  const outcome = await publishItem(supabase, user.id, {
+    code: values.code,
+    title: values.title,
+    description: values.description,
+    tags: values.tags.split(","),
+  });
+  if (!outcome.ok) {
+    return fail(outcome.reason);
   }
 
   const incoming = await headers();
@@ -86,7 +59,7 @@ export async function publish(
 
   revalidatePath("/");
   return {
-    publishedId: data.id,
-    shareUrl: host ? `${proto}://${host}/i/${data.id}` : undefined,
+    publishedId: outcome.item.id,
+    shareUrl: host ? `${proto}://${host}/i/${outcome.item.id}` : undefined,
   };
 }
