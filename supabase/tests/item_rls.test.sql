@@ -5,7 +5,7 @@
 -- nobody.
 
 begin;
-select plan(12);
+select plan(14);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -88,6 +88,29 @@ select throws_ok(
   null,
   'an author cannot hand their item to somebody else'
 );
+
+-- The column level update grant, in both directions. Editing an item means the
+-- words around it, not the thing itself, so a changed payload cannot appear under
+-- a URL somebody already shared.
+select throws_ok(
+  $$update public.item set container = '{"format":"tampered"}'
+    where id = 'aaaaaaaa-0000-0000-0000-000000000001'$$,
+  '42501',
+  null,
+  'an author cannot swap the container under an existing item'
+);
+
+select lives_ok(
+  $$update public.item set deleted_at = now()
+    where id = 'aaaaaaaa-0000-0000-0000-000000000001'$$,
+  'an author can withdraw their own item'
+);
+
+-- Put it back, because the checks below need it visible. This also exercises the
+-- reason an author can see their own withdrawn items: without that, the row would
+-- now be invisible to Ada and this restore would silently affect nothing.
+update public.item set deleted_at = null
+  where id = 'aaaaaaaa-0000-0000-0000-000000000001';
 
 reset role;
 

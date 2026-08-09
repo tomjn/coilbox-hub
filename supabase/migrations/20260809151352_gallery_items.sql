@@ -71,6 +71,19 @@ create trigger item_touch_updated_at
 
 alter table public.item enable row level security;
 
+-- Grants and policies are two different layers and both are needed. A grant says
+-- what a role may attempt, a policy says which rows it may touch. Without the
+-- grant the read policy below never runs, because permission is refused first.
+--
+-- The update grant is per column on purpose. It is the whole of what "edit your
+-- item" means: the words around it, and withdrawing it. The container, its kind,
+-- the derived game and map names and the timestamps are all outside it, so
+-- republishing a changed payload under an existing URL is not something an author
+-- can do by accident, and created_at cannot be forged to climb the default sort.
+grant select on public.item to anon, authenticated;
+grant insert, delete on public.item to authenticated;
+grant update (title, description, tags, deleted_at) on public.item to authenticated;
+
 -- The whole authorisation model is these four policies, and it holds however the
 -- data is reached, including straight through PostgREST. That is what makes an
 -- anonymous read path safe to expose without a hand written API in front of it.

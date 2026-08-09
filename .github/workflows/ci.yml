@@ -24,3 +24,16 @@ jobs:
       - run: bun run typecheck
       - run: bun test
       - run: bun run build
+
+  database:
+    # Separate from the frontend checks because it stands up a full Postgres, and
+    # separate from nothing else: an access policy that is wrong fails silently,
+    # so these have to run on every change rather than when somebody remembers.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v3
+        with:
+          version: latest
+      - run: supabase db start
+      - run: supabase test db
