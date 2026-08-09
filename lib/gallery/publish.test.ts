@@ -146,20 +146,58 @@ test("a challenge names its game by shortname", () => {
   expect(result.accepted.mapName).toBeNull();
 });
 
-test("a full game name wins over a shortname when both are present", () => {
+test("a shortname wins over a pinned build name when both are present", () => {
+  // The common shape for a pinned challenge: a stable shortname alongside the
+  // exact build it was set up on. The shortname is what groups it with other
+  // challenges for the same game across builds, so it is what the row shows.
   const code = encodeContainerCode(
     "challenge",
     SUPPORTED_KIND_VERSIONS.challenge,
-    { mode: "warpath", settings: { game: { name: "Full Name", shortname: "FN" } } },
+    { mode: "warpath", settings: { game: { pinnedName: "Full Name 1.2.3", shortname: "FN" } } },
   );
 
   const result = accept(code);
   expect(result.ok).toBe(true);
   if (!result.ok) return;
-  expect(result.accepted.gameName).toBe("Full Name");
+  expect(result.accepted.gameName).toBe("FN");
 });
 
-test("a scenario is accepted, with no derived names yet", () => {
+test("a preset carrying the unified game field resolves its game through it", () => {
+  const code = encodeContainerCode("preset", SUPPORTED_KIND_VERSIONS.preset, {
+    game: { name: "Beyond All Reason 1.2.3", shortname: "BAR" },
+    mapName: "Comet Catcher Remake",
+    startPosType: 2,
+    modOptionValues: {},
+    participants: [],
+  });
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.gameName).toBe("BAR");
+});
+
+test("a scenario names its game, the same as any other kind", () => {
+  // Shape per gameIdentity.ts: a scenario export wraps the document (which
+  // carries setup.gameName) beside its dialogue media.
+  const code = encodeContainerCode("scenario", SUPPORTED_KIND_VERSIONS.scenario, {
+    scenario: {
+      triggers: [],
+      zones: [],
+      setup: { gameName: "Beyond All Reason" },
+    },
+    media: {},
+  });
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.kind).toBe("scenario");
+  expect(result.accepted.gameName).toBe("Beyond All Reason");
+  expect(result.accepted.mapName).toBeNull();
+});
+
+test("a scenario with nothing to name its game yields no game name", () => {
   const code = encodeContainerCode(
     "scenario",
     SUPPORTED_KIND_VERSIONS.scenario,
@@ -170,5 +208,6 @@ test("a scenario is accepted, with no derived names yet", () => {
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.accepted.kind).toBe("scenario");
+  expect(result.accepted.gameName).toBeNull();
   expect(result.accepted.mapName).toBeNull();
 });

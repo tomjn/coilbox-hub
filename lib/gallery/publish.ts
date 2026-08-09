@@ -4,6 +4,7 @@ import {
   decodeContainerText,
   GALLERY_KINDS,
   type GalleryKind,
+  type GameIdentity,
   identify,
   makeContainer,
   MAX_CONTAINER_BYTES,
@@ -36,42 +37,45 @@ function str(value: unknown): string | null {
 }
 
 /**
- * Pull out the two fields a listing filters on. Each kind names them differently,
+ * Pull out the map name a listing filters on. Each kind names it differently,
  * and only the shapes actually seen are handled. A kind whose payload has not
- * been looked at yields nulls rather than a guess at field names that may not
- * exist, because a wrong game name is worse than no game name.
+ * been looked at yields null rather than a guess at a field name that may not
+ * exist, because a wrong map name is worse than no map name.
+ *
+ * The game name is not derived here: `gameIdentityFromPayload` (via
+ * `identify()`) already covers every kind, scenario included, from the one
+ * `game` field every kind now writes, or its kind's old spelling when it does
+ * not. Re-reading a kind's old spelling here would be the same duplication
+ * this function used to be.
  */
-function describe(kind: GalleryKind, payload: unknown) {
-  const blank = { gameName: null, mapName: null };
-  if (typeof payload !== "object" || payload === null) return blank;
+function describe(kind: GalleryKind, payload: unknown, game: GameIdentity | undefined) {
+  // Shortname is the stable, human-facing identifier (see gameIdentity.ts):
+  // unlike the exact pinned build a preset, setup pack or challenge may carry,
+  // it does not change every time the game updates, which is what a listing
+  // filters and groups by. It falls back to the pinned name when a game has
+  // no shortname, so an item still shows something rather than nothing.
+  const gameName = game ? (game.shortname ?? game.name ?? null) : null;
+
+  if (typeof payload !== "object" || payload === null) {
+    return { gameName, mapName: null };
+  }
   const p = payload as Record<string, unknown>;
 
   if (kind === "preset") {
-    return { gameName: str(p.gameName), mapName: str(p.mapName) };
-  }
-
-  if (kind === "challenge") {
-    const settings = p.settings as Record<string, unknown> | undefined;
-    const game = settings?.game as Record<string, unknown> | undefined;
-    // A challenge names its game by shortname ("BA") where a setup pack uses the
-    // full name ("SplinterFaction 0.1.78"). Both are taken as they come, which
-    // means the game filter is reliable within a kind and not across kinds. Fixing
-    // that properly means one identifier at the source, in coilbox.
-    return { gameName: str(game?.name) ?? str(game?.shortname), mapName: null };
+    return { gameName, mapName: str(p.mapName) };
   }
 
   if (kind === "setup-pack") {
-    const game = p.game as Record<string, unknown> | undefined;
     const maps = Array.isArray(p.maps) ? p.maps : [];
     return {
-      gameName: str(game?.name),
+      gameName,
       // A pack can carry several maps and the row holds one, so it is only
       // filled in when there is no ambiguity about which it would mean.
       mapName: maps.length === 1 ? str(maps[0]) : null,
     };
   }
 
-  return blank;
+  return { gameName, mapName: null };
 }
 
 /**
@@ -180,7 +184,7 @@ export function accept(input: string): AcceptResult {
       container,
       kind: result.kind,
       kindVersion: container.kindVersion,
-      ...describe(result.kind, container.payload),
+      ...describe(result.kind, container.payload, result.game),
     },
   };
 }
