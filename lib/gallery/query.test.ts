@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { filterHref, parseFilters } from "./query";
+import { fetchAllPages, filterHref, parseFilters } from "./query";
 
 test("filters come out of the query string", () => {
   const filters = parseFilters({
@@ -56,4 +56,79 @@ test("clearing everything is a bare path", () => {
   const current = parseFilters({ kind: "preset", game: "BAR" });
 
   expect(filterHref(current, { kind: null, game: null })).toBe("/gallery");
+});
+
+/** A fake `.range()` call over an in-memory table, standing in for the
+ * Supabase client so the paging logic can be exercised without a database. */
+function tablePage(rows: number[], from: number, to: number) {
+  return {
+    data: rows.slice(from, to + 1),
+    count: rows.length,
+    error: null,
+  };
+}
+
+test("a result set smaller than one page comes back whole", async () => {
+  const rows = [1, 2, 3];
+  const { data, error } = await fetchAllPages(
+    (from, to) => Promise.resolve(tablePage(rows, from, to)),
+    24,
+  );
+
+  expect(error).toBeNull();
+  expect(data).toEqual(rows);
+});
+
+test("a result set larger than one page comes back whole", async () => {
+  const rows = Array.from({ length: 45 }, (_, i) => i);
+  const { data, error } = await fetchAllPages(
+    (from, to) => Promise.resolve(tablePage(rows, from, to)),
+    24,
+  );
+
+  expect(error).toBeNull();
+  expect(data).toEqual(rows);
+});
+
+test("a cap that shrinks a page below what was asked for still ends up with everything", async () => {
+  // A stand-in for max_rows: no matter how large a range is requested, this
+  // server hands back at most 10 rows per call. Asking for a page of 24 and
+  // getting fewer back used to be read as "that was the last page".
+  const rows = Array.from({ length: 33 }, (_, i) => i);
+  const CAP = 10;
+  const { data, error } = await fetchAllPages(
+    (from, to) =>
+      Promise.resolve(tablePage(rows, from, Math.min(to, from + CAP - 1))),
+    24,
+  );
+
+  expect(error).toBeNull();
+  expect(data).toEqual(rows);
+});
+
+test("an empty table comes back as an empty array, not an extra request", async () => {
+  let calls = 0;
+  const { data, error } = await fetchAllPages((from, to) => {
+    calls += 1;
+    return Promise.resolve(tablePage([], from, to));
+  }, 24);
+
+  expect(error).toBeNull();
+  expect(data).toEqual([]);
+  expect(calls).toBe(1);
+});
+
+test("an error partway through is surfaced rather than swallowed", async () => {
+  const rows = Array.from({ length: 45 }, (_, i) => i);
+  let calls = 0;
+
+  const { error } = await fetchAllPages((from, to) => {
+    calls += 1;
+    if (calls === 2) {
+      return Promise.resolve({ data: null, count: null, error: { message: "boom" } });
+    }
+    return Promise.resolve(tablePage(rows, from, to));
+  }, 24);
+
+  expect(error).toBe("boom");
 });
