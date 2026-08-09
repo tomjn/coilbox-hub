@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { SignInWithDiscord } from "@/components/SignInWithDiscord";
 import { createClient } from "@/lib/supabase/server";
 import { PublishForm } from "./PublishForm";
@@ -35,6 +36,12 @@ export default async function Publish() {
                   "you"}
               </span>
             </span>
+            <Link
+              href="/account"
+              className="mr-4 transition-colors hover:text-neutral-300"
+            >
+              Your account
+            </Link>
             <form action="/auth/signout" method="post">
               <button
                 type="submit"
