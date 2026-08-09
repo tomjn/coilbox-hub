@@ -1,5 +1,30 @@
 import { NextResponse } from "next/server";
+import { fetchAllPages } from "@/lib/gallery/query";
 import { createClient } from "@/lib/supabase/server";
+
+const COLUMNS =
+  "id,kind,mode,title,description,game_name,map_name,tags,container,author_name,created_at,updated_at";
+
+interface ExportItem {
+  id: string;
+  kind: string;
+  mode: string | null;
+  title: string;
+  description: string;
+  game_name: string | null;
+  map_name: string | null;
+  tags: string[];
+  container: string;
+  author_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Requested per page. `max_rows` can cap the actual response below this.
+ * That cap differs locally versus on the cloud Data API. `fetchAllPages`
+ * keeps requesting until the reported count is met, regardless of how small
+ * the cap on any one page turns out to be. */
+const EXPORT_PAGE_SIZE = 1000;
 
 /**
  * The whole public gallery as one file.
@@ -22,24 +47,26 @@ export async function GET() {
 
   // Withdrawn items are invisible to the read policy, so the export carries what
   // the public can see and nothing else, with no filtering here to get wrong.
-  const { data, error } = await supabase
-    .from("item")
-    .select(
-      "id,kind,mode,title,description,game_name,map_name,tags,container,author_name,created_at,updated_at",
-    )
-    .order("created_at", { ascending: false })
-    .limit(5000);
+  const { data, error } = await fetchAllPages<ExportItem>(
+    async (from, to) =>
+      await supabase
+        .from("item")
+        .select(COLUMNS, { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    EXPORT_PAGE_SIZE,
+  );
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 503 });
+    return NextResponse.json({ error }, { status: 503 });
   }
 
   return NextResponse.json(
     {
       format: "coilbox-hub-export",
       version: 1,
-      count: data?.length ?? 0,
-      items: data ?? [],
+      count: data.length,
+      items: data,
     },
     {
       headers: {
