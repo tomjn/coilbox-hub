@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { corsPreflight, withCors } from "@/lib/api/cors";
 import { fetchAllPages } from "@/lib/gallery/query";
 import { createClient } from "@/lib/supabase/server";
 
@@ -42,6 +43,8 @@ const EXPORT_PAGE_SIZE = 1000;
  */
 export const dynamic = "force-dynamic";
 
+export const OPTIONS = corsPreflight;
+
 export async function GET() {
   const supabase = await createClient();
 
@@ -58,21 +61,23 @@ export async function GET() {
   );
 
   if (error) {
-    return NextResponse.json({ error }, { status: 503 });
+    return withCors(NextResponse.json({ error }, { status: 503 }));
   }
 
-  return NextResponse.json(
-    {
-      format: "coilbox-hub-export",
-      version: 1,
-      count: data.length,
-      items: data,
-    },
-    {
-      headers: {
-        "Cache-Control": "public, max-age=300, s-maxage=300",
-        "Content-Disposition": 'inline; filename="coilbox-hub.json"',
+  return withCors(
+    NextResponse.json(
+      {
+        format: "coilbox-hub-export",
+        version: 1,
+        count: data.length,
+        items: data,
       },
-    },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=300, s-maxage=300",
+          "Content-Disposition": 'inline; filename="coilbox-hub.json"',
+        },
+      },
+    ),
   );
 }

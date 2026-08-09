@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { corsPreflight, withCors } from "@/lib/api/cors";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -13,6 +14,8 @@ import { createClient } from "@/lib/supabase/server";
  * like, so this route is deliberately separate from the item page and should not
  * follow it around.
  */
+export const OPTIONS = corsPreflight;
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -29,14 +32,16 @@ export async function GET(
   // A withdrawn item is invisible to the read policy, so it arrives here as
   // "not found" without this route having to know about moderation at all.
   if (error || !data) {
-    return NextResponse.json({ error: "No such item." }, { status: 404 });
+    return withCors(NextResponse.json({ error: "No such item." }, { status: 404 }));
   }
 
-  return NextResponse.json(data.container, {
-    headers: {
-      // Short, because withdrawing something has to actually take it away.
-      // Long enough to absorb a link being shared into a busy channel.
-      "Cache-Control": "public, max-age=60, s-maxage=60",
-    },
-  });
+  return withCors(
+    NextResponse.json(data.container, {
+      headers: {
+        // Short, because withdrawing something has to actually take it away.
+        // Long enough to absorb a link being shared into a busy channel.
+        "Cache-Control": "public, max-age=60, s-maxage=60",
+      },
+    }),
+  );
 }
