@@ -49,12 +49,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <CoilLogo className="w-5" />
             Coilbox Hub
           </Link>
-          <Link
-            href="/publish"
-            className="text-sm text-neutral-400 transition-colors hover:text-white"
-          >
-            Publish
-          </Link>
+          <nav className="flex items-center gap-5 text-sm text-neutral-400">
+            <Link href="/gallery" className="transition-colors hover:text-white">
+              Gallery
+            </Link>
+            <Link href="/publish" className="transition-colors hover:text-white">
+              Publish
+            </Link>
+          </nav>
         </header>
         {children}
       </body>
