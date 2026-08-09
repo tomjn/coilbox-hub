@@ -47,8 +47,15 @@ function str(value: unknown): string | null {
  * `game` field every kind now writes, or its kind's old spelling when it does
  * not. Re-reading a kind's old spelling here would be the same duplication
  * this function used to be.
+ *
+ * Exported so scripts/backfill-game-names.ts can derive the same gameName for
+ * an already-stored row without a second copy of this logic.
  */
-function describe(kind: GalleryKind, payload: unknown, game: GameIdentity | undefined) {
+export function describe(
+  kind: GalleryKind,
+  payload: unknown,
+  game: GameIdentity | undefined,
+) {
   // Shortname is the stable, human-facing identifier (see gameIdentity.ts):
   // unlike the exact pinned build a preset, setup pack or challenge may carry,
   // it does not change every time the game updates, which is what a listing
