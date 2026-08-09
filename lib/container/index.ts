@@ -42,6 +42,8 @@ export type {
   OpenResult,
 } from "./container";
 
+export type { GameIdentity } from "./gameIdentity";
+
 /**
  * Kinds the gallery carries. Coilbox understands five, but campaigns are out of
  * v1: they inline images and audio as base64 data URIs, which puts them past the
