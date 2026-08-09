@@ -329,9 +329,15 @@ max_frequency = "5s"
 # it is only ever needed to publish, edit or withdraw something. Browsing and
 # importing stay anonymous.
 #
-# The secret is not in this file and must not be. Export it before pushing:
-#   export SUPABASE_AUTH_EXTERNAL_DISCORD_SECRET=...
-#   supabase config push
+# The secret is not in this file and must not be. Pass it inline from a password
+# manager, so the value never reaches shell history and never lingers in the
+# environment:
+#
+#   SUPABASE_AUTH_EXTERNAL_DISCORD_SECRET=$(op read "op://Private/Coilbox Discord/client secret") \
+#     supabase config push
+#
+# Note that config push writes the whole auth config, not just this block, so it
+# will overwrite provider and URL settings changed in the dashboard.
 [auth.external.discord]
 enabled = true
 client_id = "1536029034520252627"
