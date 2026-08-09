@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # The container drift check is the reason this runs on a schedule. Coilbox
+    # can change the format without anything here being touched, and the failure
+    # it causes is silent, so the check has to run even when nobody has pushed.
+    - cron: "0 7 * * 1"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run check:container
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run build
