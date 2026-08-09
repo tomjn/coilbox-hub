@@ -16,3 +16,5 @@ Data and auth live in Supabase. Sign in is via Discord, and it is only needed to
 bun install
 bun dev
 ```
+
+Discord sign in cannot complete against a local Supabase stack, so in development only, visiting `/dev/sign-in` signs the browser in as a fixed dev user and redirects to `/publish` instead. It only exists when `NODE_ENV` is `development` and the configured Supabase URL is loopback. Either check failing makes it 404.
