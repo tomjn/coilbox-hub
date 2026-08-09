@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { signInWithDiscord } from "@/lib/supabase/discord";
 
 /**
  * Sign in is only ever needed to publish, edit or withdraw. Browsing and
@@ -12,13 +12,7 @@ export function SignInWithDiscord({ next = "/publish" }: { next?: string }) {
 
   async function signIn() {
     setBusy(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "discord",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
-    });
+    const { error } = await signInWithDiscord(next);
     // A failure leaves the page as it was, so the button has to come back.
     if (error) setBusy(false);
   }

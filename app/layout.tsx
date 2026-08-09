@@ -2,6 +2,16 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { CoilLogo } from "@/components/CoilLogo";
+import {
+  AccountIcon,
+  GalleryIcon,
+  ModerationIcon,
+  PublishIcon,
+  SignOutIcon,
+} from "@/components/icons";
+import { NavSignIn } from "@/components/NavSignIn";
+import { displayName } from "@/lib/author";
+import { createClient } from "@/lib/supabase/server";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -34,7 +44,22 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+/* Icons carry the meaning on a narrow screen, where the labels collapse to
+   screen reader only text rather than wrapping the header onto two lines. */
+const navItem =
+  "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:text-white";
+
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const author = user ? displayName(user.user_metadata ?? {}) : null;
+  // Only signed in visitors can be moderators, so nobody else pays for the call.
+  const { data: moderator } = user
+    ? await supabase.rpc("is_moderator")
+    : { data: false };
+
   return (
     <html
       lang="en"
@@ -49,13 +74,39 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <CoilLogo className="w-5" />
             Coilbox Hub
           </Link>
-          <nav className="flex items-center gap-5 text-sm text-neutral-400">
-            <Link href="/gallery" className="transition-colors hover:text-white">
-              Gallery
+          <nav className="-mr-2 flex items-center gap-1 text-sm text-neutral-400 sm:gap-3">
+            <Link href="/gallery" className={navItem}>
+              <GalleryIcon className="w-4" />
+              <span className="sr-only sm:not-sr-only">Gallery</span>
             </Link>
-            <Link href="/publish" className="transition-colors hover:text-white">
-              Publish
+            <Link href="/publish" className={navItem}>
+              <PublishIcon className="w-4" />
+              <span className="sr-only sm:not-sr-only">Publish</span>
             </Link>
+            {moderator ? (
+              <Link href="/moderation" className={navItem}>
+                <ModerationIcon className="w-4" />
+                <span className="sr-only sm:not-sr-only">Moderation</span>
+              </Link>
+            ) : null}
+            {author ? (
+              <>
+                <Link href="/account" className={navItem}>
+                  <AccountIcon className="w-4" />
+                  <span className="sr-only sm:not-sr-only">
+                    <span className="block max-w-32 truncate">{author}</span>
+                  </span>
+                </Link>
+                <form action="/auth/signout" method="post">
+                  <button type="submit" className={navItem}>
+                    <SignOutIcon className="w-4" />
+                    <span className="sr-only sm:not-sr-only">Sign out</span>
+                  </button>
+                </form>
+              </>
+            ) : (
+              <NavSignIn className={navItem} />
+            )}
           </nav>
         </header>
         {children}

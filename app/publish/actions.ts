@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { displayName } from "@/lib/author";
 import { accept } from "@/lib/gallery/publish";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,17 +21,6 @@ export interface PublishState {
     description: string;
     tags: string;
   };
-}
-
-/** Discord gives a display name under more than one key depending on whether the
- * account has a global name set. The row keeps whichever it had at publish time,
- * because an item should still name its author after the account is gone. */
-function displayName(metadata: Record<string, unknown>): string {
-  for (const key of ["full_name", "name", "preferred_username", "user_name"]) {
-    const value = metadata[key];
-    if (typeof value === "string" && value.trim() !== "") return value;
-  }
-  return "Unknown";
 }
 
 export async function publish(
