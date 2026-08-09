@@ -6,6 +6,7 @@ import { kindLabelPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import {
   applyFilters,
+  fetchPage,
   filterHref,
   ITEM_SUMMARY_COLUMNS,
   type ItemSummary,
@@ -38,9 +39,16 @@ export default async function Gallery({
     filters,
   );
 
-  const { data, count, error } = await query;
-  const items = (data ?? []) as unknown as ItemSummary[];
-  const total = count ?? 0;
+  const countQuery = async () => {
+    const { count, error } = await applyFilters(
+      supabase.from("item").select(ITEM_SUMMARY_COLUMNS, { count: "exact" }).range(0, 0),
+      filters,
+    );
+    return { count, error };
+  };
+  const { data, count, error } = await fetchPage(() => query, countQuery);
+  const items = data as unknown as ItemSummary[];
+  const total = count;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // Filter options come from the rows themselves. At this size that is one small
