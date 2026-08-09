@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { corsPreflight } from "@/lib/api/cors";
 import { apiError, apiJson } from "@/lib/api/response";
 import { buildItemsListBody, parseApiFilters } from "@/lib/api/items";
 import {
@@ -20,6 +21,8 @@ import { createClient } from "@/lib/supabase/server";
  * failure this route exists to avoid.
  */
 export const dynamic = "force-dynamic";
+
+export const OPTIONS = corsPreflight;
 
 export async function GET(request: NextRequest) {
   const parsed = parseApiFilters(request.nextUrl.searchParams);

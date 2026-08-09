@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { withCors } from "@/lib/api/cors";
 
 /**
- * The one seam every `/api/v1` route shares to build a response. Cross-origin
- * access is separate work (issue 24). When it lands, its headers belong here
- * once, rather than copied into each route by hand.
+ * The one seam every `/api/v1` route shares to build a response. This is
+ * where CORS headers (issue 24) get added, via `withCors`, so both routes
+ * get them from one place rather than route by route.
  *
  * Only success responses carry the cache header, matching `/i/<id>`: an error
  * is not something a CDN should hold onto.
@@ -15,9 +16,9 @@ const SUCCESS_HEADERS = {
 };
 
 export function apiJson<T>(body: T, status = 200): NextResponse {
-  return NextResponse.json(body, { status, headers: SUCCESS_HEADERS });
+  return withCors(NextResponse.json(body, { status, headers: SUCCESS_HEADERS }));
 }
 
 export function apiError(message: string, status: number): NextResponse {
-  return NextResponse.json({ error: message }, { status });
+  return withCors(NextResponse.json({ error: message }, { status }));
 }
