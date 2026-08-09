@@ -123,6 +123,74 @@ function SetupPackPreview({ payload }: { payload: Record<string, unknown> }) {
   );
 }
 
+function Stat({ n, label }: { n: number; label: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <dt className="text-xs uppercase tracking-wide text-neutral-600">
+        {label}
+      </dt>
+      <dd className="text-sm text-neutral-300">{n}</dd>
+    </div>
+  );
+}
+
+function count(value: unknown): number {
+  if (Array.isArray(value)) return value.length;
+  if (value && typeof value === "object") return Object.keys(value).length;
+  return 0;
+}
+
+/** A conquest or warpath run. Node count and branching are what make one run
+ * visibly different from another, and they are the numbers the generator was
+ * given rather than anything derived. */
+function ChallengePreview({ payload }: { payload: Record<string, unknown> }) {
+  const settings = (payload.settings ?? {}) as Record<string, unknown>;
+  const nodes = Number(settings.nodeCount ?? 0);
+  const factions = Number(settings.factionCount ?? 0);
+  const layout = typeof settings.layout === "string" ? settings.layout : null;
+  if (!nodes && !factions && !layout) return null;
+
+  return (
+    <dl className="grid gap-3 rounded-md border border-neutral-800 bg-black p-4 sm:grid-cols-3">
+      {nodes ? <Stat n={nodes} label="Systems" /> : null}
+      {factions ? <Stat n={factions} label="Factions" /> : null}
+      {layout ? (
+        <div className="flex flex-col gap-1">
+          <dt className="text-xs uppercase tracking-wide text-neutral-600">
+            Layout
+          </dt>
+          <dd className="text-sm text-neutral-300">{layout}</dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+}
+
+/** A scenario is a lot of moving parts and no picture. The counts say how much
+ * there is to it, which is the thing somebody deciding whether to play it wants
+ * to know. */
+function ScenarioPreview({ payload }: { payload: Record<string, unknown> }) {
+  const scenario = (payload.scenario ?? payload) as Record<string, unknown>;
+  const stats: Array<[string, number]> = [
+    ["Objectives", count(scenario.objectives)],
+    ["Triggers", count(scenario.triggers)],
+    ["Zones", count(scenario.zones)],
+    ["Teams", count(scenario.teams)],
+    ["Actors", count(scenario.actors)],
+    ["Dialogue", count(scenario.dialogue)],
+  ];
+  const shown = stats.filter(([, n]) => n > 0);
+  if (shown.length === 0) return null;
+
+  return (
+    <dl className="grid grid-cols-2 gap-3 rounded-md border border-neutral-800 bg-black p-4 sm:grid-cols-3">
+      {shown.map(([label, n]) => (
+        <Stat key={label} n={n} label={label} />
+      ))}
+    </dl>
+  );
+}
+
 export function ItemPreview({
   kind,
   container,
@@ -136,5 +204,7 @@ export function ItemPreview({
 
   if (kind === "preset") return <PresetPreview payload={record} />;
   if (kind === "setup-pack") return <SetupPackPreview payload={record} />;
+  if (kind === "challenge") return <ChallengePreview payload={record} />;
+  if (kind === "scenario") return <ScenarioPreview payload={record} />;
   return null;
 }

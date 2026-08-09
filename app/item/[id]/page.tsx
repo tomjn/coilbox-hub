@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ImportLink } from "@/components/ImportLink";
 import { ItemPreview } from "@/components/ItemPreview";
+import { ReportButton } from "@/components/ReportButton";
 import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { createClient } from "@/lib/supabase/server";
@@ -189,6 +190,7 @@ export default async function Item({
           ))}
         </ul>
       ) : null}
+      <ReportButton itemId={item.id} />
     </main>
   );
 }

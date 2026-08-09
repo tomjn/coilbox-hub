@@ -5,7 +5,7 @@
 -- nobody.
 
 begin;
-select plan(18);
+select plan(22);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -171,6 +171,46 @@ select throws_ok(
   '53400',
   null,
   'the twenty first in an hour is refused'
+);
+
+reset role;
+
+-- Moderation. The point of these is that a moderator can reach what an author
+-- can, and that nobody else can read what has been reported.
+insert into public.moderator (user_id) values ('11111111-1111-1111-1111-111111111111');
+
+reset role;
+set local role anon;
+
+select lives_ok(
+  $$insert into public.report (item_id, reason)
+    values ('aaaaaaaa-0000-0000-0000-000000000001', 'This is not what it says')$$,
+  'anyone can report, with no account'
+);
+
+select throws_ok(
+  $$select count(*) from public.report$$,
+  '42501',
+  null,
+  'a reporter cannot read reports, not even their own'
+);
+
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+select is(
+  (select count(*) from public.report)::int, 0,
+  'an ordinary account cannot read reports'
+);
+
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+select is(
+  (select count(*) from public.report)::int, 1,
+  'a moderator can'
 );
 
 reset role;
