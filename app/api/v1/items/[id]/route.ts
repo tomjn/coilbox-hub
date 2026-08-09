@@ -1,3 +1,4 @@
+import { corsPreflight } from "@/lib/api/cors";
 import { apiError, apiJson } from "@/lib/api/response";
 import { buildItemBody } from "@/lib/api/items";
 import { ITEM_SUMMARY_COLUMNS, type ItemSummary } from "@/lib/gallery/query";
@@ -17,6 +18,8 @@ import { createClient } from "@/lib/supabase/server";
  * as `/i/<id>` and the item page.
  */
 export const dynamic = "force-dynamic";
+
+export const OPTIONS = corsPreflight;
 
 export async function GET(
   _request: Request,
