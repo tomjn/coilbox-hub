@@ -5,7 +5,7 @@
 -- nobody.
 
 begin;
-select plan(14);
+select plan(16);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -134,6 +134,24 @@ select is(
 );
 
 reset role;
+
+-- The generated mode column, which is what tells warpath and conquest apart.
+insert into public.item (kind, kind_version, title, container, author_id, author_name)
+values (
+  'challenge', 1, 'A run',
+  '{"format":"coilbox","kind":"challenge","payload":{"mode":"warpath"}}',
+  '11111111-1111-1111-1111-111111111111', 'Ada'
+);
+
+select is(
+  (select mode from public.item where title = 'A run'), 'warpath',
+  'mode is taken from the payload rather than trusted from the client'
+);
+
+select is(
+  (select mode from public.item where title = 'Ada live'), null,
+  'a kind with no mode has none, so this only ever narrows challenges'
+);
 
 select * from finish();
 rollback;

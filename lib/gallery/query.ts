@@ -9,6 +9,8 @@ export const PAGE_SIZE = 24;
 export interface ItemSummary {
   id: string;
   kind: GalleryKind;
+  /** Only challenges have one. Generated from the payload in the database. */
+  mode: string | null;
   title: string;
   description: string;
   game_name: string | null;
@@ -19,7 +21,7 @@ export interface ItemSummary {
 }
 
 export const ITEM_SUMMARY_COLUMNS =
-  "id,kind,title,description,game_name,map_name,tags,author_name,created_at";
+  "id,kind,mode,title,description,game_name,map_name,tags,author_name,created_at";
 
 export interface Filters {
   kind: GalleryKind | null;

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ItemCard } from "@/components/ItemCard";
 import { GALLERY_KINDS } from "@/lib/container";
+import { kindLabelPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import {
   filterHref,
@@ -16,13 +17,6 @@ export const metadata: Metadata = {
   title: "Gallery - Coilbox Hub",
   description:
     "Presets, challenges, setup packs and scenarios shared by other players.",
-};
-
-const KIND_LABEL: Record<string, string> = {
-  preset: "Presets",
-  challenge: "Challenges",
-  "setup-pack": "Setup packs",
-  scenario: "Scenarios",
 };
 
 export default async function Gallery({
@@ -79,7 +73,7 @@ export default async function Gallery({
               })}
               active={filters.kind === kind}
             >
-              {KIND_LABEL[kind]}
+              {kindLabelPlural(kind)}
             </Chip>
           ))}
         </FilterRow>

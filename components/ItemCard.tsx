@@ -1,13 +1,8 @@
 import Link from "next/link";
+import { ImportLink } from "@/components/ImportLink";
+import { itemLabel } from "@/lib/gallery/label";
 import type { Filters, ItemSummary } from "@/lib/gallery/query";
 import { filterHref } from "@/lib/gallery/query";
-
-const KIND_LABEL: Record<string, string> = {
-  preset: "Preset",
-  challenge: "Challenge",
-  "setup-pack": "Setup pack",
-  scenario: "Scenario",
-};
 
 /**
  * A card is text only for now. The preview each kind deserves is its own piece of
@@ -34,7 +29,7 @@ export function ItemCard({
           </Link>
         </h2>
         <span className="shrink-0 rounded border border-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
-          {KIND_LABEL[item.kind] ?? item.kind}
+          {itemLabel(item.kind, item.mode)}
         </span>
       </div>
 
@@ -78,12 +73,9 @@ export function ItemCard({
         </ul>
       ) : null}
 
-      <a
-        href={`coilbox://import?url=${encodeURIComponent(`${origin}/i/${item.id}`)}`}
-        className="mt-1 self-start text-sm text-neutral-300 underline-offset-4 hover:underline"
-      >
-        Import into Coilbox
-      </a>
+      <div className="mt-1">
+        <ImportLink shareUrl={`${origin}/i/${item.id}`} />
+      </div>
     </article>
   );
 }

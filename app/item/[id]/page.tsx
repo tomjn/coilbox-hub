@@ -1,19 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ImportLink } from "@/components/ImportLink";
+import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { createClient } from "@/lib/supabase/server";
-
-const KIND_LABEL: Record<string, string> = {
-  preset: "Preset",
-  challenge: "Challenge",
-  "setup-pack": "Setup pack",
-  scenario: "Scenario",
-};
 
 interface ItemDetail {
   id: string;
   kind: string;
+  mode: string | null;
   title: string;
   description: string;
   game_name: string | null;
@@ -25,7 +21,7 @@ interface ItemDetail {
 }
 
 const DETAIL_COLUMNS =
-  "id,kind,title,description,game_name,map_name,tags,author_name,created_at,updated_at";
+  "id,kind,mode,title,description,game_name,map_name,tags,author_name,created_at,updated_at";
 
 /** A withdrawn item is invisible to the read policy, so it arrives here as
  * nothing found without this page knowing about moderation. */
@@ -49,7 +45,7 @@ export async function generateMetadata({
 
   // Per item, because a link into a Discord channel is how most people will meet
   // this page and a generic preview wastes the only chance to say what it is.
-  const label = KIND_LABEL[item.kind] ?? item.kind;
+  const label = itemLabel(item.kind, item.mode);
   const description =
     item.description ||
     [label, item.game_name, item.map_name].filter(Boolean).join(" - ");
@@ -83,7 +79,6 @@ export default async function Item({
 
   const origin = await requestOrigin();
   const shareUrl = `${origin}/i/${item.id}`;
-  const importUrl = `coilbox://import?url=${encodeURIComponent(shareUrl)}`;
   const published = new Date(item.created_at).toISOString().slice(0, 10);
 
   return (
@@ -93,7 +88,7 @@ export default async function Item({
           href={`/gallery?kind=${item.kind}`}
           className="self-start rounded border border-neutral-800 px-2 py-0.5 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
         >
-          {KIND_LABEL[item.kind] ?? item.kind}
+          {itemLabel(item.kind, item.mode)}
         </Link>
         <h1 className="text-3xl font-semibold tracking-tight">{item.title}</h1>
         {item.description ? (
@@ -104,12 +99,7 @@ export default async function Item({
       </div>
 
       <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-5">
-        <a
-          href={importUrl}
-          className="self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white"
-        >
-          Import into Coilbox
-        </a>
+        <ImportLink shareUrl={shareUrl} variant="solid" />
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-neutral-500">
             Or share this link. It opens in Coilbox and needs no account.
