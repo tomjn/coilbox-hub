@@ -5,6 +5,7 @@ import { buildItemBody, buildItemsListBody, parseApiFilters } from "@/lib/api/it
 import { parsePublishBody, statusForPublishFailure } from "@/lib/api/publish";
 import {
   applyFilters,
+  fetchPage,
   ITEM_SUMMARY_COLUMNS,
   type ItemSummary,
   PAGE_SIZE,
@@ -45,13 +46,20 @@ export async function GET(request: NextRequest) {
     filters,
   );
 
-  const { data, count, error } = await query;
+  const countQuery = async () => {
+    const { count, error } = await applyFilters(
+      supabase.from("item").select(ITEM_SUMMARY_COLUMNS, { count: "exact" }).range(0, 0),
+      filters,
+    );
+    return { count, error };
+  };
+  const { data, count, error } = await fetchPage(() => query, countQuery);
   if (error) {
     return apiError("The gallery could not be read just now.", 503);
   }
 
-  const items = (data ?? []) as unknown as ItemSummary[];
-  return apiJson(buildItemsListBody(items, filters.page, count ?? 0));
+  const items = data as unknown as ItemSummary[];
+  return apiJson(buildItemsListBody(items, filters.page, count));
 }
 
 /**

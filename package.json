@@ -10,7 +10,8 @@
     "test": "bun test",
     "typecheck": "next typegen && tsc --noEmit",
     "sync:container": "bun scripts/sync-container.ts",
-    "check:container": "bun scripts/sync-container.ts --check"
+    "check:container": "bun scripts/sync-container.ts --check",
+    "backfill:game-names": "bun scripts/backfill-game-names.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

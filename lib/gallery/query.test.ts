@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { fetchAllPages, filterHref, parseFilters } from "./query";
+import { fetchAllPages, fetchPage, filterHref, parseFilters } from "./query";
 
 test("filters come out of the query string", () => {
   const filters = parseFilters({
@@ -131,4 +131,71 @@ test("an error partway through is surfaced rather than swallowed", async () => {
   }, 24);
 
   expect(error).toBe("boom");
+});
+
+test("a page inside the table comes back whole, no count query needed", async () => {
+  let countCalls = 0;
+  const { data, count, error } = await fetchPage(
+    () => Promise.resolve({ data: [1, 2, 3], count: 3, error: null }),
+    () => {
+      countCalls += 1;
+      return Promise.resolve({ count: 3, error: null });
+    },
+  );
+
+  expect(error).toBeNull();
+  expect(data).toEqual([1, 2, 3]);
+  expect(count).toBe(3);
+  expect(countCalls).toBe(0);
+});
+
+test("an offset past the last row comes back as an empty page against the real total, not an error", async () => {
+  const { data, count, error } = await fetchPage(
+    () =>
+      Promise.resolve({
+        data: null,
+        count: null,
+        error: { message: "Requested range not satisfiable", code: "PGRST103" },
+      }),
+    () => Promise.resolve({ count: 4, error: null }),
+  );
+
+  expect(error).toBeNull();
+  expect(data).toEqual([]);
+  expect(count).toBe(4);
+});
+
+test("a failed follow-up count still surfaces an error rather than a false empty page", async () => {
+  const { data, error } = await fetchPage(
+    () =>
+      Promise.resolve({
+        data: null,
+        count: null,
+        error: { message: "Requested range not satisfiable", code: "PGRST103" },
+      }),
+    () => Promise.resolve({ count: null, error: { message: "boom" } }),
+  );
+
+  expect(error).toBe("boom");
+  expect(data).toEqual([]);
+});
+
+test("an error that is not the offset-past-end code is passed straight through", async () => {
+  let countCalls = 0;
+  const { data, error } = await fetchPage(
+    () =>
+      Promise.resolve({
+        data: null,
+        count: null,
+        error: { message: "connection refused", code: "PGRST000" },
+      }),
+    () => {
+      countCalls += 1;
+      return Promise.resolve({ count: 0, error: null });
+    },
+  );
+
+  expect(error).toBe("connection refused");
+  expect(data).toEqual([]);
+  expect(countCalls).toBe(0);
 });
