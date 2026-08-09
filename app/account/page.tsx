@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { displayName } from "@/lib/author";
 import { createClient } from "@/lib/supabase/server";
 import { deleteAccount } from "./actions";
 
@@ -16,10 +17,9 @@ export default async function Account() {
     .eq("author_id", user.id);
 
   const published = count ?? 0;
-  const name =
-    (user.user_metadata?.full_name as string) ??
-    (user.user_metadata?.name as string) ??
-    "you";
+  // The same name publishing writes to author_name, so the gallery link below
+  // matches the rows it is meant to find.
+  const name = displayName(user.user_metadata ?? {});
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-12">
@@ -33,7 +33,7 @@ export default async function Account() {
 
       <div className="flex flex-col gap-3">
         <Link
-          href="/gallery"
+          href={`/gallery?author=${encodeURIComponent(name)}`}
           className="text-sm text-neutral-300 underline-offset-4 hover:underline"
         >
           Everything you have published
