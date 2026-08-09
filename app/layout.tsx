@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Link from "next/link";
+import { CoilLogo } from "@/components/CoilLogo";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -38,7 +40,24 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <header className="flex items-center justify-between px-6 py-4">
+          <Link
+            href="/"
+            className="flex items-center gap-2 text-sm font-medium text-neutral-300 transition-colors hover:text-white"
+          >
+            <CoilLogo className="w-5" />
+            Coilbox Hub
+          </Link>
+          <Link
+            href="/publish"
+            className="text-sm text-neutral-400 transition-colors hover:text-white"
+          >
+            Publish
+          </Link>
+        </header>
+        {children}
+      </body>
     </html>
   );
 }
