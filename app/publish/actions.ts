@@ -7,6 +7,15 @@ import { createClient } from "@/lib/supabase/server";
 export interface PublishState {
   error?: string;
   publishedId?: string;
+  /** What was submitted, handed back so a rejected form comes back filled in.
+   * React resets uncontrolled inputs after a form action, so without this a
+   * typo in the share link costs you the description you just wrote. */
+  values?: {
+    code: string;
+    title: string;
+    description: string;
+    tags: string;
+  };
 }
 
 /** Discord gives a display name under more than one key depending on whether the
@@ -24,26 +33,34 @@ export async function publish(
   _previous: PublishState,
   form: FormData,
 ): Promise<PublishState> {
+  const values = {
+    code: String(form.get("code") ?? ""),
+    title: String(form.get("title") ?? ""),
+    description: String(form.get("description") ?? ""),
+    tags: String(form.get("tags") ?? ""),
+  };
+  const fail = (error: string): PublishState => ({ error, values });
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Sign in with Discord before publishing." };
+    return fail("Sign in with Discord before publishing.");
   }
 
-  const result = accept(String(form.get("code") ?? ""));
+  const result = accept(values.code);
   if (!result.ok) {
-    return { error: result.reason };
+    return fail(result.reason);
   }
 
-  const title = String(form.get("title") ?? "").trim();
+  const title = values.title.trim();
   if (title === "") {
-    return { error: "Give it a title so people know what it is." };
+    return fail("Give it a title so people know what it is.");
   }
 
-  const tags = String(form.get("tags") ?? "")
+  const tags = values.tags
     .split(",")
     .map((tag) => tag.trim().toLowerCase())
     .filter((tag) => tag !== "")
@@ -56,7 +73,7 @@ export async function publish(
       kind: accepted.kind,
       kind_version: accepted.kindVersion,
       title,
-      description: String(form.get("description") ?? "").trim(),
+      description: values.description.trim(),
       game_name: accepted.gameName,
       map_name: accepted.mapName,
       tags,
@@ -68,7 +85,7 @@ export async function publish(
     .single();
 
   if (error) {
-    return { error: `Could not publish it: ${error.message}` };
+    return fail(`Could not publish it: ${error.message}`);
   }
 
   revalidatePath("/");

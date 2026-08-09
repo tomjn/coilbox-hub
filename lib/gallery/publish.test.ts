@@ -28,18 +28,54 @@ test("surrounding whitespace from a copy and paste is tolerated", () => {
   expect(accept(`\n  ${presetCode()}  \n`).ok).toBe(true);
 });
 
+test("a coilbox share link is accepted, since that is what Share copies", () => {
+  const link = `coilbox://import?code=${encodeURIComponent(presetCode())}`;
+
+  const result = accept(link);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.kind).toBe("preset");
+  expect(result.accepted.mapName).toBe("Comet Catcher Remake");
+});
+
+test("a link pointing at a remote file says so, rather than reading as junk", () => {
+  const result = accept("coilbox://import?url=https://example.com/thing.json");
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.reason).toContain("hosted somewhere else");
+});
+
+test("a join link is told apart from something publishable", () => {
+  const result = accept("coilbox://join?server=example.com&battle=7");
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.reason).toContain("does not carry anything to publish");
+});
+
+test("the JSON contents of an exported file are accepted", () => {
+  const json = JSON.stringify({
+    format: "coilbox",
+    container: 1,
+    kind: "preset",
+    kindVersion: SUPPORTED_KIND_VERSIONS.preset,
+    payload: presetPayload,
+  });
+
+  expect(accept(json).ok).toBe(true);
+});
+
 test("nothing pasted is a prompt, not an error", () => {
   const result = accept("   ");
   expect(result.ok).toBe(false);
   if (result.ok) return;
-  expect(result.reason).toContain("Paste a share code");
+  expect(result.reason).toContain("Paste a share link or code");
 });
 
-test("something that is not a share code is turned away", () => {
+test("something that is not from coilbox is turned away", () => {
   const result = accept("https://example.com/not-a-code");
   expect(result.ok).toBe(false);
   if (result.ok) return;
-  expect(result.reason).toContain("not a coilbox share code");
+  expect(result.reason).toContain("not something coilbox made");
 });
 
 test("a container from a newer coilbox is refused rather than half read", () => {

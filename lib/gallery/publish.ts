@@ -47,22 +47,65 @@ function describe(kind: GalleryKind, payload: unknown) {
 }
 
 /**
- * Decide whether a pasted code or uploaded file can be published, and pull out
- * what a listing needs. Never throws: an unusable input comes back with a reason
- * a person can act on rather than a validation code.
+ * Take what people actually have. Coilbox's share affordance produces a
+ * `coilbox://import?code=…` link, not a bare code, so asking for a code and
+ * refusing a link means refusing the only thing on their clipboard.
+ *
+ * Raw codes and raw JSON still work, because a saved export is JSON and someone
+ * may well paste the contents of one.
+ */
+function unwrapShareLink(
+  trimmed: string,
+): { ok: true; code: string } | { ok: false; reason: string } {
+  if (trimmed === "") {
+    return { ok: false, reason: "Paste a share link or code first." };
+  }
+  if (!trimmed.toLowerCase().startsWith("coilbox://")) {
+    return { ok: true, code: trimmed };
+  }
+
+  let link: URL;
+  try {
+    link = new URL(trimmed);
+  } catch {
+    return { ok: false, reason: "That coilbox link is malformed." };
+  }
+
+  const code = link.searchParams.get("code");
+  if (code) return { ok: true, code };
+
+  // The other two link shapes are real links that simply are not a thing to
+  // publish, so they get told apart rather than lumped in with junk.
+  if (link.searchParams.get("url")) {
+    return {
+      ok: false,
+      reason:
+        "That link points at a file hosted somewhere else. Paste the file's contents instead.",
+    };
+  }
+  return {
+    ok: false,
+    reason: "That is a coilbox link, but it does not carry anything to publish.",
+  };
+}
+
+/**
+ * Decide whether a pasted link, code or uploaded file can be published, and pull
+ * out what a listing needs. Never throws: an unusable input comes back with a
+ * reason a person can act on rather than a validation code.
  */
 export function accept(input: string): AcceptResult {
-  const trimmed = input.trim();
-  if (trimmed === "") {
-    return { ok: false, reason: "Paste a share code first." };
-  }
+  const unwrapped = unwrapShareLink(input.trim());
+  if (!unwrapped.ok) return unwrapped;
+  const trimmed = unwrapped.code;
 
   const result = identify(trimmed);
 
   if (result.kind === "unknown") {
     return {
       ok: false,
-      reason: "That is not a coilbox share code. Copy it again from the app.",
+      reason:
+        "That is not something coilbox made. Use Share in the app and paste the link it copies.",
     };
   }
 
