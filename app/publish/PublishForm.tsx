@@ -11,39 +11,65 @@ const field =
  * durable thing here: it is what people paste into Discord, and it is what
  * coilbox fetches when somebody clicks Import.
  */
-function Published({ shareUrl }: { shareUrl?: string }) {
-  const importUrl = shareUrl
-    ? `coilbox://import?url=${encodeURIComponent(shareUrl)}`
-    : "";
-
+function Published({
+  id,
+  shareUrl,
+  again,
+}: {
+  id: string;
+  shareUrl?: string;
+  again: () => void;
+}) {
   return (
     <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-6">
       <h2 className="text-lg font-medium">Published</h2>
       <p className="text-sm text-neutral-400">
-        Anyone can import this without an account. Browsing is still being built,
-        so this link is the only way to it for now.
+        It is in the gallery, and anyone can import it without an account.
       </p>
 
-      <div className="flex flex-col gap-2">
-        <span className="text-xs text-neutral-500">Share this</span>
-        <code className="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-xs text-neutral-300">
-          {shareUrl ?? "…"}
-        </code>
-      </div>
-
-      {importUrl ? (
-        <a
-          href={importUrl}
-          className="self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white"
-        >
-          Open in Coilbox
-        </a>
+      {shareUrl ? (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs text-neutral-500">
+            Share this link. It opens in Coilbox.
+          </span>
+          <code className="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-xs text-neutral-300">
+            {shareUrl}
+          </code>
+        </div>
       ) : null}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <a
+          href={`/item/${id}`}
+          className="rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white"
+        >
+          See it in the gallery
+        </a>
+        <button
+          type="button"
+          onClick={again}
+          className="rounded-md border border-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+        >
+          Publish another
+        </button>
+      </div>
     </div>
   );
 }
 
+/**
+ * Publishing one thing is rarely publishing one thing. The success screen used to
+ * be a dead end you could only leave by navigating away and back, so a round is
+ * keyed and "Publish another" remounts it, which is what resets the action state.
+ */
 export function PublishForm() {
+  const [round, setRound] = useState(0);
+  return (
+    <PublishRound key={round} again={() => setRound((n) => n + 1)} />
+  );
+}
+
+function PublishRound({ again }: { again: () => void }) {
   const [state, action, pending] = useActionState<PublishState, FormData>(
     publish,
     {},
@@ -63,7 +89,13 @@ export function PublishForm() {
   }
 
   if (state.publishedId) {
-    return <Published shareUrl={state.shareUrl} />;
+    return (
+      <Published
+        id={state.publishedId}
+        shareUrl={state.shareUrl}
+        again={again}
+      />
+    );
   }
 
   return (

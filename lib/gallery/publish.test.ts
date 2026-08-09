@@ -123,6 +123,42 @@ test("a pack carrying several maps claims none of them", () => {
   expect(result.accepted.mapName).toBeNull();
 });
 
+// Shape taken from a real published conquest run.
+test("a challenge names its game by shortname", () => {
+  const code = encodeContainerCode(
+    "challenge",
+    SUPPORTED_KIND_VERSIONS.challenge,
+    {
+      mode: "conquest",
+      settings: {
+        game: { shortname: "BA" },
+        nodeCount: 12,
+        seed: 7,
+        title: "BA Conquest Test Run",
+      },
+    },
+  );
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.gameName).toBe("BA");
+  expect(result.accepted.mapName).toBeNull();
+});
+
+test("a full game name wins over a shortname when both are present", () => {
+  const code = encodeContainerCode(
+    "challenge",
+    SUPPORTED_KIND_VERSIONS.challenge,
+    { mode: "warpath", settings: { game: { name: "Full Name", shortname: "FN" } } },
+  );
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.gameName).toBe("Full Name");
+});
+
 test("a scenario is accepted, with no derived names yet", () => {
   const code = encodeContainerCode(
     "scenario",

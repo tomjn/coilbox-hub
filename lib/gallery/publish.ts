@@ -50,6 +50,16 @@ function describe(kind: GalleryKind, payload: unknown) {
     return { gameName: str(p.gameName), mapName: str(p.mapName) };
   }
 
+  if (kind === "challenge") {
+    const settings = p.settings as Record<string, unknown> | undefined;
+    const game = settings?.game as Record<string, unknown> | undefined;
+    // A challenge names its game by shortname ("BA") where a setup pack uses the
+    // full name ("SplinterFaction 0.1.78"). Both are taken as they come, which
+    // means the game filter is reliable within a kind and not across kinds. Fixing
+    // that properly means one identifier at the source, in coilbox.
+    return { gameName: str(game?.name) ?? str(game?.shortname), mapName: null };
+  }
+
   if (kind === "setup-pack") {
     const game = p.game as Record<string, unknown> | undefined;
     const maps = Array.isArray(p.maps) ? p.maps : [];

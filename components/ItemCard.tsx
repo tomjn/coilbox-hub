@@ -28,7 +28,11 @@ export function ItemCard({
   return (
     <article className="flex flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-5">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-base font-medium leading-snug">{item.title}</h2>
+        <h2 className="text-base font-medium leading-snug">
+          <Link href={`/item/${item.id}`} className="hover:underline">
+            {item.title}
+          </Link>
+        </h2>
         <span className="shrink-0 rounded border border-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
           {KIND_LABEL[item.kind] ?? item.kind}
         </span>
