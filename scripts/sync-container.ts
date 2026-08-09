@@ -19,15 +19,21 @@ export {}; // top level await needs this file to be a module
 
 const REPO = "tomjn/coilbox";
 const REF = "main";
-const SOURCE_PATH = "src/container/container.ts";
-const VENDORED = "lib/container/container.ts";
+const SOURCE_DIR = "src/container";
+const VENDOR_DIR = "lib/container";
 const RECORD = "lib/container/source.json";
+
+/** Every file container.ts needs, transitively, from src/container in coilbox.
+ * container.ts imports ./gameIdentity (issue #1335), and gameIdentity.ts
+ * imports nothing else from the directory. Update this list by hand if
+ * upstream's imports change again, the script does not walk imports itself. */
+const FILES = ["container.ts", "gameIdentity.ts"];
 
 interface SourceRecord {
   repo: string;
   ref: string;
-  path: string;
-  blobSha: string;
+  dir: string;
+  files: Record<string, string>; // filename -> blob sha
 }
 
 /** Git's blob hash for some content, so a local edit is caught by the same
@@ -44,8 +50,10 @@ async function gitBlobSha(content: string): Promise<string> {
     .join("");
 }
 
-async function fetchUpstream(): Promise<{ text: string; blobSha: string }> {
-  const url = `https://raw.githubusercontent.com/${REPO}/${REF}/${SOURCE_PATH}`;
+async function fetchUpstream(
+  file: string,
+): Promise<{ text: string; blobSha: string }> {
+  const url = `https://raw.githubusercontent.com/${REPO}/${REF}/${SOURCE_DIR}/${file}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Could not read ${url}: ${response.status}`);
@@ -60,7 +68,11 @@ async function readRecord(): Promise<SourceRecord | null> {
 }
 
 const check = process.argv.includes("--check");
-const upstream = await fetchUpstream();
+const upstream = new Map(
+  await Promise.all(
+    FILES.map(async (file) => [file, await fetchUpstream(file)] as const),
+  ),
+);
 const record = await readRecord();
 
 if (check) {
@@ -68,49 +80,67 @@ if (check) {
     console.error(`No ${RECORD}. Run: bun run sync:container`);
     process.exit(1);
   }
-  const vendored = await Bun.file(VENDORED).text();
-  const vendoredSha = await gitBlobSha(vendored);
+  for (const file of FILES) {
+    const vendoredPath = `${VENDOR_DIR}/${file}`;
+    const vendored = await Bun.file(vendoredPath).text();
+    const vendoredSha = await gitBlobSha(vendored);
+    const recordedSha = record.files[file];
 
-  if (vendoredSha !== record.blobSha) {
-    console.error(
-      `${VENDORED} has been edited locally. It is vendored from ${REPO} and must not be changed here.\n` +
-        `Change it in ${REPO} instead, then run: bun run sync:container`,
-    );
-    process.exit(1);
+    if (vendoredSha !== recordedSha) {
+      console.error(
+        `${vendoredPath} has been edited locally. It is vendored from ${REPO} and must not be changed here.\n` +
+          `Change it in ${REPO} instead, then run: bun run sync:container`,
+      );
+      process.exit(1);
+    }
+    const upstreamSha = upstream.get(file)!.blobSha;
+    if (upstreamSha !== recordedSha) {
+      console.error(
+        `${REPO} ${SOURCE_DIR}/${file} has moved on since this copy was taken.\n` +
+          `  vendored ${recordedSha}\n  upstream ${upstreamSha}\n` +
+          `Run: bun run sync:container`,
+      );
+      process.exit(1);
+    }
   }
-  if (upstream.blobSha !== record.blobSha) {
-    console.error(
-      `${REPO} ${SOURCE_PATH} has moved on since this copy was taken.\n` +
-        `  vendored ${record.blobSha}\n  upstream ${upstream.blobSha}\n` +
-        `Run: bun run sync:container`,
-    );
-    process.exit(1);
-  }
-  console.log(`In sync with ${REPO} ${SOURCE_PATH} (${record.blobSha}).`);
+  console.log(`In sync with ${REPO} ${SOURCE_DIR} (${FILES.join(", ")}).`);
   process.exit(0);
 }
 
-// Compare what is on disk, not just what was recorded. A locally edited file is
-// the case `--check` tells you to run this to fix, so skipping the write when the
-// record happens to match upstream would leave it broken with nothing to do.
-const onDisk = await Bun.file(VENDORED)
-  .text()
-  .then(gitBlobSha)
-  .catch(() => null);
-
-if (record?.blobSha === upstream.blobSha && onDisk === upstream.blobSha) {
-  console.log(`Already at ${upstream.blobSha}, nothing to write.`);
-  process.exit(0);
-}
-
-await Bun.write(VENDORED, upstream.text);
 const next: SourceRecord = {
   repo: REPO,
   ref: REF,
-  path: SOURCE_PATH,
-  blobSha: upstream.blobSha,
+  dir: SOURCE_DIR,
+  files: {},
 };
-await Bun.write(RECORD, `${JSON.stringify(next, null, 2)}\n`);
-console.log(
-  `Wrote ${VENDORED} from ${REPO} ${SOURCE_PATH}\n  ${record?.blobSha ?? "(new)"} -> ${upstream.blobSha}`,
-);
+let wroteAny = false;
+
+for (const file of FILES) {
+  const vendoredPath = `${VENDOR_DIR}/${file}`;
+  const { text, blobSha } = upstream.get(file)!;
+  next.files[file] = blobSha;
+
+  // Compare what is on disk, not just what was recorded. A locally edited file
+  // is the case `--check` tells you to run this to fix, so skipping the write
+  // when the record happens to match upstream would leave it broken with
+  // nothing to do.
+  const onDisk = await Bun.file(vendoredPath)
+    .text()
+    .then(gitBlobSha)
+    .catch(() => null);
+
+  if (record?.files?.[file] === blobSha && onDisk === blobSha) {
+    console.log(`${vendoredPath} already at ${blobSha}, nothing to write.`);
+    continue;
+  }
+
+  await Bun.write(vendoredPath, text);
+  wroteAny = true;
+  console.log(
+    `Wrote ${vendoredPath} from ${REPO} ${SOURCE_DIR}/${file}\n  ${record?.files?.[file] ?? "(new)"} -> ${blobSha}`,
+  );
+}
+
+if (wroteAny) {
+  await Bun.write(RECORD, `${JSON.stringify(next, null, 2)}\n`);
+}
