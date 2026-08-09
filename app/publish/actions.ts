@@ -1,12 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { accept } from "@/lib/gallery/publish";
 import { createClient } from "@/lib/supabase/server";
 
 export interface PublishState {
   error?: string;
   publishedId?: string;
+  /** The durable URL for the new item, built here because the server knows the
+   * host and the browser would have to guess it after hydration. */
+  shareUrl?: string;
   /** What was submitted, handed back so a rejected form comes back filled in.
    * React resets uncontrolled inputs after a form action, so without this a
    * typo in the share link costs you the description you just wrote. */
@@ -88,6 +92,13 @@ export async function publish(
     return fail(`Could not publish it: ${error.message}`);
   }
 
+  const incoming = await headers();
+  const host = incoming.get("host");
+  const proto = incoming.get("x-forwarded-proto") ?? "https";
+
   revalidatePath("/");
-  return { publishedId: data.id };
+  return {
+    publishedId: data.id,
+    shareUrl: host ? `${proto}://${host}/i/${data.id}` : undefined,
+  };
 }

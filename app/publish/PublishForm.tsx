@@ -6,6 +6,43 @@ import { publish, type PublishState } from "./actions";
 const field =
   "w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none";
 
+/**
+ * The round trip, shown as soon as something is published. The share URL is the
+ * durable thing here: it is what people paste into Discord, and it is what
+ * coilbox fetches when somebody clicks Import.
+ */
+function Published({ shareUrl }: { shareUrl?: string }) {
+  const importUrl = shareUrl
+    ? `coilbox://import?url=${encodeURIComponent(shareUrl)}`
+    : "";
+
+  return (
+    <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-6">
+      <h2 className="text-lg font-medium">Published</h2>
+      <p className="text-sm text-neutral-400">
+        Anyone can import this without an account. Browsing is still being built,
+        so this link is the only way to it for now.
+      </p>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-xs text-neutral-500">Share this</span>
+        <code className="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-xs text-neutral-300">
+          {shareUrl ?? "…"}
+        </code>
+      </div>
+
+      {importUrl ? (
+        <a
+          href={importUrl}
+          className="self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white"
+        >
+          Open in Coilbox
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 export function PublishForm() {
   const [state, action, pending] = useActionState<PublishState, FormData>(
     publish,
@@ -26,16 +63,7 @@ export function PublishForm() {
   }
 
   if (state.publishedId) {
-    return (
-      <div className="flex flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-6">
-        <h2 className="text-lg font-medium">Published</h2>
-        <p className="text-sm text-neutral-400">
-          It is in the gallery. Browsing and importing are still being built, so
-          there is nothing to look at yet.
-        </p>
-        <code className="text-xs text-neutral-500">{state.publishedId}</code>
-      </div>
-    );
+    return <Published shareUrl={state.shareUrl} />;
   }
 
   return (
