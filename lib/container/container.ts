@@ -24,11 +24,23 @@
  * A payload whose `container` or `kindVersion` is higher than this build
  * supports is "newer", which is exactly the signal the issue asks for.
  *
+ * Every payload that targets a game names it the same way (issue #1335): a
+ * `game` field at the top of the payload holding a {@link GameIdentity}, which
+ * carries the full archive name and the modinfo shortname side by side. See
+ * `./gameIdentity.ts`. Adding that field is additive, so no `kindVersion` moves
+ * for it: an older build ignores a field it has never heard of and reads the
+ * payload exactly as before, and bumping would lock those builds out of files
+ * they can honour (the same reasoning `../campaign/transfer.ts` gives for not
+ * always writing `kindVersion: 2`). Every kind therefore keeps writing its old
+ * spelling alongside, and {@link identify} reports the identity for payloads
+ * written either way.
+ *
  * Issue #388 (deep links) calls {@link identify} to validate an incoming payload
  * before applying it.
  */
 
 import { deflateSync, inflateSync, strFromU8, strToU8 } from "fflate";
+import { type GameIdentity, gameIdentityFromPayload } from "./gameIdentity";
 
 /** Top-level marker present on every coilbox container. */
 export const CONTAINER_FORMAT = "coilbox";
@@ -169,6 +181,41 @@ export function encodeContainerCode<P>(
   return COMPRESSED_CODE_PREFIX + bytesToBase64Url(bytes);
 }
 
+/** A code that is safe to hand out, or the measurement showing why it is not. */
+export type ContainerCodeResult =
+  | { ok: true; code: string }
+  | { ok: false; bytes: number; limit: number };
+
+/**
+ * Encode a payload as a code only when the far end could read it back, and
+ * otherwise report how big it came out and how big a code may be.
+ *
+ * The ceiling is {@link MAX_INFLATED_BYTES}, the decompression-bomb guard on the
+ * decode side. Nothing rounds it down on the way out, so without this check a
+ * kind whose payload can grow past it (a scenario carrying dialogue portraits
+ * and voice clips, issue #1336) produces a code that copies fine, pastes fine,
+ * and then fails to inflate as "corrupted" on someone else's machine. Refusing
+ * at the point of copying is the only place the author can still do something
+ * about it.
+ *
+ * Use this wherever a payload has no fixed upper size. {@link encodeContainerCode}
+ * stays for the kinds that are bounded by their own shape (a preset, a challenge,
+ * a setup pack), where a check would only ever answer yes.
+ */
+export function tryEncodeContainerCode<P>(
+  kind: ContainerKind,
+  kindVersion: number,
+  payload: P,
+): ContainerCodeResult {
+  const json = JSON.stringify(makeContainer(kind, kindVersion, payload));
+  // UTF-8 bytes, not characters: that is what the inflate buffer holds.
+  const bytes = strToU8(json).length;
+  if (bytes > MAX_INFLATED_BYTES) {
+    return { ok: false, bytes, limit: MAX_INFLATED_BYTES };
+  }
+  return { ok: true, code: encodeContainerCode(kind, kindVersion, payload) };
+}
+
 /** Inflate a `cbz1.` code back to its JSON text, or `null` if it is corrupt,
  * truncated, or larger than {@link MAX_INFLATED_BYTES}. */
 function inflateCode(code: string): string | null {
@@ -246,6 +293,10 @@ export interface Identification {
   /** Human-readable notes: a newer-version warning, or a mismatch between the
    * declared kind and the payload's actual shape. */
   warnings: string[];
+  /** The game this targets, normalised from whichever spelling the payload used
+   * (issue #1335). Absent when the payload names no game, which includes an
+   * unrecognised file. */
+  game?: GameIdentity;
 }
 
 /**
@@ -270,7 +321,7 @@ export function sniffPayloadKind(payload: unknown): ContainerKind | null {
     if (Array.isArray(s.triggers) && Array.isArray(s.zones)) return "scenario";
   }
   if (
-    typeof p.engineVersion === "string" &&
+    (p.engineVersion === undefined || typeof p.engineVersion === "string") &&
     Array.isArray(p.maps) &&
     typeof p.game === "object" &&
     p.game !== null
@@ -311,19 +362,31 @@ function newerWarning(kind: ContainerKind | "unknown"): string {
   return `This ${noun} was made by a newer version of coilbox. Update coilbox to open it.`;
 }
 
-/** Detect a legacy (pre-container) shape and map it to a kind + version, or
- * `null`. Keeps already-shared files identifiable. */
+/**
+ * Detect a legacy (pre-container) shape and map it to a kind + version, or
+ * `null`. Keeps already-shared files identifiable. `payload` is the part of the
+ * legacy wrapper that corresponds to a container's payload, so the same
+ * payload-shaped readers work on it.
+ */
 function identifyLegacy(
   value: unknown,
-): { kind: ContainerKind; version: number } | null {
+): { kind: ContainerKind; version: number; payload: unknown } | null {
   if (typeof value !== "object" || value === null) return null;
   const v = value as Record<string, unknown>;
   const version = typeof v.formatVersion === "number" ? v.formatVersion : 1;
-  if (v.format === "coilbox-campaign") return { kind: "campaign", version };
-  if (v.format === "coilbox-challenge") return { kind: "challenge", version };
-  if (v.format === "coilbox-pack") return { kind: "setup-pack", version };
+  if (v.format === "coilbox-campaign") {
+    return { kind: "campaign", version, payload: v.campaign };
+  }
+  if (v.format === "coilbox-challenge") {
+    return { kind: "challenge", version, payload: v };
+  }
+  if (v.format === "coilbox-pack") {
+    return { kind: "setup-pack", version, payload: v.settings };
+  }
   // A bare preset file carries no envelope, so recognise it by shape.
-  if (sniffPayloadKind(v) === "preset") return { kind: "preset", version: 1 };
+  if (sniffPayloadKind(v) === "preset") {
+    return { kind: "preset", version: 1, payload: v };
+  }
   return null;
 }
 
@@ -373,11 +436,13 @@ export function identify(input: string | unknown): Identification {
         `This is labelled a ${container.kind} but its contents look like a ${actual}.`,
       );
     }
+    const game = gameIdentityFromPayload(container.kind, container.payload);
     return {
       kind: container.kind,
       version: container.kindVersion,
       compatibility,
       warnings,
+      ...(game ? { game } : {}),
     };
   }
 
@@ -390,11 +455,13 @@ export function identify(input: string | unknown): Identification {
     );
     const warnings =
       compatibility === "newer" ? [newerWarning(legacy.kind)] : [];
+    const game = gameIdentityFromPayload(legacy.kind, legacy.payload);
     return {
       kind: legacy.kind,
       version: legacy.version,
       compatibility,
       warnings,
+      ...(game ? { game } : {}),
     };
   }
 
