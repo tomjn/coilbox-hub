@@ -98,6 +98,31 @@ test("a campaign is refused, because the gallery does not carry them", () => {
   expect(result.reason).toContain("does not carry");
 });
 
+// Shape taken from a real published pack, not invented.
+function packCode(maps: string[]) {
+  return encodeContainerCode(
+    "setup-pack",
+    SUPPORTED_KIND_VERSIONS["setup-pack"],
+    { game: { name: "SplinterFaction 0.1.78" }, engineVersion: ".spring", maps },
+  );
+}
+
+test("a setup pack names its game", () => {
+  const result = accept(packCode(["All That Simmers v1.1.1"]));
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.gameName).toBe("SplinterFaction 0.1.78");
+  expect(result.accepted.mapName).toBe("All That Simmers v1.1.1");
+});
+
+test("a pack carrying several maps claims none of them", () => {
+  const result = accept(packCode(["One", "Two"]));
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.gameName).toBe("SplinterFaction 0.1.78");
+  expect(result.accepted.mapName).toBeNull();
+});
+
 test("a scenario is accepted, with no derived names yet", () => {
   const code = encodeContainerCode(
     "scenario",

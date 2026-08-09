@@ -31,19 +31,37 @@ function isGalleryKind(kind: string): kind is GalleryKind {
   return (GALLERY_KINDS as readonly string[]).includes(kind);
 }
 
-/** Pull out the two fields a listing filters on. A preset names both, and the
- * other kinds are filled in as each one's preview lands rather than guessed at
- * from field names that may not exist. */
+function str(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
+/**
+ * Pull out the two fields a listing filters on. Each kind names them differently,
+ * and only the shapes actually seen are handled. A kind whose payload has not
+ * been looked at yields nulls rather than a guess at field names that may not
+ * exist, because a wrong game name is worse than no game name.
+ */
 function describe(kind: GalleryKind, payload: unknown) {
   const blank = { gameName: null, mapName: null };
-  if (kind !== "preset") return blank;
   if (typeof payload !== "object" || payload === null) return blank;
-
   const p = payload as Record<string, unknown>;
-  return {
-    gameName: typeof p.gameName === "string" ? p.gameName : null,
-    mapName: typeof p.mapName === "string" ? p.mapName : null,
-  };
+
+  if (kind === "preset") {
+    return { gameName: str(p.gameName), mapName: str(p.mapName) };
+  }
+
+  if (kind === "setup-pack") {
+    const game = p.game as Record<string, unknown> | undefined;
+    const maps = Array.isArray(p.maps) ? p.maps : [];
+    return {
+      gameName: str(game?.name),
+      // A pack can carry several maps and the row holds one, so it is only
+      // filled in when there is no ambiguity about which it would mean.
+      mapName: maps.length === 1 ? str(maps[0]) : null,
+    };
+  }
+
+  return blank;
 }
 
 /**
