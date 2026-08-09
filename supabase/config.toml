@@ -162,10 +162,20 @@ site_url = "https://coilbox-hub.vercel.app"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 # site_url above is production, so local development has to be listed here or
 # signing in on localhost bounces to the live site.
+#
+# The loopback entry is for the desktop client, which follows RFC 8252 the same
+# way it already does for its lobby sign in: it binds an ephemeral port on
+# 127.0.0.1, so the port cannot be a fixed, exact entry here. GoTrue matches
+# these entries as gobwas/glob patterns with "." and "/" as separators, so `*`
+# only stands in for the port digits and cannot cross into the host or the
+# path. That keeps the wildcard scoped to "some port on this machine's loopback
+# interface", not "some host", which matters because this list is the only
+# check standing between a real session and wherever the redirect points.
 additional_redirect_urls = [
   "http://localhost:3000",
   "http://localhost:3000/auth/callback",
   "https://coilbox-hub.vercel.app/auth/callback",
+  "http://127.0.0.1:*/**",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
