@@ -77,6 +77,21 @@ export default async function Item({
   const item = await load(id);
   if (!item) notFound();
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: owned } = user
+    ? await supabase
+        .from("item")
+        .select("id,deleted_at")
+        .eq("id", id)
+        .eq("author_id", user.id)
+        .maybeSingle()
+    : { data: null };
+  const mine = Boolean(owned);
+  const withdrawn = Boolean(owned?.deleted_at);
+
   const origin = await requestOrigin();
   const shareUrl = `${origin}/i/${item.id}`;
   const published = new Date(item.created_at).toISOString().slice(0, 10);
@@ -109,6 +124,20 @@ export default async function Item({
           </code>
         </div>
       </div>
+
+      {mine ? (
+        <div className="flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-950 px-5 py-3 text-sm">
+          <span className="text-neutral-500">
+            {withdrawn ? "You have withdrawn this." : "This is yours."}
+          </span>
+          <Link
+            href={`/item/${item.id}/edit`}
+            className="text-neutral-300 underline-offset-4 hover:underline"
+          >
+            Edit or withdraw
+          </Link>
+        </div>
+      ) : null}
 
       <dl className="grid grid-cols-2 gap-6 border-t border-neutral-900 pt-6 sm:grid-cols-4">
         <Fact term="Published by">
