@@ -63,10 +63,10 @@ export async function generateMetadata({
 function Fact({ term, children }: { term: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <dt className="text-xs uppercase tracking-wide text-neutral-600">
+      <dt className="text-xs uppercase tracking-wide text-neutral-400">
         {term}
       </dt>
-      <dd className="text-sm text-neutral-300">{children}</dd>
+      <dd className="text-sm text-neutral-100">{children}</dd>
     </div>
   );
 }
@@ -108,7 +108,9 @@ export default async function Item({
         >
           {itemLabel(item.kind, item.mode)}
         </Link>
-        <h1 className="text-3xl font-semibold tracking-tight">{item.title}</h1>
+        <h1 className="break-words text-3xl font-semibold tracking-tight">
+          {item.title}
+        </h1>
         {item.description ? (
           <p className="whitespace-pre-wrap text-neutral-400">
             {item.description}
@@ -121,7 +123,7 @@ export default async function Item({
       <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-5">
         <ImportLink shareUrl={shareUrl} variant="solid" />
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-neutral-400">
             Or share this link. It opens in Coilbox and needs no account.
           </span>
           <code className="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-xs text-neutral-400">

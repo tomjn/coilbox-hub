@@ -78,7 +78,7 @@ export default async function Gallery({
           name="q"
           defaultValue={filters.q ?? ""}
           placeholder="Search titles and descriptions"
-          className="w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+          className="w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
         />
         <button
           type="submit"
@@ -216,7 +216,7 @@ function FilterRow({
 }) {
   return (
     <div className="flex flex-wrap items-baseline gap-2">
-      <span className="w-12 shrink-0 text-xs uppercase tracking-wide text-neutral-600">
+      <span className="w-12 shrink-0 text-xs uppercase tracking-wide text-neutral-400">
         {label}
       </span>
       {children}

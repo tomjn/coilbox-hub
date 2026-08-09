@@ -63,7 +63,7 @@ export function ImportLink({
 
       {shown ? (
         <div className="flex flex-col gap-2 rounded-md border border-neutral-800 bg-black p-3">
-          <p className="text-xs text-neutral-500">
+          <p className="text-xs text-neutral-400">
             Nothing happened? Coilbox is not installed, or has never been opened
             on this machine. Copy this and paste it into Coilbox.
           </p>

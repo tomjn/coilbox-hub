@@ -56,7 +56,7 @@ function PresetPreview({ payload }: { payload: Record<string, unknown> }) {
         {ordered.map(([team, members], index) => (
           <div key={team} className="flex items-stretch gap-2">
             {index > 0 ? (
-              <span className="self-center text-xs text-neutral-600">v</span>
+              <span className="self-center text-xs text-neutral-400">v</span>
             ) : null}
             <div className="flex flex-col gap-1.5 rounded-md border border-neutral-800 bg-black p-3">
               {members.map((p, i) => (
@@ -71,7 +71,7 @@ function PresetPreview({ payload }: { payload: Record<string, unknown> }) {
                   />
                   <span>{label(p)}</span>
                   {p.side ? (
-                    <span className="text-neutral-600">{p.side}</span>
+                    <span className="text-neutral-400">{p.side}</span>
                   ) : null}
                 </div>
               ))}
@@ -79,7 +79,7 @@ function PresetPreview({ payload }: { payload: Record<string, unknown> }) {
           </div>
         ))}
       </div>
-      <p className="text-xs text-neutral-600">
+      <p className="text-xs text-neutral-400">
         {playing.length} playing across {ordered.length}{" "}
         {ordered.length === 1 ? "team" : "teams"}
       </p>
@@ -98,24 +98,24 @@ function SetupPackPreview({ payload }: { payload: Record<string, unknown> }) {
   return (
     <dl className="grid gap-3 rounded-md border border-neutral-800 bg-black p-4 sm:grid-cols-3">
       <div className="flex flex-col gap-1">
-        <dt className="text-xs uppercase tracking-wide text-neutral-600">
+        <dt className="text-xs uppercase tracking-wide text-neutral-400">
           Game
         </dt>
-        <dd className="text-sm text-neutral-300">{game?.name ?? "None"}</dd>
+        <dd className="text-sm text-neutral-100">{game?.name ?? "None"}</dd>
       </div>
       <div className="flex flex-col gap-1">
-        <dt className="text-xs uppercase tracking-wide text-neutral-600">
+        <dt className="text-xs uppercase tracking-wide text-neutral-400">
           Engine
         </dt>
-        <dd className="text-sm text-neutral-300">
+        <dd className="text-sm text-neutral-100">
           {engine && engine !== ".spring" ? engine : "Whatever you have"}
         </dd>
       </div>
       <div className="flex flex-col gap-1">
-        <dt className="text-xs uppercase tracking-wide text-neutral-600">
+        <dt className="text-xs uppercase tracking-wide text-neutral-400">
           {maps.length === 1 ? "Map" : "Maps"}
         </dt>
-        <dd className="text-sm text-neutral-300">
+        <dd className="text-sm text-neutral-100">
           {maps.length === 0 ? "None" : maps.join(", ")}
         </dd>
       </div>
@@ -126,10 +126,10 @@ function SetupPackPreview({ payload }: { payload: Record<string, unknown> }) {
 function Stat({ n, label }: { n: number; label: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <dt className="text-xs uppercase tracking-wide text-neutral-600">
+      <dt className="text-xs uppercase tracking-wide text-neutral-400">
         {label}
       </dt>
-      <dd className="text-sm text-neutral-300">{n}</dd>
+      <dd className="text-sm text-neutral-100">{n}</dd>
     </div>
   );
 }
@@ -156,10 +156,10 @@ function ChallengePreview({ payload }: { payload: Record<string, unknown> }) {
       {factions ? <Stat n={factions} label="Factions" /> : null}
       {layout ? (
         <div className="flex flex-col gap-1">
-          <dt className="text-xs uppercase tracking-wide text-neutral-600">
+          <dt className="text-xs uppercase tracking-wide text-neutral-400">
             Layout
           </dt>
-          <dd className="text-sm text-neutral-300">{layout}</dd>
+          <dd className="text-sm text-neutral-100">{layout}</dd>
         </div>
       ) : null}
     </dl>

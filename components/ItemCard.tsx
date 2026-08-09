@@ -23,7 +23,9 @@ export function ItemCard({
   return (
     <article className="flex flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-5">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-base font-medium leading-snug">
+        {/* A title is one field of free text and nothing stops it being a single
+            120 character word, which without this drags the whole grid sideways. */}
+        <h2 className="min-w-0 break-words text-base font-medium leading-snug">
           <Link href={`/item/${item.id}`} className="hover:underline">
             {item.title}
           </Link>
