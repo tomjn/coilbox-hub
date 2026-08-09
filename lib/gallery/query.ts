@@ -4,6 +4,46 @@ import { GALLERY_KINDS, type GalleryKind } from "@/lib/container";
  * story early on, large enough not to page constantly later. */
 export const PAGE_SIZE = 24;
 
+export interface FetchPageResult<T> {
+  data: T[] | null;
+  /** The true size of the table, not how many rows this page returned. */
+  count: number | null;
+  error: { message: string } | null;
+}
+
+/**
+ * Follow a `.range()` query to the end rather than trusting one request to
+ * return everything. `max_rows`, a project setting on the Data API that
+ * differs locally versus in the cloud, can cap a single request below what
+ * was asked for, silently. Comparing the rows collected so far against the
+ * reported `count` survives that: a request that comes back short only ends
+ * the loop once it has actually closed the gap to the total, however small
+ * the cap on any one request turns out to be.
+ */
+export async function fetchAllPages<T>(
+  fetchPage: (from: number, to: number) => Promise<FetchPageResult<T>>,
+  pageSize: number,
+): Promise<{ data: T[]; error: string | null }> {
+  const all: T[] = [];
+  let total: number | null = null;
+
+  while (total === null || all.length < total) {
+    const { data, count, error } = await fetchPage(
+      all.length,
+      all.length + pageSize - 1,
+    );
+    if (error) return { data: all, error: error.message };
+
+    const rows = data ?? [];
+    if (total === null) total = count ?? rows.length;
+    if (rows.length === 0) break;
+
+    all.push(...rows);
+  }
+
+  return { data: all, error: null };
+}
+
 /** A row as a listing needs it. The container is deliberately absent: it is the
  * largest column by far and nothing on a card reads from it. */
 export interface ItemSummary {
