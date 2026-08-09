@@ -44,6 +44,47 @@ export async function fetchAllPages<T>(
   return { data: all, error: null };
 }
 
+/** A Postgrest error carries a stable `code` alongside its message. Only
+ * `code` is read here, to tell "the offset ran off the end of the table"
+ * apart from any other failure. */
+export interface QueryError {
+  message: string;
+  code?: string;
+}
+
+/** What PostgREST answers a `.range()` whose offset sits past the last
+ * matching row with. A 416, rather than the empty page every other "ran off
+ * the end" query returns. */
+const OFFSET_PAST_END = "PGRST103";
+
+/**
+ * Run a ranged, counted query and turn "the offset is past the last row"
+ * into the empty page it should have been, rather than a fetch failure.
+ * Paging one step past the end is routine. The last page a reader saw a
+ * moment ago can be gone by the time they click "next" again, so it needs
+ * to look like paging ran out, not like the gallery is unreadable.
+ *
+ * `runQuery` is the normal ranged request. Only when it fails with
+ * `PGRST103` does `countQuery`, the same filters without a range, run to
+ * learn the real total. Any other error is passed straight through.
+ */
+export async function fetchPage<T>(
+  runQuery: () => PromiseLike<{
+    data: T[] | null;
+    count: number | null;
+    error: QueryError | null;
+  }>,
+  countQuery: () => PromiseLike<{ count: number | null; error: QueryError | null }>,
+): Promise<{ data: T[]; count: number; error: string | null }> {
+  const { data, count, error } = await runQuery();
+  if (!error) return { data: data ?? [], count: count ?? 0, error: null };
+  if (error.code !== OFFSET_PAST_END) return { data: [], count: 0, error: error.message };
+
+  const { count: total, error: countError } = await countQuery();
+  if (countError) return { data: [], count: 0, error: countError.message };
+  return { data: [], count: total ?? 0, error: null };
+}
+
 /** A row as a listing needs it. The container is deliberately absent: it is the
  * largest column by far and nothing on a card reads from it. */
 export interface ItemSummary {
