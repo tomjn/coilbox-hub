@@ -1,6 +1,9 @@
 {
   "repo": "tomjn/coilbox",
   "ref": "main",
-  "path": "src/container/container.ts",
-  "blobSha": "56e56b9470023144f70a9a32366512c234775ca4"
+  "dir": "src/container",
+  "files": {
+    "container.ts": "e3f3e360123df1fa6e0e60130a5be3089fb058c4",
+    "gameIdentity.ts": "0d9a601c2c7aefa4403b46251a699943a9a96c11"
+  }
 }
