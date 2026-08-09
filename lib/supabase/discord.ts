@@ -12,6 +12,10 @@ import { isDevSignInEnabled } from "./loopback";
  */
 export function signInWithDiscord(next: string) {
   if (isDevSignInEnabled()) {
+    // A full navigation, not router.push: /dev/sign-in is a route handler that
+    // sets a session cookie and redirects, and the client router does not run
+    // one.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `/dev/sign-in?next=${encodeURIComponent(next)}`;
     return Promise.resolve({ error: null });
   }
