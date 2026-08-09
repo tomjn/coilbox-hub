@@ -156,11 +156,17 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "https://coilbox-hub.vercel.app"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# site_url above is production, so local development has to be listed here or
+# signing in on localhost bounces to the live site.
+additional_redirect_urls = [
+  "http://localhost:3000",
+  "http://localhost:3000/auth/callback",
+  "https://coilbox-hub.vercel.app/auth/callback",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -319,6 +325,18 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# The only way in. The audience already has Discord, which is why it is here, and
+# it is only ever needed to publish, edit or withdraw something. Browsing and
+# importing stay anonymous.
+#
+# The secret is not in this file and must not be. Export it before pushing:
+#   export SUPABASE_AUTH_EXTERNAL_DISCORD_SECRET=...
+#   supabase config push
+[auth.external.discord]
+enabled = true
+client_id = "1536029034520252627"
+secret = "env(SUPABASE_AUTH_EXTERNAL_DISCORD_SECRET)"
+
 [auth.external.apple]
 enabled = false
 client_id = ""
