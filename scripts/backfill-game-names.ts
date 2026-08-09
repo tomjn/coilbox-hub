@@ -62,6 +62,12 @@ if (!url || !key) {
   process.exit(1);
 }
 
+// Which database, before anything is read or written. Bun loads .env.local as
+// readily as .env.development.local, so whether this is pointed at production
+// or the local stack comes down to which file happened to win, and the two look
+// identical from the output alone.
+console.log(`${write ? "Writing to" : "Reading"} ${new URL(url).host}`);
+
 // Service role, not the session-backed client the app uses: this has to touch
 // every row regardless of author, and game_name sits outside the columns
 // item_update_own grants an authenticated user (see the gallery_items
