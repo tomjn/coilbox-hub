@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   asContainer,
   type Container,
@@ -9,6 +10,7 @@ import {
   makeContainer,
   MAX_CONTAINER_BYTES,
 } from "@/lib/container";
+import { ITEM_SUMMARY_COLUMNS, type ItemSummary } from "@/lib/gallery/query";
 
 /**
  * Everything between a pasted share code and a row. The rules here are the app's
@@ -194,4 +196,94 @@ export function accept(input: string): AcceptResult {
       ...describe(result.kind, container.payload, result.game),
     },
   };
+}
+
+export interface PublishFields {
+  code: string;
+  title: string;
+  description: string;
+  /** Raw, unnormalised tag text - split on commas already, but not yet
+   * trimmed, lowercased, deduplicated of blanks or capped. That is a
+   * publishing rule, not a transport detail, so it happens inside
+   * `publishItem` rather than in each caller. */
+  tags: string[];
+}
+
+export type PublishOutcome =
+  | { ok: true; item: ItemSummary }
+  | {
+      ok: false;
+      reason: string;
+      /** What kind of failure this was, for a caller that needs to turn it
+       * into something other than a message - the API route maps this to a
+       * status code, the form does not need it at all. */
+      status: "invalid" | "rate_limited" | "storage_error";
+    };
+
+/**
+ * Everything between validated fields and a stored row: run the code through
+ * `accept()`, check the title, normalise the tags, and insert. This is the
+ * one path that can turn a share code into a row, shared by the publish form
+ * (`app/publish/actions.ts`) and `POST /api/v1/items` (issue 25), so there is
+ * exactly one place that decides what the database will accept. A second
+ * path that skipped or reimplemented this is the failure issue 25 exists to
+ * prevent.
+ *
+ * The caller has already established who is publishing - the form from the
+ * session cookie, the API from a bearer token - and hands in a client whose
+ * row level security runs as that user, plus that user's id for `author_id`.
+ * This function never checks who is signed in itself.
+ */
+export async function publishItem(
+  supabase: SupabaseClient,
+  authorId: string,
+  fields: PublishFields,
+): Promise<PublishOutcome> {
+  const result = accept(fields.code);
+  if (!result.ok) {
+    return { ok: false, reason: result.reason, status: "invalid" };
+  }
+
+  const title = fields.title.trim();
+  if (title === "") {
+    return {
+      ok: false,
+      reason: "Give it a title so people know what it is.",
+      status: "invalid",
+    };
+  }
+
+  const tags = fields.tags
+    .map((tag) => tag.trim().toLowerCase())
+    .filter((tag) => tag !== "")
+    .slice(0, 8);
+
+  const { accepted } = result;
+  const { data, error } = await supabase
+    .from("item")
+    .insert({
+      kind: accepted.kind,
+      kind_version: accepted.kindVersion,
+      title,
+      description: fields.description.trim(),
+      game_name: accepted.gameName,
+      map_name: accepted.mapName,
+      tags,
+      container: accepted.container,
+      author_id: authorId,
+    })
+    .select(ITEM_SUMMARY_COLUMNS)
+    .single();
+
+  if (error) {
+    // 53400 is the rate limit trigger's errcode (see
+    // supabase/migrations/20260809181909_publish_rate_limit.sql). PostgREST
+    // passes an unrecognised SQLSTATE through as the error code verbatim, so
+    // this is the only way to tell "too many" apart from any other write
+    // failure without duplicating the threshold here.
+    const status = error.code === "53400" ? "rate_limited" : "storage_error";
+    return { ok: false, reason: `Could not publish it: ${error.message}`, status };
+  }
+
+  return { ok: true, item: data as unknown as ItemSummary };
 }

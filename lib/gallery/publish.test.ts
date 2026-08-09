@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { encodeContainerCode, SUPPORTED_KIND_VERSIONS } from "@/lib/container";
-import { accept } from "./publish";
+import { accept, publishItem } from "./publish";
+import type { ItemSummary } from "./query";
 
 const presetPayload = {
   gameName: "Beyond All Reason",
@@ -210,4 +212,167 @@ test("a scenario with nothing to name its game yields no game name", () => {
   expect(result.accepted.kind).toBe("scenario");
   expect(result.accepted.gameName).toBeNull();
   expect(result.accepted.mapName).toBeNull();
+});
+
+// publishItem is the shared middle of the publish form and the API's
+// POST /api/v1/items (issue 25): accept() plus the insert. These stand in
+// for a real Supabase client with a fake that records what it was asked to
+// insert, so the mapping from a rejection to publishItem's `status` field -
+// what the API turns into a status code - is tested without a live database.
+interface FakeInsertResult {
+  data?: unknown;
+  error?: { message: string; code?: string } | null;
+}
+
+function fakeSupabase(result: FakeInsertResult, insertedRows: Record<string, unknown>[]) {
+  return {
+    from: () => ({
+      insert: (row: Record<string, unknown>) => {
+        insertedRows.push(row);
+        return {
+          select: () => ({
+            single: async () => ({ data: result.data ?? null, error: result.error ?? null }),
+          }),
+        };
+      },
+    }),
+  } as unknown as SupabaseClient;
+}
+
+test("publishItem rejects a code accept() rejects, without touching the database", async () => {
+  const inserted: Record<string, unknown>[] = [];
+  const supabase = fakeSupabase({ data: null }, inserted);
+
+  const outcome = await publishItem(supabase, "author-1", {
+    code: "not-a-coilbox-code",
+    title: "Title",
+    description: "",
+    tags: [],
+  });
+
+  expect(outcome.ok).toBe(false);
+  if (outcome.ok) return;
+  expect(outcome.status).toBe("invalid");
+  expect(outcome.reason).toContain("not something coilbox made");
+  expect(inserted).toHaveLength(0);
+});
+
+test("publishItem rejects a blank title, without touching the database", async () => {
+  const inserted: Record<string, unknown>[] = [];
+  const supabase = fakeSupabase({ data: null }, inserted);
+
+  const outcome = await publishItem(supabase, "author-1", {
+    code: presetCode(),
+    title: "   ",
+    description: "",
+    tags: [],
+  });
+
+  expect(outcome.ok).toBe(false);
+  if (outcome.ok) return;
+  expect(outcome.status).toBe("invalid");
+  expect(outcome.reason).toBe("Give it a title so people know what it is.");
+  expect(inserted).toHaveLength(0);
+});
+
+test("publishItem normalises tags the same way the form does: trimmed, lowercased, blanks dropped, capped at 8", async () => {
+  const inserted: Record<string, unknown>[] = [];
+  const supabase = fakeSupabase(
+    { data: { id: "item-1" } },
+    inserted,
+  );
+
+  await publishItem(supabase, "author-1", {
+    code: presetCode(),
+    title: "Title",
+    description: "",
+    tags: [" Eco ", "", "RUSH", "eco", "a", "b", "c", "d", "e", "f", "g", "h", "i"],
+  });
+
+  expect(inserted[0].tags).toEqual([
+    "eco",
+    "rush",
+    "eco",
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+  ]);
+});
+
+test("publishItem inserts as the given author and returns the stored item on success", async () => {
+  const inserted: Record<string, unknown>[] = [];
+  const storedRow: ItemSummary = {
+    id: "item-1",
+    kind: "preset",
+    mode: null,
+    title: "Title",
+    description: "a description",
+    game_name: "Beyond All Reason",
+    map_name: "Comet Catcher Remake",
+    tags: ["eco"],
+    author_name: "Someone",
+    created_at: "2026-01-01T00:00:00Z",
+  };
+  const supabase = fakeSupabase({ data: storedRow }, inserted);
+
+  const outcome = await publishItem(supabase, "author-1", {
+    code: presetCode(),
+    title: "Title",
+    description: " a description ",
+    tags: ["eco"],
+  });
+
+  expect(outcome.ok).toBe(true);
+  if (!outcome.ok) return;
+  expect(outcome.item).toEqual(storedRow);
+  expect(inserted[0].author_id).toBe("author-1");
+  expect(inserted[0].description).toBe("a description");
+  expect(inserted[0].kind).toBe("preset");
+});
+
+test("publishItem maps the rate limit trigger's errcode to a rate_limited status", async () => {
+  const inserted: Record<string, unknown>[] = [];
+  const supabase = fakeSupabase(
+    {
+      data: null,
+      error: { message: "Too many published in the last hour. Try again later.", code: "53400" },
+    },
+    inserted,
+  );
+
+  const outcome = await publishItem(supabase, "author-1", {
+    code: presetCode(),
+    title: "Title",
+    description: "",
+    tags: [],
+  });
+
+  expect(outcome.ok).toBe(false);
+  if (outcome.ok) return;
+  expect(outcome.status).toBe("rate_limited");
+  expect(outcome.reason).toBe(
+    "Could not publish it: Too many published in the last hour. Try again later.",
+  );
+});
+
+test("publishItem maps any other database error to a storage_error status", async () => {
+  const inserted: Record<string, unknown>[] = [];
+  const supabase = fakeSupabase(
+    { data: null, error: { message: "connection refused", code: "08006" } },
+    inserted,
+  );
+
+  const outcome = await publishItem(supabase, "author-1", {
+    code: presetCode(),
+    title: "Title",
+    description: "",
+    tags: [],
+  });
+
+  expect(outcome.ok).toBe(false);
+  if (outcome.ok) return;
+  expect(outcome.status).toBe("storage_error");
+  expect(outcome.reason).toBe("Could not publish it: connection refused");
 });
