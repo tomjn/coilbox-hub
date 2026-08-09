@@ -105,6 +105,40 @@ export function parseFilters(
   };
 }
 
+/** The subset of a Postgrest query builder that filtering needs. Matches the
+ * chain `supabase.from("item").select(...)` produces without pinning down its
+ * full, heavily generic type. */
+interface FilterableQuery<Query> {
+  eq(column: string, value: string): Query;
+  contains(column: string, value: readonly string[]): Query;
+  textSearch(
+    column: string,
+    query: string,
+    options?: { type?: "plain" | "phrase" | "websearch" },
+  ): Query;
+}
+
+/**
+ * Turn parsed filters into the same `.eq()`/`.contains()`/`.textSearch()` chain
+ * everywhere a listing of items is built, so the gallery page and the API read
+ * the database the same way rather than two hand written copies drifting apart.
+ */
+export function applyFilters<Query extends FilterableQuery<Query>>(
+  query: Query,
+  filters: Filters,
+): Query {
+  let next = query;
+  if (filters.kind) next = next.eq("kind", filters.kind);
+  if (filters.game) next = next.eq("game_name", filters.game);
+  if (filters.map) next = next.eq("map_name", filters.map);
+  if (filters.tag) next = next.contains("tags", [filters.tag]);
+  if (filters.author) next = next.eq("author_name", filters.author);
+  // websearch_to_tsquery takes what a person would actually type, quotes and all,
+  // and never throws on punctuation the way plainto_ or to_tsquery can.
+  if (filters.q) next = next.textSearch("search", filters.q, { type: "websearch" });
+  return next;
+}
+
 /** Build a query string that keeps the current filters and changes some of them.
  * Paging back to the first page on a filter change is deliberate: page 7 of a
  * different filter is almost never where you wanted to be. */
