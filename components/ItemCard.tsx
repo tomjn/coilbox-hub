@@ -22,7 +22,7 @@ export function ItemCard({
   origin: string;
 }) {
   return (
-    <article className="flex flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-5">
+    <article className="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-5">
       <div className="flex items-start justify-between gap-3">
         {/* A title is one field of free text and nothing stops it being a single
             120 character word, which without this drags the whole grid sideways. */}
@@ -46,7 +46,7 @@ export function ItemCard({
         </p>
       ) : null}
 
-      <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
+      <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400">
         {item.game_name ? (
           <div className="flex gap-1">
             <dt className="sr-only">Game</dt>
@@ -65,10 +65,20 @@ export function ItemCard({
             by{" "}
             <Link
               href={filterHref(filters, { author: item.author_name })}
-              className="text-neutral-400 transition-colors hover:text-neutral-200"
+              className="transition-colors hover:text-neutral-200"
             >
               {item.author_name}
             </Link>
+          </dd>
+        </div>
+        {/* The grid is newest first, which says nothing on its own about whether
+            this is from this week or last year. */}
+        <div className="flex gap-1">
+          <dt className="sr-only">Published</dt>
+          <dd>
+            <time dateTime={item.created_at}>
+              {new Date(item.created_at).toISOString().slice(0, 10)}
+            </time>
           </dd>
         </div>
       </dl>
@@ -79,7 +89,7 @@ export function ItemCard({
             <li key={tag}>
               <Link
                 href={filterHref(filters, { tag })}
-                className="rounded bg-neutral-900 px-2 py-0.5 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
+                className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
               >
                 {tag}
               </Link>
@@ -88,7 +98,9 @@ export function ItemCard({
         </ul>
       ) : null}
 
-      <div className="mt-1">
+      {/* Pushed to the bottom so the one action every card has lines up across a
+          row, whatever length the descriptions are. */}
+      <div className="mt-auto pt-1">
         <ImportLink shareUrl={`${origin}/i/${item.id}`} />
       </div>
     </article>

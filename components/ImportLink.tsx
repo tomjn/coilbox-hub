@@ -24,20 +24,23 @@ export function ImportLink({
 }) {
   const [shown, setShown] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
     } catch {
-      // Clipboard access can be refused. The URL is on screen either way.
+      // Clipboard access can be refused. In the panel the URL is on screen
+      // anyway, but on a card it is not, so it has to appear.
+      setCopyFailed(true);
     }
   }
 
   const className =
     variant === "solid"
       ? "inline-flex items-center gap-2 self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white"
-      : "inline-flex items-center gap-1.5 self-start text-sm text-neutral-300 underline-offset-4 hover:underline";
+      : "-my-1 inline-flex items-center gap-1.5 self-start py-1 text-sm text-neutral-300 underline-offset-4 hover:underline";
 
   return (
     <div className="flex flex-col gap-2">
@@ -61,7 +64,28 @@ export function ImportLink({
         Import into Coilbox
       </a>
 
-      {shown ? (
+      {/* On a card the full panel shoves every row below it down, so there the
+          same thing is said in one line and the URL only appears if copying it
+          was refused. */}
+      {shown && variant === "quiet" ? (
+        <p className="text-xs text-neutral-400">
+          Nothing happened? Coilbox is not installed here.{" "}
+          <button
+            type="button"
+            onClick={copy}
+            className="rounded border border-neutral-800 px-2 py-1 text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+          >
+            {copied ? "Copied" : "Copy the link"}
+          </button>
+          {copyFailed ? (
+            <code className="mt-1 block break-all text-neutral-400">
+              {shareUrl}
+            </code>
+          ) : null}
+        </p>
+      ) : null}
+
+      {shown && variant === "solid" ? (
         <div className="flex flex-col gap-2 rounded-md border border-neutral-800 bg-black p-3">
           <p className="text-xs text-neutral-400">
             Nothing happened? Coilbox is not installed, or has never been opened

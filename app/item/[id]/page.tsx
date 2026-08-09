@@ -186,7 +186,7 @@ export default async function Item({
             <li key={tag}>
               <Link
                 href={`/gallery?tag=${encodeURIComponent(tag)}`}
-                className="rounded bg-neutral-900 px-2 py-0.5 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
+                className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
               >
                 {tag}
               </Link>
