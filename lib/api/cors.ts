@@ -17,13 +17,18 @@ import { NextResponse } from "next/server";
  * with `credentials: include`), which is fine: these routes never read
  * cookies, and issue 25's bearer token is sent as a plain header rather than
  * relying on browser credential handling.
+ *
+ * `POST` is issue 25's `POST /api/v1/items`: a browser will not send a
+ * method a preflight did not advertise here, however correct the route
+ * itself is, so this list has to grow with the API rather than the route
+ * alone.
  */
 export const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   // `Authorization` is issue 25's bearer token. `Content-Type` is included
   // because sending it as `application/json` on a request also triggers a
-  // preflight, even though these routes only ever answer GET.
+  // preflight, and issue 25's POST always does.
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
 };
 
