@@ -111,7 +111,14 @@ export default async function Item({
       </div>
 
       <dl className="grid grid-cols-2 gap-6 border-t border-neutral-900 pt-6 sm:grid-cols-4">
-        <Fact term="Published by">{item.author_name}</Fact>
+        <Fact term="Published by">
+          <Link
+            href={`/gallery?author=${encodeURIComponent(item.author_name)}`}
+            className="hover:text-white"
+          >
+            {item.author_name}
+          </Link>
+        </Fact>
         <Fact term="Published">{published}</Fact>
         {item.game_name ? (
           <Fact term="Game">

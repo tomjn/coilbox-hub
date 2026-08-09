@@ -54,7 +54,15 @@ export function ItemCard({
         ) : null}
         <div className="flex gap-1">
           <dt className="sr-only">Published by</dt>
-          <dd>by {item.author_name}</dd>
+          <dd>
+            by{" "}
+            <Link
+              href={filterHref(filters, { author: item.author_name })}
+              className="text-neutral-400 transition-colors hover:text-neutral-200"
+            >
+              {item.author_name}
+            </Link>
+          </dd>
         </div>
       </dl>
 

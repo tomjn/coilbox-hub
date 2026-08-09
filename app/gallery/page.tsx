@@ -38,6 +38,10 @@ export default async function Gallery({
   if (filters.game) query = query.eq("game_name", filters.game);
   if (filters.map) query = query.eq("map_name", filters.map);
   if (filters.tag) query = query.contains("tags", [filters.tag]);
+  if (filters.author) query = query.eq("author_name", filters.author);
+  // websearch_to_tsquery takes what a person would actually type, quotes and all,
+  // and never throws on punctuation the way plainto_ or to_tsquery can.
+  if (filters.q) query = query.textSearch("search", filters.q, { type: "websearch" });
 
   const { data, count, error } = await query;
   const items = (data ?? []) as unknown as ItemSummary[];
@@ -62,6 +66,27 @@ export default async function Gallery({
           Made by other players. Importing needs no account.
         </p>
       </div>
+
+      <form className="flex gap-2" action="/gallery">
+        {filters.kind ? <input type="hidden" name="kind" value={filters.kind} /> : null}
+        {filters.game ? <input type="hidden" name="game" value={filters.game} /> : null}
+        {filters.map ? <input type="hidden" name="map" value={filters.map} /> : null}
+        {filters.tag ? <input type="hidden" name="tag" value={filters.tag} /> : null}
+        {filters.author ? <input type="hidden" name="author" value={filters.author} /> : null}
+        <input
+          type="search"
+          name="q"
+          defaultValue={filters.q ?? ""}
+          placeholder="Search titles and descriptions"
+          className="w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+        />
+        <button
+          type="submit"
+          className="shrink-0 rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+        >
+          Search
+        </button>
+      </form>
 
       <nav className="flex flex-col gap-3 border-b border-neutral-900 pb-6">
         <FilterRow label="Kind">
@@ -117,6 +142,14 @@ export default async function Gallery({
             </Chip>
           </FilterRow>
         ) : null}
+
+        {filters.author ? (
+          <FilterRow label="By">
+            <Chip href={filterHref(filters, { author: null })} active>
+              {filters.author}
+            </Chip>
+          </FilterRow>
+        ) : null}
       </nav>
 
       {error ? (
@@ -124,7 +157,7 @@ export default async function Gallery({
           The gallery could not be read just now. Try again in a moment.
         </p>
       ) : items.length === 0 ? (
-        <Empty filtered={Boolean(filters.kind || filters.game || filters.map || filters.tag)} />
+        <Empty filtered={Boolean(filters.kind || filters.game || filters.map || filters.tag || filters.author || filters.q)} />
       ) : (
         <>
           <ul className="grid gap-4 sm:grid-cols-2">

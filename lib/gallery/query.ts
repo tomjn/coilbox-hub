@@ -28,6 +28,8 @@ export interface Filters {
   game: string | null;
   map: string | null;
   tag: string | null;
+  author: string | null;
+  q: string | null;
   page: number;
 }
 
@@ -57,6 +59,8 @@ export function parseFilters(
     game: one(params.game),
     map: one(params.map),
     tag: one(params.tag)?.toLowerCase() ?? null,
+    author: one(params.author),
+    q: one(params.q),
     page: Number.isFinite(page) && page > 0 ? page : 1,
   };
 }
@@ -75,6 +79,8 @@ export function filterHref(
   if (next.game) params.set("game", next.game);
   if (next.map) params.set("map", next.map);
   if (next.tag) params.set("tag", next.tag);
+  if (next.author) params.set("author", next.author);
+  if (next.q) params.set("q", next.q);
   if (next.page > 1 && change.page !== undefined) {
     params.set("page", String(next.page));
   }
