@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
+/* Matches the coilbox app icon: a white mark on near black. There is no light
+   theme on purpose, so the site reads as the same product as the app. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --background: #0b0b0d;
+  --foreground: #fafafa;
 }
 
 @theme inline {
@@ -12,15 +15,8 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
