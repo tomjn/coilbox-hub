@@ -5,6 +5,7 @@ import { GALLERY_KINDS } from "@/lib/container";
 import { kindLabelPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import {
+  applyFilters,
   filterHref,
   ITEM_SUMMARY_COLUMNS,
   type ItemSummary,
@@ -28,20 +29,14 @@ export default async function Gallery({
   const origin = await requestOrigin();
   const supabase = await createClient();
 
-  let query = supabase
-    .from("item")
-    .select(ITEM_SUMMARY_COLUMNS, { count: "exact" })
-    .order("created_at", { ascending: false })
-    .range((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE - 1);
-
-  if (filters.kind) query = query.eq("kind", filters.kind);
-  if (filters.game) query = query.eq("game_name", filters.game);
-  if (filters.map) query = query.eq("map_name", filters.map);
-  if (filters.tag) query = query.contains("tags", [filters.tag]);
-  if (filters.author) query = query.eq("author_name", filters.author);
-  // websearch_to_tsquery takes what a person would actually type, quotes and all,
-  // and never throws on punctuation the way plainto_ or to_tsquery can.
-  if (filters.q) query = query.textSearch("search", filters.q, { type: "websearch" });
+  const query = applyFilters(
+    supabase
+      .from("item")
+      .select(ITEM_SUMMARY_COLUMNS, { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE - 1),
+    filters,
+  );
 
   const { data, count, error } = await query;
   const items = (data ?? []) as unknown as ItemSummary[];
