@@ -5,20 +5,22 @@
 -- nobody.
 
 begin;
-select plan(22);
+select plan(26);
 
 create extension if not exists pgtap with schema extensions;
 
--- Two authors, so "your own" can be told apart from "someone else's".
-insert into auth.users (id, instance_id, aud, role, email)
+-- Two authors, so "your own" can be told apart from "someone else's". Each
+-- carries Discord-shaped profile data, so current_author_name() has
+-- something real to derive rather than always falling back to "Unknown".
+insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data)
 values
-  ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ada@example.test'),
-  ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'grace@example.test');
+  ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ada@example.test', '{"full_name":"Ada Lovelace"}'),
+  ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'grace@example.test', '{"full_name":"Grace Hopper"}');
 
 insert into public.item (id, kind, kind_version, title, container, author_id, author_name)
 values
-  ('aaaaaaaa-0000-0000-0000-000000000001', 'preset', 1, 'Ada live', '{"format":"coilbox"}', '11111111-1111-1111-1111-111111111111', 'Ada'),
-  ('aaaaaaaa-0000-0000-0000-000000000002', 'preset', 1, 'Ada withdrawn', '{"format":"coilbox"}', '11111111-1111-1111-1111-111111111111', 'Ada');
+  ('aaaaaaaa-0000-0000-0000-000000000001', 'preset', 1, 'Ada live', '{"format":"coilbox","container":1,"kind":"preset","kindVersion":1,"payload":{}}', '11111111-1111-1111-1111-111111111111', 'Ada'),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'preset', 1, 'Ada withdrawn', '{"format":"coilbox","container":1,"kind":"preset","kindVersion":1,"payload":{}}', '11111111-1111-1111-1111-111111111111', 'Ada');
 
 update public.item set deleted_at = now() where id = 'aaaaaaaa-0000-0000-0000-000000000002';
 
@@ -62,17 +64,46 @@ select is(
 );
 
 select lives_ok(
-  $$insert into public.item (kind, kind_version, title, container, author_id, author_name)
-    values ('scenario', 1, 'Ada second', '{"format":"coilbox"}', '11111111-1111-1111-1111-111111111111', 'Ada')$$,
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('scenario', 1, 'Ada second', '{"format":"coilbox","container":1,"kind":"scenario","kindVersion":1,"payload":{}}', '11111111-1111-1111-1111-111111111111')$$,
   'an author can publish as themselves'
+);
+
+select is(
+  (select author_name from public.item where title = 'Ada second'), 'Ada Lovelace',
+  'author_name is derived from the account, not carried in the insert'
+);
+
+select throws_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('preset', 1, 'Forged', '{"format":"coilbox","container":1,"kind":"preset","kindVersion":1,"payload":{}}', '22222222-2222-2222-2222-222222222222')$$,
+  '42501',
+  null,
+  'an author cannot publish in somebody else''s name'
 );
 
 select throws_ok(
   $$insert into public.item (kind, kind_version, title, container, author_id, author_name)
-    values ('preset', 1, 'Forged', '{"format":"coilbox"}', '22222222-2222-2222-2222-222222222222', 'Grace')$$,
+    values ('preset', 1, 'Impersonated', '{"format":"coilbox","container":1,"kind":"preset","kindVersion":1,"payload":{}}', '11111111-1111-1111-1111-111111111111', 'Somebody else')$$,
   '42501',
   null,
-  'an author cannot publish in somebody else''s name'
+  'author_name cannot be supplied on insert, not even naming yourself'
+);
+
+select throws_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id, created_at)
+    values ('preset', 1, 'Backdated', '{"format":"coilbox","container":1,"kind":"preset","kindVersion":1,"payload":{}}', '11111111-1111-1111-1111-111111111111', now() - interval '10 years')$$,
+  '42501',
+  null,
+  'created_at cannot be forged on insert, the same as it cannot be edited'
+);
+
+select throws_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('preset', 1, 'Not a container', '{}', '11111111-1111-1111-1111-111111111111')$$,
+  '23514',
+  null,
+  'the stored JSON must be a coilbox container frame'
 );
 
 select lives_ok(
@@ -139,7 +170,7 @@ reset role;
 insert into public.item (kind, kind_version, title, container, author_id, author_name)
 values (
   'challenge', 1, 'A run',
-  '{"format":"coilbox","kind":"challenge","payload":{"mode":"warpath"}}',
+  '{"format":"coilbox","container":1,"kind":"challenge","kindVersion":1,"payload":{"mode":"warpath"}}',
   '11111111-1111-1111-1111-111111111111', 'Ada'
 );
 
@@ -159,15 +190,15 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 
 select lives_ok(
-  $$insert into public.item (kind, kind_version, title, container, author_id, author_name)
-    select 'preset', 1, 'Bulk ' || n, '{}', '22222222-2222-2222-2222-222222222222', 'Grace'
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    select 'preset', 1, 'Bulk ' || n, '{"format":"coilbox","container":1,"kind":"preset","kindVersion":1,"payload":{}}', '22222222-2222-2222-2222-222222222222'
     from generate_series(1, 20) as n$$,
   'publishing up to the limit is fine'
 );
 
 select throws_ok(
-  $$insert into public.item (kind, kind_version, title, container, author_id, author_name)
-    values ('preset', 1, 'One too many', '{}', '22222222-2222-2222-2222-222222222222', 'Grace')$$,
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('preset', 1, 'One too many', '{"format":"coilbox","container":1,"kind":"preset","kindVersion":1,"payload":{}}', '22222222-2222-2222-2222-222222222222')$$,
   '53400',
   null,
   'the twenty first in an hour is refused'
