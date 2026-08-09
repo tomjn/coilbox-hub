@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
 /**
- * The header icons, drawn on the same 24px grid and stroke weight as
- * `CoilLogo` so the mark and the nav read as one set. They sit next to their
- * own text label, so they are hidden from assistive technology.
+ * Every icon is drawn on the same 24px grid and stroke weight as `CoilLogo` so
+ * the mark, the nav and the kind badges read as one set. They all sit next to
+ * their own text label, so they are hidden from assistive technology.
  */
-function Icon({
+export function Icon({
   children,
   className,
 }: {

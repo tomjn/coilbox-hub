@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ImportLink } from "@/components/ImportLink";
 import { ItemPreview } from "@/components/ItemPreview";
+import { KindIcon } from "@/components/KindIcon";
 import { ReportButton } from "@/components/ReportButton";
 import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
@@ -104,8 +105,9 @@ export default async function Item({
       <div className="flex flex-col gap-3">
         <Link
           href={`/gallery?kind=${item.kind}`}
-          className="self-start rounded border border-neutral-800 px-2 py-0.5 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
+          className="flex items-center gap-1.5 self-start rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
         >
+          <KindIcon kind={item.kind} mode={item.mode} className="w-3.5" />
           {itemLabel(item.kind, item.mode)}
         </Link>
         <h1 className="break-words text-3xl font-semibold tracking-tight">

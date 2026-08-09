@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ImportLink } from "@/components/ImportLink";
+import { KindIcon } from "@/components/KindIcon";
 import { itemLabel } from "@/lib/gallery/label";
 import type { Filters, ItemSummary } from "@/lib/gallery/query";
 import { filterHref } from "@/lib/gallery/query";
@@ -30,9 +31,13 @@ export function ItemCard({
             {item.title}
           </Link>
         </h2>
-        <span className="shrink-0 rounded border border-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
+        <Link
+          href={filterHref(filters, { kind: item.kind })}
+          className="flex shrink-0 items-center gap-1.5 rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+        >
+          <KindIcon kind={item.kind} mode={item.mode} className="w-3.5" />
           {itemLabel(item.kind, item.mode)}
-        </span>
+        </Link>
       </div>
 
       {item.description ? (
