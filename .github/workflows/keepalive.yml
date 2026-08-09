@@ -1,0 +1,24 @@
+name: Keep awake
+
+# A Supabase project on the free tier pauses after about a week with no API
+# requests, and a paused project serves nothing with no error explaining why.
+# Real traffic prevents it, so this only matters during quiet stretches, which is
+# exactly when nobody is watching.
+#
+# It hits the export because that is a real read through the whole stack. A ping
+# against a static page would keep Vercel warm and let the database sleep, which
+# is the failure this is meant to prevent.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the public export
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' https://coilbox-hub.vercel.app/export)
+          echo "export returned $code"
+          test "$code" = "200"

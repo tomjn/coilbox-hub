@@ -5,7 +5,7 @@
 -- nobody.
 
 begin;
-select plan(16);
+select plan(18);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -152,6 +152,28 @@ select is(
   (select mode from public.item where title = 'Ada live'), null,
   'a kind with no mode has none, so this only ever narrows challenges'
 );
+
+-- The publish rate limit, which is the only thing standing between an
+-- authenticated account and filling the free tier.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+select lives_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id, author_name)
+    select 'preset', 1, 'Bulk ' || n, '{}', '22222222-2222-2222-2222-222222222222', 'Grace'
+    from generate_series(1, 20) as n$$,
+  'publishing up to the limit is fine'
+);
+
+select throws_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id, author_name)
+    values ('preset', 1, 'One too many', '{}', '22222222-2222-2222-2222-222222222222', 'Grace')$$,
+  '53400',
+  null,
+  'the twenty first in an hour is refused'
+);
+
+reset role;
 
 select * from finish();
 rollback;
