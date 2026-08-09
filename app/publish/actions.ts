@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { displayName } from "@/lib/author";
 import { accept } from "@/lib/gallery/publish";
 import { createClient } from "@/lib/supabase/server";
 
@@ -73,7 +72,6 @@ export async function publish(
       tags,
       container: accepted.container,
       author_id: user.id,
-      author_name: displayName(user.user_metadata ?? {}),
     })
     .select("id")
     .single();
