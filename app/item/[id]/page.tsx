@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ImportLink } from "@/components/ImportLink";
+import { ItemPreview } from "@/components/ItemPreview";
 import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { createClient } from "@/lib/supabase/server";
@@ -10,6 +11,7 @@ interface ItemDetail {
   id: string;
   kind: string;
   mode: string | null;
+  container: unknown;
   title: string;
   description: string;
   game_name: string | null;
@@ -21,7 +23,7 @@ interface ItemDetail {
 }
 
 const DETAIL_COLUMNS =
-  "id,kind,mode,title,description,game_name,map_name,tags,author_name,created_at,updated_at";
+  "id,kind,mode,container,title,description,game_name,map_name,tags,author_name,created_at,updated_at";
 
 /** A withdrawn item is invisible to the read policy, so it arrives here as
  * nothing found without this page knowing about moderation. */
@@ -112,6 +114,8 @@ export default async function Item({
           </p>
         ) : null}
       </div>
+
+      <ItemPreview kind={item.kind} container={item.container} />
 
       <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-5">
         <ImportLink shareUrl={shareUrl} variant="solid" />
