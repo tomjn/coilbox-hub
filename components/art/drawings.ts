@@ -295,6 +295,254 @@ export const archives: Drawing = {
   },
 };
 
+/**
+ * Two wedges of chevrons facing off across contoured ridge lines, meeting at
+ * a dashed front line. Copied from `skirmish` (tool id `play.skirmish`),
+ * around line 122. Used on the item page for a preset (issue #68): a preset
+ * is two sides placed on a map and set to play, which two wedges over terrain
+ * shows more literally than either of the other subjects on this page.
+ *
+ * Checked for the `archives` bug (coilbox#1382): every chevron and ridge here
+ * either carries its own `stroke-opacity` or sits in a group that sets one,
+ * so nothing is left at the SVG default.
+ *
+ * The lowest ridge line reaches y=178, close enough to the canvas foot that
+ * cropping it would trim almost nothing, so `viewHeight` is left at the full
+ * 200, the same call `setupPacks` above made for the same reason.
+ */
+export const skirmish: Drawing = {
+  id: "skirmish",
+  ariaLabel: "Two wedges of chevrons facing each other across contoured ground",
+  viewHeight: 200,
+  pools: [
+    { cx: 72, cy: 108, r: 130, opacity: 0.16 },
+    { cx: 252, cy: 92, r: 120, opacity: 0.14 },
+  ],
+  paint: (p, strength) => {
+    const op = (v: number) => round(v * strength);
+    const ridge = (d: string, o: number) =>
+      `<path d="${d}" stroke-opacity="${op(o)}"/>`;
+    const chevron = (x: number, y: number, dir: 1 | -1) =>
+      `<path d="M${x - dir * 4} ${y - 5} L${x + dir * 4} ${y} L${x - dir * 4} ${y + 5}"/>`;
+    const wedge = (tip: number, dir: 1 | -1) =>
+      [[0], [-16, 16], [-32, 0, 32]]
+        .flatMap((rank, col) =>
+          rank.map((dy) => chevron(tip - dir * col * 18, 100 + dy, dir)),
+        )
+        .join("");
+    return (
+      `<g fill="none" stroke="${p.faint}" stroke-width="1.5">` +
+      ridge("M-10 58 Q 74 40 146 54 T 330 44", 0.24) +
+      ridge("M-10 148 Q 66 130 128 146 T 250 138 T 330 150", 0.3) +
+      ridge("M-10 178 Q 88 162 168 174 T 330 166", 0.2) +
+      "</g>" +
+      `<g fill="none" stroke="${p.line}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${op(0.42)}">` +
+      wedge(118, 1) +
+      wedge(202, -1) +
+      "</g>" +
+      `<g fill="none" stroke="${p.spark}" stroke-width="1.5" stroke-opacity="${op(0.32)}" stroke-dasharray="7 9">` +
+      '<path d="M160 40 L160 164"/>' +
+      "</g>" +
+      `<circle cx="160" cy="100" r="4" fill="${p.spark}" fill-opacity="${op(0.7)}"/>`
+    );
+  },
+};
+
+/**
+ * A reticle over a perspective grid receding to a horizon. Copied from
+ * `scenarios` (tool id `scenario.list`), around line 260. Used on the item
+ * page for a scenario (issue #68): a scenario is one objective on one piece
+ * of ground, so an aimed shot over a place reads truer than a list would.
+ *
+ * Checked for the `archives` bug (coilbox#1382): every lane, band, ring and
+ * tick here sits in a group that sets its own `stroke-opacity`, so nothing is
+ * left at the SVG default.
+ *
+ * The perspective lanes are authored to run past the canvas foot (to y=210,
+ * against a 200-tall canvas), and the last horizontal band sits at y=182, so
+ * there is barely anything below frame to crop. `viewHeight` is left at the
+ * full 200, the same call `setupPacks` above made for the same reason.
+ */
+export const scenario: Drawing = {
+  id: "scenario",
+  ariaLabel: "A reticle over a perspective grid receding to a horizon",
+  viewHeight: 200,
+  pools: [
+    { cx: 198, cy: 92, r: 118, opacity: 0.19 },
+    { cx: 30, cy: 190, r: 130, opacity: 0.08 },
+  ],
+  paint: (p, strength) => {
+    const op = (v: number) => round(v * strength);
+    const horizon = 66;
+    const lanes = [-70, 0, 70, 140, 210, 280, 350, 420]
+      .map((x) => `<path d="M160 ${horizon} L${x} 210"/>`)
+      .join("");
+    const bands = [96, 118, 146, 182]
+      .map((y) => `<path d="M-10 ${y} L330 ${y}"/>`)
+      .join("");
+    const ticks = [
+      "M198 30 L198 48",
+      "M198 136 L198 154",
+      "M136 92 L154 92",
+      "M242 92 L260 92",
+    ]
+      .map((d) => `<path d="${d}"/>`)
+      .join("");
+    return (
+      `<g fill="none" stroke="${p.faint}" stroke-width="1" stroke-opacity="${op(0.22)}">` +
+      lanes +
+      bands +
+      "</g>" +
+      `<g fill="none" stroke="${p.line}" stroke-width="1.5" stroke-opacity="${op(0.45)}">` +
+      '<circle cx="198" cy="92" r="54"/>' +
+      '<circle cx="198" cy="92" r="34"/>' +
+      "</g>" +
+      `<g fill="none" stroke="${p.spark}" stroke-width="2" stroke-opacity="${op(0.6)}" stroke-linecap="round">` +
+      ticks +
+      "</g>" +
+      `<circle cx="198" cy="92" r="5" fill="${p.spark}" fill-opacity="${op(0.85)}"/>`
+    );
+  },
+};
+
+/** mulberry32, copied from `src/conquest/rng.ts` (tomjn/coilbox) rather than
+ * imported: `conquest` below is the only drawing that needs a seeded PRNG,
+ * and this file copies drawings, not app modules. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * A galaxy: a lit core, orbital sweeps, a starfield from a fixed seed.
+ * Copied from `conquest` (tool id `conquest.list`), around line 306. Used on
+ * the item page for a conquest challenge (issue #68): conquest's whole
+ * subject is a galaxy, so this is the one drawing that is not a stand-in for
+ * its kind but a picture of the actual thing.
+ *
+ * Checked for the `archives` bug (coilbox#1382): every star, arm, flare mark
+ * and the two trailing sparks here either carries its own opacity or sits in
+ * a group that sets one, so nothing is left at the SVG default.
+ *
+ * The starfield is seeded to spread across the full 320x200 canvas rather
+ * than clustering near the core, so cropping would only ever cut stars off
+ * rather than trim empty space. `viewHeight` is left at the full 200.
+ */
+export const conquest: Drawing = {
+  id: "conquest",
+  ariaLabel: "A galaxy: a lit core, orbital sweeps and a starfield",
+  viewHeight: 200,
+  pools: [
+    { cx: 206, cy: 88, r: 62, opacity: 0.3 },
+    { cx: 206, cy: 88, r: 150, opacity: 0.12 },
+  ],
+  paint: (p, strength) => {
+    const op = (v: number) => round(v * strength);
+    const rand = mulberry32(0x5ca1ab1e);
+    const stars = Array.from({ length: 46 }, () => {
+      const x = round(rand() * WIDTH);
+      const y = round(rand() * 200);
+      const r = round(0.6 + rand() * 1.3);
+      const o = round(0.2 + rand() * 0.45);
+      return `<circle cx="${x}" cy="${y}" r="${r}" fill-opacity="${op(o)}"/>`;
+    }).join("");
+    const arms = [
+      [128, 46],
+      [96, 34],
+      [62, 22],
+    ]
+      .map(
+        ([rx, ry], i) =>
+          `<ellipse cx="206" cy="88" rx="${rx}" ry="${ry}" transform="rotate(-19 206 88)" stroke-opacity="${op(round(0.16 + i * 0.09))}"/>`,
+      )
+      .join("");
+    const flare = [
+      "M206 66 L206 110",
+      "M184 88 L228 88",
+      "M190 72 L222 104",
+      "M222 72 L190 104",
+    ]
+      .map((d) => `<path d="${d}"/>`)
+      .join("");
+    return (
+      `<g fill="${p.line}">${stars}</g>` +
+      `<g fill="none" stroke="${p.line}" stroke-width="1.5">${arms}</g>` +
+      `<g fill="none" stroke="${p.spark}" stroke-width="1" stroke-opacity="${op(0.3)}">${flare}</g>` +
+      `<circle cx="206" cy="88" r="7" fill="${p.spark}" fill-opacity="${op(0.9)}"/>` +
+      `<circle cx="86" cy="150" r="3.5" fill="${p.spark}" fill-opacity="${op(0.55)}"/>` +
+      `<circle cx="46" cy="62" r="2.5" fill="${p.spark}" fill-opacity="${op(0.45)}"/>`
+    );
+  },
+};
+
+/**
+ * A run laid out as tiers of nodes with branching routes, climbing to one lit
+ * node at the top. Copied from `warpath` (tool id `runlite.list`), around
+ * line 357. Used on the item page for a warpath challenge (issue #68): a
+ * branching climb to one lit node is warpath's own shape, a route picked
+ * through tiers of encounters, and cannot be mistaken for conquest's galaxy
+ * or a campaign's single road.
+ *
+ * Checked for the `archives` bug (coilbox#1382): every edge and node here
+ * sits in a group that sets its own `fill-opacity` or `stroke-opacity`, so
+ * nothing is left at the SVG default.
+ *
+ * The bottom tier sits at y=170, with edges reaching a few pixels past that,
+ * close enough to the canvas foot that cropping would trim almost nothing.
+ * `viewHeight` is left at the full 200, the same call `setupPacks` above made
+ * for the same reason. The second pool is centred at y=200, the canvas foot,
+ * so it glows up into the graph from below rather than sitting inside frame.
+ */
+export const warpath: Drawing = {
+  id: "warpath",
+  ariaLabel: "Tiers of nodes with branching routes climbing to one lit node",
+  viewHeight: 200,
+  pools: [
+    { cx: 160, cy: 74, r: 96, opacity: 0.22 },
+    { cx: 160, cy: 200, r: 150, opacity: 0.1 },
+  ],
+  paint: (p, strength) => {
+    const op = (v: number) => round(v * strength);
+    const tiers: readonly (readonly number[])[] = [
+      [160],
+      [92, 160, 228],
+      [66, 124, 196, 254],
+      [160],
+    ];
+    const y = (t: number) => 170 - t * 32;
+    const edges = tiers
+      .slice(0, -1)
+      .flatMap((row, t) =>
+        row.flatMap((x) =>
+          tiers[t + 1]
+            .filter((nx) => Math.abs(nx - x) < 78)
+            .map((nx) => `<path d="M${x} ${y(t) - 7} L${nx} ${y(t + 1) + 7}"/>`),
+        ),
+      )
+      .join("");
+    const nodes = tiers
+      .slice(0, -1)
+      .flatMap((row, t) => row.map((x) => diamond(x, y(t), 6)))
+      .join("");
+    return (
+      `<g fill="none" stroke="${p.faint}" stroke-width="1.5" stroke-opacity="${op(0.3)}">` +
+      edges +
+      "</g>" +
+      `<g fill="${p.line}" fill-opacity="${op(0.42)}">${nodes}</g>` +
+      `<g fill="none" stroke="${p.spark}" stroke-width="1.5" stroke-opacity="${op(0.4)}">` +
+      `${diamond(160, 74, 17)}` +
+      "</g>" +
+      `<g fill="${p.spark}" fill-opacity="${op(0.85)}">${diamond(160, 74, 9)}</g>`
+    );
+  },
+};
+
 /** Every drawing this site currently uses, keyed by `id`, for iterating in
  * tests. Not the tool id, this repo's copies stand on their own once made. */
 export const ALL_DRAWINGS: readonly Drawing[] = [
@@ -303,6 +551,10 @@ export const ALL_DRAWINGS: readonly Drawing[] = [
   setupPacks,
   games,
   archives,
+  skirmish,
+  scenario,
+  conquest,
+  warpath,
 ];
 
 export { WIDTH, palette };
