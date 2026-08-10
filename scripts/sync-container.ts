@@ -24,10 +24,12 @@ const VENDOR_DIR = "lib/container";
 const RECORD = "lib/container/source.json";
 
 /** Every file container.ts needs, transitively, from src/container in coilbox.
- * container.ts imports ./gameIdentity (issue #1335), and gameIdentity.ts
- * imports nothing else from the directory. Update this list by hand if
- * upstream's imports change again, the script does not walk imports itself. */
-const FILES = ["container.ts", "gameIdentity.ts"];
+ * container.ts imports ./gameIdentity (issue #1335), gameIdentity.ts imports
+ * ./shortnames, and shortnames.ts imports nothing but a type back from
+ * gameIdentity. Update this list by hand if upstream's imports change again,
+ * the script does not walk imports itself, and the failure when it goes stale
+ * is this check going red on every branch at once. */
+const FILES = ["container.ts", "gameIdentity.ts", "shortnames.ts"];
 
 interface SourceRecord {
   repo: string;
