@@ -15,13 +15,16 @@ export const alt = "An item on Coilbox Hub";
 export default async function Image({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  // Awaited, not read straight off. `params` is a promise here, and taking
+  // `.id` from the promise gave every item the same generic card.
+  const { id } = await params;
   const supabase = await createClient();
   const { data } = await supabase
     .from("item")
     .select("kind,mode,title,game_name,map_name,author_name")
-    .eq("id", params.id)
+    .eq("id", id)
     .maybeSingle();
 
   const title = data?.title ?? "Coilbox Hub";
