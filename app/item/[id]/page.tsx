@@ -28,10 +28,15 @@ interface ItemDetail {
   author_name: string;
   created_at: string;
   updated_at: string;
+  /** Imports coilbox has pinged back for (issue #51): only ones that started
+   * from this page's link, and only since the coilbox release that sends the
+   * ping. Nothing before that, and nothing outside a hub link, was ever
+   * countable. */
+  import_count: number;
 }
 
 const DETAIL_COLUMNS =
-  "id,kind,mode,container,title,description,game_name,game_key,map_name,tags,author_name,created_at,updated_at";
+  "id,kind,mode,container,title,description,game_name,game_key,map_name,tags,author_name,created_at,updated_at,import_count";
 
 /** A withdrawn item is invisible to the read policy, so it arrives here as
  * nothing found without this page knowing about moderation. */
@@ -167,6 +172,13 @@ export default async function Item({
             </Link>
           </Fact>
           <Fact term="Published">{published}</Fact>
+          {item.import_count > 0 ? (
+            // Zero is not shown at all (issue #51): most items sit at zero
+            // for a long time, since only coilbox's own release onward can
+            // ever send this ping, and a row of "0" reads as unwanted rather
+            // than as "not counted yet".
+            <Fact term="Imported via hub link">{item.import_count}</Fact>
+          ) : null}
           {item.game_name ? (
             <Fact term="Game">
               {item.game_key ? (
