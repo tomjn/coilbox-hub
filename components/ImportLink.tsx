@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { COILBOX_URL } from "@/lib/coilbox";
 
 /**
  * The one action every item has.
@@ -11,10 +12,14 @@ import { useState } from "react";
  * broken.
  *
  * So using it always reveals the fallback. Somebody who has coilbox is already in
- * the app and never sees it. Somebody who does not gets the URL and a sentence
- * saying why nothing happened, rather than a dead button and a console message
- * they will never read.
+ * the app and never sees it. Somebody who does not gets the URL, a sentence
+ * saying why nothing happened, and somewhere to get coilbox, rather than a dead
+ * button and a console message they will never read.
  */
+// The small bordered controls inside the fallback, in both variants.
+const fallbackAction =
+  "rounded border border-neutral-800 px-2 py-1 text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white";
+
 export function ImportLink({
   shareUrl,
   variant = "quiet",
@@ -68,21 +73,28 @@ export function ImportLink({
           same thing is said in one line and the URL only appears if copying it
           was refused. */}
       {shown && variant === "quiet" ? (
-        <p className="text-xs text-neutral-400">
-          Nothing happened? Coilbox is not installed here.{" "}
-          <button
-            type="button"
-            onClick={copy}
-            className="rounded border border-neutral-800 px-2 py-1 text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
-          >
-            {copied ? "Copied" : "Copy the link"}
-          </button>
+        <div className="flex flex-col gap-2 text-xs text-neutral-400">
+          {/* The buttons sit on their own row rather than running on from the
+              sentence, which on a card is narrow enough to break the pair
+              across two lines. */}
+          <p>Nothing happened? Coilbox is not installed here.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={COILBOX_URL}
+              target="_blank"
+              rel="noreferrer"
+              className={fallbackAction}
+            >
+              Get Coilbox
+            </a>
+            <button type="button" onClick={copy} className={fallbackAction}>
+              {copied ? "Copied" : "Copy the link"}
+            </button>
+          </div>
           {copyFailed ? (
-            <code className="mt-1 block break-all text-neutral-400">
-              {shareUrl}
-            </code>
+            <code className="block break-all text-neutral-400">{shareUrl}</code>
           ) : null}
-        </p>
+        </div>
       ) : null}
 
       {shown && variant === "solid" ? (
@@ -98,11 +110,25 @@ export function ImportLink({
             <button
               type="button"
               onClick={copy}
-              className="shrink-0 rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+              className={`shrink-0 text-xs ${fallbackAction}`}
             >
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
+          {/* Below the copy row rather than beside it, because somebody who
+              has never installed Coilbox cannot use the link they just
+              copied. */}
+          <p className="text-xs text-neutral-400">
+            Do not have Coilbox?{" "}
+            <a
+              href={COILBOX_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="text-neutral-300 underline underline-offset-4 transition-colors hover:text-white"
+            >
+              Get it for your platform
+            </a>
+          </p>
         </div>
       ) : null}
     </div>
