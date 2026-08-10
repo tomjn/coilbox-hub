@@ -6,9 +6,15 @@ import type { Filters, ItemSummary } from "@/lib/gallery/query";
 import { filterHref } from "@/lib/gallery/query";
 
 /**
- * A card is text only for now. The preview each kind deserves is its own piece of
- * work, and a card that lies about having one is worse than a card that clearly
- * does not yet.
+ * A card is text only, on purpose (issue #68 looked again and kept it this way).
+ * The per-kind backdrop `app/item/[id]/page.tsx` now shows is authored for one
+ * drawing full-bleed behind running text on a page nobody else is competing
+ * with. A grid can hold two dozen cards at once, each a fraction of the size,
+ * so two dozen different low-opacity drawings would fight each other and the
+ * `KindIcon` glyph already sitting on every card - more noise, not more
+ * signal, on the one surface built to be scanned fast. The glyph plus the
+ * label is the "what kind is this at a glance" job a card actually needs, and
+ * it already does it without a repaint per card.
  */
 export function ItemCard({
   item,
