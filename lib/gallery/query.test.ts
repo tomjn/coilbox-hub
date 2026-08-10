@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { fetchAllPages, fetchPage, filterHref, parseFilters } from "./query";
+import { applyFilters, fetchAllPages, fetchPage, filterHref, parseFilters } from "./query";
 
 test("filters come out of the query string", () => {
   const filters = parseFilters({
@@ -34,6 +34,37 @@ test("empty values are treated as absent", () => {
 
 test("a repeated parameter takes the first, not an array", () => {
   expect(parseFilters({ game: ["One", "Two"] }).game).toBe("One");
+});
+
+/** A fake query builder that just records which column each filter matched
+ * against, standing in for the Supabase query chain. */
+function recordingQuery() {
+  const calls: { method: string; column: string; value: unknown }[] = [];
+  const query = {
+    eq(column: string, value: string) {
+      calls.push({ method: "eq", column, value });
+      return query;
+    },
+    contains(column: string, value: readonly string[]) {
+      calls.push({ method: "contains", column, value });
+      return query;
+    },
+    textSearch(column: string, value: string) {
+      calls.push({ method: "textSearch", column, value });
+      return query;
+    },
+  };
+  return { query, calls };
+}
+
+test("the game filter matches game_key, not game_name (issue #50)", () => {
+  // game_name can hold a version-carrying archive name unique to one row, so
+  // filtering on it would match a group of one rather than "no game".
+  const { query, calls } = recordingQuery();
+  applyFilters(query, parseFilters({ game: "BA" }));
+
+  expect(calls).toContainEqual({ method: "eq", column: "game_key", value: "BA" });
+  expect(calls.some((c) => c.column === "game_name")).toBe(false);
 });
 
 test("changing a filter keeps the others and drops the page", () => {
