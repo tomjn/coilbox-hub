@@ -1,6 +1,6 @@
 /**
  * The one place that reads and validates the Supabase configuration every
- * client in this app needs. `middleware.ts`, `lib/supabase/client.ts`,
+ * client in this app needs. `proxy.ts`, `lib/supabase/client.ts`,
  * `lib/supabase/server.ts` and `lib/supabase/bearer.ts` all import this
  * instead of asserting `!` on the env vars themselves, which used to let a
  * missing variable reach the Supabase SDK as `undefined` and throw deep

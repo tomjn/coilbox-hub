@@ -17,7 +17,7 @@ import { getSupabaseConfig, SUPABASE_CONFIG_ERROR } from "@/lib/supabase/config"
  * explaining the deployment is broken, rather than a page that quietly limps
  * along.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const config = getSupabaseConfig();
   if (!config.ok) {
     if (request.nextUrl.pathname.startsWith("/api/")) {
