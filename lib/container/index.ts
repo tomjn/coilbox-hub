@@ -3,9 +3,9 @@
  *
  * Import from here rather than from `./container` directly. That file is
  * vendored verbatim from `src/container/container.ts` in tomjn/coilbox and is
- * not ours to edit: `bun run sync:container` is the only thing that writes it,
- * and `bun run check:container` fails if it has been changed here or if coilbox
- * has moved on. The pinned source is recorded in `source.json`.
+ * not ours to edit: `bun run sync:vendor` is the only thing that writes it, and
+ * `bun run check:vendor` fails if it has been changed here or if coilbox has
+ * moved on. The pinned source is recorded in `source.json`.
  *
  * The hub has to read exactly what the app writes. A divergence between the two
  * would not throw anywhere, it would just mean the gallery accepts an item that
