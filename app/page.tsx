@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CoilLogo } from "@/components/CoilLogo";
+import { HubArt } from "@/components/HubArt";
 import { ItemCard } from "@/components/ItemCard";
 import { requestOrigin } from "@/lib/gallery/origin";
 import {
@@ -49,6 +50,10 @@ export default async function Home() {
             Publish something
           </Link>
         </div>
+      </div>
+
+      <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-lg border border-neutral-800">
+        <HubArt className="w-full" />
       </div>
 
       {items.length > 0 ? (
