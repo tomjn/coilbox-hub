@@ -9,6 +9,12 @@ const eslintConfig = defineConfig([
   globalIgnores([
     "supabase/.temp/**",
     "supabase/.branches/**",
+    // Agent worktrees live here, each with its own .next. The `.next/**` below
+    // only matches the one at the root, so without this a lint run sweeps up
+    // generated chunks from every worktree and fails on code nobody wrote.
+    // CI has no worktrees and stays green, so the local run is the one lying.
+    ".claude/**",
+    ".vercel/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
