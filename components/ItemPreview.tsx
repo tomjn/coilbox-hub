@@ -9,7 +9,12 @@
  * Note on presets: the payload carries no start positions. `Participant` holds a
  * side, a colour, an ally team and a slot, and `startPosType` only says how
  * positions get chosen at launch. So this shows the composition, which is what
- * the data actually describes, rather than a map diagram it cannot support.
+ * the data actually describes.
+ *
+ * The map itself is a separate thing, drawn by `components/MapMinimap.tsx` from
+ * BAR's map list rather than from the payload, and placed beside this on the
+ * item page. Start boxes come from there too, for the same reason: the payload
+ * still has none.
  */
 
 import { conquestGalaxy, type GalaxyShape } from "@/lib/gallery/conquestGalaxy";

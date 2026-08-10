@@ -5,8 +5,11 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { ImportLink } from "@/components/ImportLink";
 import { ItemPreview } from "@/components/ItemPreview";
 import { KindIcon } from "@/components/KindIcon";
+import { MapMinimap } from "@/components/MapMinimap";
 import { ReportButton } from "@/components/ReportButton";
+import { findBarMap } from "@/lib/bar/maps";
 import { itemArt } from "@/lib/gallery/itemArt";
+import { mapOverlay } from "@/lib/gallery/mapOverlay";
 import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { createClient } from "@/lib/supabase/server";
@@ -112,6 +115,16 @@ export default async function Item({
   const published = new Date(item.created_at).toISOString().slice(0, 10);
   const { drawing, strength } = itemArt(item.kind, item.mode);
 
+  // Null for every kind that names no map, and for a map BAR does not list.
+  // Either way the page is exactly what it was before this existed.
+  const barMap = await findBarMap(item.map_name);
+  const minimap = barMap?.images?.preview ? (
+    <MapMinimap
+      map={barMap}
+      {...mapOverlay(item.kind, item.container, barMap)}
+    />
+  ) : null;
+
   return (
     <main className="relative flex-1">
       <ArtBackdrop drawing={drawing} strength={strength} />
@@ -134,7 +147,19 @@ export default async function Item({
           ) : null}
         </div>
 
-        <ItemPreview kind={item.kind} container={item.container} />
+        {minimap ? (
+          // Where and who, side by side: the two halves of what a preset is.
+          // `empty:hidden` because a kind can render no preview at all, and an
+          // empty flex item would still take the row's gap.
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+            <div className="w-full shrink-0 sm:w-80">{minimap}</div>
+            <div className="min-w-0 flex-1 empty:hidden">
+              <ItemPreview kind={item.kind} container={item.container} />
+            </div>
+          </div>
+        ) : (
+          <ItemPreview kind={item.kind} container={item.container} />
+        )}
 
         <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-5">
           <ImportLink shareUrl={shareUrl} variant="solid" />
