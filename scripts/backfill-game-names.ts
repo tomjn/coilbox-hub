@@ -1,5 +1,5 @@
 /**
- * One off backfill for `item.game_name` (issue #38).
+ * One off backfill for `item.game_name` and `item.game_key` (issues #38, #50).
  *
  * https://github.com/tomjn/coilbox-hub/pull/37 changed how game_name is
  * derived: `describe()` in lib/gallery/publish.ts now reads it from
@@ -9,6 +9,12 @@
  * and null for a scenario or a challenge, which never had a per-kind read at
  * all. The container column already holds everything needed to redo the
  * derivation, so this replays it rather than asking anyone to republish.
+ *
+ * Issue #50 split the derivation in two: game_name is still what a person
+ * reads, but game_key - what a listing groups and filters by - is new, and
+ * every row backfilled before that split has none. This backfill now writes
+ * both from the same read of `container`, so running it is also how an
+ * already-live database picks up game_key for the first time.
  *
  * A migration cannot do this: the derivation is TypeScript, and reimplementing
  * it in plpgsql would be exactly the duplication PR #37 removed. So this
@@ -24,7 +30,7 @@
  * reads fine but genuinely names no game still gets null, the same as a fresh
  * publish of it would.
  *
- * Safe to run twice: a row already holding the derived value compares equal
+ * Safe to run twice: a row already holding both derived values compares equal
  * and is left alone, so a second run (dry or live) reports nothing to change.
  */
 
@@ -36,13 +42,14 @@ import { describe } from "@/lib/gallery/publish";
 import { fetchAllPages } from "@/lib/gallery/query";
 
 const PAGE_SIZE = 1000;
-const COLUMNS = "id,kind,title,game_name,container";
+const COLUMNS = "id,kind,title,game_name,game_key,container";
 
 interface Row {
   id: string;
   kind: string;
   title: string;
   game_name: string | null;
+  game_key: string | null;
   container: unknown;
 }
 
@@ -69,9 +76,10 @@ if (!url || !key) {
 console.log(`${write ? "Writing to" : "Reading"} ${new URL(url).host}`);
 
 // Service role, not the session-backed client the app uses: this has to touch
-// every row regardless of author, and game_name sits outside the columns
-// item_update_own grants an authenticated user (see the gallery_items
-// migration), by design, so no authenticated client could write it anyway.
+// every row regardless of author, and game_name and game_key both sit outside
+// the columns item_update_own grants an authenticated user (see the
+// gallery_items migration), by design, so no authenticated client could
+// write either anyway.
 const supabase = createClient(url, key, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
@@ -109,19 +117,21 @@ for (const row of rows) {
   }
 
   const container = row.container as { payload: unknown };
-  const { gameName } = describe(result.kind, container.payload, result.game);
+  const { gameName, gameKey } = describe(result.kind, container.payload, result.game);
 
-  if (gameName === row.game_name) continue;
+  if (gameName === row.game_name && gameKey === row.game_key) continue;
 
   changed++;
   console.log(
-    `${write ? "update" : "would update"} ${row.id} (${result.kind} "${row.title}"): ${JSON.stringify(row.game_name)} -> ${JSON.stringify(gameName)}`,
+    `${write ? "update" : "would update"} ${row.id} (${result.kind} "${row.title}"): ` +
+      `name ${JSON.stringify(row.game_name)} -> ${JSON.stringify(gameName)}, ` +
+      `key ${JSON.stringify(row.game_key)} -> ${JSON.stringify(gameKey)}`,
   );
 
   if (write) {
     const { error: updateError } = await supabase
       .from("item")
-      .update({ game_name: gameName })
+      .update({ game_name: gameName, game_key: gameKey })
       .eq("id", row.id);
     if (updateError) {
       console.error(`  failed: ${updateError.message}`);
