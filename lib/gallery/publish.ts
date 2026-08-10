@@ -23,6 +23,10 @@ export interface AcceptedContainer {
   kind: GalleryKind;
   kindVersion: number;
   gameName: string | null;
+  /** The grouping key two items targeting the same game share (issue #50).
+   * See {@link describe} for why this is not always the same value as
+   * `gameName`, and sometimes has no value where `gameName` does. */
+  gameKey: string | null;
   mapName: string | null;
 }
 
@@ -44,47 +48,59 @@ function str(value: unknown): string | null {
  * been looked at yields null rather than a guess at a field name that may not
  * exist, because a wrong map name is worse than no map name.
  *
- * The game name is not derived here: `gameIdentityFromPayload` (via
+ * The game identity is not derived here: `gameIdentityFromPayload` (via
  * `identify()`) already covers every kind, scenario included, from the one
  * `game` field every kind now writes, or its kind's old spelling when it does
  * not. Re-reading a kind's old spelling here would be the same duplication
  * this function used to be.
  *
- * Exported so scripts/backfill-game-names.ts can derive the same gameName for
- * an already-stored row without a second copy of this logic.
+ * Exported so scripts/backfill-game-names.ts can derive the same gameName and
+ * gameKey for an already-stored row without a second copy of this logic.
  */
 export function describe(
   kind: GalleryKind,
   payload: unknown,
   game: GameIdentity | undefined,
 ) {
-  // Shortname is the stable, human-facing identifier (see gameIdentity.ts):
-  // unlike the exact pinned build a preset, setup pack or challenge may carry,
-  // it does not change every time the game updates, which is what a listing
-  // filters and groups by. It falls back to the pinned name when a game has
-  // no shortname, so an item still shows something rather than nothing.
+  // gameName is what a person reads on a card: the stable shortname when
+  // there is one, falling back to the exact pinned build so an item still
+  // shows something rather than nothing.
+  //
+  // gameKey is what a listing groups and filters by, and it is deliberately
+  // narrower (issue #50). Two items exported from different machines can
+  // name the same game two different ways - one only has the shortname
+  // (a challenge always does), one only has the exact archive name (an item
+  // exported where the game was not installed, see gameIdentity.ts:22-25) -
+  // and grouping the second under its archive name would mint a fresh facet
+  // on every release, exactly the fragmentation issue #30 was filed to end.
+  // So gameKey is only ever the shortname: stable across a game's releases,
+  // and absent rather than guessed at when there isn't one. That leaves two
+  // items that each carry only one spelling unable to group with each other,
+  // which this does not attempt to fix - see the PR description for why.
   const gameName = game ? (game.shortname ?? game.name ?? null) : null;
+  const gameKey = game?.shortname ?? null;
 
   if (typeof payload !== "object" || payload === null) {
-    return { gameName, mapName: null };
+    return { gameName, gameKey, mapName: null };
   }
   const p = payload as Record<string, unknown>;
 
   if (kind === "preset") {
-    return { gameName, mapName: str(p.mapName) };
+    return { gameName, gameKey, mapName: str(p.mapName) };
   }
 
   if (kind === "setup-pack") {
     const maps = Array.isArray(p.maps) ? p.maps : [];
     return {
       gameName,
+      gameKey,
       // A pack can carry several maps and the row holds one, so it is only
       // filled in when there is no ambiguity about which it would mean.
       mapName: maps.length === 1 ? str(maps[0]) : null,
     };
   }
 
-  return { gameName, mapName: null };
+  return { gameName, gameKey, mapName: null };
 }
 
 /**
@@ -267,6 +283,7 @@ export async function publishItem(
       title,
       description: fields.description.trim(),
       game_name: accepted.gameName,
+      game_key: accepted.gameKey,
       map_name: accepted.mapName,
       tags,
       container: accepted.container,

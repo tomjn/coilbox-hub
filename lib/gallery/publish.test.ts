@@ -23,6 +23,9 @@ test("a preset code is accepted and describes itself", () => {
   if (!result.ok) return;
   expect(result.accepted.kind).toBe("preset");
   expect(result.accepted.gameName).toBe("Beyond All Reason");
+  // The old bare gameName spelling carries no shortname, so there is nothing
+  // stable to group on.
+  expect(result.accepted.gameKey).toBeNull();
   expect(result.accepted.mapName).toBe("Comet Catcher Remake");
 });
 
@@ -117,6 +120,13 @@ test("a setup pack names its game", () => {
   expect(result.accepted.mapName).toBe("All That Simmers v1.1.1");
 });
 
+test("a setup pack with only the exact archive name gets no grouping key, so a new build never mints its own facet", () => {
+  const result = accept(packCode(["All That Simmers v1.1.1"]));
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.gameKey).toBeNull();
+});
+
 test("a pack carrying several maps claims none of them", () => {
   const result = accept(packCode(["One", "Two"]));
   expect(result.ok).toBe(true);
@@ -145,6 +155,9 @@ test("a challenge names its game by shortname", () => {
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.accepted.gameName).toBe("BA");
+  // A challenge only ever has a shortname, so it is the one kind whose
+  // gameKey is set as often as its gameName.
+  expect(result.accepted.gameKey).toBe("BA");
   expect(result.accepted.mapName).toBeNull();
 });
 
@@ -162,6 +175,7 @@ test("a shortname wins over a pinned build name when both are present", () => {
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.accepted.gameName).toBe("FN");
+  expect(result.accepted.gameKey).toBe("FN");
 });
 
 test("a preset carrying the unified game field resolves its game through it", () => {
@@ -177,6 +191,7 @@ test("a preset carrying the unified game field resolves its game through it", ()
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.accepted.gameName).toBe("BAR");
+  expect(result.accepted.gameKey).toBe("BAR");
 });
 
 test("a scenario names its game, the same as any other kind", () => {
@@ -196,6 +211,10 @@ test("a scenario names its game, the same as any other kind", () => {
   if (!result.ok) return;
   expect(result.accepted.kind).toBe("scenario");
   expect(result.accepted.gameName).toBe("Beyond All Reason");
+  // The scenario's old spelling is a bare gameName, with no shortname to
+  // group by - the same shape as the production "Balanced Annihilation
+  // V15.9.8" scenario from issue #50.
+  expect(result.accepted.gameKey).toBeNull();
   expect(result.accepted.mapName).toBeNull();
 });
 
@@ -211,7 +230,41 @@ test("a scenario with nothing to name its game yields no game name", () => {
   if (!result.ok) return;
   expect(result.accepted.kind).toBe("scenario");
   expect(result.accepted.gameName).toBeNull();
+  expect(result.accepted.gameKey).toBeNull();
   expect(result.accepted.mapName).toBeNull();
+});
+
+// issue #50: a row that only ever learns the exact archive name and a row
+// that only ever learns the shortname cannot be told apart from two rows for
+// two unrelated games. Resolving one spelling from the other (option 2 in
+// the issue) is out of scope here, so this documents the gap rather than
+// papering over it. The two rows below name the same real game, "Balanced
+// Annihilation", but nothing in the hub can know that, so they get gameKeys
+// that do not match each other. A person filtering the gallery by "BA" gets
+// the challenge and not the scenario. The scenario is still visible with its
+// own game name on its own card, just not through that filter.
+test("a name-only row and a shortname-only row for the same real game do not share a grouping key", () => {
+  const scenario = accept(
+    encodeContainerCode("scenario", SUPPORTED_KIND_VERSIONS.scenario, {
+      scenario: { triggers: [], zones: [], setup: { gameName: "Balanced Annihilation V15.9.8" } },
+      media: {},
+    }),
+  );
+  const challenge = accept(
+    encodeContainerCode("challenge", SUPPORTED_KIND_VERSIONS.challenge, {
+      mode: "conquest",
+      settings: { game: { shortname: "BA" }, nodeCount: 12, seed: 7 },
+    }),
+  );
+
+  expect(scenario.ok).toBe(true);
+  expect(challenge.ok).toBe(true);
+  if (!scenario.ok || !challenge.ok) return;
+
+  expect(scenario.accepted.gameName).toBe("Balanced Annihilation V15.9.8");
+  expect(scenario.accepted.gameKey).toBeNull();
+  expect(challenge.accepted.gameName).toBe("BA");
+  expect(challenge.accepted.gameKey).toBe("BA");
 });
 
 // publishItem is the shared middle of the publish form and the API's
@@ -310,6 +363,7 @@ test("publishItem inserts as the given author and returns the stored item on suc
     title: "Title",
     description: "a description",
     game_name: "Beyond All Reason",
+    game_key: null,
     map_name: "Comet Catcher Remake",
     tags: ["eco"],
     author_name: "Someone",
