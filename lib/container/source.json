@@ -4,6 +4,7 @@
   "dir": "src/container",
   "files": {
     "container.ts": "e3f3e360123df1fa6e0e60130a5be3089fb058c4",
-    "gameIdentity.ts": "0d9a601c2c7aefa4403b46251a699943a9a96c11"
+    "gameIdentity.ts": "63b683ed2eb99d87c03eb38f2e811ca5726b8bef",
+    "shortnames.ts": "559a90a50772797f2a16774b971306ecb15a5d71"
   }
 }
