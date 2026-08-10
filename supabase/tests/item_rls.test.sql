@@ -5,7 +5,7 @@
 -- nobody.
 
 begin;
-select plan(26);
+select plan(27);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -129,6 +129,17 @@ select throws_ok(
   '42501',
   null,
   'an author cannot swap the container under an existing item'
+);
+
+-- game_key (issue #50), the grouping key a listing filters by: the same
+-- boundary as game_name and container, only the backfill script and a
+-- publish through service role write it, never an author editing afterwards.
+select throws_ok(
+  $$update public.item set game_key = 'FORGED'
+    where id = 'aaaaaaaa-0000-0000-0000-000000000001'$$,
+  '42501',
+  null,
+  'an author cannot rewrite their item''s grouping key'
 );
 
 select lives_ok(
