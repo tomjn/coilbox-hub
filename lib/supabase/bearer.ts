@@ -1,4 +1,5 @@
 import { createClient as createSupabaseClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { requireSupabaseConfig } from "@/lib/supabase/config";
 
 /**
  * Pulls the token out of `Authorization: Bearer <token>`. Pure and
@@ -28,14 +29,11 @@ export function extractBearerToken(request: Request): string | null {
  * starts fresh on every request, so there is nothing to persist to.
  */
 export function createClientForToken(token: string): SupabaseClient {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      auth: { autoRefreshToken: false, persistSession: false },
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    },
-  );
+  const { url, publishableKey } = requireSupabaseConfig();
+  return createSupabaseClient(url, publishableKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
 }
 
 export type BearerAuthResult =

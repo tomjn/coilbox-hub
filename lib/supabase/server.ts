@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { requireSupabaseConfig } from "@/lib/supabase/config";
 
 /**
  * The server client, for route handlers, server components and server actions.
@@ -9,26 +10,23 @@ import { cookies } from "next/headers";
  */
 export async function createClient() {
   const store = await cookies();
+  const { url, publishableKey } = requireSupabaseConfig();
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return store.getAll();
-        },
-        setAll(written) {
-          try {
-            for (const { name, value, options } of written) {
-              store.set(name, value, options);
-            }
-          } catch {
-            // Server components cannot set cookies. The middleware refreshes the
-            // session on every request, so there is nothing to recover here.
+  return createServerClient(url, publishableKey, {
+    cookies: {
+      getAll() {
+        return store.getAll();
+      },
+      setAll(written) {
+        try {
+          for (const { name, value, options } of written) {
+            store.set(name, value, options);
           }
-        },
+        } catch {
+          // Server components cannot set cookies. The middleware refreshes the
+          // session on every request, so there is nothing to recover here.
+        }
       },
     },
-  );
+  });
 }

@@ -3,6 +3,7 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireSupabaseConfig, requireSupabaseServiceRoleKey } from "@/lib/supabase/config";
 
 /**
  * Holding a Discord identity means owing people a way out, and per item
@@ -24,11 +25,11 @@ export async function deleteAccount(): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const admin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  );
+  const { url } = requireSupabaseConfig();
+  const serviceRoleKey = requireSupabaseServiceRoleKey();
+  const admin = createAdminClient(url, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) throw new Error(`Could not delete the account: ${error.message}`);
