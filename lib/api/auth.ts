@@ -1,3 +1,5 @@
+import { getSupabaseConfig } from "@/lib/supabase/config";
+
 /**
  * What a client needs to run the Discord PKCE sign-in flow: which Supabase
  * project to talk to, and the publishable key for it. Neither is a secret -
@@ -23,17 +25,16 @@ export interface AuthBody {
 export type AuthResult = { ok: true; body: AuthBody } | { ok: false };
 
 /**
- * Reads the two environment variables the client needs. If either is unset
- * this deployment cannot answer, and hands back `{ ok: false }` rather than
- * a body with an `undefined` field: a client that gets
- * `"supabase_url": undefined` has nowhere useful to go and nothing on
- * screen to explain why.
+ * Reads the two environment variables the client needs, through
+ * `getSupabaseConfig()` (lib/supabase/config.ts) rather than its own copy of
+ * the same check. If either is unset this deployment cannot answer, and
+ * hands back `{ ok: false }` rather than a body with an `undefined` field: a
+ * client that gets `"supabase_url": undefined` has nowhere useful to go and
+ * nothing on screen to explain why.
  */
 export function buildAuthBody(): AuthResult {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!supabaseUrl || !publishableKey) {
+  const config = getSupabaseConfig();
+  if (!config.ok) {
     return { ok: false };
   }
 
@@ -42,8 +43,8 @@ export function buildAuthBody(): AuthResult {
     body: {
       format: AUTH_FORMAT,
       version: AUTH_VERSION,
-      supabase_url: supabaseUrl,
-      publishable_key: publishableKey,
+      supabase_url: config.config.url,
+      publishable_key: config.config.publishableKey,
     },
   };
 }

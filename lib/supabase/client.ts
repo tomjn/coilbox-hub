@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { requireSupabaseConfig } from "@/lib/supabase/config";
 
 /**
  * The browser client. Carries the publishable key, which is public by design:
@@ -6,8 +7,6 @@ import { createBrowserClient } from "@supabase/ssr";
  * policies on the database, not in this bundle.
  */
 export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-  );
+  const { url, publishableKey } = requireSupabaseConfig();
+  return createBrowserClient(url, publishableKey);
 }
