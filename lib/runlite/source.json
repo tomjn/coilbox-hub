@@ -1,0 +1,8 @@
+{
+  "repo": "tomjn/coilbox",
+  "ref": "main",
+  "dir": "src/runlite",
+  "files": {
+    "generate.ts": "afad597e31c531b24f7970a23f84248e13019bff"
+  }
+}

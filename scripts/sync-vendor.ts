@@ -1,13 +1,13 @@
 /**
  * Keep the files vendored from coilbox byte identical to their originals.
  *
- * Two groups, for the same reason. The hub has to read exactly the format the
- * app writes, and draw exactly the galaxy the app generates. If either
- * definition drifts the failure is silent: the gallery accepts something the
- * app will refuse to import, or it draws a galaxy that is not the one the
- * challenge produces, and nobody finds out until a user complains. So the
- * files are vendored rather than reimplemented, and this script is the only
- * thing allowed to write them.
+ * Every group is here for the same reason. The hub has to read exactly the
+ * format the app writes, and draw exactly the galaxy and the run the app
+ * generates. If any of those definitions drifts the failure is silent: the
+ * gallery accepts something the app will refuse to import, or it draws a map
+ * that is not the one the challenge produces, and nobody finds out until a user
+ * complains. So the files are vendored rather than reimplemented, and this
+ * script is the only thing allowed to write them.
  *
  *   bun run sync:vendor           write the vendored copies from coilbox main
  *   bun run sync:vendor --check   report drift and change nothing
@@ -72,6 +72,34 @@ const GROUPS: VendorGroup[] = [
       values: { NEUTRAL: '"neutral"', MAX_DIFFICULTY: "5" },
     },
   },
+  {
+    // The warpath generator, for the same reason as conquest. Its run map is a
+    // forward-only graph of columns, and the shape of it is a pure function of
+    // the seed: installed content changes what is in the nodes, never how many
+    // there are or how they join up.
+    dir: "src/runlite",
+    vendor: "lib/runlite",
+    files: ["generate.ts"],
+    externals: {
+      "lib/runlite/model.ts": "a hand written subset of upstream's model.ts",
+      "lib/campaign/model.ts":
+        "one type the generator only passes through, from a file that reaches the plugin bindings",
+    },
+    // No constants check. Everything that decides the shape of a run, the
+    // column count per length included, lives inside the vendored generate.ts,
+    // so the blob hash already covers it.
+  },
+  {
+    // Reached from the warpath generator. It imports nothing but a type, so
+    // unlike the rest of `src/content` it vendors cleanly.
+    dir: "src/content",
+    vendor: "lib/content",
+    files: ["buildTree.ts"],
+    externals: {
+      "lib/content/bindings.ts":
+        "one type, from a file that is the Tauri plugin binding layer",
+    },
+  },
 ];
 
 interface SourceRecord {
@@ -109,9 +137,9 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-/** Every path a vendored file is allowed to import. Collected across all
- * groups, since the question is whether an import lands on something this repo
- * actually has, not whether it lands inside its own group. */
+/** Every path a vendored file is allowed to import, across all groups. The
+ * conquest generator is imported by the warpath one, so this cannot be scoped
+ * to a single group. */
 const VENDORED = new Set(
   GROUPS.flatMap((g) => g.files.map((file) => `${g.vendor}/${file}`)),
 );
