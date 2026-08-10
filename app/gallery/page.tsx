@@ -54,11 +54,14 @@ export default async function Gallery({
   // Filter options come from the rows themselves. At this size that is one small
   // query, and it is honest: an option only appears when something is behind it.
   // It will need a view or a materialised list long before it needs paging.
+  // The game facet is built from game_key, not game_name: game_name can hold
+  // a version-carrying archive name unique to one row (issue #50), and a
+  // chip built from that would offer a filter that matches nothing else.
   const { data: facetRows } = await supabase
     .from("item")
-    .select("game_name,map_name")
+    .select("game_key,map_name")
     .limit(1000);
-  const games = distinct(facetRows?.map((row) => row.game_name));
+  const games = distinct(facetRows?.map((row) => row.game_key));
   const maps = distinct(facetRows?.map((row) => row.map_name));
 
   return (

@@ -17,6 +17,10 @@ interface ItemDetail {
   title: string;
   description: string;
   game_name: string | null;
+  /** The grouping key `/gallery?game=` filters on (issue #50). Absent when
+   * `game_name` is only the exact archive name, since that is not shared by
+   * anything else to filter to. */
+  game_key: string | null;
   map_name: string | null;
   tags: string[];
   author_name: string;
@@ -25,7 +29,7 @@ interface ItemDetail {
 }
 
 const DETAIL_COLUMNS =
-  "id,kind,mode,container,title,description,game_name,map_name,tags,author_name,created_at,updated_at";
+  "id,kind,mode,container,title,description,game_name,game_key,map_name,tags,author_name,created_at,updated_at";
 
 /** A withdrawn item is invisible to the read policy, so it arrives here as
  * nothing found without this page knowing about moderation. */
@@ -160,12 +164,19 @@ export default async function Item({
         <Fact term="Published">{published}</Fact>
         {item.game_name ? (
           <Fact term="Game">
-            <Link
-              href={`/gallery?game=${encodeURIComponent(item.game_name)}`}
-              className="hover:text-white"
-            >
-              {item.game_name}
-            </Link>
+            {item.game_key ? (
+              <Link
+                href={`/gallery?game=${encodeURIComponent(item.game_key)}`}
+                className="hover:text-white"
+              >
+                {item.game_name}
+              </Link>
+            ) : (
+              // No key to filter by (issue #50): this names the exact build
+              // rather than the stable game, so it is shown but not offered
+              // as a link that would filter to nothing else.
+              item.game_name
+            )}
           </Fact>
         ) : null}
         {item.map_name ? (
