@@ -10,6 +10,11 @@ import {
 } from "@/lib/gallery/query";
 import { createClient } from "@/lib/supabase/server";
 
+// Scales the shape opacities in `HubArt` down from their PR #61 panel
+// tuning: sitting behind the hero text at full viewport size, that tuning
+// is too strong.
+const BACKDROP_STRENGTH = 0.11;
+
 export default async function Home() {
   const origin = await requestOrigin();
   const supabase = await createClient();
@@ -24,8 +29,27 @@ export default async function Home() {
   const filters = parseFilters({});
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-12 px-6 py-16">
-      <div className="flex flex-col items-center gap-6 text-center">
+    <main className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col gap-12 px-6 py-16">
+      {/* Fixed to the viewport rather than the page, so it stays put as the
+          page scrolls instead of moving with the content beneath it.
+          `inset-0` covers the whole viewport, which also means it never
+          needs to break out of `max-w-5xl` the way an in-flow backdrop
+          would. The mask is the fade: full strength at the bottom of the
+          viewport, nothing at the top. `pointer-events-none` and
+          `aria-hidden` keep it out of the way of the hero buttons and the
+          page's semantics. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+        style={{
+          maskImage: "linear-gradient(to top, black, transparent)",
+          WebkitMaskImage: "linear-gradient(to top, black, transparent)",
+        }}
+      >
+        <HubArt className="h-full w-full" strength={BACKDROP_STRENGTH} />
+      </div>
+
+      <div className="relative z-10 flex flex-col items-center gap-6 text-center">
         <CoilLogo className="w-20" />
         <div className="flex flex-col gap-3">
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
@@ -52,12 +76,8 @@ export default async function Home() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-lg border border-neutral-800">
-        <HubArt className="w-full" />
-      </div>
-
       {items.length > 0 ? (
-        <section className="flex flex-col gap-4">
+        <section className="relative z-10 flex flex-col gap-4">
           <div className="flex items-baseline justify-between">
             <h2 className="text-sm uppercase tracking-wide text-neutral-500">
               Newest
