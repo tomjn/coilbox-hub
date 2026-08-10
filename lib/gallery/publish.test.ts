@@ -135,6 +135,30 @@ test("a pack carrying several maps claims none of them", () => {
   expect(result.accepted.mapName).toBeNull();
 });
 
+test("a pack published as a collection of games is named for the first of them", () => {
+  // A pack is no longer a snapshot of one setup, so it carries `games` and may
+  // carry no maps at all (coilbox #1400). Reading only `game` left every such
+  // pack with no game name, which drops it out of the game filter.
+  const code = encodeContainerCode(
+    "setup-pack",
+    SUPPORTED_KIND_VERSIONS["setup-pack"],
+    {
+      title: "Popular water maps",
+      games: [
+        { name: "SplinterFaction 0.1.78", shortname: "SF" },
+        { name: "Beyond All Reason 1.2", shortname: "BAR" },
+      ],
+    },
+  );
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.gameName).toBe("SF");
+  expect(result.accepted.gameKey).toBe("SF");
+  expect(result.accepted.mapName).toBeNull();
+});
+
 // Shape taken from a real published conquest run.
 test("a challenge names its game by shortname", () => {
   const code = encodeContainerCode(
