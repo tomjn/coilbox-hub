@@ -23,18 +23,19 @@
  * on its card there. No label sits over it on this page, so the composition
  * is kept exactly as coilbox draws it rather than redrawn: it depicts a
  * specific arrival (four things already offered, a fifth mid-crossing), and
- * that reads the same at any size. It is shown larger than a card only
- * because there is now room, via `className` on the element this renders.
+ * that reads the same at any size. On this page it is not a card at all: the
+ * caller (`app/page.tsx`) stretches it full width as a translucent backdrop
+ * behind the hero, so `className` here carries sizing and fade, not a frame.
  *
  * That label rule is also why the bottom of the 320x200 canvas is bare: the
  * lowest shape (the shelf line) ends at y=130, leaving y=130 to y=200 clear
  * for a label that never arrives here. Rendered at card size that gap is a
  * few pixels and goes unnoticed; rendered as wide as this page allows it
- * read as fifty extra pixels of dead panel below the drawing, like a
+ * read as fifty extra pixels of dead space below the drawing, like a
  * rendering mistake rather than space. `VIEW_HEIGHT` crops the visible
  * window to the content instead of the full authored canvas, without
- * touching the drawing's own coordinates or the field/pool gradients, which
- * still fill the full 320x200 they were designed for.
+ * touching the drawing's own coordinates or the pool gradients, which still
+ * fill the full 320x200 they were designed for.
  */
 
 const WIDTH = 320;
@@ -70,8 +71,6 @@ function diamond(x: number, y: number, r: number): string {
 }
 
 interface Palette {
-  fieldTop: string;
-  fieldFoot: string;
   glow: string;
   faint: string;
   line: string;
@@ -82,15 +81,15 @@ interface Palette {
  * Coilbox's `paletteFor`, with the light-scheme ramp dropped: this site sets
  * `color-scheme: dark` and nothing else, so a mark's lightness is always its
  * dark-card value, which is what `schemeLightness(scheme, dark)` returns
- * unchanged for `scheme === "dark"`.
+ * unchanged for `scheme === "dark"`. `fieldTop`/`fieldFoot`, coilbox's panel
+ * background wash, are also dropped: this site draws no full-canvas field
+ * rect (see `inner` below), so nothing reads them.
  */
 function paletteFor(theme: typeof THEME): Palette {
   const neutral = theme.s < ACHROMATIC_SATURATION;
   const sat = neutral ? clamp(theme.s, 0, 6) : clamp(theme.s, 24, 58);
   const hue = (offset: number) => (neutral ? theme.h : theme.h + offset);
   return {
-    fieldTop: hsl(hue(14), sat, 17),
-    fieldFoot: hsl(hue(-10), sat * 0.65, 8),
     glow: hsl(hue(22), Math.min(sat + 14, 70), 58),
     faint: hsl(hue(0), Math.min(sat + 6, 62), 54),
     line: hsl(hue(6), Math.min(sat + 18, 72), 70),
@@ -107,16 +106,20 @@ const POOLS: readonly (readonly [number, number, number, number])[] = [
 ];
 
 /**
- * Coilbox's `hub.paint`, with the fill and stroke opacities raised. The
- * shapes and their positions are unchanged from the source. Only how solid
- * they are is different. Coilbox tunes those opacities for a card that sits
+ * Coilbox's `hub.paint`. The shapes and their positions are unchanged from
+ * the source. Only how solid they are is different, and it has been
+ * different twice now. Coilbox tunes its own opacities for a card that sits
  * in a grid of other muted UI chrome, next to its own label at low
- * emphasis. Here the same values sat beside a full-opacity, near-white
- * headline and read as a dim smudge rather than as five distinct shapes.
- * The crossing diamond (`spark`) was already legible at coilbox's own
- * opacity, so it is the one shape left untouched.
+ * emphasis. PR #61 raised them so the drawing would read as a framed panel
+ * next to a full-opacity headline instead of a dim smudge. Full width and
+ * sitting directly behind that headline and the buttons below it, PR #61's
+ * numbers are too strong again: solid shapes under running text. `strength`
+ * scales every opacity below down from that panel tuning for the backdrop.
+ * The crossing diamond (`spark`) reads clearly even scaled down, being the
+ * one shape coilbox's own opacity already made legible.
  */
-function paintHub(p: Palette): string {
+function paintHub(p: Palette, strength: number): string {
+  const op = (v: number) => round(v * strength);
   // Shared out there. The hexagon is the shape the setup-pack card is drawn
   // from, so the two read as the same object in two places.
   const shared =
@@ -131,53 +134,74 @@ function paintHub(p: Palette): string {
     '<rect x="96" y="98" width="28" height="24" rx="3"/>' +
     '<circle cx="212" cy="110" r="12"/>';
   return (
-    `<g fill="${p.line}" fill-opacity="0.5" stroke="${p.faint}" stroke-width="1.5" stroke-opacity="0.65">${shared}</g>` +
-    `<g fill="none" stroke="${p.faint}" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 9">` +
+    `<g fill="${p.line}" fill-opacity="${op(0.5)}" stroke="${p.faint}" stroke-width="1.5" stroke-opacity="${op(0.65)}">${shared}</g>` +
+    `<g fill="none" stroke="${p.faint}" stroke-width="1.5" stroke-opacity="${op(0.45)}" stroke-dasharray="6 9">` +
     '<path d="M-10 78 L330 78"/>' +
     "</g>" +
-    `<g fill="${p.line}" fill-opacity="0.55" stroke="${p.faint}" stroke-width="1.2" stroke-opacity="0.65">${held}</g>` +
-    `<g fill="none" stroke="${p.spark}" stroke-width="2" stroke-opacity="0.6" stroke-linecap="round" stroke-linejoin="round">` +
+    `<g fill="${p.line}" fill-opacity="${op(0.55)}" stroke="${p.faint}" stroke-width="1.2" stroke-opacity="${op(0.65)}">${held}</g>` +
+    `<g fill="none" stroke="${p.spark}" stroke-width="2" stroke-opacity="${op(0.6)}" stroke-linecap="round" stroke-linejoin="round">` +
     '<path d="M222 50 Q216 82 176 94"/>' +
     '<path d="M188 84 L176 94 L191 96"/>' +
     "</g>" +
-    `<g fill="${p.spark}" fill-opacity="0.8">${diamond(160, 107, 15)}</g>` +
-    `<rect x="84" y="126" width="152" height="4" rx="2" fill="${p.faint}" fill-opacity="0.5"/>`
+    `<g fill="${p.spark}" fill-opacity="${op(0.8)}">${diamond(160, 107, 15)}</g>` +
+    `<rect x="84" y="126" width="152" height="4" rx="2" fill="${p.faint}" fill-opacity="${op(0.5)}"/>`
   );
 }
 
-// Built once from fixed constants, not per request, and not from anything a
-// visitor supplies. The gradient ids assume a single `HubArt` on the page.
-const inner =
-  "<defs>" +
-  '<linearGradient id="hub-art-field" x1="0" y1="0" x2="0.4" y2="1">' +
-  `<stop offset="0" stop-color="${palette.fieldTop}"/>` +
-  `<stop offset="1" stop-color="${palette.fieldFoot}"/>` +
-  "</linearGradient>" +
-  POOLS.map(
-    ([cx, cy, r, o], i) =>
-      `<radialGradient id="hub-art-pool${i}" cx="${cx}" cy="${cy}" r="${r}" gradientUnits="userSpaceOnUse">` +
-      `<stop offset="0" stop-color="${palette.glow}" stop-opacity="${o}"/>` +
-      `<stop offset="1" stop-color="${palette.glow}" stop-opacity="0"/>` +
-      "</radialGradient>",
-  ).join("") +
-  "</defs>" +
-  `<rect width="${WIDTH}" height="${HEIGHT}" fill="url(#hub-art-field)"/>` +
-  POOLS.map(
-    (_, i) =>
-      `<rect width="${WIDTH}" height="${HEIGHT}" fill="url(#hub-art-pool${i})"/>`,
-  ).join("") +
-  paintHub(palette);
+// Not built once at module scope any more, because `strength` (below) can
+// differ per instance. Still built from fixed constants and never from
+// anything a visitor supplies. The gradient ids assume a single `HubArt` on
+// the page, which holds here. `app/page.tsx` renders at most one at a time.
+// No full-canvas field rect: that was the panel's own background wash in
+// PR #61, which made sense framed and made no sense sitting over the page
+// background as a backdrop. The pool rects stay, so the drawing itself
+// keeps its glow.
+function buildInner(strength: number): string {
+  return (
+    "<defs>" +
+    POOLS.map(
+      ([cx, cy, r, o], i) =>
+        `<radialGradient id="hub-art-pool${i}" cx="${cx}" cy="${cy}" r="${r}" gradientUnits="userSpaceOnUse">` +
+        `<stop offset="0" stop-color="${palette.glow}" stop-opacity="${o}"/>` +
+        `<stop offset="1" stop-color="${palette.glow}" stop-opacity="0"/>` +
+        "</radialGradient>",
+    ).join("") +
+    "</defs>" +
+    POOLS.map(
+      (_, i) =>
+        `<rect width="${WIDTH}" height="${HEIGHT}" fill="url(#hub-art-pool${i})"/>`,
+    ).join("") +
+    paintHub(palette, strength)
+  );
+}
 
-export function HubArt({ className }: { className?: string }) {
+export function HubArt({
+  className,
+  strength = 1,
+}: {
+  className?: string;
+  /** Scales the shape opacities in `paintHub` down from their panel tuning.
+   * Left at 1 for a caller that wants that tuning as is. Passed lower by a
+   * caller that puts the drawing behind something the panel never had to
+   * contend with, such as running text. The pool glow is not scaled: it is
+   * tuned separately, see `POOLS`. */
+  strength?: number;
+}) {
   return (
     <svg
       viewBox={`0 0 ${WIDTH} ${VIEW_HEIGHT}`}
+      // The drawing has no background of its own now, so as a full-bleed
+      // backdrop it must cover its container edge to edge rather than
+      // letterbox: "slice" scales up until both dimensions are covered,
+      // "xMidYMax" keeps the crop centred horizontally and keeps the shelf
+      // line pinned to the bottom edge whatever gets trimmed off the sides.
+      preserveAspectRatio="xMidYMax slice"
       role="img"
       aria-label="Five shapes above a dashed line, one crossing it onto a shelf that already holds two"
       className={className}
-      // Static markup built above from fixed constants, so this carries no
-      // visitor input.
-      dangerouslySetInnerHTML={{ __html: inner }}
+      // Built above from fixed constants and this instance's `strength`, so
+      // this carries no visitor input.
+      dangerouslySetInnerHTML={{ __html: buildInner(strength) }}
     />
   );
 }
