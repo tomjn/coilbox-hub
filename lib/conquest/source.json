@@ -1,0 +1,12 @@
+{
+  "repo": "tomjn/coilbox",
+  "ref": "main",
+  "dir": "src/conquest",
+  "files": {
+    "generate.ts": "ed9c607decc2f3a7e3ababad0bb1b8966f940bd1",
+    "names.ts": "da721f27413db9076377f65ac487df7e1ea99614",
+    "rng.ts": "2382fc7e6b9f81e9b7f8a3e835f80ffd3039930c",
+    "realstars/index.ts": "cd07ea99075b0d0266e61d4b72e5ba8ded324607",
+    "realstars/catalogue.json": "78a4f5a01c4eda940552e706e2526b8c88319b45"
+  }
+}
