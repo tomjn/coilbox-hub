@@ -5,7 +5,7 @@
 -- nobody.
 
 begin;
-select plan(27);
+select plan(32);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -253,6 +253,58 @@ set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","r
 select is(
   (select count(*) from public.report)::int, 1,
   'a moderator can'
+);
+
+-- At most one open report per item. A second report while the first is still
+-- open must not grow the queue, and it must not error either: raising here
+-- would tell the anonymous caller that this item already has an open report,
+-- exactly the fact report_read_moderators exists to hide. It has to look
+-- like success either way.
+reset role;
+set local role anon;
+
+select lives_ok(
+  $$insert into public.report (item_id, reason)
+    values ('aaaaaaaa-0000-0000-0000-000000000001', 'Also broken, same item')$$,
+  'a second report on an item with an open report does not error'
+);
+
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+select is(
+  (select count(*) from public.report where item_id = 'aaaaaaaa-0000-0000-0000-000000000001')::int, 1,
+  'the duplicate was not stored, so the item still has exactly one report'
+);
+
+-- Handle the open report, then report the same item again. Moderation is not
+-- one shot per item forever: a new problem after the first is resolved is a
+-- new report and must be storable.
+update public.report set handled_at = now(), handled_by = '11111111-1111-1111-1111-111111111111'
+  where item_id = 'aaaaaaaa-0000-0000-0000-000000000001' and handled_at is null;
+
+reset role;
+set local role anon;
+
+select lives_ok(
+  $$insert into public.report (item_id, reason)
+    values ('aaaaaaaa-0000-0000-0000-000000000001', 'A new problem, after the first was handled')$$,
+  'a report after the first is handled is stored'
+);
+
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+select is(
+  (select count(*) from public.report where item_id = 'aaaaaaaa-0000-0000-0000-000000000001')::int, 2,
+  'the item now has two reports: one handled, one freshly open'
+);
+
+select is(
+  (select count(*) from public.report where item_id = 'aaaaaaaa-0000-0000-0000-000000000001' and handled_at is null)::int, 1,
+  'only one of them is open'
 );
 
 reset role;
