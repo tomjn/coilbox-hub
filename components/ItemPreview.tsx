@@ -28,10 +28,11 @@ function PresetPreview({ payload }: { payload: Record<string, unknown> }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-stretch gap-2">
         {teams.map(({ allyTeam, members }, index) => (
+          // The separator trails the team it follows, in the same flex item, rather
+          // than leading the team after it. A wrap always breaks between items, so a
+          // leading separator can start a line on its own - "v BARb" - which reads as
+          // a stray character. Trailing keeps it glued to the line it ends.
           <div key={allyTeam} className="flex items-stretch gap-2">
-            {index > 0 ? (
-              <span className="self-center text-xs text-neutral-400">v</span>
-            ) : null}
             <div className="flex flex-col gap-1.5 rounded-md border border-neutral-800 bg-black p-3">
               {members.map((p, i) => {
                 const side = participantSideLabel(p.side);
@@ -51,6 +52,9 @@ function PresetPreview({ payload }: { payload: Record<string, unknown> }) {
                 );
               })}
             </div>
+            {index < teams.length - 1 ? (
+              <span className="self-center text-xs text-neutral-400">v</span>
+            ) : null}
           </div>
         ))}
       </div>
