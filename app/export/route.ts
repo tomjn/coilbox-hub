@@ -4,7 +4,7 @@ import { fetchAllPages } from "@/lib/gallery/query";
 import { createClient } from "@/lib/supabase/server";
 
 const COLUMNS =
-  "id,kind,mode,title,description,game_name,map_name,tags,container,author_name,created_at,updated_at";
+  "id,kind,mode,title,description,game_name,game_key,map_name,tags,container,author_name,created_at,updated_at";
 
 interface ExportItem {
   id: string;
@@ -13,6 +13,7 @@ interface ExportItem {
   title: string;
   description: string;
   game_name: string | null;
+  game_key: string | null;
   map_name: string | null;
   tags: string[];
   container: string;
