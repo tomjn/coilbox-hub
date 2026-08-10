@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CoilLogo } from "@/components/CoilLogo";
 import { HubArt } from "@/components/HubArt";
 import { ItemCard } from "@/components/ItemCard";
+import { COILBOX_URL } from "@/lib/coilbox";
 import { requestOrigin } from "@/lib/gallery/origin";
 import {
   ITEM_SUMMARY_COLUMNS,
@@ -14,6 +15,11 @@ import { createClient } from "@/lib/supabase/server";
 // tuning: sitting behind the hero text at full viewport size, that tuning
 // is too strong.
 const BACKDROP_STRENGTH = 0.11;
+
+// Shared by the two secondary buttons, so the third one added beside the
+// gallery button cannot drift from the one that was already there.
+const outlineButton =
+  "rounded-md border border-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white";
 
 export default async function Home() {
   const origin = await requestOrigin();
@@ -60,19 +66,24 @@ export default async function Home() {
             Importing needs no account.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap justify-center gap-3">
           <Link
             href="/gallery"
             className="rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white"
           >
             Browse the gallery
           </Link>
-          <Link
-            href="/publish"
-            className="rounded-md border border-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
-          >
+          <Link href="/publish" className={outlineButton}>
             Publish something
           </Link>
+          <a
+            href={COILBOX_URL}
+            target="_blank"
+            rel="noreferrer"
+            className={outlineButton}
+          >
+            Get Coilbox
+          </a>
         </div>
       </div>
 

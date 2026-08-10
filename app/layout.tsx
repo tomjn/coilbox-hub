@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CoilLogo } from "@/components/CoilLogo";
 import {
   AccountIcon,
+  DownloadIcon,
   GalleryIcon,
   ModerationIcon,
   PublishIcon,
@@ -11,6 +12,7 @@ import {
 } from "@/components/icons";
 import { NavSignIn } from "@/components/NavSignIn";
 import { displayName } from "@/lib/author";
+import { COILBOX_URL } from "@/lib/coilbox";
 import { createClient } from "@/lib/supabase/server";
 import "./globals.css";
 
@@ -83,6 +85,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               <PublishIcon className="w-4" />
               <span className="sr-only sm:not-sr-only">Publish</span>
             </Link>
+            {/* The only outbound link in the nav, and it opens in a new tab so
+                that following it from an item page does not lose the item the
+                visitor came to import. */}
+            <a
+              href={COILBOX_URL}
+              target="_blank"
+              rel="noreferrer"
+              className={navItem}
+            >
+              <DownloadIcon className="w-4" />
+              <span className="sr-only sm:not-sr-only">Get Coilbox</span>
+            </a>
             {moderator ? (
               <Link href="/moderation" className={navItem}>
                 <ModerationIcon className="w-4" />
