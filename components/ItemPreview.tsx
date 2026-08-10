@@ -13,6 +13,8 @@
  */
 
 import { conquestGalaxy, type GalaxyShape } from "@/lib/gallery/conquestGalaxy";
+import { type RunShape, warpathRun } from "@/lib/gallery/warpathRun";
+import type { RunNodeType } from "@/lib/runlite/model";
 import {
   participantColorCss,
   participantLabel,
@@ -198,6 +200,107 @@ function ConquestGalaxy({ shape }: { shape: GalaxyShape }) {
   );
 }
 
+/**
+ * What each kind of stop on a run is, in the order they read on the map.
+ *
+ * A run's character is how many fights it makes you take against how many
+ * chances to recover, so kind is the thing worth encoding. Seven hues need
+ * saying out loud, which is what the legend below is for: colour alone would
+ * make this a picture nobody can read.
+ */
+const RUN_NODE_KINDS: { type: RunNodeType; label: string; color: string }[] = [
+  { type: "start", label: "Start", color: "#e5e5e5" },
+  { type: "battle", label: "Battle", color: "#2f7dff" },
+  { type: "elite", label: "Elite", color: "#ffb300" },
+  { type: "event", label: "Event", color: "#a855f7" },
+  { type: "reward", label: "Reward", color: "#00c853" },
+  { type: "shop", label: "Depot", color: "#14b8a6" },
+  { type: "boss", label: "Boss", color: "#ff3524" },
+];
+
+const RUN_COLORS = new Map(RUN_NODE_KINDS.map((k) => [k.type, k.color]));
+
+/**
+ * The run map, rebuilt from the seed (see `lib/gallery/warpathRun`).
+ *
+ * Read left to right. Every route runs forward, so where the map widens you
+ * have a choice and where it narrows you do not. The boss is the last stop and
+ * is drawn largest.
+ *
+ * Wide rather than square, because a run is up to thirteen columns of at most
+ * four, and squaring it would leave the map a thin line in a tall box.
+ */
+function WarpathRunMap({ shape }: { shape: RunShape }) {
+  const inset = 4;
+  const atX = (v: number) => inset + v * (100 - inset * 2);
+  const atY = (v: number) => inset + v * (40 - inset * 2);
+  const kinds = RUN_NODE_KINDS.filter((k) =>
+    shape.steps.some((s) => s.type === k.type),
+  );
+  const fights = shape.steps.filter(
+    (s) => s.type === "battle" || s.type === "elite" || s.type === "boss",
+  ).length;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <svg
+        viewBox="0 0 100 40"
+        className="w-full"
+        role="img"
+        aria-label={`${shape.columns} stops from the start to the boss, ${shape.steps.length} nodes in all, ${fights} of them fights`}
+      >
+        <defs>
+          <filter id={GLOW} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation={1.1} result="halo" />
+            <feMerge>
+              <feMergeNode in="halo" />
+              <feMergeNode in="halo" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        {shape.routes.map(([a, b]) => (
+          <line
+            key={`${a}-${b}`}
+            x1={atX(shape.steps[a].x)}
+            y1={atY(shape.steps[a].y)}
+            x2={atX(shape.steps[b].x)}
+            y2={atY(shape.steps[b].y)}
+            stroke="#404040"
+            strokeWidth={0.3}
+          />
+        ))}
+        <g filter={`url(#${GLOW})`}>
+          {shape.steps.map((step, i) => (
+            <circle
+              key={i}
+              cx={atX(step.x)}
+              cy={atY(step.y)}
+              r={step.type === "boss" ? 1.8 : 1.1}
+              fill={RUN_COLORS.get(step.type) ?? UNCLAIMED}
+            />
+          ))}
+        </g>
+      </svg>
+      <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5">
+        {kinds.map((kind) => (
+          <li
+            key={kind.type}
+            className="flex items-center gap-1.5 text-xs text-neutral-400"
+          >
+            <span
+              aria-hidden="true"
+              className="size-2 shrink-0 rounded-full"
+              style={{ background: kind.color }}
+            />
+            {kind.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** Stat rows carry a label and a value that is not always a number, unlike
  * {@link Stat}. */
 function Detail({ label, value }: { label: string; value: string }) {
@@ -212,32 +315,50 @@ function Detail({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * A conquest or warpath run.
+ * A conquest or a warpath run.
  *
- * The galaxy is drawn when the payload is a conquest whose seed will rebuild
- * one. The numbers stay either way, and are read from whatever the settings
- * hold rather than from the mode, so a warpath run and a mode from a newer
- * coilbox both still show what can be read off them.
+ * The drawing is chosen by mode, because a galaxy and a run map have nothing in
+ * common but the wrapper. The numbers are chosen by what the settings actually
+ * hold, which is not the same thing: a mode from a newer coilbox has no drawing
+ * either function will produce, and it should still show what can be read off
+ * it rather than nothing at all.
+ *
+ * Ascension only appears once somebody has climbed to it. A zero there means
+ * the ladder was never started, not a rung on it.
  */
 function ChallengePreview({ payload }: { payload: Record<string, unknown> }) {
   const settings = (payload.settings ?? {}) as Record<string, unknown>;
-  const nodes = Number(settings.nodeCount ?? 0);
-  const factions = Number(settings.factionCount ?? 0);
-  const layout = typeof settings.layout === "string" ? settings.layout : null;
-  if (!nodes && !factions && !layout) return null;
+  const text = (key: string) =>
+    typeof settings[key] === "string" ? (settings[key] as string) : null;
+  const number = (key: string) => Number(settings[key] ?? 0) || null;
+
+  const stats = [
+    ["Systems", number("nodeCount")],
+    // `factionCount` is the enemy count, which the app's own wizard calls
+    // "enemy factions". Labelling it "Factions" contradicted the drawing,
+    // where the player is a colour on the map too.
+    ["Enemies", number("factionCount")],
+    ["Layout", text("layout")],
+    ["Length", text("length")],
+    ["Difficulty", number("difficulty")],
+    ["Ascension", number("ascension")],
+  ].filter(([, value]) => value !== null) as [string, string | number][];
+
   const galaxy = conquestGalaxy(payload);
+  const run = warpathRun(payload);
+  if (!galaxy && !run && stats.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-3">
       {galaxy ? <ConquestGalaxy shape={galaxy} /> : null}
-      <dl className="grid gap-3 rounded-md border border-neutral-800 bg-black p-4 sm:grid-cols-3">
-        {nodes ? <Stat n={nodes} label="Systems" /> : null}
-        {/* `factionCount` is the enemy count, which the app's own wizard calls
-            "enemy factions". Labelling it "Factions" contradicted the drawing,
-            where the player is a colour on the map too. */}
-        {factions ? <Stat n={factions} label="Enemies" /> : null}
-        {layout ? <Detail label="Layout" value={layout} /> : null}
-      </dl>
+      {run ? <WarpathRunMap shape={run} /> : null}
+      {stats.length > 0 ? (
+        <dl className="grid gap-3 rounded-md border border-neutral-800 bg-black p-4 sm:grid-cols-3">
+          {stats.map(([label, value]) => (
+            <Detail key={label} label={label} value={String(value)} />
+          ))}
+        </dl>
+      ) : null}
     </div>
   );
 }
