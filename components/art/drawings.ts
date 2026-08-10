@@ -11,8 +11,9 @@ import { diamond, palette, round, type Palette } from "./palette";
  *
  * Every copy here is a copy, not a shared dependency, the same relationship
  * `CoilLogo.tsx` has to the app icon: nothing keeps these in sync with
- * upstream, unlike `lib/container`, which `scripts/sync-container.ts` vendors
- * because drift there is a silent correctness bug. Drift here is only
+ * upstream, unlike `lib/container` and `lib/conquest`, which
+ * `scripts/sync-vendor.ts` vendors because drift there is a silent correctness
+ * bug. Drift here is only
  * cosmetic, and copying was the deliberate choice over vendoring: these
  * drawings need edits vendoring would forbid (see below), and there is no
  * shared repository to draw a vendored copy from in the first place.
