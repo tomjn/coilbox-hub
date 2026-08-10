@@ -25,10 +25,23 @@
  * specific arrival (four things already offered, a fifth mid-crossing), and
  * that reads the same at any size. It is shown larger than a card only
  * because there is now room, via `className` on the element this renders.
+ *
+ * That label rule is also why the bottom of the 320x200 canvas is bare: the
+ * lowest shape (the shelf line) ends at y=130, leaving y=130 to y=200 clear
+ * for a label that never arrives here. Rendered at card size that gap is a
+ * few pixels and goes unnoticed; rendered as wide as this page allows it
+ * read as fifty extra pixels of dead panel below the drawing, like a
+ * rendering mistake rather than space. `VIEW_HEIGHT` crops the visible
+ * window to the content instead of the full authored canvas, without
+ * touching the drawing's own coordinates or the field/pool gradients, which
+ * still fill the full 320x200 they were designed for.
  */
 
 const WIDTH = 320;
 const HEIGHT = 200;
+/** Crops the visible window to the content (shapes end at y=130, plus a
+ * little breathing room), leaving the label safe-zone below it out of frame. */
+const VIEW_HEIGHT = 148;
 
 /** hsl(0 0% 98.04%): the `--foreground` value in `app/globals.css`, pre-parsed
  * the way coilbox's `parseColor` would read it. */
@@ -93,7 +106,16 @@ const POOLS: readonly (readonly [number, number, number, number])[] = [
   [160, 108, 92, 0.13],
 ];
 
-/** Coilbox's `hub.paint`, unchanged. */
+/**
+ * Coilbox's `hub.paint`, with the fill and stroke opacities raised. The
+ * shapes and their positions are unchanged from the source. Only how solid
+ * they are is different. Coilbox tunes those opacities for a card that sits
+ * in a grid of other muted UI chrome, next to its own label at low
+ * emphasis. Here the same values sat beside a full-opacity, near-white
+ * headline and read as a dim smudge rather than as five distinct shapes.
+ * The crossing diamond (`spark`) was already legible at coilbox's own
+ * opacity, so it is the one shape left untouched.
+ */
 function paintHub(p: Palette): string {
   // Shared out there. The hexagon is the shape the setup-pack card is drawn
   // from, so the two read as the same object in two places.
@@ -109,17 +131,17 @@ function paintHub(p: Palette): string {
     '<rect x="96" y="98" width="28" height="24" rx="3"/>' +
     '<circle cx="212" cy="110" r="12"/>';
   return (
-    `<g fill="${p.line}" fill-opacity="0.24" stroke="${p.faint}" stroke-width="1.5" stroke-opacity="0.4">${shared}</g>` +
-    `<g fill="none" stroke="${p.faint}" stroke-width="1.5" stroke-opacity="0.3" stroke-dasharray="6 9">` +
+    `<g fill="${p.line}" fill-opacity="0.5" stroke="${p.faint}" stroke-width="1.5" stroke-opacity="0.65">${shared}</g>` +
+    `<g fill="none" stroke="${p.faint}" stroke-width="1.5" stroke-opacity="0.45" stroke-dasharray="6 9">` +
     '<path d="M-10 78 L330 78"/>' +
     "</g>" +
-    `<g fill="${p.line}" fill-opacity="0.28" stroke="${p.faint}" stroke-width="1.2" stroke-opacity="0.4">${held}</g>` +
-    `<g fill="none" stroke="${p.spark}" stroke-width="2" stroke-opacity="0.5" stroke-linecap="round" stroke-linejoin="round">` +
+    `<g fill="${p.line}" fill-opacity="0.55" stroke="${p.faint}" stroke-width="1.2" stroke-opacity="0.65">${held}</g>` +
+    `<g fill="none" stroke="${p.spark}" stroke-width="2" stroke-opacity="0.6" stroke-linecap="round" stroke-linejoin="round">` +
     '<path d="M222 50 Q216 82 176 94"/>' +
     '<path d="M188 84 L176 94 L191 96"/>' +
     "</g>" +
     `<g fill="${p.spark}" fill-opacity="0.8">${diamond(160, 107, 15)}</g>` +
-    `<rect x="84" y="126" width="152" height="4" rx="2" fill="${p.faint}" fill-opacity="0.32"/>`
+    `<rect x="84" y="126" width="152" height="4" rx="2" fill="${p.faint}" fill-opacity="0.5"/>`
   );
 }
 
@@ -149,7 +171,7 @@ const inner =
 export function HubArt({ className }: { className?: string }) {
   return (
     <svg
-      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+      viewBox={`0 0 ${WIDTH} ${VIEW_HEIGHT}`}
       role="img"
       aria-label="Five shapes above a dashed line, one crossing it onto a shelf that already holds two"
       className={className}
