@@ -12,76 +12,51 @@
  * the data actually describes, rather than a map diagram it cannot support.
  */
 
-interface Participant {
-  kind?: "you" | "ai";
-  name?: string;
-  ai?: { shortName?: string; name?: string };
-  side?: string;
-  color?: { r?: number; g?: number; b?: number };
-  allyTeam?: number;
-  spectator?: boolean;
-}
-
-/** Play-side colours are floats from 0 to 1, not bytes. Reading them as bytes
- * produces black for everything, which is a mistake this codebase has made
- * before in the other direction. */
-function css(color: Participant["color"]): string {
-  const to = (v: number | undefined) =>
-    Math.round(Math.min(1, Math.max(0, v ?? 0)) * 255);
-  return `rgb(${to(color?.r)} ${to(color?.g)} ${to(color?.b)})`;
-}
-
-function label(p: Participant): string {
-  if (p.kind === "you") return p.name || "You";
-  return p.ai?.name || p.ai?.shortName || p.name || "Open slot";
-}
+import {
+  participantColorCss,
+  participantLabel,
+  participantSideLabel,
+  presetComposition,
+} from "@/lib/gallery/presetPreview";
 
 function PresetPreview({ payload }: { payload: Record<string, unknown> }) {
-  const participants = (
-    Array.isArray(payload.participants) ? payload.participants : []
-  ) as Participant[];
-  const playing = participants.filter((p) => !p.spectator);
-  if (playing.length === 0) return null;
-
-  const teams = new Map<number, Participant[]>();
-  for (const p of playing) {
-    const key = p.allyTeam ?? 0;
-    teams.set(key, [...(teams.get(key) ?? []), p]);
-  }
-  const ordered = [...teams.entries()].sort((a, b) => a[0] - b[0]);
+  const composition = presetComposition(payload);
+  if (!composition) return null;
+  const { teams, playingCount } = composition;
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-stretch gap-2">
-        {ordered.map(([team, members], index) => (
-          <div key={team} className="flex items-stretch gap-2">
+        {teams.map(({ allyTeam, members }, index) => (
+          <div key={allyTeam} className="flex items-stretch gap-2">
             {index > 0 ? (
               <span className="self-center text-xs text-neutral-400">v</span>
             ) : null}
             <div className="flex flex-col gap-1.5 rounded-md border border-neutral-800 bg-black p-3">
-              {members.map((p, i) => (
-                <div
-                  key={`${team}-${i}`}
-                  className="flex items-center gap-2 text-xs text-neutral-300"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="size-2.5 shrink-0 rounded-sm"
-                    style={{ background: css(p.color) }}
-                  />
-                  <span>{label(p)}</span>
-                  {p.side ? (
-                    <span className="text-neutral-400">{p.side}</span>
-                  ) : null}
-                </div>
-              ))}
+              {members.map((p, i) => {
+                const side = participantSideLabel(p.side);
+                return (
+                  <div
+                    key={`${allyTeam}-${i}`}
+                    className="flex items-center gap-2 text-xs text-neutral-300"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-2.5 shrink-0 rounded-sm"
+                      style={{ background: participantColorCss(p.color) }}
+                    />
+                    <span>{participantLabel(p)}</span>
+                    {side ? <span className="text-neutral-400">{side}</span> : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
         ))}
       </div>
       <p className="text-xs text-neutral-400">
-        {playing.length} playing across {ordered.length}{" "}
-        {ordered.length === 1 ? "team" : "teams"}
+        {playingCount} playing across {teams.length}{" "}
+        {teams.length === 1 ? "team" : "teams"}
       </p>
     </div>
   );
