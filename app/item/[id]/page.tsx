@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
-import { downloads } from "@/components/art/drawings";
 import { ImportLink } from "@/components/ImportLink";
 import { ItemPreview } from "@/components/ItemPreview";
 import { KindIcon } from "@/components/KindIcon";
 import { ReportButton } from "@/components/ReportButton";
+import { itemArt } from "@/lib/gallery/itemArt";
 import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { createClient } from "@/lib/supabase/server";
@@ -32,10 +32,6 @@ interface ItemDetail {
 
 const DETAIL_COLUMNS =
   "id,kind,mode,container,title,description,game_name,game_key,map_name,tags,author_name,created_at,updated_at";
-
-// General for now, general for every kind, until issue #68 gives this page a
-// per-kind drawing instead. This one is not tied to any of the four kinds.
-const BACKDROP_STRENGTH = 0.08;
 
 /** A withdrawn item is invisible to the read policy, so it arrives here as
  * nothing found without this page knowing about moderation. */
@@ -109,10 +105,11 @@ export default async function Item({
   const origin = await requestOrigin();
   const shareUrl = `${origin}/i/${item.id}`;
   const published = new Date(item.created_at).toISOString().slice(0, 10);
+  const { drawing, strength } = itemArt(item.kind, item.mode);
 
   return (
     <main className="relative flex-1">
-      <ArtBackdrop drawing={downloads} strength={BACKDROP_STRENGTH} />
+      <ArtBackdrop drawing={drawing} strength={strength} />
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-3">
           <Link
