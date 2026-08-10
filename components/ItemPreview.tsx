@@ -26,6 +26,7 @@ import {
   participantSideLabel,
   presetComposition,
 } from "@/lib/gallery/presetPreview";
+import { setupPackGameNames } from "@/lib/gallery/setupPackPreview";
 
 function PresetPreview({ payload }: { payload: Record<string, unknown> }) {
   const composition = presetComposition(payload);
@@ -75,7 +76,7 @@ function PresetPreview({ payload }: { payload: Record<string, unknown> }) {
 }
 
 function SetupPackPreview({ payload }: { payload: Record<string, unknown> }) {
-  const game = payload.game as { name?: string } | undefined;
+  const games = setupPackGameNames(payload);
   const maps = (Array.isArray(payload.maps) ? payload.maps : []) as string[];
   const engine =
     typeof payload.engineVersion === "string" ? payload.engineVersion : null;
@@ -86,9 +87,11 @@ function SetupPackPreview({ payload }: { payload: Record<string, unknown> }) {
     <dl className="grid gap-3 rounded-md border border-neutral-800 bg-black p-4 sm:grid-cols-3">
       <div className="flex flex-col gap-1">
         <dt className="text-xs uppercase tracking-wide text-neutral-400">
-          Game
+          {games.length === 1 ? "Game" : "Games"}
         </dt>
-        <dd className="text-sm text-neutral-100">{game?.name ?? "None"}</dd>
+        <dd className="text-sm text-neutral-100">
+          {games.length === 0 ? "None" : games.join(", ")}
+        </dd>
       </div>
       <div className="flex flex-col gap-1">
         <dt className="text-xs uppercase tracking-wide text-neutral-400">
