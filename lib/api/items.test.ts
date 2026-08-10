@@ -18,6 +18,7 @@ const SUMMARY: ItemSummary = {
   title: "apitest-example",
   description: "",
   game_name: "Beyond All Reason",
+  game_key: "Beyond All Reason",
   map_name: null,
   tags: ["eco"],
   author_name: "Someone",

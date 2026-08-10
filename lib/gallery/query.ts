@@ -94,7 +94,14 @@ export interface ItemSummary {
   mode: string | null;
   title: string;
   description: string;
+  /** What a person reads: the stable shortname when there is one, else the
+   * exact pinned build. See lib/gallery/publish.ts `describe()`. */
   game_name: string | null;
+  /** What a listing groups and filters by. Narrower than `game_name`
+   * (issue #50): only ever the shortname, so an item that names its game
+   * only by its exact, version-carrying archive name has a `game_name` but
+   * no `game_key`, and does not appear in the game facet. */
+  game_key: string | null;
   map_name: string | null;
   tags: string[];
   author_name: string;
@@ -102,7 +109,7 @@ export interface ItemSummary {
 }
 
 export const ITEM_SUMMARY_COLUMNS =
-  "id,kind,mode,title,description,game_name,map_name,tags,author_name,created_at";
+  "id,kind,mode,title,description,game_name,game_key,map_name,tags,author_name,created_at";
 
 export interface Filters {
   kind: GalleryKind | null;
@@ -170,7 +177,10 @@ export function applyFilters<Query extends FilterableQuery<Query>>(
 ): Query {
   let next = query;
   if (filters.kind) next = next.eq("kind", filters.kind);
-  if (filters.game) next = next.eq("game_name", filters.game);
+  // Filters on the grouping key, not the display name (issue #50): game_name
+  // can hold a version-carrying archive name that no other row shares, and
+  // matching on that would filter to a group of one rather than "no game".
+  if (filters.game) next = next.eq("game_key", filters.game);
   if (filters.map) next = next.eq("map_name", filters.map);
   if (filters.tag) next = next.contains("tags", [filters.tag]);
   if (filters.author) next = next.eq("author_name", filters.author);
