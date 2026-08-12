@@ -3,7 +3,7 @@
   "ref": "main",
   "dir": "src/container",
   "files": {
-    "container.ts": "e3f3e360123df1fa6e0e60130a5be3089fb058c4",
+    "container.ts": "31d954234658efc4bc95f88e68e6cb650641cbb2",
     "gameIdentity.ts": "d173d55dcd94c31dbb4943ca8b3e31f33113e42b",
     "shortnames.ts": "f7b595c2ebc7f9312d325b99ae346ba00c2e8961"
   }
