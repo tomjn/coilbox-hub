@@ -324,9 +324,64 @@ const OUTLINE = 0.62;
 /** The mark the order starts on, which is the brightest thing on the sheet. */
 const START = 0.85;
 
-/** Corner radius, in build squares. A tenth of a square, the corner coilbox's
- *  blueprint illustration puts on a plot. */
-const CORNER = 0.1;
+/**
+ * Corner radius, in CSS pixels.
+ *
+ * Coilbox's blueprint illustration rounds a plot by two pixels, on a sheet whose
+ * build squares are twenty pixels across. Carried over as a tenth of a build
+ * square it came to less than a pixel wherever the plan was drawn small, and the
+ * buildings read as hard squares (tomjn/coilbox#1508). Two pixels is the same
+ * corner that illustration draws, at whatever size this one is drawn.
+ */
+const CORNER_PX = 2;
+
+/** The most of a building the corners may eat. A radius fixed in pixels would
+ *  round a one square building drawn small into a lozenge. */
+const CORNER_SHARE = 1 / 3;
+
+/** How big a build square has to be drawn for the grid to take its full weight,
+ *  in CSS pixels. Under that the rules are closer together, so they are drawn
+ *  lighter in proportion and the sheet keeps the same amount of ink on it rather
+ *  than darkening as the base grows. */
+const CLEAR_PX = 8;
+
+/** How big the mark on the first building is, in CSS pixels: a fifth of a build
+ *  square where there is room, and never so small it is lost or so big it covers
+ *  the building it stands on. */
+const START_PX = { share: 0.22, least: 2, most: 4.5 };
+
+/**
+ * The box the plan is drawn in, in CSS pixels.
+ *
+ * Declared rather than measured, so the page can be rendered on the server: the
+ * plan is the only thing here that needs its own size, and this is the one place
+ * the site draws one. It has to match the classes below. A narrow screen draws
+ * the same sheet smaller, which leaves the geometry right and the weights a
+ * little finer than they were chosen for.
+ */
+const PAGE_BOX = { width: 448, height: 336 };
+
+/** The grid's weight at the size it is drawn. The rules close up as a base
+ *  grows, so they lighten in step and the sheet holds the same amount of ink
+ *  instead of darkening towards a wash. */
+function gridOpacity(scale: number): number {
+  return GRID * Math.min(1, scale / CLEAR_PX);
+}
+
+/** A building's corner radius, in build squares, from a radius in pixels. Capped
+ *  against the building's short side, so a small building softens rather than
+ *  rounding away. */
+function corner(scale: number, width: number, height: number): number {
+  return Math.min(CORNER_PX / scale, Math.min(width, height) * CORNER_SHARE);
+}
+
+/** The start mark's radius, in build squares, from a size in pixels. */
+function startMark(scale: number): number {
+  return (
+    Math.min(START_PX.most, Math.max(START_PX.least, scale * START_PX.share)) /
+    scale
+  );
+}
 
 /** How strongly the order thread is drawn, given how many stops it makes. A
  *  short order is a line you can follow. A long one crosses its own path over
@@ -347,18 +402,19 @@ function threadOpacity(stops: number): number {
  * shown, which is also most of what a person recognises a base by.
  *
  * This is coilbox's `src/blueprint/LayoutPlan.tsx` drawn the same way, down to
- * the pitch of the grid and the weight of every mark (tomjn/coilbox#1506). The
- * site has no theme colour where the launcher does, so the plan is drawn in
- * graphite here, which is what the launcher's own art does when a theme has no
- * hue to take.
+ * the grid and the weight of every mark (tomjn/coilbox#1506). The site has no
+ * theme colour where the launcher does, so the plan is drawn in graphite here,
+ * which is what the launcher's own art does when a theme has no hue to take.
  *
- * The `viewBox` is the layout's bounding box with a build square of clear
- * ground round it, so the drawing is as wide or as tall as the base is and
- * reads as a plan on a sheet rather than a base cropped to its own edge.
+ * The `viewBox` is the whole sheet, of fixed proportions, with the base centred
+ * on it and a build square of clear ground round it at the least. A base can be
+ * a long thin wall or a tall narrow column, and a box the shape of the base is
+ * one nobody can take in at a glance, so the sheet keeps its shape and the base
+ * sits on it (tomjn/coilbox#1508).
  */
 function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
   const buildings = shape.squares.length;
-  const sheet = blueprintSheet(shape);
+  const sheet = blueprintSheet(shape, PAGE_BOX);
   const centres = shape.squares.map(
     (square) =>
       [square.x + square.width / 2, square.y + square.height / 2] as const,
@@ -371,14 +427,16 @@ function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
     <div className="flex flex-col gap-3">
       <svg
         viewBox={`${sheet.left} ${sheet.top} ${sheet.width} ${sheet.height}`}
-        // Capped in both directions. A base can be a long thin wall or a tall
-        // narrow column, and either one at the page's full width would be a
-        // shape nobody can take in at a glance.
-        className="mx-auto max-h-96 w-full max-w-md text-neutral-300"
+        // The size {@link PAGE_BOX} describes, so the sheet is the whole of it.
+        className="mx-auto aspect-[4/3] w-full max-w-md text-neutral-300"
         role="img"
         aria-label={`${buildings} buildings over ${Math.round(shape.width)} by ${Math.round(shape.height)} build squares`}
       >
-        <g className="text-neutral-400" stroke="currentColor" strokeOpacity={GRID}>
+        <g
+          className="text-neutral-400"
+          stroke="currentColor"
+          strokeOpacity={gridOpacity(sheet.scale)}
+        >
           {sheet.verticals.map((x) => (
             <line
               key={`v${x}`}
@@ -424,7 +482,7 @@ function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
             y={square.y}
             width={square.width}
             height={square.height}
-            rx={CORNER}
+            rx={corner(sheet.scale, square.width, square.height)}
             fill="currentColor"
             // A building the payload never sized is left an outline, so a guess
             // at one square does not read as a measurement.
@@ -440,13 +498,11 @@ function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
           />
         ))}
         {thread ? (
-          // Where the build order starts, drawn over the building it starts on
-          // and sized off the grid pitch, so it stays the same mark against the
-          // rule whatever the base measures.
+          // Where the build order starts, drawn over the building it starts on.
           <circle
             cx={thread[0][0]}
             cy={thread[0][1]}
-            r={sheet.pitch * 0.22}
+            r={startMark(sheet.scale)}
             fill="currentColor"
             fillOpacity={START}
           />
