@@ -45,6 +45,15 @@ const GROUPS: VendorGroup[] = [
     files: ["container.ts", "gameIdentity.ts", "shortnames.ts"],
   },
   {
+    // The wire shape of a shared layout (#84), so the preview reads a blueprint
+    // exactly as the app wrote it, footprints included. The app writes this file
+    // to be vendored: it holds plain values, and its only import is the game
+    // identity above.
+    dir: "src/blueprint",
+    vendor: "lib/blueprint",
+    files: ["payload.ts"],
+  },
+  {
     // The conquest generator, so a challenge's galaxy can be drawn from its
     // seed (#76). Same seed, same graph: positions, lanes and starting
     // territory are settled before the generator touches installed content.

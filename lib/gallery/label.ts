@@ -12,6 +12,7 @@ const KIND: Record<string, string> = {
   challenge: "Challenge",
   "setup-pack": "Setup pack",
   scenario: "Scenario",
+  blueprint: "Blueprint",
 };
 
 const MODE: Record<string, string> = {
@@ -27,8 +28,12 @@ export function itemLabel(kind: string, mode?: string | null): string {
 /** The plural, for a filter chip. */
 export function kindLabelPlural(kind: string): string {
   return (
-    { preset: "Presets", challenge: "Challenges", "setup-pack": "Setup packs", scenario: "Scenarios" }[
-      kind
-    ] ?? kind
+    {
+      preset: "Presets",
+      challenge: "Challenges",
+      "setup-pack": "Setup packs",
+      scenario: "Scenarios",
+      blueprint: "Blueprints",
+    }[kind] ?? kind
   );
 }

@@ -17,6 +17,7 @@
  * still has none.
  */
 
+import { blueprintShape, type BlueprintShape } from "@/lib/gallery/blueprintPreview";
 import { conquestGalaxy, type GalaxyShape } from "@/lib/gallery/conquestGalaxy";
 import { type RunShape, warpathRun } from "@/lib/gallery/warpathRun";
 import type { RunNodeType } from "@/lib/runlite/model";
@@ -309,6 +310,54 @@ function WarpathRunMap({ shape }: { shape: RunShape }) {
   );
 }
 
+/**
+ * A layout of buildings, seen from above (see `lib/gallery/blueprintPreview`).
+ *
+ * One rounded square per building, each as big as the ground that building
+ * stands on, laid out where the author put it. There are no unit pictures here
+ * and no models, so the shape of the base and the relative size of the things
+ * in it are the whole of what can be shown, which is also most of what a person
+ * recognises a base by.
+ *
+ * The `viewBox` is the layout's own bounding box in build squares, so the
+ * drawing is as wide or as tall as the base is.
+ */
+function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
+  const buildings = shape.squares.length;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <svg
+        viewBox={`0 0 ${shape.width} ${shape.height}`}
+        // Capped in both directions. A base can be a long thin wall or a tall
+        // narrow column, and either one at the page's full width would be a
+        // shape nobody can take in at a glance.
+        className="mx-auto max-h-96 w-full max-w-md"
+        role="img"
+        aria-label={`${buildings} buildings over ${Math.round(shape.width)} by ${Math.round(shape.height)} build squares`}
+      >
+        {shape.squares.map((square, i) => (
+          <rect
+            key={i}
+            x={square.x}
+            y={square.y}
+            width={square.width}
+            height={square.height}
+            rx={0.18}
+            fill="#262626"
+            stroke="#525252"
+            strokeWidth={0.06}
+          />
+        ))}
+      </svg>
+      <p className="text-xs text-neutral-400">
+        {buildings} {buildings === 1 ? "building" : "buildings"}
+        {shape.ordered ? ", in build order" : ""}
+      </p>
+    </div>
+  );
+}
+
 /** Stat rows carry a label and a value that is not always a number, unlike
  * {@link Stat}. */
 function Detail({ label, value }: { label: string; value: string }) {
@@ -411,5 +460,9 @@ export function ItemPreview({
   if (kind === "setup-pack") return <SetupPackPreview payload={record} />;
   if (kind === "challenge") return <ChallengePreview payload={record} />;
   if (kind === "scenario") return <ScenarioPreview payload={record} />;
+  if (kind === "blueprint") {
+    const shape = blueprintShape(record);
+    return shape ? <BlueprintLayout shape={shape} /> : null;
+  }
   return null;
 }

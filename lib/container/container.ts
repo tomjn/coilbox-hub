@@ -54,7 +54,9 @@ export type ContainerKind =
   | "preset"
   | "challenge"
   | "setup-pack"
-  | "scenario";
+  | "scenario"
+  | "keymap"
+  | "blueprint";
 
 export const CONTAINER_KINDS: readonly ContainerKind[] = [
   "campaign",
@@ -62,6 +64,8 @@ export const CONTAINER_KINDS: readonly ContainerKind[] = [
   "challenge",
   "setup-pack",
   "scenario",
+  "keymap",
+  "blueprint",
 ];
 
 /**
@@ -74,7 +78,9 @@ export const SUPPORTED_KIND_VERSIONS: Record<ContainerKind, number> = {
   preset: 1,
   challenge: 1,
   "setup-pack": 1,
-  scenario: 1,
+  scenario: 2,
+  keymap: 1,
+  blueprint: 1,
 };
 
 export interface Container<P = unknown> {
@@ -334,6 +340,21 @@ export function sniffPayloadKind(payload: unknown): ContainerKind | null {
     p.settings !== null
   ) {
     return "challenge";
+  }
+  // Checked before a preset, which also carries a `gameName`, because a keymap
+  // is recognised by its bindings rather than by the game it was built for.
+  if (
+    Array.isArray(p.bindings) &&
+    Array.isArray(p.keysyms) &&
+    (p.fakeMeta === null || typeof p.fakeMeta === "string")
+  ) {
+    return "keymap";
+  }
+  // A base blueprint: a named layout of buildings, each with an offset and a
+  // facing, plus how much ground each def stands on. `src/blueprint/payload.ts`
+  // in tomjn/coilbox is the shape and the reader for it.
+  if (typeof p.name === "string" && Array.isArray(p.buildings)) {
+    return "blueprint";
   }
   if (
     Array.isArray(p.participants) &&
