@@ -17,7 +17,11 @@
  * still has none.
  */
 
-import { blueprintShape, type BlueprintShape } from "@/lib/gallery/blueprintPreview";
+import {
+  blueprintShape,
+  type BlueprintShape,
+  blueprintSheet,
+} from "@/lib/gallery/blueprintPreview";
 import { conquestGalaxy, type GalaxyShape } from "@/lib/gallery/conquestGalaxy";
 import { type RunShape, warpathRun } from "@/lib/gallery/warpathRun";
 import type { RunNodeType } from "@/lib/runlite/model";
@@ -310,32 +314,109 @@ function WarpathRunMap({ shape }: { shape: RunShape }) {
   );
 }
 
+/** How much colour each layer of the plan takes, in the order it is drawn: a
+ *  grid the eye skims, then a tinted fill under a stronger outline. Coilbox's
+ *  own numbers, so a layout reads with the same weights in both. */
+const GRID = 0.14;
+const FILL = 0.3;
+const OUTLINE = 0.62;
+
+/** The mark the order starts on, which is the brightest thing on the sheet. */
+const START = 0.85;
+
+/** Corner radius, in build squares. A tenth of a square, the corner coilbox's
+ *  blueprint illustration puts on a plot. */
+const CORNER = 0.1;
+
+/** How strongly the order thread is drawn, given how many stops it makes. A
+ *  short order is a line you can follow. A long one crosses its own path over
+ *  and over, and at that length the thread stops being a route and becomes
+ *  texture, so it fades to where it says the base has an order and where that
+ *  order starts. */
+function threadOpacity(stops: number): number {
+  return stops <= 8 ? 0.5 : Math.max(0.22, 0.5 - (stops - 8) * 0.012);
+}
+
 /**
  * A layout of buildings, seen from above (see `lib/gallery/blueprintPreview`).
  *
  * One rounded square per building, each as big as the ground that building
- * stands on, laid out where the author put it. There are no unit pictures here
- * and no models, so the shape of the base and the relative size of the things
- * in it are the whole of what can be shown, which is also most of what a person
- * recognises a base by.
+ * stands on, laid out where the author put it, on the build grid it was drawn
+ * against. There are no unit pictures here and no models, so the shape of the
+ * base and the relative size of the things in it are the whole of what can be
+ * shown, which is also most of what a person recognises a base by.
  *
- * The `viewBox` is the layout's own bounding box in build squares, so the
- * drawing is as wide or as tall as the base is.
+ * This is coilbox's `src/blueprint/LayoutPlan.tsx` drawn the same way, down to
+ * the pitch of the grid and the weight of every mark (tomjn/coilbox#1506). The
+ * site has no theme colour where the launcher does, so the plan is drawn in
+ * graphite here, which is what the launcher's own art does when a theme has no
+ * hue to take.
+ *
+ * The `viewBox` is the layout's bounding box with a build square of clear
+ * ground round it, so the drawing is as wide or as tall as the base is and
+ * reads as a plan on a sheet rather than a base cropped to its own edge.
  */
 function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
   const buildings = shape.squares.length;
+  const sheet = blueprintSheet(shape);
+  const centres = shape.squares.map(
+    (square) =>
+      [square.x + square.width / 2, square.y + square.height / 2] as const,
+  );
+  // A thread needs somewhere to go, and one building in build order is a
+  // sequence of one.
+  const thread = shape.ordered && centres.length > 1 ? centres : null;
 
   return (
     <div className="flex flex-col gap-3">
       <svg
-        viewBox={`0 0 ${shape.width} ${shape.height}`}
+        viewBox={`${sheet.left} ${sheet.top} ${sheet.width} ${sheet.height}`}
         // Capped in both directions. A base can be a long thin wall or a tall
         // narrow column, and either one at the page's full width would be a
         // shape nobody can take in at a glance.
-        className="mx-auto max-h-96 w-full max-w-md"
+        className="mx-auto max-h-96 w-full max-w-md text-neutral-300"
         role="img"
         aria-label={`${buildings} buildings over ${Math.round(shape.width)} by ${Math.round(shape.height)} build squares`}
       >
+        <g className="text-neutral-400" stroke="currentColor" strokeOpacity={GRID}>
+          {sheet.verticals.map((x) => (
+            <line
+              key={`v${x}`}
+              x1={x}
+              y1={sheet.top}
+              x2={x}
+              y2={sheet.top + sheet.height}
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          {sheet.horizontals.map((y) => (
+            <line
+              key={`h${y}`}
+              x1={sheet.left}
+              y1={y}
+              x2={sheet.left + sheet.width}
+              y2={y}
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+        </g>
+        {thread ? (
+          // Under the buildings. Over the top it reads as a route on a three
+          // building opening and as a scribble on a base with thirty stops.
+          <path
+            d={`M${thread.map(([x, y]) => `${x} ${y}`).join(" L")}`}
+            fill="none"
+            stroke="currentColor"
+            strokeOpacity={threadOpacity(thread.length)}
+            strokeWidth={1.5}
+            strokeDasharray="3 5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
         {shape.squares.map((square, i) => (
           <rect
             key={i}
@@ -343,12 +424,33 @@ function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
             y={square.y}
             width={square.width}
             height={square.height}
-            rx={0.18}
-            fill="#262626"
-            stroke="#525252"
-            strokeWidth={0.06}
+            rx={CORNER}
+            fill="currentColor"
+            // A building the payload never sized is left an outline, so a guess
+            // at one square does not read as a measurement.
+            fillOpacity={square.sized ? FILL : 0}
+            stroke="currentColor"
+            strokeOpacity={OUTLINE}
+            // Strokes in pixels rather than build squares, so a big base gets
+            // the same hairline as a small one instead of a line thinner than
+            // the screen can draw.
+            strokeWidth={1.25}
+            strokeDasharray={square.sized ? undefined : "2 2"}
+            vectorEffect="non-scaling-stroke"
           />
         ))}
+        {thread ? (
+          // Where the build order starts, drawn over the building it starts on
+          // and sized off the grid pitch, so it stays the same mark against the
+          // rule whatever the base measures.
+          <circle
+            cx={thread[0][0]}
+            cy={thread[0][1]}
+            r={sheet.pitch * 0.22}
+            fill="currentColor"
+            fillOpacity={START}
+          />
+        ) : null}
       </svg>
       <p className="text-xs text-neutral-400">
         {buildings} {buildings === 1 ? "building" : "buildings"}
