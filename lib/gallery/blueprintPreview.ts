@@ -22,8 +22,9 @@
 
 import {
   BUILD_SQUARE_ELMOS,
+  declaredFootprint,
+  ONE_BUILD_SQUARE,
   parseBlueprintPayload,
-  payloadFootprint,
 } from "@/lib/blueprint/payload";
 
 /**
@@ -44,6 +45,10 @@ export interface BlueprintSquare {
   y: number;
   width: number;
   height: number;
+  /** Whether the payload said what this def stands on. False is a building
+   *  standing on one square because nothing said otherwise, which is worth
+   *  drawing differently from one square somebody measured. */
+  sized: boolean;
 }
 
 export interface BlueprintShape {
@@ -65,7 +70,8 @@ export function blueprintShape(payload: unknown): BlueprintShape | null {
   if (!blueprint || blueprint.buildings.length === 0) return null;
 
   const rects = blueprint.buildings.map((building) => {
-    const footprint = payloadFootprint(blueprint, building.def);
+    const declared = declaredFootprint(blueprint, building.def);
+    const footprint = declared ?? ONE_BUILD_SQUARE;
     // Facings 1 and 3 are east and west, which is the building on its side, so
     // a 2 by 4 stands on 4 by 2 of the ground. The engine's
     // `BuildInfo::GetXSize`, and coilbox's `facedFootprint`.
@@ -76,6 +82,7 @@ export function blueprintShape(payload: unknown): BlueprintShape | null {
     // reaches half a footprint either side of it.
     return {
       def: building.def,
+      sized: declared !== undefined,
       left: building.offset.x / BUILD_SQUARE_ELMOS - width / 2,
       top: building.offset.z / BUILD_SQUARE_ELMOS - height / 2,
       width,
@@ -97,6 +104,7 @@ export function blueprintShape(payload: unknown): BlueprintShape | null {
     ordered: blueprint.ordered === true,
     squares: rects.map((rect) => ({
       def: rect.def,
+      sized: rect.sized,
       x: rect.left - left + BUILDING_GAP,
       y: rect.top - top + BUILDING_GAP,
       // A footprint is at least one square, so this never reaches zero.
@@ -104,4 +112,87 @@ export function blueprintShape(payload: unknown): BlueprintShape | null {
       height: rect.height - BUILDING_GAP * 2,
     })),
   };
+}
+
+/**
+ * Clear ground round the layout, in build squares.
+ *
+ * What makes the drawing a plan on a sheet rather than a base cropped to its
+ * own edge (tomjn/coilbox#1506). One square is enough to read as room round the
+ * base and little enough that it does not shrink the base to make room for
+ * nothing.
+ */
+export const SHEET_MARGIN = 1;
+
+/**
+ * The most grid cells drawn across the long side of a layout.
+ *
+ * Coilbox draws this on a library card about a hundred pixels across, and below
+ * roughly six pixels a cell a grid stops reading as a grid and becomes grey
+ * fill. Sixteen holds that there, and the number is the launcher's rather than
+ * the site's so that one layout is ruled the same way in both.
+ */
+const MOST_CELLS = 16;
+
+/** The sheet a layout is drawn on: the box to draw, and the rule over it. */
+export interface BlueprintSheet {
+  /** The `viewBox`, in the layout's own build squares, which is the layout's
+   *  box with {@link SHEET_MARGIN} of clear ground round it. */
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  /** How many build squares one grid cell covers. */
+  pitch: number;
+  /** Where the grid lines fall, down the sheet then across it. */
+  verticals: number[];
+  horizontals: number[];
+}
+
+/**
+ * The sheet to draw a layout on.
+ *
+ * The grid is the build grid at its own pitch while that stays readable, and a
+ * doubling of it once a base is too big for that: a thirty square base drawn
+ * with thirty rules is a grey wash, so it gets fifteen cells of two squares
+ * each. The lines fall on real build square boundaries either way, so what the
+ * grid says is true at every size, and only how much it says changes.
+ */
+export function blueprintSheet(shape: BlueprintShape): BlueprintSheet {
+  const pitch = gridPitch(Math.max(shape.width, shape.height));
+  const left = -SHEET_MARGIN;
+  const top = -SHEET_MARGIN;
+  const width = shape.width + SHEET_MARGIN * 2;
+  const height = shape.height + SHEET_MARGIN * 2;
+  return {
+    left,
+    top,
+    width,
+    height,
+    pitch,
+    verticals: rules(left, left + width, pitch),
+    horizontals: rules(top, top + height, pitch),
+  };
+}
+
+/** Doubling until the long side fits in {@link MOST_CELLS}. Doubling rather
+ *  than dividing the extent, so the pitch is always a whole number of build
+ *  squares and a line is always a place a building could stand. */
+function gridPitch(extent: number): number {
+  let pitch = 1;
+  while (extent / pitch > MOST_CELLS) pitch *= 2;
+  return pitch;
+}
+
+/** Every multiple of the pitch inside the sheet. Measured from the layout's own
+ *  origin rather than from the sheet's edge, so the rules line up with the
+ *  buildings rather than with the margin. */
+function rules(from: number, to: number, pitch: number): number[] {
+  const out: number[] = [];
+  for (let at = Math.ceil(from / pitch) * pitch; at <= to; at += pitch) {
+    // The rule on the origin comes out of that arithmetic as `-0`, which is a
+    // value of its own to anything reading these back.
+    out.push(at === 0 ? 0 : at);
+  }
+  return out;
 }

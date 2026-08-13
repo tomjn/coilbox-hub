@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { BUILDING_GAP, blueprintShape } from "./blueprintPreview";
+import {
+  type BlueprintShape,
+  BUILDING_GAP,
+  blueprintShape,
+  blueprintSheet,
+} from "./blueprintPreview";
 
 /** A payload as coilbox writes one, with only the fields the shape reads. */
 function payload(fields: Record<string, unknown>) {
@@ -118,4 +123,64 @@ test("an empty or unreadable layout has no shape to draw", () => {
   expect(blueprintShape(payload({}))).toBeNull();
   expect(blueprintShape({ buildings: [] })).toBeNull();
   expect(blueprintShape(null)).toBeNull();
+});
+
+test("a building the payload never sized says so, rather than passing for one", () => {
+  const shape = blueprintShape(
+    payload({
+      buildings: [
+        { def: "armsolar", ...AT_ORIGIN },
+        { def: "whatisthis", offset: { x: 32, z: 0 }, facing: 0 },
+      ],
+      footprints: { armsolar: { x: 1, z: 1 } },
+    }),
+  );
+
+  expect(shape!.squares.map((s) => s.sized)).toEqual([true, false]);
+});
+
+/** A layout of one building, as many build squares across as asked for. */
+function sized(width: number, height: number): BlueprintShape {
+  return {
+    width,
+    height,
+    ordered: false,
+    squares: [{ def: "armlab", sized: true, x: 0, y: 0, width, height }],
+  };
+}
+
+test("the sheet leaves a build square of clear ground on every side", () => {
+  const sheet = blueprintSheet(sized(6, 4));
+
+  expect([sheet.left, sheet.top]).toEqual([-1, -1]);
+  expect([sheet.width, sheet.height]).toEqual([8, 6]);
+});
+
+test("the sheet is ruled in build squares while a base is small enough", () => {
+  const sheet = blueprintSheet(sized(6, 4));
+
+  expect(sheet.pitch).toBe(1);
+  expect(sheet.verticals).toEqual([-1, 0, 1, 2, 3, 4, 5, 6, 7]);
+  expect(sheet.horizontals).toEqual([-1, 0, 1, 2, 3, 4, 5]);
+});
+
+test("a base too big to rule singly coarsens the grid rather than crowding it", () => {
+  // Seventeen squares across is one too many to rule singly, and sixty five is
+  // one too many to rule in pairs.
+  expect(blueprintSheet(sized(16, 3)).pitch).toBe(1);
+  expect(blueprintSheet(sized(17, 3)).pitch).toBe(2);
+  expect(blueprintSheet(sized(3, 30)).pitch).toBe(2);
+  expect(blueprintSheet(sized(65, 3)).pitch).toBe(8);
+});
+
+test("the rules stay on build square boundaries at every pitch", () => {
+  const sheet = blueprintSheet(sized(30, 30));
+
+  expect(sheet.pitch).toBe(2);
+  expect(sheet.verticals).toContain(0);
+  for (const at of [...sheet.verticals, ...sheet.horizontals]) {
+    expect(at % sheet.pitch).toBe(0);
+    expect(at).toBeGreaterThanOrEqual(sheet.left);
+    expect(at).toBeLessThanOrEqual(sheet.left + sheet.width);
+  }
 });
