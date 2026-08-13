@@ -3,12 +3,13 @@ import Link from "next/link";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { setupPacks } from "@/components/art/drawings";
 import { SignInWithDiscord } from "@/components/SignInWithDiscord";
+import { kindsSingular } from "@/lib/gallery/label";
 import { createClient } from "@/lib/supabase/server";
 import { PublishForm } from "./PublishForm";
 
 export const metadata: Metadata = {
   title: "Publish - Coilbox Hub",
-  description: "Share a preset, challenge, setup pack or scenario you have made.",
+  description: `Share a ${kindsSingular()} you have made.`,
 };
 
 // The form is dense with fields, and this drawing's outer hexagon fills the

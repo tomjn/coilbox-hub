@@ -4,7 +4,7 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { hub } from "@/components/art/drawings";
 import { ItemCard } from "@/components/ItemCard";
 import { GALLERY_KINDS } from "@/lib/container";
-import { kindLabelPlural } from "@/lib/gallery/label";
+import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import {
   applyFilters,
@@ -19,8 +19,9 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "Gallery - Coilbox Hub",
-  description:
-    "Presets, challenges, setup packs and scenarios shared by other players.",
+  // Built from the kinds the chips below offer, so it cannot say four when
+  // there are five (tomjn/coilbox#1502).
+  description: `${kindsPlural()} shared by other players.`,
 };
 
 // Lower than the landing page's: this page is filter chips and a grid of

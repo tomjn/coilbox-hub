@@ -3,6 +3,7 @@ import { CoilLogo } from "@/components/CoilLogo";
 import { HubArt } from "@/components/HubArt";
 import { ItemCard } from "@/components/ItemCard";
 import { COILBOX_URL } from "@/lib/coilbox";
+import { kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import {
   ITEM_SUMMARY_COLUMNS,
@@ -62,8 +63,9 @@ export default async function Home() {
             Coilbox Hub
           </h1>
           <p className="mx-auto max-w-md text-balance text-neutral-400">
-            Presets, challenges, setup packs and scenarios made by other players.
-            Importing needs no account.
+            {/* Built from the kinds the gallery carries, so the first line a
+                visitor reads cannot fall behind them (tomjn/coilbox#1502). */}
+            {kindsPlural()} made by other players. Importing needs no account.
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-3">
