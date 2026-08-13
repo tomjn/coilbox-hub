@@ -1,4 +1,5 @@
 import {
+  blueprint,
   conquest,
   downloads,
   scenario,
@@ -17,6 +18,8 @@ import {
  * `src/home/bundledArt.ts` uses, keyed by tool id, translated to what is
  * already on the row: `kind` picks a preset, scenario or setup-pack, and a
  * challenge needs `mode` on top of that to tell warpath from conquest.
+ * A blueprint is the exception, since that registry pre-dates the kind and has
+ * nothing to translate, so its drawing is one this site made (issue #85).
  *
  * `downloads`, the item page's general drawing from before this issue, is
  * the fallback: a `kind` this gallery does not carry yet (a campaign, or
@@ -29,6 +32,7 @@ const KIND_DRAWING: Record<string, Drawing> = {
   preset: skirmish,
   scenario,
   "setup-pack": setupPacks,
+  blueprint,
 };
 
 const CHALLENGE_MODE_DRAWING: Record<string, Drawing> = {
@@ -56,6 +60,10 @@ const STRENGTH: Record<string, number> = {
   conquest: 0.17,
   warpath: 0.08,
   downloads: 0.08,
+  // Under `skirmish`, for the reason `scenario` is: both draw line work across
+  // the whole canvas, a build grid here and a perspective grid there, and a
+  // canvas-wide mesh reads far stronger than a subject in the middle of one.
+  blueprint: 0.12,
 };
 
 export interface ItemArt {
