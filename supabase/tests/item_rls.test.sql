@@ -5,7 +5,7 @@
 -- nobody.
 
 begin;
-select plan(32);
+select plan(34);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -72,6 +72,24 @@ select lives_ok(
 select is(
   (select author_name from public.item where title = 'Ada second'), 'Ada Lovelace',
   'author_name is derived from the account, not carried in the insert'
+);
+
+-- The kind check is a literal list, so a kind the code accepts is still
+-- refused by the table until the list carries it (issue #84). It is a list
+-- rather than an enum on purpose, and the point of the list is that it says
+-- no to everything else.
+select lives_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('blueprint', 1, 'Ada layout', '{"format":"coilbox","container":1,"kind":"blueprint","kindVersion":1,"payload":{"name":"Front line","buildings":[],"footprints":{}}}', '11111111-1111-1111-1111-111111111111')$$,
+  'an author can publish a blueprint'
+);
+
+select throws_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('campaign', 1, 'Ada campaign', '{"format":"coilbox","container":1,"kind":"campaign","kindVersion":1,"payload":{}}', '11111111-1111-1111-1111-111111111111')$$,
+  '23514',
+  null,
+  'a kind the gallery does not carry is still refused'
 );
 
 select throws_ok(
