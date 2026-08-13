@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { readdirSync, readFileSync } from "node:fs";
 import {
   CONTAINER_KINDS,
   GALLERY_KINDS,
@@ -47,6 +48,30 @@ test("every kind the gallery carries still exists upstream", () => {
 
 test("campaigns are deliberately not carried", () => {
   expect(GALLERY_KINDS as readonly string[]).not.toContain("campaign");
+});
+
+/** The kinds `public.item` will store, read from the last migration that sets
+ * the check on `kind`. */
+function kindsTheDatabaseAccepts(): string[] {
+  const dir = "supabase/migrations";
+  const constraint = readdirSync(dir)
+    .sort()
+    .map((file) => readFileSync(`${dir}/${file}`, "utf8"))
+    .filter((sql) => sql.includes("kind in ("))
+    .at(-1);
+  const list = constraint?.match(/kind in \(([^)]*)\)/)?.[1] ?? "";
+  return [...list.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+}
+
+/**
+ * `kind` is a literal list in SQL, so a kind added here and not there is
+ * accepted by every line of TypeScript and refused by the insert. It fails at
+ * publish time, on a real person's share code, having passed CI.
+ */
+test("the database accepts exactly the kinds the gallery carries", () => {
+  expect(kindsTheDatabaseAccepts().sort()).toEqual(
+    [...GALLERY_KINDS].sort(),
+  );
 });
 
 test("the publish ceiling matches the app's import ceiling", () => {

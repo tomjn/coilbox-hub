@@ -66,6 +66,19 @@ function Scenario() {
   );
 }
 
+/** Buildings of different sizes on a plot, which is what the preview draws in
+ * full. Three rather than four, and none of them the same, so it is not the
+ * gallery's own grid of equal squares. */
+function Blueprint() {
+  return (
+    <>
+      <rect x="3" y="3" width="9" height="9" rx="1.5" />
+      <rect x="15" y="3" width="6" height="6" rx="1.5" />
+      <rect x="3" y="15" width="18" height="6" rx="1.5" />
+    </>
+  );
+}
+
 /** Mode before kind, matching `itemLabel`. An unrecognised kind gets no glyph
  * rather than a wrong one, the same way the label falls back to itself. */
 export function KindIcon({
@@ -88,6 +101,8 @@ export function KindIcon({
       <SetupPack />
     ) : kind === "scenario" ? (
       <Scenario />
+    ) : kind === "blueprint" ? (
+      <Blueprint />
     ) : null;
 
   if (!glyph) return null;

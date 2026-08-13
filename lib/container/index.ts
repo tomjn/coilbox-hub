@@ -45,15 +45,22 @@ export type {
 export type { GameIdentity } from "./gameIdentity";
 
 /**
- * Kinds the gallery carries. Coilbox understands five, but campaigns are out of
- * v1: they inline images and audio as base64 data URIs, which puts them past the
- * import ceiling below. See the design doc in coilbox for the reasoning.
+ * Kinds the gallery carries, out of the seven coilbox understands.
+ *
+ * Campaigns are out of v1: they inline images and audio as base64 data URIs,
+ * which puts them past the import ceiling below. See the design doc in coilbox
+ * for the reasoning. Keymaps are not carried yet either, having arrived after
+ * this list was last widened.
+ *
+ * The list is repeated in SQL as a check on `item.kind`, which no amount of
+ * TypeScript can keep in step, so `container.test.ts` compares the two.
  */
 export const GALLERY_KINDS = [
   "preset",
   "challenge",
   "setup-pack",
   "scenario",
+  "blueprint",
 ] as const;
 
 export type GalleryKind = (typeof GALLERY_KINDS)[number];
