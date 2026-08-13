@@ -149,38 +149,71 @@ function sized(width: number, height: number): BlueprintShape {
   };
 }
 
-test("the sheet leaves a build square of clear ground on every side", () => {
-  const sheet = blueprintSheet(sized(6, 4));
+/** The box the item page draws a plan in. */
+const PAGE = { width: 448, height: 336 };
 
-  expect([sheet.left, sheet.top]).toEqual([-1, -1]);
-  expect([sheet.width, sheet.height]).toEqual([8, 6]);
+test("the sheet covers the whole box it is drawn in, at one scale", () => {
+  const sheet = blueprintSheet(sized(21, 18), PAGE);
+
+  expect(sheet.width * sheet.scale).toBeCloseTo(PAGE.width);
+  expect(sheet.height * sheet.scale).toBeCloseTo(PAGE.height);
 });
 
-test("the sheet is ruled in build squares while a base is small enough", () => {
-  const sheet = blueprintSheet(sized(6, 4));
+test("the sheet centres the layout on it", () => {
+  const sheet = blueprintSheet(sized(21, 18), PAGE);
 
-  expect(sheet.pitch).toBe(1);
-  expect(sheet.verticals).toEqual([-1, 0, 1, 2, 3, 4, 5, 6, 7]);
-  expect(sheet.horizontals).toEqual([-1, 0, 1, 2, 3, 4, 5]);
+  expect(sheet.left).toBeCloseTo(-(sheet.width - 21) / 2);
+  expect(sheet.top).toBeCloseTo(-(sheet.height - 18) / 2);
 });
 
-test("a base too big to rule singly coarsens the grid rather than crowding it", () => {
-  // Seventeen squares across is one too many to rule singly, and sixty five is
-  // one too many to rule in pairs.
-  expect(blueprintSheet(sized(16, 3)).pitch).toBe(1);
-  expect(blueprintSheet(sized(17, 3)).pitch).toBe(2);
-  expect(blueprintSheet(sized(3, 30)).pitch).toBe(2);
-  expect(blueprintSheet(sized(65, 3)).pitch).toBe(8);
-});
+test("the sheet keeps a build square of clear ground on every side", () => {
+  for (const [across, down] of [
+    [21, 18],
+    [3, 3],
+    [60, 8],
+  ]) {
+    const sheet = blueprintSheet(sized(across, down), PAGE);
 
-test("the rules stay on build square boundaries at every pitch", () => {
-  const sheet = blueprintSheet(sized(30, 30));
-
-  expect(sheet.pitch).toBe(2);
-  expect(sheet.verticals).toContain(0);
-  for (const at of [...sheet.verticals, ...sheet.horizontals]) {
-    expect(at % sheet.pitch).toBe(0);
-    expect(at).toBeGreaterThanOrEqual(sheet.left);
-    expect(at).toBeLessThanOrEqual(sheet.left + sheet.width);
+    expect(sheet.left).toBeLessThanOrEqual(-1);
+    expect(sheet.top).toBeLessThanOrEqual(-1);
+    expect(sheet.left + sheet.width).toBeGreaterThanOrEqual(across + 1);
+    expect(sheet.top + sheet.height).toBeGreaterThanOrEqual(down + 1);
   }
+});
+
+test("every build square is ruled, so every footprint edge lands on a rule", () => {
+  // A grid of every second square left the five square solar collectors of
+  // "Opening solars" straddling the rules (tomjn/coilbox#1508).
+  const sheet = blueprintSheet(sized(21, 18), PAGE);
+
+  expect(sheet.verticals).toEqual(
+    sheet.verticals.map((_, i) => sheet.verticals[0] + i),
+  );
+  for (const edge of [0, 5, 16, 21]) expect(sheet.verticals).toContain(edge);
+  for (const edge of [0, 5, 13, 18]) expect(sheet.horizontals).toContain(edge);
+});
+
+test("the rules are counted off the layout's own origin", () => {
+  const sheet = blueprintSheet(sized(21, 18), PAGE);
+
+  for (const at of [...sheet.verticals, ...sheet.horizontals]) {
+    expect(Number.isInteger(at)).toBe(true);
+  }
+  expect(sheet.verticals[0]).toBeGreaterThanOrEqual(sheet.left);
+  expect(sheet.verticals[0] - 1).toBeLessThan(sheet.left);
+});
+
+test("a base too big to draw a build square of is not ruled at all", () => {
+  const sheet = blueprintSheet(sized(600, 400), PAGE);
+
+  expect(sheet.verticals).toEqual([]);
+  expect(sheet.horizontals).toEqual([]);
+  expect(sheet.left).toBeCloseTo(-(sheet.width - 600) / 2);
+});
+
+test("a small layout is not blown up to fill the box", () => {
+  const sheet = blueprintSheet(sized(1, 1), PAGE);
+
+  expect(sheet.scale).toBe(16);
+  expect(sheet.width).toBeCloseTo(448 / 16);
 });
