@@ -4,6 +4,7 @@ import {
   BUILDING_GAP,
   blueprintShape,
   blueprintSheet,
+  planLabel,
 } from "./blueprintPreview";
 
 /** A payload as coilbox writes one, with only the fields the shape reads. */
@@ -216,4 +217,39 @@ test("a small layout is not blown up to fill the box", () => {
 
   expect(sheet.scale).toBe(16);
   expect(sheet.width).toBeCloseTo(448 / 16);
+});
+
+/** A layout of `buildings` single squares, over a sheet of the given size. */
+function counted(
+  buildings: number,
+  width = 5,
+  height = 5,
+): BlueprintShape {
+  return {
+    width,
+    height,
+    ordered: false,
+    squares: Array.from({ length: buildings }, (_, i) => ({
+      def: "armsolar",
+      sized: true,
+      x: i,
+      y: 0,
+      width: 1,
+      height: 1,
+    })),
+  };
+}
+
+test("the plan label counts one building in the singular", () => {
+  expect(planLabel(counted(1))).toBe("1 building over 5 by 5 build squares");
+});
+
+test("the plan label counts more than one in the plural", () => {
+  expect(planLabel(counted(4))).toBe("4 buildings over 5 by 5 build squares");
+});
+
+test("the plan label rounds sides a footprint gap leaves fractional", () => {
+  expect(planLabel(counted(2, 5.76, 3.24))).toBe(
+    "2 buildings over 6 by 3 build squares",
+  );
 });

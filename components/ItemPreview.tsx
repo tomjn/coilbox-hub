@@ -21,6 +21,7 @@ import {
   blueprintShape,
   type BlueprintShape,
   blueprintSheet,
+  planLabel,
 } from "@/lib/gallery/blueprintPreview";
 import { conquestGalaxy, type GalaxyShape } from "@/lib/gallery/conquestGalaxy";
 import { type RunShape, warpathRun } from "@/lib/gallery/warpathRun";
@@ -430,7 +431,7 @@ function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
         // The size {@link PAGE_BOX} describes, so the sheet is the whole of it.
         className="mx-auto aspect-[4/3] w-full max-w-md text-neutral-300"
         role="img"
-        aria-label={`${buildings} buildings over ${Math.round(shape.width)} by ${Math.round(shape.height)} build squares`}
+        aria-label={planLabel(shape)}
       >
         <g
           className="text-neutral-400"
