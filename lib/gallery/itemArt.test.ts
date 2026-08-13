@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  blueprint,
   conquest,
   downloads,
   scenario,
@@ -13,6 +14,7 @@ test("each gallery kind gets its own drawing", () => {
   expect(itemArt("preset").drawing).toBe(skirmish);
   expect(itemArt("scenario").drawing).toBe(scenario);
   expect(itemArt("setup-pack").drawing).toBe(setupPacks);
+  expect(itemArt("blueprint").drawing).toBe(blueprint);
 });
 
 test("a challenge picks its drawing from mode, not kind", () => {
@@ -32,7 +34,12 @@ test("a kind the gallery does not carry, such as a campaign, falls back to downl
 });
 
 test("every drawing this maps to has a tuned strength, not the fallback by accident", () => {
-  for (const kind of ["preset", "scenario", "setup-pack"] as const) {
+  for (const kind of [
+    "preset",
+    "scenario",
+    "setup-pack",
+    "blueprint",
+  ] as const) {
     const { drawing, strength } = itemArt(kind);
     expect(strength).toBeGreaterThan(0);
     expect(drawing.id).not.toBe(downloads.id);
