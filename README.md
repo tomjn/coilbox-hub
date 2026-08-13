@@ -1,6 +1,6 @@
 # Coilbox Hub
 
-The public gallery for content made in [Coilbox](https://github.com/tomjn/coilbox): battle presets, warpath and conquest challenges, setup packs and scenarios.
+The public gallery for content made in [Coilbox](https://github.com/tomjn/coilbox): battle presets, warpath and conquest challenges, setup packs, scenarios and base blueprints. The list a reader sees on the site is built from `GALLERY_KINDS`. This one is by hand, so it needs updating when that does.
 
 Right now this is a placeholder. The design it is being built to is `docs/superpowers/specs/2026-08-09-community-gallery-design.md` in the coilbox repo.
 

@@ -13,6 +13,7 @@ import {
 import { NavSignIn } from "@/components/NavSignIn";
 import { displayName } from "@/lib/author";
 import { COILBOX_URL } from "@/lib/coilbox";
+import { kindsPluralLower } from "@/lib/gallery/label";
 import { createClient } from "@/lib/supabase/server";
 import "./globals.css";
 
@@ -33,15 +34,17 @@ const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   : "http://localhost:3000";
 
+/* Built from the kinds the gallery carries rather than written out, so the
+   sentence cannot say four when there are five (tomjn/coilbox#1502). */
+const description = `A place to share the ${kindsPluralLower()} you make in Coilbox.`;
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "Coilbox Hub",
-  description:
-    "A place to share the presets, challenges, setup packs and scenarios you make in Coilbox.",
+  description,
   openGraph: {
     title: "Coilbox Hub",
-    description:
-      "A place to share the presets, challenges, setup packs and scenarios you make in Coilbox.",
+    description,
     type: "website",
   },
 };
