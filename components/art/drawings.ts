@@ -1,13 +1,14 @@
 import { diamond, palette, round, type Palette } from "./palette";
 
 /**
- * The backdrop drawings this site uses, each a hand copy of one illustration
- * from Coilbox's `DRAWINGS` registry in `src/home/bundledArt.ts` (tomjn/coilbox,
- * around line 1237 at the time of copying). That file draws 31 tool
- * illustrations from a shared renderer and palette. This only copies the ones
- * this site actually puts on a page, alongside the renderer and palette they
- * share (`CoilArt.tsx` and `palette.ts`) rather than duplicating either per
- * drawing.
+ * The backdrop drawings this site uses, all but the last a hand copy of one
+ * illustration from Coilbox's `DRAWINGS` registry in `src/home/bundledArt.ts`
+ * (tomjn/coilbox, around line 1237 at the time of copying). That file draws 31
+ * tool illustrations from a shared renderer and palette. This only copies the
+ * ones this site actually puts on a page, alongside the renderer and palette
+ * they share (`CoilArt.tsx` and `palette.ts`) rather than duplicating either
+ * per drawing. `blueprint` at the foot is drawn here instead, because that
+ * registry has nothing to copy for the kind.
  *
  * Every copy here is a copy, not a shared dependency, the same relationship
  * `CoilLogo.tsx` has to the app icon: nothing keeps these in sync with
@@ -544,6 +545,145 @@ export const warpath: Drawing = {
   },
 };
 
+/** One build square, in canvas units. Sixteen across the 320 wide canvas, ten
+ * down it, so the grid meets the frame on a line rather than mid square. */
+export const BLUEPRINT_PITCH = 20;
+
+/**
+ * Ground left clear on each side of a building, in canvas units.
+ *
+ * The same 0.1 of a square, and the same reasoning, as `BUILDING_GAP` in
+ * `lib/gallery/blueprintPreview.ts`: buildings in a real base stand shoulder
+ * to shoulder, and squares drawn true to size would touch and read as one
+ * shape. Taken off each building rather than added between them, so the
+ * layout stays on the grid.
+ */
+export const BLUEPRINT_GAP = 2;
+
+/** Where one building stands: column, row, then how many squares wide and
+ * deep, all in build squares. */
+type Plot = readonly [number, number, number, number];
+
+/**
+ * A base: a factory, a store, a lab, a row of four solar collectors, two
+ * turrets and a second store.
+ *
+ * The sizes are the point rather than the buildings. A footprint is the one
+ * thing about a unit a blueprint carries and the hub can draw, which is the
+ * whole argument `lib/gallery/blueprintPreview.ts` makes for the preview, so
+ * the backdrop is squares at several sizes rather than one size repeated.
+ */
+const BLUEPRINT_PLOTS: readonly Plot[] = [
+  [3, 1, 3, 3],
+  [7, 1, 2, 2],
+  [11, 1, 2, 3],
+  [7, 4, 1, 1],
+  [8, 4, 1, 1],
+  [9, 4, 1, 1],
+  [10, 4, 1, 1],
+  [3, 5, 1, 1],
+  [5, 5, 1, 1],
+  [8, 6, 2, 2],
+];
+
+/** The square the order has not reached yet. A blueprint is a plan for ground
+ * nobody has built on, so one square is still an outline. */
+const BLUEPRINT_NEXT: Plot = [12, 5, 2, 2];
+
+/** Which plots the order thread passes through, as indices into
+ * `BLUEPRINT_PLOTS`. Three of ten, and the three that run one way across the
+ * layout: a line through every building would be a scribble over the thing it
+ * is meant to explain, and one that doubles back reads as a mistake. */
+const BLUEPRINT_ORDER: readonly number[] = [0, 3, 9];
+
+/**
+ * A base laid out on a build grid, threaded in build order, with one square
+ * still an outline. Drawn for this site rather than copied from Coilbox, which
+ * has no blueprint illustration to copy: every other drawing in this file is a
+ * hand copy of one of its tool cards, and blueprints post-date that registry.
+ *
+ * Used on the item page for a blueprint (issue #85). A blueprint is a layout
+ * of buildings on the build grid and, when the author saved one, the order to
+ * put them up in, so the backdrop is those two things and nothing else. The
+ * grid runs past the frame on every side because a layout is placed on ground
+ * it does not own, which is the whole point of saving one.
+ *
+ * `BlueprintLayout` in `components/ItemPreview.tsx` draws the item's own
+ * layout in front of this, in the same shapes, so the two are kept apart by
+ * weight rather than by subject: the preview's buildings are solid squares at
+ * the page's own contrast, and these are hairline outlines dimmed by
+ * `strength` to a fraction of that. A plan of a base, behind a base.
+ *
+ * Nothing here comes from the payload. The other drawings on this page are
+ * per kind, not per item, and a backdrop that redrew the item would be a
+ * second copy of the preview behind the first.
+ *
+ * Content ends at the second store's foot, y=160, so `viewHeight` crops to
+ * 176. The grid is authored across the full canvas and simply runs off the
+ * bottom of the crop, the way it runs off the sides.
+ */
+export const blueprint: Drawing = {
+  id: "blueprint",
+  ariaLabel:
+    "A base of different sized squares on a build grid, threaded in build order to one square not yet placed",
+  viewHeight: 176,
+  pools: [
+    { cx: 150, cy: 58, r: 128, opacity: 0.18 },
+    { cx: 254, cy: 150, r: 92, opacity: 0.09 },
+  ],
+  paint: (p, strength) => {
+    const op = (v: number) => round(v * strength);
+    const at = (squares: number) => squares * BLUEPRINT_PITCH;
+    const box = ([col, row, wide, deep]: Plot) => ({
+      x: at(col) + BLUEPRINT_GAP,
+      y: at(row) + BLUEPRINT_GAP,
+      width: at(wide) - BLUEPRINT_GAP * 2,
+      height: at(deep) - BLUEPRINT_GAP * 2,
+    });
+    const rect = (plot: Plot) => {
+      const { x, y, width, height } = box(plot);
+      return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="2"`;
+    };
+    const middle = ([col, row, wide, deep]: Plot): [number, number] => [
+      at(col + wide / 2),
+      at(row + deep / 2),
+    ];
+
+    const grid =
+      Array.from(
+        { length: WIDTH / BLUEPRINT_PITCH + 1 },
+        (_, i) => `<path d="M${at(i)} 0 L${at(i)} 200"/>`,
+      ).join("") +
+      Array.from(
+        { length: 200 / BLUEPRINT_PITCH + 1 },
+        (_, i) => `<path d="M0 ${at(i)} L${WIDTH} ${at(i)}"/>`,
+      ).join("");
+    const built = BLUEPRINT_PLOTS.map((plot) => `${rect(plot)}/>`).join("");
+    const stops = [
+      ...BLUEPRINT_ORDER.map((i) => middle(BLUEPRINT_PLOTS[i])),
+      middle(BLUEPRINT_NEXT),
+    ];
+    const [startX, startY] = stops[0];
+
+    return (
+      `<g fill="none" stroke="${p.faint}" stroke-width="0.75" stroke-opacity="${op(0.2)}">` +
+      grid +
+      "</g>" +
+      // Outlines, not solids. `BlueprintLayout` in `components/ItemPreview.tsx`
+      // draws the item's own buildings as filled squares in front of this, so
+      // the backdrop stays lines on a grid: a plan of a base, against a base.
+      `<g fill="none" stroke="${p.line}" stroke-width="1.4" stroke-opacity="${op(0.5)}">` +
+      built +
+      "</g>" +
+      `${rect(BLUEPRINT_NEXT)} fill="none" stroke="${p.spark}" stroke-width="1.5" stroke-opacity="${op(0.5)}" stroke-dasharray="5 5"/>` +
+      `<g fill="none" stroke="${p.spark}" stroke-width="1.5" stroke-opacity="${op(0.6)}" stroke-linecap="round" stroke-linejoin="round">` +
+      `<path d="M${stops.map(([x, y]) => `${x} ${y}`).join(" L")}" stroke-dasharray="4 7"/>` +
+      "</g>" +
+      `<circle cx="${startX}" cy="${startY}" r="4" fill="${p.spark}" fill-opacity="${op(0.8)}"/>`
+    );
+  },
+};
+
 /** Every drawing this site currently uses, keyed by `id`, for iterating in
  * tests. Not the tool id, this repo's copies stand on their own once made. */
 export const ALL_DRAWINGS: readonly Drawing[] = [
@@ -556,6 +696,7 @@ export const ALL_DRAWINGS: readonly Drawing[] = [
   scenario,
   conquest,
   warpath,
+  blueprint,
 ];
 
 export { WIDTH, palette };
