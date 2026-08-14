@@ -6,6 +6,7 @@ import {
   buildAssetHaveBody,
   parseAssetHaveBody,
 } from "./assetHave";
+import { MAP_VARIANTS } from "@/lib/assets/asset";
 import { identityKey } from "@/lib/assets/have";
 
 const UNIT_KEY = {
@@ -122,10 +123,37 @@ test("a render variant is accepted whatever the angle, matching the check constr
   expect(keys[0].identity.variant).toBe("render:front-left");
 });
 
-test("a map variant is not held to the unit vocabulary", () => {
-  const keys = keysOf({ keys: [{ ...MAP_KEY, variant: "height" }] });
+test("a map variant is held to the map vocabulary and not the unit one", () => {
+  expect(keysOf({ keys: [{ ...MAP_KEY, variant: "overlay:height" }] })[0].identity.variant).toBe(
+    "overlay:height",
+  );
 
-  expect(keys[0].identity.variant).toBe("height");
+  // The unit list would have taken neither of these. The point is that the map
+  // list is its own, and that it is closed.
+  expect(parseAssetHaveBody({ keys: [{ ...MAP_KEY, variant: "buildpic" }] }).ok).toBe(false);
+});
+
+/**
+ * #137. The upload parser and `asset_map_variant_check` both refuse anything
+ * outside the four, and this took any string, so `overlay:metel` was answered
+ * `missing` and refused a round trip later by the upload it had just told the
+ * caller to make.
+ */
+test("a map variant outside the table's vocabulary is refused", () => {
+  const parsed = parseAssetHaveBody({ keys: [{ ...MAP_KEY, variant: "overlay:metel" }] });
+
+  expect(parsed).toEqual({
+    ok: false,
+    error:
+      "keys[0] `variant` on a map must be one of minimap, overlay:metal, overlay:type, overlay:height.",
+    status: 400,
+  });
+});
+
+test("every variant the table accepts on a map is accepted here", () => {
+  for (const variant of MAP_VARIANTS) {
+    expect(keysOf({ keys: [{ ...MAP_KEY, variant }] })[0].identity.variant).toBe(variant);
+  }
 });
 
 test("an empty batch is rejected, since it asks nothing", () => {
@@ -160,7 +188,7 @@ test("a repeated key is rejected rather than answered twice", () => {
 
 test("the same name under the two shapes is not a repeat", () => {
   const keys = keysOf({
-    keys: [UNIT_KEY, { keyed_on: "map", map_name: "armsolar", variant: "buildpic", source_hash: "src-a" }],
+    keys: [UNIT_KEY, { keyed_on: "map", map_name: "armsolar", variant: "minimap", source_hash: "src-a" }],
   });
 
   expect(keys).toHaveLength(2);
