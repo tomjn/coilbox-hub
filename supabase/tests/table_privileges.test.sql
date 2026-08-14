@@ -41,15 +41,17 @@ select column_privs_are('public', 'item', 'author_name', 'authenticated',
   ARRAY['SELECT'],
   'authenticated can neither insert nor update item.author_name');
 
--- public.moderator: who moderates is not public. Nobody gets a table
--- grant, not even authenticated; is_moderator() reads it as its own
--- definer.
-select table_privs_are('public', 'moderator', 'anon', ARRAY[]::name[],
-  'anon has no table privilege on moderator');
-select table_privs_are('public', 'moderator', 'authenticated', ARRAY[]::name[],
-  'authenticated has no table privilege on moderator');
-select table_privs_are('public', 'moderator', 'service_role', ARRAY[]::name[],
-  'service_role has no table privilege on moderator');
+-- public.user_capability: who holds a capability is not public, and neither
+-- is the fact that anybody does. Nobody gets a table grant, not even
+-- authenticated. has_capability() reads it as its own definer, and
+-- is_moderator() is one question asked of it (issue #101). This replaces
+-- public.moderator, which that migration folded into this table.
+select table_privs_are('public', 'user_capability', 'anon', ARRAY[]::name[],
+  'anon has no table privilege on user_capability');
+select table_privs_are('public', 'user_capability', 'authenticated', ARRAY[]::name[],
+  'authenticated has no table privilege on user_capability');
+select table_privs_are('public', 'user_capability', 'service_role', ARRAY[]::name[],
+  'service_role has no table privilege on user_capability');
 
 -- public.report: anyone may insert; only authenticated may select or
 -- update, and report_read_moderators / report_handle_moderators are what
