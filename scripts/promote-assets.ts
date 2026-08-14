@@ -7,7 +7,7 @@
  * itself: read an object over HTTP, put a file in a checkout, commit and push
  * it, ask the published site whether it is serving yet, and delete from Blob.
  *
- *   bun run promote:assets --assets-repo ../coilbox-assets
+ *   bun run promote:assets --assets-repo ../coilbox-assets --dry-run
  *   bun run promote:assets --assets-repo ../coilbox-assets --write
  *
  * A dry run reads Postgres and reports. It writes nothing, pushes nothing,
@@ -66,6 +66,14 @@ const args = process.argv.slice(2);
 function option(name: string): string | undefined {
   const at = args.indexOf(`--${name}`);
   return at === -1 ? undefined : args[at + 1];
+}
+
+// `--dry-run` is the default and says so out loud, which the workflow needs:
+// an empty string is falsy in a GitHub expression, so a conditional that
+// passes no flag at all cannot be written safely.
+if (args.includes("--write") && args.includes("--dry-run")) {
+  console.error("Asked for both --write and --dry-run. Pick one.");
+  process.exit(1);
 }
 
 const write = args.includes("--write");
