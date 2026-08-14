@@ -9,7 +9,7 @@
 -- item_rls.test.sql and table_privileges.test.sql alongside the existing ones.
 
 begin;
-select plan(26);
+select plan(35);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -201,6 +201,69 @@ select throws_ok(
   '23514',
   null,
   'a moderation state outside the three is refused'
+);
+
+-- The two vocabularies #117 settles, and the one relationship it draws between
+-- moderation and approval_source.
+
+select throws_ok(
+  $$update public.asset set origin = 'scraped' where hash = 'enc-m'$$,
+  '23514',
+  null,
+  'an origin outside the vocabulary is refused'
+);
+
+select throws_ok(
+  $$update public.asset set moderation = 'approved', approval_source = 'vibes' where hash = 'enc-m'$$,
+  '23514',
+  null,
+  'an approval source outside the vocabulary is refused'
+);
+
+-- Otherwise the audit trail has a hole in exactly the rows being served.
+select throws_ok(
+  $$update public.asset set moderation = 'approved' where hash = 'enc-m'$$,
+  '23514',
+  null,
+  'an approved row has to say what approved it'
+);
+
+-- And otherwise "approval_source is not null" stops meaning approved.
+select throws_ok(
+  $$update public.asset set approval_source = 'moderator' where hash = 'enc-m'$$,
+  '23514',
+  null,
+  'a pending row cannot claim an approval source'
+);
+
+select lives_ok(
+  $$update public.asset set moderation = 'approved', approval_source = 'moderator' where hash = 'enc-m'$$,
+  'approving in the grid records that a moderator did it'
+);
+
+-- A safety rejection over something a moderator had already approved is a case
+-- #115 has to be able to demonstrate afterwards, so rejecting must not have to
+-- destroy the record of who approved it first.
+select lives_ok(
+  $$update public.asset set moderation = 'rejected' where hash = 'enc-m'$$,
+  'an approved row can be rejected later'
+);
+
+select is(
+  (select approval_source from public.asset where hash = 'enc-m'), 'moderator',
+  'and still says who had approved it'
+);
+
+select lives_ok(
+  $$update public.asset set moderation = 'rejected' where hash = 'enc-q'$$,
+  'a row rejected straight out of the queue was never approved by anything'
+);
+
+-- The shape the seed actually writes: live on arrival, and saying so.
+select lives_ok(
+  $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive, tier, moderation, approval_source)
+    values ('Tangerine 1.1', 'minimap', 'src-s', 'enc-s', 'minimap-q80', 'map/tangerine/minimap/enc-s.webp', 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'tangerine_1.1.sd7', 'static', 'approved', 'seed')$$,
+  'the seed writes an approved row to the durable tier in one statement'
 );
 
 select has_trigger('public', 'asset', 'asset_touch_updated_at',
