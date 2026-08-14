@@ -85,6 +85,9 @@ export const UNIT_VARIANT_CEILING = 8;
  * insurance against a client looping rather than a pace anybody meets, in the
  * spirit of `enforce_publish_rate_limit` on `public.item`.
  *
+ * Counted on `seen_at`, for the reason {@link MONTHLY_UPLOAD_BUDGET} gives: a
+ * replacement is an upload as far as anything that costs money is concerned.
+ *
  * One rule with a subject rather than two rules, because a map asset is not
  * scoped to a game and inventing a game for it would either exempt maps or
  * force a second limit that drifts from this one.
@@ -96,10 +99,17 @@ export const SUBJECT_UPLOADS_PER_HOUR = 100;
  *
  * Every accepted upload is one `put()` and therefore one advanced operation,
  * and going over the store's allowance is a 30 day outage that cannot be paid
- * through. The margin below the allowance is deliberate: this counts rows the
- * hub wrote, so anything that spends an operation outside this route, or a row
- * written and then rolled back, eats into the margin rather than into the
- * outage.
+ * through. The margin below the allowance is deliberate: this counts writes the
+ * hub made, so anything that spends an operation outside this route, or a write
+ * rolled back afterwards, eats into the margin rather than into the outage.
+ *
+ * Counted on `seen_at` rather than `created_at`, because a replacement (#106)
+ * spends an operation without creating a row. `created_at` would read a client
+ * looping on replacements as no uploads at all, which is the one way to reach
+ * the lockout unnoticed. `updated_at` is wrong in the other direction, since
+ * approving a row in the moderation grid touches it and spends nothing.
+ * `seen_at` is written by exactly the two things that call `put()`: a first
+ * upload and a replacement.
  */
 export const MONTHLY_UPLOAD_BUDGET = BLOB_ADVANCED_OPERATIONS_PER_MONTH - 100;
 
@@ -111,7 +121,7 @@ export const MONTHLY_UPLOAD_BUDGET = BLOB_ADVANCED_OPERATIONS_PER_MONTH - 100;
  * `width` and `height` are not here, and their absence is #105's answer. The
  * hub measures the image header, so a declared pair could only agree with the
  * bytes or be wrong, and there is no third thing a client could usefully mean
- * by it. {@link insertPendingAsset} takes the measured pair separately.
+ * by it. {@link writePendingAsset} takes the measured pair separately.
  */
 export interface AssetUploadDeclaration {
   identity: AssetIdentity;
@@ -140,8 +150,27 @@ export interface AssetImageDimensions {
 }
 
 export type AssetUploadCheck =
-  | { ok: true; path: string }
+  | {
+      ok: true;
+      path: string;
+      /** The row a newer archive is replacing, or null on a first upload. */
+      replacing: string | null;
+    }
   | { ok: false; error: string; status: number };
+
+/** What the identity check needs off a row that already exists. Each column is
+ * a question a later check asks: who may replace it, whether these are the same
+ * source bytes, whether it is in a state that may be replaced at all, and how
+ * much of the account's quota the superseded row is holding. */
+const EXISTING_COLUMNS = "id, source_hash, uploaded_by, moderation, bytes";
+
+interface ExistingAsset {
+  id: string;
+  source_hash: string;
+  uploaded_by: string | null;
+  moderation: string;
+  bytes: number;
+}
 
 /** Beginning of the current calendar month, in UTC, as PostgREST wants it. */
 function monthStart(now: Date): string {
@@ -193,6 +222,30 @@ async function fetchLicence(
       allMaps.data as AssetLicenceRow | null,
     ),
   };
+}
+
+/**
+ * The row this identity already has, or null when it has none.
+ *
+ * `maybeSingle` rather than a list, because both identity indexes are unique
+ * and partial, so an identity matches at most one row and a second one would be
+ * a bug worth hearing about rather than a row to pick from.
+ *
+ * This used to be a count, which was enough while an existing identity was only
+ * ever a refusal. A replacement has to know who owns the row, what source bytes
+ * it already holds and what state it is in, so it reads the row.
+ */
+async function fetchExisting(
+  supabase: SupabaseClient,
+  identity: AssetIdentity,
+): Promise<{ ok: true; row: ExistingAsset | null } | { ok: false }> {
+  const { data, error } = await supabase
+    .from("asset")
+    .select(EXISTING_COLUMNS)
+    .or(identityFilter(identity))
+    .maybeSingle();
+
+  return error ? { ok: false } : { ok: true, row: data as ExistingAsset | null };
 }
 
 /**
@@ -274,22 +327,17 @@ export async function checkAssetUpload(
           .select("id", { count: "exact", head: true })
           .eq("uploaded_by", userId)
           .eq("game", identity.game)
-          .gte("created_at", since)
+          .gte("seen_at", since)
       : supabase
           .from("asset")
           .select("id", { count: "exact", head: true })
           .eq("uploaded_by", userId)
           .not("map_name", "is", null)
-          .gte("created_at", since);
+          .gte("seen_at", since);
 
   const [licence, existing, unitVariants, accountBytes, recent, thisMonth] = await Promise.all([
     fetchLicence(supabase, identity),
-    countRows(
-      supabase
-        .from("asset")
-        .select("id", { count: "exact", head: true })
-        .or(identityFilter(identity)),
-    ),
+    fetchExisting(supabase, identity),
     identity.keyedOn === "unit"
       ? countRows(
           supabase
@@ -306,7 +354,7 @@ export async function checkAssetUpload(
         .from("asset")
         .select("id", { count: "exact", head: true })
         .not("uploaded_by", "is", null)
-        .gte("created_at", monthStart(new Date())),
+        .gte("seen_at", monthStart(new Date())),
     ),
   ]);
 
@@ -322,17 +370,62 @@ export async function checkAssetUpload(
     };
   }
 
-  if (existing === null) return QUOTA_UNAVAILABLE;
-  if (existing > 0) {
-    return {
-      ok: false,
-      error: "The hub already holds an asset with that identity. Nothing was uploaded.",
-      status: 409,
-    };
+  if (!existing.ok) return QUOTA_UNAVAILABLE;
+  const replacing = existing.row;
+
+  if (replacing) {
+    // Only the account that uploaded it. The alternative, anyone may replace
+    // anyone's asset, hands every signed in account a way to take the whole
+    // corpus off the site: a replacement resets the row to pending, so one
+    // account could de-publish every approved picture it can name and leave a
+    // moderator to re-review the lot. The rate limits bound how fast that goes
+    // and not whether it works. A seeded row has a null `uploaded_by` and is
+    // nobody's to replace, which is the same rule and not an extra one.
+    //
+    // The cost is that a newer archive held by somebody else cannot refresh a
+    // picture, so the corpus can go stale. That is the lesser harm and the
+    // fixable one: replacing across accounts wants a capability of the kind
+    // #101 already has, and #138 is where it goes.
+    if (replacing.uploaded_by !== userId) {
+      return {
+        ok: false,
+        error: "Another account uploaded the asset with that identity, so it cannot be replaced.",
+        status: 409,
+      };
+    }
+
+    // A rejection is a state and never a delete (#115), and a safety rejection
+    // is not overridable. Letting a replacement put the row back to pending
+    // would make it overridable by anybody with different bytes and the same
+    // identity, which is the whole control undone in one request.
+    if (replacing.moderation === "rejected") {
+      return {
+        ok: false,
+        error: "That asset was rejected, and a rejection is not something an upload can undo.",
+        status: 409,
+      };
+    }
+
+    // The same source bytes the hub already holds. Storing them again would
+    // spend an advanced operation to end up where it started and, worse, reset
+    // an approved row to pending, so a client retrying in a loop would keep its
+    // own picture out of the gallery. `/api/v1/assets/have` answers this for
+    // free and in batches, which is what a well behaved client asks first.
+    if (replacing.source_hash === declaration.sourceHash) {
+      return {
+        ok: false,
+        error:
+          "The hub already holds that asset with the same `source_hash`. Check `/api/v1/assets/have` before uploading.",
+        status: 409,
+      };
+    }
   }
 
   if (unitVariants === null) return QUOTA_UNAVAILABLE;
-  if (unitVariants >= UNIT_VARIANT_CEILING) {
+  // Measured on what the table will hold afterwards, which is one more on a
+  // first upload and the same number on a replacement. A replacement stores no
+  // new variant, so the ceiling has nothing to refuse.
+  if (unitVariants + (replacing ? 0 : 1) > UNIT_VARIANT_CEILING) {
     return {
       ok: false,
       error: `That unit already has ${unitVariants} stored variants, which is the ceiling of ${UNIT_VARIANT_CEILING}.`,
@@ -341,7 +434,11 @@ export async function checkAssetUpload(
   }
 
   if (accountBytes.error || typeof accountBytes.data !== "number") return QUOTA_UNAVAILABLE;
-  if (accountBytes.data + bytes > ACCOUNT_STORAGE_QUOTA_BYTES) {
+  // The superseded row's bytes come back off the total, because the quota is
+  // measured over rows and the replacement leaves one row where there was one.
+  // The superseded object outlives the row it belonged to, but that is an
+  // orphan for #113 to clear rather than storage this account still holds.
+  if (accountBytes.data - (replacing?.bytes ?? 0) + bytes > ACCOUNT_STORAGE_QUOTA_BYTES) {
     return {
       ok: false,
       error: `That upload would put this account over its ${ACCOUNT_STORAGE_QUOTA_BYTES} byte storage quota.`,
@@ -367,36 +464,17 @@ export async function checkAssetUpload(
     };
   }
 
-  return { ok: true, path };
+  return { ok: true, path, replacing: replacing?.id ?? null };
 }
 
-/**
- * Write the pending row for an upload the hub has just accepted.
- *
- * `moderation` and `approval_source` are left at their defaults rather than
- * set, so nothing on this path can put a row in front of the public. Bypass on
- * a capability is #114's alongside the queue that would otherwise hold it.
- *
- * #106 is where this learns to replace a row whose `source_hash` has changed.
- * It is no longer a route of its own: with one upload path the row is always
- * written by the request that holds the bytes, so what is left of #106 is this
- * function taking an update as well as an insert. Until then a row is only ever
- * inserted, and an identity that already exists is refused above.
- */
-export async function insertPendingAsset(
-  supabase: SupabaseClient,
-  userId: string,
+/** Everything on the row that describes the bytes rather than the identity, and
+ * therefore everything a newer archive changes. */
+function assetColumns(
   declaration: AssetUploadDeclaration,
   path: string,
   measured: AssetImageDimensions,
-): Promise<boolean> {
-  const { identity } = declaration;
-
-  const { error } = await supabase.from("asset").insert({
-    game: identity.keyedOn === "unit" ? identity.game : null,
-    unit_name: identity.keyedOn === "unit" ? identity.unitName : null,
-    map_name: identity.keyedOn === "map" ? identity.mapName : null,
-    variant: identity.variant,
+) {
+  return {
     source_hash: declaration.sourceHash,
     hash: declaration.hash,
     encode_profile: declaration.encodeProfile,
@@ -412,6 +490,68 @@ export async function insertPendingAsset(
     world_height_min: declaration.worldHeightMin,
     world_height_max: declaration.worldHeightMax,
     source_archive: declaration.sourceArchive,
+  };
+}
+
+/**
+ * Write the pending row for an upload the hub has just accepted, replacing the
+ * row named by `replacing` when a newer archive changed the bytes (#106).
+ *
+ * `moderation` and `approval_source` are left at their defaults on an insert
+ * and set back to them on a replacement, so nothing on this path can put a row
+ * in front of the public. Bypass on a capability is #114's alongside the queue
+ * that would otherwise hold it.
+ *
+ * Setting them back matters more than leaving them alone would. An approved row
+ * that keeps its approval through a replacement is serving bytes nobody has
+ * looked at, under a review a moderator gave to different bytes, which is
+ * exactly what the queue exists to stop. `approval_source` has to go with it:
+ * the table's `asset_approval_state_check` will not have a pending row that
+ * still says what approved it, and it should not, since nothing approved this.
+ *
+ * `tier` and `promoted_at` go back too. The new object is in Blob, so a row
+ * left saying `static` would name a durable tier path the bytes are not at.
+ *
+ * Replacement, not accumulation. One row per identity throughout, and the
+ * superseded object stays in the store as an orphan for #113 rather than being
+ * deleted here: deleting is the kind of thing that wants one owner and a list
+ * of what nothing claims, not a best effort call on the end of an upload.
+ */
+export async function writePendingAsset(
+  supabase: SupabaseClient,
+  userId: string,
+  declaration: AssetUploadDeclaration,
+  path: string,
+  measured: AssetImageDimensions,
+  replacing: string | null,
+): Promise<boolean> {
+  const { identity } = declaration;
+  const columns = assetColumns(declaration, path, measured);
+
+  if (replacing) {
+    const { error } = await supabase
+      .from("asset")
+      .update({
+        ...columns,
+        // Not defaulted the way an insert's is, so a replacement has to say
+        // when the archive was last seen or the column would keep the first
+        // upload's date and the monthly budget would not count this write.
+        seen_at: new Date().toISOString(),
+        promoted_at: null,
+        moderation: "pending",
+        approval_source: null,
+      })
+      .eq("id", replacing);
+
+    return !error;
+  }
+
+  const { error } = await supabase.from("asset").insert({
+    game: identity.keyedOn === "unit" ? identity.game : null,
+    unit_name: identity.keyedOn === "unit" ? identity.unitName : null,
+    map_name: identity.keyedOn === "map" ? identity.mapName : null,
+    variant: identity.variant,
+    ...columns,
     uploaded_by: userId,
   });
 

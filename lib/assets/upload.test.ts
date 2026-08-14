@@ -68,11 +68,32 @@ function licence(
   };
 }
 
+interface ExistingRow {
+  id: string;
+  source_hash: string;
+  uploaded_by: string | null;
+  moderation: string;
+  bytes: number;
+}
+
+/** The row this identity already has, owned by the caller and holding source
+ * bytes a newer archive has moved on from. */
+function held(overrides: Partial<ExistingRow> = {}): ExistingRow {
+  return {
+    id: "held",
+    source_hash: "raw-old",
+    uploaded_by: USER,
+    moderation: "approved",
+    bytes: 4096,
+    ...overrides,
+  };
+}
+
 interface World {
   gameLicence: AssetLicenceRow | null;
   perMapLicence: AssetLicenceRow | null;
   allMapsLicence: AssetLicenceRow | null;
-  existing: number;
+  existing: ExistingRow | null;
   unitVariants: number;
   accountBytes: number;
   recent: number;
@@ -85,7 +106,7 @@ function world(overrides: Partial<World> = {}): World {
     gameLicence: licence("allowed"),
     perMapLicence: null,
     allMapsLicence: licence("allowed"),
-    existing: 0,
+    existing: null,
     unitVariants: 0,
     accountBytes: 0,
     recent: 0,
@@ -121,8 +142,8 @@ function fakeSupabase(state: World, seen: Query[] = []): SupabaseClient {
     }
 
     if (query.filters.some((filter) => filter.startsWith("or:"))) {
-      if (state.broken === "identity") return { count: null, error: { message: "down" } };
-      return { count: state.existing, error: null };
+      if (state.broken === "identity") return { data: null, error: { message: "down" } };
+      return { data: state.existing, error: null };
     }
     if (query.filters.includes("not:uploaded_by")) {
       return { count: state.thisMonth, error: null };
@@ -178,6 +199,7 @@ test("a declaration that clears everything comes back with the path the bytes go
   expect(await check(world())).toEqual({
     ok: true,
     path: "units/BYAR/buildpic/encabc.webp",
+    replacing: null,
   });
 });
 
@@ -287,12 +309,67 @@ test("a map's own row wins over the blanket one, including a refusal", async () 
   expect(result.status).toBe(403);
 });
 
-test("an identity the hub already holds is refused, and nothing is uploaded", async () => {
-  expect(await check(world({ existing: 1 }))).toEqual({
+/**
+ * The replacement half of #106. A newer archive changes the bytes for an
+ * identity the hub already holds, and the row it holds is updated rather than a
+ * second one added.
+ */
+test("a newer archive replaces the row it already has rather than being refused", async () => {
+  expect(await check(world({ existing: held() }))).toEqual({
+    ok: true,
+    path: "units/BYAR/buildpic/encabc.webp",
+    replacing: "held",
+  });
+});
+
+/**
+ * A replacement resets the row to pending, so anybody able to replace anybody's
+ * asset could take every approved picture off the site one request at a time.
+ */
+test("only the account that uploaded an asset may replace it", async () => {
+  const stranger = held({ uploaded_by: "22222222-2222-2222-2222-222222222222" });
+  const result = await check(world({ existing: stranger }));
+
+  expect(result).toEqual({
     ok: false,
-    error: "The hub already holds an asset with that identity. Nothing was uploaded.",
+    error: "Another account uploaded the asset with that identity, so it cannot be replaced.",
     status: 409,
   });
+});
+
+test("a seeded row belongs to nobody and so is nobody's to replace", async () => {
+  expect((await check(world({ existing: held({ uploaded_by: null }) }))).ok).toBe(false);
+});
+
+/** A safety rejection is not overridable (#115), and a replacement that put the
+ * row back to pending would make it overridable by anybody with other bytes. */
+test("a rejection is not something an upload can undo", async () => {
+  const result = await check(world({ existing: held({ moderation: "rejected" }) }));
+
+  expect(result).toEqual({
+    ok: false,
+    error: "That asset was rejected, and a rejection is not something an upload can undo.",
+    status: 409,
+  });
+});
+
+/** The have check answers this for free and in batches, and re-storing the same
+ * source bytes would spend an advanced operation to reset an approved row. */
+test("the same source bytes again are refused rather than stored twice", async () => {
+  const result = await check(world({ existing: held({ source_hash: "raw-abc" }) }));
+
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.status).toBe(409);
+  expect(result.error).toContain("/api/v1/assets/have");
+});
+
+/** Every check a first upload faces, a replacement faces. The licence is the
+ * one that matters most: permission withdrawn is withdrawn for both. */
+test("a replacement is refused when the subject's permission has been revoked", async () => {
+  expect(
+    (await check(world({ existing: held(), gameLicence: licence("denied") }))).ok,
+  ).toBe(false);
 });
 
 test("a unit at the variant ceiling takes no more", async () => {
@@ -302,6 +379,14 @@ test("a unit at the variant ceiling takes no more", async () => {
   expect(result.ok).toBe(false);
   if (result.ok) return;
   expect(result.status).toBe(409);
+});
+
+/** The ceiling is on stored variants and a replacement stores no new one, so it
+ * is measured against what the table holds afterwards rather than before. */
+test("a unit at the variant ceiling can still have one of its variants replaced", async () => {
+  const atCeiling = world({ existing: held(), unitVariants: UNIT_VARIANT_CEILING });
+
+  expect((await check(atCeiling)).ok).toBe(true);
 });
 
 test("the variant ceiling is a unit rule and does not apply to maps", async () => {
@@ -323,6 +408,15 @@ test("the account quota counts what this upload would add, not what is already t
   expect(result.ok).toBe(false);
   if (result.ok) return;
   expect(result.status).toBe(413);
+});
+
+/** The quota is measured over rows, and a replacement leaves one row where
+ * there was one, so the superseded row's bytes come back off the total. */
+test("a replacement is charged the difference rather than the whole object", async () => {
+  const full = { existing: held({ bytes: 4096 }), accountBytes: ACCOUNT_STORAGE_QUOTA_BYTES };
+
+  expect((await check(world(full), { bytes: 4096 })).ok).toBe(true);
+  expect((await check(world(full), { bytes: 4097 })).ok).toBe(false);
 });
 
 test("a client looping on one subject is slowed down rather than served", async () => {
@@ -361,9 +455,11 @@ test("a quota that cannot be read refuses the upload rather than allowing it", a
 });
 
 test("a request that trips two limits always hears about the same one", async () => {
-  const result = await check(world({ existing: 1, recent: SUBJECT_UPLOADS_PER_HOUR }));
+  const result = await check(
+    world({ existing: held({ moderation: "rejected" }), recent: SUBJECT_UPLOADS_PER_HOUR }),
+  );
 
   expect(result.ok).toBe(false);
   if (result.ok) return;
-  expect(result.status).toBe(409);
+  expect(result.error).toContain("rejected");
 });
