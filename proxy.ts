@@ -56,8 +56,9 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Everything except static assets and the generated OpenGraph images, which
-    // never need a session and would only pay the round trip.
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|opengraph-image).*)",
+    // Everything except static assets, Vercel's own endpoints (the Speed
+    // Insights script and the vitals it posts back) and the generated OpenGraph
+    // images, which never need a session and would only pay the round trip.
+    "/((?!_next/static|_next/image|_vercel|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|opengraph-image).*)",
   ],
 };
