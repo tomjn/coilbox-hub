@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test";
 import { MAP_VARIANTS } from "./asset";
-import { ASSET_CAPS, capForVariant, checkAssetImage } from "./caps";
+import {
+  ASSET_CAPS,
+  capForVariant,
+  checkAssetImage,
+  heightOverlayMaxBytes,
+  heightOverlaySamples,
+} from "./caps";
 import { ASSET_MIME_EXTENSIONS } from "./path";
 
 /**
@@ -159,6 +165,66 @@ test("a class with a longest edge says what its bytes may be, and the overlays d
     }
     expect(cap.maxBytes).toBe(cap.maxEdge * cap.maxEdge * 4);
   }
+});
+
+/**
+ * #142's numbers, and where they came from.
+ *
+ * Every archive in the maintainer's `~/.spring/maps` was opened through
+ * `bsdtar`, its SMF header read and its heightmap encoded as the lossless 16 bit
+ * grayscale PNG this class is. The sizes below are measured files rather than
+ * arithmetic, which is what the issue asks for.
+ */
+test("a height overlay's samples are one per heightmap vertex, so one more than the squares", () => {
+  // A 32x32 map, which is the largest size in BAR's published catalogue.
+  expect(heightOverlaySamples(16384)).toBe(2049);
+  // A 24x24, of which the collection holds eleven.
+  expect(heightOverlaySamples(12288)).toBe(1537);
+  // An 8x8, the smallest in the collection.
+  expect(heightOverlaySamples(4096)).toBe(513);
+});
+
+test("the height overlay cap is the uncompressed size the declared map size implies", () => {
+  expect(heightOverlayMaxBytes("overlay:height", 16384, 16384)).toBe(2049 * 2049 * 2);
+  expect(heightOverlayMaxBytes("overlay:height", 15360, 10240)).toBe(1921 * 1281 * 2);
+});
+
+test("every height overlay measured off a real archive fits inside its cap", () => {
+  // The largest of the 97, mediterraneum_v1, a 32x32 map.
+  expect(4_511_410).toBeLessThan(heightOverlayMaxBytes("overlay:height", 16384, 16384) as number);
+  // The worst compression of the 97 at 1.5405 bytes a sample, acidicquarry, a
+  // 12x12 map. The cap is two bytes a sample, so this is the tightest fit in
+  // the whole collection and it still has room.
+  expect(Math.ceil(769 * 769 * 1.5405)).toBeLessThan(
+    heightOverlayMaxBytes("overlay:height", 6144, 6144) as number,
+  );
+});
+
+/** Seven of the 97 are over two megabytes, so the old backstop was refusing
+ * about seven per cent of the real corpus rather than backstopping it. */
+test("the largest maps are over the backstop the class used to take", () => {
+  expect(4_511_410).toBeGreaterThan(2 * 1024 * 1024);
+  expect(heightOverlayMaxBytes("overlay:height", 16384, 16384) as number).toBeGreaterThan(
+    2 * 1024 * 1024,
+  );
+});
+
+/** The measurement is of heightmaps, and says nothing about the 8 bit grids the
+ * other two overlays are sampled from. A cap invented for a resolution nobody
+ * has established is a cap that refuses valid uploads. */
+test("only the height overlay gets a cap off the map size", () => {
+  expect(heightOverlayMaxBytes("overlay:metal", 16384, 16384)).toBeNull();
+  expect(heightOverlayMaxBytes("overlay:type", 16384, 16384)).toBeNull();
+  expect(heightOverlayMaxBytes("minimap", 16384, 16384)).toBeNull();
+  expect(heightOverlayMaxBytes("buildpic", null, null)).toBeNull();
+});
+
+/** A unit row carries no map size, and neither does a map row that somehow
+ * arrives without one, so there is nothing to derive from and the backstop
+ * answers. */
+test("no declared map size means no derived cap", () => {
+  expect(heightOverlayMaxBytes("overlay:height", null, null)).toBeNull();
+  expect(heightOverlayMaxBytes("overlay:height", 16384, null)).toBeNull();
 });
 
 test("every variant the hub stores has a cap, and nothing else does", () => {
