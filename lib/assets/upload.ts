@@ -419,6 +419,12 @@ export async function checkAssetUpload(
     // is not overridable. Letting a replacement put the row back to pending
     // would make it overridable by anybody with different bytes and the same
     // identity, which is the whole control undone in one request.
+    //
+    // Every rejected row, not only the safety ones, because an editorial
+    // rejection is a moderator's call about whether a picture belongs and an
+    // upload is not the way to argue with it. `public.return_asset` is, and it
+    // is a moderator's to call. The table refuses the safety half underneath
+    // this regardless of what any route does.
     if (replacing.moderation === "rejected") {
       return {
         ok: false,
@@ -538,6 +544,11 @@ function assetColumns(
  * superseded object stays in the store as an orphan for #113 rather than being
  * deleted here: deleting is the kind of thing that wants one owner and a list
  * of what nothing claims, not a best effort call on the end of an upload.
+ *
+ * Answers with the row's id rather than a boolean, and null when nothing was
+ * written. #115 records where the upload came from in a second table keyed on
+ * that id, and the id is a thing this function already has and the caller
+ * otherwise would not.
  */
 export async function writePendingAsset(
   supabase: SupabaseClient,
@@ -546,7 +557,7 @@ export async function writePendingAsset(
   path: string,
   measured: AssetImageDimensions,
   replacing: string | null,
-): Promise<boolean> {
+): Promise<string | null> {
   const { identity } = declaration;
   const columns = assetColumns(declaration, path, measured);
 
@@ -565,17 +576,21 @@ export async function writePendingAsset(
       })
       .eq("id", replacing);
 
-    return !error;
+    return error ? null : replacing;
   }
 
-  const { error } = await supabase.from("asset").insert({
-    game: identity.keyedOn === "unit" ? identity.game : null,
-    unit_name: identity.keyedOn === "unit" ? identity.unitName : null,
-    map_name: identity.keyedOn === "map" ? identity.mapName : null,
-    variant: identity.variant,
-    ...columns,
-    uploaded_by: userId,
-  });
+  const { data, error } = await supabase
+    .from("asset")
+    .insert({
+      game: identity.keyedOn === "unit" ? identity.game : null,
+      unit_name: identity.keyedOn === "unit" ? identity.unitName : null,
+      map_name: identity.keyedOn === "map" ? identity.mapName : null,
+      variant: identity.variant,
+      ...columns,
+      uploaded_by: userId,
+    })
+    .select("id")
+    .single();
 
-  return !error;
+  return error ? null : ((data as { id: string }).id ?? null);
 }

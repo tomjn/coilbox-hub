@@ -6,6 +6,7 @@ import { BLOB_TOKEN_ERROR, deleteBlobAssets, putBlobAsset } from "@/lib/assets/b
 import { checkAssetImage } from "@/lib/assets/caps";
 import { IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
 import { checkAssetUpload, writePendingAsset } from "@/lib/assets/upload";
+import { clientIp, recordUploadIp } from "@/lib/assets/uploadIp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticateBearer } from "@/lib/supabase/bearer";
 import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
@@ -185,19 +186,26 @@ export async function POST(request: Request) {
   // Deleting on a failed write is free, so the store does not keep an object no
   // row will ever name. It is the object this request just made either way: on
   // a failed replacement the row still names the object it named before.
-  if (
-    !(await writePendingAsset(
-      admin,
-      auth.user.id,
-      parsed.declaration,
-      stored,
-      image,
-      check.replacing,
-    ))
-  ) {
+  const assetId = await writePendingAsset(
+    admin,
+    auth.user.id,
+    parsed.declaration,
+    stored,
+    image,
+    check.replacing,
+  );
+
+  if (!assetId) {
     await deleteBlobAssets([stored]).catch(() => {});
     return apiError("The asset was uploaded but its record could not be written.", 503);
   }
+
+  // Where it came from, which is the third of the three things a report needs
+  // and the only one that was not already on the row (#115). Kept while the
+  // picture is pending or rejected and purged when it is approved, by a trigger
+  // rather than a promise. Best effort: the row is written and the object is
+  // stored, so a failure here is not worth throwing either of them away for.
+  await recordUploadIp(admin, assetId, clientIp(request.headers));
 
   return withCors(
     NextResponse.json(buildAssetUploadBody(), {
