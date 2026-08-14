@@ -237,7 +237,8 @@ reset role;
 
 -- Moderation. The point of these is that a moderator can reach what an author
 -- can, and that nobody else can read what has been reported.
-insert into public.moderator (user_id) values ('11111111-1111-1111-1111-111111111111');
+insert into public.user_capability (user_id, capability)
+values ('11111111-1111-1111-1111-111111111111', 'can_moderate');
 
 reset role;
 set local role anon;
