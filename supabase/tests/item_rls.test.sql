@@ -17,6 +17,10 @@ values
   ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ada@example.test', '{"full_name":"Ada Lovelace"}'),
   ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'grace@example.test', '{"full_name":"Grace Hopper"}');
 
+-- The counts below name these two ids rather than counting the table (issue
+-- #140). Counting it passes on a fresh database and fails on any machine where
+-- somebody has published through the app, and the failure then reads as a
+-- broken policy rather than a leftover row.
 insert into public.item (id, kind, kind_version, title, container, author_id, author_name)
 values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'preset', 1, 'Ada live', '{"format":"coilbox","container":1,"kind":"preset","kindVersion":1,"payload":{}}', '11111111-1111-1111-1111-111111111111', 'Ada'),
@@ -28,7 +32,8 @@ update public.item set deleted_at = now() where id = 'aaaaaaaa-0000-0000-0000-00
 set local role anon;
 
 select is(
-  (select count(*) from public.item)::int, 1,
+  (select count(*) from public.item
+    where id in ('aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002'))::int, 1,
   'anon sees the live item and not the withdrawn one'
 );
 
@@ -59,7 +64,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 
 select is(
-  (select count(*) from public.item)::int, 2,
+  (select count(*) from public.item
+    where id in ('aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002'))::int, 2,
   'an author sees their own withdrawn item, so withdrawing is reversible'
 );
 
@@ -261,7 +267,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 
 select is(
-  (select count(*) from public.report)::int, 0,
+  (select count(*) from public.report
+    where item_id = 'aaaaaaaa-0000-0000-0000-000000000001')::int, 0,
   'an ordinary account cannot read reports'
 );
 
@@ -270,7 +277,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 
 select is(
-  (select count(*) from public.report)::int, 1,
+  (select count(*) from public.report
+    where item_id = 'aaaaaaaa-0000-0000-0000-000000000001')::int, 1,
   'a moderator can'
 );
 
