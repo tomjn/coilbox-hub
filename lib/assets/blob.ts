@@ -125,14 +125,11 @@ export function blobTierUrl(path: string): string {
  * `lib/supabase/config.ts`: a missing variable should not reach the SDK as
  * `undefined` and throw from inside it (issue 54).
  *
- * Exported for the client direct upload path (#104), which calls
- * `handleUpload` from `@vercel/blob/client` rather than anything in this file
- * and would otherwise read the variable a second time. `@vercel/blob/client`
- * is deliberately not restricted by the ESLint rule, because it carries the
- * supported browser upload path and none of the metered lookups, but the token
- * still has exactly one reader.
+ * Not exported. It was, for the client direct token route, which read the
+ * variable without going through anything else in this file. That route went in
+ * #133, so the variable is back to having one reader in one module.
  */
-export function requireBlobToken(): string {
+function requireBlobToken(): string {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) throw new Error(BLOB_TOKEN_ERROR);
   return token;
@@ -160,8 +157,9 @@ export function requireBlobToken(): string {
  *   caller's path is derived from the identity and the hash of the bytes, and
  *   the uploader holds the bytes, so the uploader can compute it. The suffix is
  *   Blob's and nobody can compute it, which is what makes an undisclosed URL
- *   undisclosed (#131). This is not the SDK default, so it is set here and
- *   again on the client direct token in `app/api/v1/assets/upload/token`.
+ *   undisclosed (#131). This is not the SDK default, so it is set here, and
+ *   here is now the only place that needs it: with the client direct path gone
+ *   (#133) the suffix never leaves the server.
  *
  * `allowOverwrite` is absent because with a suffix there is nothing to
  * overwrite: every call lands at a key that did not exist. The cost is that a

@@ -30,8 +30,12 @@ const eslintConfig = defineConfig([
       // than a note somebody has to have read. `lib/assets/blob.ts` exports
       // the two calls that are worth making and explains the rest.
       //
-      // `@vercel/blob/client` is deliberately not restricted: it exports the
-      // client direct upload path (#104) and none of the metered lookups.
+      // `@vercel/blob/client` was left unrestricted for the client direct
+      // upload path (#104), which spends none of that allowance. It is banned
+      // outright now, for a different reason: `upload()` hands the browser the
+      // finished URL, so it tells an uploader where its own unreviewed picture
+      // landed, and the moderation queue only works because nobody outside the
+      // hub knows that (#133). There is one upload path and it is a route.
       "no-restricted-imports": [
         "error",
         {
@@ -40,6 +44,11 @@ const eslintConfig = defineConfig([
               name: "@vercel/blob",
               message:
                 "Import from @/lib/assets/blob instead. It is the only place this package is allowed, and it deliberately does not expose list(), head() or copy().",
+            },
+            {
+              name: "@vercel/blob/client",
+              message:
+                "Client direct uploads are not accepted. upload() returns the object's URL to the uploader, which is the one party a pending picture is kept from (#133). Post to /api/v1/assets/upload instead.",
             },
           ],
         },

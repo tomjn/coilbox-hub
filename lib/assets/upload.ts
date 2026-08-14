@@ -6,19 +6,19 @@ import { type AssetLicenceRow, licenceForMap, mayRedistribute } from "./licence"
 import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
 
 /**
- * Everything an upload is refused for, in one place, so that both ways of
- * uploading refuse the same things (issue #104).
+ * Everything an upload is refused for, in one place (issue #104).
  *
- * ## Why this is a module and not two routes
+ * ## Why this is a module and not a route
  *
- * There are two upload paths and there will not be a third. Coilbox posts the
- * bytes to `POST /api/v1/assets/upload` and the route calls `put()`, because a
- * shipped desktop client cannot sit on an unpublished HTTP contract or on a
- * Rust crate with one release from three years ago. The website uploads client
- * direct with `@vercel/blob/client`, which is the supported path in a
- * JavaScript environment. Both call {@link checkAssetUpload} and neither one
- * has a check of its own, because a check that exists on one path and not the
- * other is a hole with a second door standing open next to it.
+ * It was written for two upload paths, so that a check could not exist on one
+ * and not the other. There is one now: everything posts the bytes to
+ * `POST /api/v1/assets/upload` and the route calls `put()`. The client direct
+ * path went in #133, because the browser SDK hands the uploader the finished
+ * URL of its own unreviewed picture.
+ *
+ * It stays a module anyway. The route reads as a sequence of refusals with the
+ * write at the end, and {@link checkAssetUpload} is where the reason for each
+ * refusal and its cost live. #105 adds to it and #107 owns its numbers.
  *
  * ## Why every check is before the write
  *
@@ -37,8 +37,7 @@ import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
  *
  * #105 reads the real pixel dimensions out of the image header and rejects on
  * the per class caps. It belongs between the last pure check and the first
- * database one: it needs no round trip, it needs the bytes, and it only exists
- * on the path where the bytes come through the route. See
+ * database one: it needs no round trip and it needs the bytes. See
  * `app/api/v1/assets/upload/route.ts`, where that gap is marked.
  */
 
@@ -368,9 +367,11 @@ export async function checkAssetUpload(
  * set, so nothing on this path can put a row in front of the public. Bypass on
  * a capability is #114's alongside the queue that would otherwise hold it.
  *
- * #106 is where this becomes a route of its own and learns to replace a row
- * whose `source_hash` has changed. Until then a row is only ever inserted, and
- * an identity that already exists is refused above.
+ * #106 is where this learns to replace a row whose `source_hash` has changed.
+ * It is no longer a route of its own: with one upload path the row is always
+ * written by the request that holds the bytes, so what is left of #106 is this
+ * function taking an update as well as an insert. Until then a row is only ever
+ * inserted, and an identity that already exists is refused above.
  */
 export async function insertPendingAsset(
   supabase: SupabaseClient,
