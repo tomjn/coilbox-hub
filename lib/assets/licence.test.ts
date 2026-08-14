@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import {
   ASSET_REDISTRIBUTION_STATES,
+  licenceForMap,
   mayRedistribute,
   type AssetLicenceRow,
 } from "./licence";
@@ -33,14 +34,23 @@ test("the database accepts exactly the redistribution states the hub knows about
   );
 });
 
+/**
+ * `BYAR`, not `BAR`. The shortname comes from the archive's modinfo and nothing
+ * else (`lib/gallery/publish.ts:81`), Beyond All Reason's modinfo says `BYAR`,
+ * and the row 20260814150100 seeds is keyed that way. A fixture spelling it the
+ * other way is the kind of invention somebody later reads as a second game.
+ */
 function row(over: Partial<AssetLicenceRow> = {}): AssetLicenceRow {
   return {
     id: "00000000-0000-0000-0000-000000000000",
-    game: "BAR",
+    game: "BYAR",
     map_name: null,
+    all_maps: null,
     licence: "MIT",
     licence_url: "https://example.test/licence",
     notes: null,
+    decision: null,
+    decided_at: null,
     checked_at: "2026-08-14T00:00:00Z",
     checked_by: "test",
     redistribute_extracted: "unknown",
@@ -49,6 +59,22 @@ function row(over: Partial<AssetLicenceRow> = {}): AssetLicenceRow {
     updated_at: "2026-08-14T00:00:00Z",
     ...over,
   };
+}
+
+/** The one row that answers for every map without a row of its own. */
+function blanketMapRow(over: Partial<AssetLicenceRow> = {}): AssetLicenceRow {
+  return row({
+    id: "00000000-0000-0000-0000-0000000000ff",
+    game: null,
+    all_maps: true,
+    licence: null,
+    licence_url: null,
+    decision: "maintainer decision, 2026-08-14",
+    decided_at: "2026-08-14T00:00:00Z",
+    redistribute_extracted: "allowed",
+    redistribute_rendered: "allowed",
+    ...over,
+  });
 }
 
 /**
@@ -87,4 +113,53 @@ test("and permission to publish renders does not permit extraction", () => {
   const rendersOnly = row({ redistribute_rendered: "allowed" });
   expect(mayRedistribute(rendersOnly, "extracted")).toBe(false);
   expect(mayRedistribute(rendersOnly, "rendered")).toBe(true);
+});
+
+/**
+ * Maps (issue #121). There is no central licence for Recoil maps and no field
+ * anywhere that could carry one, so almost every map arrives with no row of its
+ * own and the maintainer's answer was a blanket default. These four tests are
+ * the whole of that behaviour.
+ */
+test("a map with no row of its own falls back to the blanket map row", () => {
+  const resolved = licenceForMap(undefined, blanketMapRow());
+  expect(mayRedistribute(resolved, "extracted")).toBe(true);
+  expect(mayRedistribute(resolved, "rendered")).toBe(true);
+});
+
+test("a map's own row wins over the blanket one", () => {
+  const perMap = row({
+    game: null,
+    map_name: "Comet Catcher Remake 1.8",
+    redistribute_extracted: "allowed",
+  });
+  const resolved = licenceForMap(perMap, blanketMapRow());
+  expect(resolved).toBe(perMap);
+  expect(mayRedistribute(resolved, "rendered")).toBe(false);
+});
+
+/**
+ * The reason the default is a row rather than a constant in this file. Taking
+ * one map back out has to be possible without touching the default, and a
+ * refusal has to beat it rather than merge with it.
+ */
+test("a map refused by name stays refused despite the blanket row", () => {
+  const refused = row({
+    game: null,
+    map_name: "Comet Catcher Remake 1.8",
+    redistribute_extracted: "denied",
+    redistribute_rendered: "denied",
+  });
+  const resolved = licenceForMap(refused, blanketMapRow());
+  expect(mayRedistribute(resolved, "extracted")).toBe(false);
+  expect(mayRedistribute(resolved, "rendered")).toBe(false);
+});
+
+/**
+ * The default is data, so it can be absent, and absent has to mean no. A
+ * database missing the blanket row publishes nothing rather than everything.
+ */
+test("without the blanket row a map still publishes nothing", () => {
+  expect(mayRedistribute(licenceForMap(undefined, undefined), "extracted")).toBe(false);
+  expect(mayRedistribute(licenceForMap(null, null), "rendered")).toBe(false);
 });
