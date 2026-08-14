@@ -11,7 +11,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "sync:vendor": "bun scripts/sync-vendor.ts",
     "check:vendor": "bun scripts/sync-vendor.ts --check",
-    "backfill:game-names": "bun scripts/backfill-game-names.ts"
+    "backfill:game-names": "bun scripts/backfill-game-names.ts",
+    "promote:assets": "bun scripts/promote-assets.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
