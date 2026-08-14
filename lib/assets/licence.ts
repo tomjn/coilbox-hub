@@ -2,8 +2,9 @@
  * Whether the hub may publish a given game's or map's pictures at all, and what
  * that answer rests on (issue #97).
  *
- * Types only, the same as `./asset`. The migration is
- * `supabase/migrations/20260814150000_asset_licence.sql` and is the authority.
+ * Types only, the same as `./asset`. The migrations are
+ * `supabase/migrations/20260814150000_asset_licence.sql` and the
+ * `asset_licence` ones after it, and they are the authority.
  * `licence.test.ts` reads the literal list back out of it, because nothing in
  * TypeScript can keep a check constraint in step.
  *
@@ -21,7 +22,10 @@
  *
  * There is no fourth state and no absent state. A subject with no row at all
  * reads as `unknown`, so anything deciding whether to publish treats a missing
- * lookup and an undecided one identically. See {@link mayRedistribute}.
+ * lookup and an undecided one identically. See {@link mayRedistribute}. Maps
+ * are the exception, and they are an exception in the data rather than in this
+ * rule: a map with no row of its own falls back to a real row that covers every
+ * map. See {@link licenceForMap}.
  */
 export const ASSET_REDISTRIBUTION_STATES = ["unknown", "allowed", "denied"] as const;
 
@@ -30,10 +34,11 @@ export type AssetRedistribution = (typeof ASSET_REDISTRIBUTION_STATES)[number];
 /**
  * A row as the table stores it, in the table's own column names.
  *
- * Exactly one of `game` and `map_name` is set. `game` is the modinfo shortname,
- * the value `asset.game` and `item.game_key` hold, and never a version.
- * `map_name` is the full canonical name including the version string, the value
- * `asset.map_name` holds, and is never split.
+ * Exactly one of `game`, `map_name` and `all_maps` is set. `game` is the
+ * modinfo shortname, the value `asset.game` and `item.game_key` hold, and never
+ * a version. `map_name` is the full canonical name including the version
+ * string, the value `asset.map_name` holds, and is never split. `all_maps` is
+ * the one row that answers for every map without a row of its own.
  *
  * The three evidence fields are nullable because "nobody could find out" is a
  * real finding worth recording. A null `licence` is not a permissive one.
@@ -43,6 +48,8 @@ export interface AssetLicenceRow {
 
   game: string | null;
   map_name: string | null;
+  /** True on the single blanket row, null on every other row. */
+  all_maps: boolean | null;
 
   /** An SPDX identifier where the project publishes a clean one, and a plain
    * description where the tree is mixed. Null when nobody could find out. */
@@ -51,6 +58,15 @@ export interface AssetLicenceRow {
   licence_url: string | null;
   /** Anything the other fields flatten, such as the one directory that differs. */
   notes: string | null;
+
+  /** The other thing a yes may rest on: a decision by somebody with the
+   * standing to make it, where no licence grants what the hub wants to do.
+   * Null on rows that permit nothing, and on rows whose yes is a real grant. */
+  decision: string | null;
+  /** Set exactly when `decision` is. Separate from `checked_at` because
+   * research goes stale when a project relicences and a decision goes stale
+   * when the person who made it changes his mind. */
+  decided_at: string | null;
 
   checked_at: string;
   /** A person, a handle, or the name of whatever automated the search. */
@@ -75,6 +91,10 @@ export interface AssetLicenceRow {
  * function rather than a comparison at each call site so that no caller can
  * accidentally write the one truthiness test that lets a missing row through.
  *
+ * For a map, resolve the row through {@link licenceForMap} first. Handing this
+ * function the per map lookup alone answers no for every map that has no row of
+ * its own, which is almost all of them.
+ *
  * `uploaded` is not covered here. Nobody can tell from the bytes what an
  * uploaded image is a picture of or who made it, so a per game or per map
  * decision cannot answer for one. The moderation queue is what stands in front
@@ -88,4 +108,35 @@ export function mayRedistribute(
   const state =
     origin === "rendered" ? licence.redistribute_rendered : licence.redistribute_extracted;
   return state === "allowed";
+}
+
+/**
+ * Which row decides for a map: its own if it has one, otherwise the blanket row
+ * that covers every map (issue #121).
+ *
+ * Maps have no central licence and no field anywhere that could carry one, so
+ * per map research does not scale past the handful of mappers who wrote
+ * something down. The maintainer's answer was a default, and the default lives
+ * in the table as an ordinary row rather than in this file as a constant. That
+ * keeps one property worth keeping: the answer is still data, so it is still
+ * revocable, still dated, and still says who decided it and why.
+ *
+ * Pass both rows. A caller looks up `map_name = <the canonical name>` and
+ * `all_maps = true`, and hands them over in that order. Feed the result to
+ * {@link mayRedistribute}, which is unchanged and still fails closed: if the
+ * blanket row is missing from the database, a map with no row of its own
+ * publishes nothing, exactly as before.
+ *
+ * A per map row wins outright, including a per map `denied`. Taking one map
+ * back out is one insert and does not disturb the default.
+ *
+ * Games have no equivalent and should not get one. There are three of them,
+ * each has a repository to read, and a blanket game row would let a fourth game
+ * publish on the strength of nobody having looked.
+ */
+export function licenceForMap(
+  perMap: AssetLicenceRow | null | undefined,
+  allMaps: AssetLicenceRow | null | undefined,
+): AssetLicenceRow | null {
+  return perMap ?? allMaps ?? null;
 }

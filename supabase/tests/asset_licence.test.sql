@@ -8,20 +8,43 @@
 -- nothing by existing, and saying yes has to say what the yes rests on.
 
 begin;
-select plan(23);
+select plan(34);
 
 create extension if not exists pgtap with schema extensions;
 
--- Nothing the migrations put in this table permits anything. 20260814150100
--- records what three games publish about their art, and recording research is
--- not granting permission. A migration that shipped an `allowed` would publish
--- a corpus into a permanent public history on nobody's decision, so this is
--- checked before the rows this file adds of its own.
+-- What the migrations permit, named subject by subject. This used to assert
+-- that they permitted nothing at all, which was true until the maintainer
+-- decided on 2026-08-14 (issue #121) and is a weaker property than the one that
+-- actually matters: that the set of things a fresh database will publish is a
+-- list somebody wrote down on purpose. Stated as a list, so a fourth subject
+-- appearing in a migration fails here and has to be argued for in a diff rather
+-- than noticed in production. Checked before the rows this file adds of its own.
+select bag_eq(
+  $$select coalesce(game, map_name, case when all_maps then '(every map)' end)
+      from public.asset_licence
+      where redistribute_extracted = 'allowed' or redistribute_rendered = 'allowed'$$,
+  $$values ('BYAR'), ('BA'), ('XTA'), ('(every map)')$$,
+  'the migrations permit exactly the four subjects the maintainer ruled on'
+);
+
+-- And none of those four rests on a licence. Two of the games state nothing,
+-- the third states an ND term that would refuse the renders, and maps have no
+-- central licence at all. If one of these ever loses its `decision` the row
+-- stops being defensible, whatever the licence column happens to say.
 select is(
   (select count(*) from public.asset_licence
-    where redistribute_extracted <> 'unknown' or redistribute_rendered <> 'unknown')::int,
+    where (redistribute_extracted = 'allowed' or redistribute_rendered = 'allowed')
+      and decision is null)::int,
   0,
-  'no migration grants permission to redistribute anything'
+  'nothing the migrations permit rests on a licence grant alone'
+);
+
+-- The map default is the row it claims to be. A lookup that finds nothing for a
+-- map name reads this instead, so its absence is the difference between the
+-- minimap seed publishing and publishing nothing.
+select is(
+  (select count(*) from public.asset_licence where all_maps)::int, 1,
+  'exactly one row answers for every map without one of its own'
 );
 
 -- A row inserted to record a licence permits nothing until somebody says so.
@@ -58,6 +81,39 @@ select throws_ok(
   '23514',
   null,
   'permitting renders without recording what the permission rests on is refused'
+);
+
+-- The widening (issue #121). A licence is one basis for a yes and is no longer
+-- the only one, because two of the three games state nothing and maps have no
+-- central licence at all. The alternative was writing a permissive `licence`
+-- the research never found, which would have put a lie in the one column a
+-- takedown request gets answered from. So the yes may cite a decision instead,
+-- and `licence` stays null, which is the truth.
+select lives_ok(
+  $$insert into public.asset_licence (game, checked_by, decision, decided_at, redistribute_extracted, redistribute_rendered)
+    values ('DECIDED', 'pgtap', 'maintainer decision, the community already does this', now(), 'allowed', 'allowed')$$,
+  'a decision is a basis for permitting redistribution, with no licence found'
+);
+
+select is(
+  (select licence from public.asset_licence where game = 'DECIDED'), null::text,
+  'and permitting it did not require inventing a licence to point at'
+);
+
+-- A decision that cannot say when it was made ages invisibly, which is the
+-- failure `checked_at` exists to prevent for research. Both or neither.
+select throws_ok(
+  $$insert into public.asset_licence (game, checked_by, decision) values ('UNDATED', 'pgtap', 'somebody said yes once')$$,
+  '23514',
+  null,
+  'a decision without a date is refused'
+);
+
+select throws_ok(
+  $$insert into public.asset_licence (game, checked_by, decided_at) values ('UNDATED', 'pgtap', now())$$,
+  '23514',
+  null,
+  'and a date with no decision under it is refused too'
 );
 
 -- Refusing to publish harms nobody, so a no needs no citation.
@@ -153,6 +209,50 @@ select throws_ok(
   '23505',
   null,
   'nor can a map'
+);
+
+-- The blanket map row (issue #121). It is a third subject rather than a
+-- sentinel `map_name`, because every sentinel string is a name some mapper
+-- could ship, and `map_name` is documented as the canonical name and nothing
+-- else. 20260814170100 already inserted the one that exists, so these assert
+-- the shape holds against a second.
+select throws_ok(
+  $$insert into public.asset_licence (all_maps, checked_by) values (true, 'pgtap')$$,
+  '23505',
+  null,
+  'there cannot be two defaults for maps, because a lookup would find either'
+);
+
+select throws_ok(
+  $$insert into public.asset_licence (all_maps, map_name, checked_by)
+    values (true, 'Comet Catcher Remake 1.9', 'pgtap')$$,
+  '23514',
+  null,
+  'a row cannot be the map default and be about one map at the same time'
+);
+
+-- False is not a third state, it is a row saying nothing while occupying a
+-- subject. The only meaning `all_maps` carries is true.
+select throws_ok(
+  $$insert into public.asset_licence (all_maps, checked_by) values (false, 'pgtap')$$,
+  '23514',
+  null,
+  'all_maps is true or absent, never false'
+);
+
+-- And the point of the whole shape: a map that states its own terms is still
+-- recordable, and overrides the default rather than merging with it. The two
+-- Comet Catcher rows above coexist with the default inserted by a migration.
+select is(
+  (select redistribute_extracted from public.asset_licence
+    where map_name = 'Comet Catcher Remake 1.8'),
+  'unknown',
+  'a map with its own row keeps its own answer, not the default'
+);
+
+select is(
+  (select redistribute_extracted from public.asset_licence where all_maps), 'allowed',
+  'while a map with no row of its own reads the default, which permits'
 );
 
 select has_trigger('public', 'asset_licence', 'asset_licence_touch_updated_at',
