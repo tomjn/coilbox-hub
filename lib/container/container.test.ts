@@ -51,15 +51,20 @@ test("campaigns are deliberately not carried", () => {
 });
 
 /** The kinds `public.item` will store, read from the last migration that sets
- * the check on `kind`. */
+ * the check on `kind`.
+ *
+ * Anchored on a word boundary, because `asset.rejection_kind` (#115) also ends
+ * in `kind` and its list is nothing to do with what the gallery carries. */
+const KIND_LIST = /\bkind in \(([^)]*)\)/;
+
 function kindsTheDatabaseAccepts(): string[] {
   const dir = "supabase/migrations";
   const constraint = readdirSync(dir)
     .sort()
     .map((file) => readFileSync(`${dir}/${file}`, "utf8"))
-    .filter((sql) => sql.includes("kind in ("))
+    .filter((sql) => KIND_LIST.test(sql))
     .at(-1);
-  const list = constraint?.match(/kind in \(([^)]*)\)/)?.[1] ?? "";
+  const list = constraint?.match(KIND_LIST)?.[1] ?? "";
   return [...list.matchAll(/'([^']+)'/g)].map((match) => match[1]);
 }
 
