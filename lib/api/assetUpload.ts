@@ -1,8 +1,11 @@
 import {
   ASSET_ORIGINS,
   type AssetOrigin,
+  MAP_HEIGHT_OVERLAY_VARIANT,
+  MAP_VARIANTS,
   UNIT_BUILDPIC_VARIANT,
   UNIT_RENDER_VARIANT_PREFIX,
+  isMapVariant,
 } from "@/lib/assets/asset";
 import type { AssetUploadDeclaration } from "@/lib/assets/upload";
 
@@ -40,6 +43,13 @@ export type ParsedAssetUpload =
   | { ok: true; declaration: AssetUploadDeclaration }
   | { ok: false; error: string };
 
+/**
+ * `width` and `height` are deliberately absent (#105). The hub reads the pixel
+ * dimensions out of the image header, so a declared pair could only ever agree
+ * with the bytes or be wrong, and the unknown field rule below turns a client
+ * that still sends them into a 400 that names the field rather than a silently
+ * ignored claim.
+ */
 const COMMON_FIELDS = [
   "keyed_on",
   "variant",
@@ -49,13 +59,18 @@ const COMMON_FIELDS = [
   "origin",
   "mime",
   "bytes",
-  "width",
-  "height",
   "source_archive",
 ] as const;
 
 const UNIT_FIELDS = [...COMMON_FIELDS, "game", "unit_name"] as const;
-const MAP_FIELDS = [...COMMON_FIELDS, "map_name", "map_width", "map_height"] as const;
+const MAP_FIELDS = [
+  ...COMMON_FIELDS,
+  "map_name",
+  "map_width",
+  "map_height",
+  "world_height_min",
+  "world_height_max",
+] as const;
 
 /** The lengths `public.asset` accepts, so a declaration the table could never
  * hold is refused here rather than after an advanced operation has been spent
@@ -118,8 +133,64 @@ function readCount(
   return { ok: true, value };
 }
 
+/**
+ * A required finite number, which is what a world height is and what a count is
+ * not: terrain below sea level is negative, a flat map's range is zero wide, and
+ * the archive stores both ends as floats.
+ */
+function readMeasure(
+  record: Record<string, unknown>,
+  field: string,
+): { ok: true; value: number } | { ok: false; error: string } {
+  const value = record[field];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return { ok: false, error: `\`${field}\` is required and must be a number.` };
+  }
+  return { ok: true, value };
+}
+
 function isOrigin(value: unknown): value is AssetOrigin {
   return typeof value === "string" && (ASSET_ORIGINS as readonly string[]).includes(value);
+}
+
+/**
+ * The two ends of a height overlay's world range, in elmos.
+ *
+ * Required on `overlay:height` and refused on everything else, which is the
+ * table's rule too. The layer is a grayscale ramp with a linear mapping, so
+ * these two numbers are the whole of what turns a sample back into a height,
+ * and only the archive has them: an overlay stored without them is a picture of
+ * a heightmap rather than a heightmap.
+ */
+function readHeightRange(
+  record: Record<string, unknown>,
+  variant: string,
+):
+  | { ok: true; value: { worldHeightMin: number | null; worldHeightMax: number | null } }
+  | { ok: false; error: string } {
+  const declaresRange =
+    record.world_height_min !== undefined || record.world_height_max !== undefined;
+
+  if (variant !== MAP_HEIGHT_OVERLAY_VARIANT) {
+    return declaresRange
+      ? {
+          ok: false,
+          error: `\`world_height_min\` and \`world_height_max\` belong to "${MAP_HEIGHT_OVERLAY_VARIANT}" and to nothing else.`,
+        }
+      : { ok: true, value: { worldHeightMin: null, worldHeightMax: null } };
+  }
+
+  const min = readMeasure(record, "world_height_min");
+  if (!min.ok) return min;
+
+  const max = readMeasure(record, "world_height_max");
+  if (!max.ok) return max;
+
+  if (max.value < min.value) {
+    return { ok: false, error: "`world_height_max` cannot be below `world_height_min`." };
+  }
+
+  return { ok: true, value: { worldHeightMin: min.value, worldHeightMax: max.value } };
 }
 
 /**
@@ -175,12 +246,6 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
   const bytes = readCount(record, "bytes");
   if (!bytes.ok) return bytes;
 
-  const width = readCount(record, "width");
-  if (!width.ok) return width;
-
-  const height = readCount(record, "height");
-  if (!height.ok) return height;
-
   const common = {
     sourceHash: sourceHash.value,
     hash: hash.value,
@@ -188,14 +253,22 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
     origin: record.origin,
     mime: mime.value,
     bytes: bytes.value,
-    width: width.value,
-    height: height.value,
     sourceArchive: sourceArchive.value,
   };
 
   if (keyedOn === "map") {
     const mapName = readText(record, "map_name");
     if (!mapName.ok) return mapName;
+
+    // The same rule as `asset_map_variant_check`. A closed list, unlike the
+    // unit side, because none of the four is open ended the way a render angle
+    // is, and a typo mints an identity nothing ever asks for.
+    if (!isMapVariant(variant.value)) {
+      return {
+        ok: false,
+        error: `\`variant\` on a map must be one of ${MAP_VARIANTS.join(", ")}.`,
+      };
+    }
 
     // Mandatory on a map row rather than merely available. Nothing downstream
     // of extraction can recover the world size, and without it every overlay
@@ -206,6 +279,9 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
     const mapHeight = readCount(record, "map_height");
     if (!mapHeight.ok) return mapHeight;
 
+    const heightRange = readHeightRange(record, variant.value);
+    if (!heightRange.ok) return heightRange;
+
     return {
       ok: true,
       declaration: {
@@ -213,6 +289,7 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
         ...common,
         mapWidth: mapWidth.value,
         mapHeight: mapHeight.value,
+        ...heightRange.value,
       },
     };
   }
@@ -247,6 +324,8 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
       ...common,
       mapWidth: null,
       mapHeight: null,
+      worldHeightMin: null,
+      worldHeightMax: null,
     },
   };
 }

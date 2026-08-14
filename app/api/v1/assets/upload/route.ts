@@ -3,6 +3,8 @@ import { buildAssetUploadBody, parseAssetUpload } from "@/lib/api/assetUpload";
 import { corsPreflight, withCors } from "@/lib/api/cors";
 import { apiError } from "@/lib/api/response";
 import { BLOB_TOKEN_ERROR, deleteBlobAssets, putBlobAsset } from "@/lib/assets/blob";
+import { checkAssetImage } from "@/lib/assets/caps";
+import { IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
 import { checkAssetUpload, insertPendingAsset } from "@/lib/assets/upload";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticateBearer } from "@/lib/supabase/bearer";
@@ -46,7 +48,8 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * 2. the body is multipart and carries both parts
  * 3. the declaration parses, with unknown fields refused
  * 4. the bytes received are the length the declaration claims
- * 5. `checkAssetUpload`: MIME, size, path, licence, identity, four quotas
+ * 5. `checkAssetImage`: the image header, against the caps for its class
+ * 6. `checkAssetUpload`: MIME, size, path, licence, identity, four quotas
  *
  * ## Two responses that are not the same failure
  *
@@ -123,10 +126,19 @@ export async function POST(request: Request) {
     );
   }
 
-  // #105 goes here: read the real dimensions out of the image header, a few KB
-  // with no full decode, and refuse anything whose class caps it misses. It
-  // wants the bytes and no round trip, which is what puts it after the last
-  // pure check and before the first database one.
+  // The real dimensions, out of the image header rather than out of the
+  // declaration (#105). A few KB, no decode, no round trip, and the last thing
+  // that can refuse the upload for free. `image.width` and `image.height` are
+  // what reach the row: the declaration no longer carries a pair at all.
+  const header = await file.slice(0, IMAGE_HEADER_BYTES).arrayBuffer();
+  const image = checkAssetImage(
+    parsed.declaration.identity.variant,
+    parsed.declaration.mime,
+    new Uint8Array(header),
+  );
+  if (!image.ok) {
+    return apiError(image.error, image.status);
+  }
 
   let admin;
   try {
@@ -166,7 +178,7 @@ export async function POST(request: Request) {
   //
   // Deleting on a failed insert is free, so the store does not keep an object
   // no row will ever name.
-  if (!(await insertPendingAsset(admin, auth.user.id, parsed.declaration, stored))) {
+  if (!(await insertPendingAsset(admin, auth.user.id, parsed.declaration, stored, image))) {
     await deleteBlobAssets([stored]).catch(() => {});
     return apiError("The asset was uploaded but its record could not be written.", 503);
   }

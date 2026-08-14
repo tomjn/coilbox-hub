@@ -17,8 +17,6 @@ const UNIT = {
   origin: "extracted",
   mime: "image/webp",
   bytes: 4096,
-  width: 128,
-  height: 128,
   source_archive: "byar_1.2.sdz",
 };
 
@@ -34,9 +32,17 @@ const MAP = {
   origin: "extracted",
   mime: "image/webp",
   bytes: 40000,
-  width: 512,
-  height: 512,
   source_archive: "comet_catcher_remake_1.8.sd7",
+};
+
+const HEIGHT = {
+  ...MAP,
+  variant: "overlay:height",
+  hash: "enc-ghi",
+  mime: "image/png",
+  encode_profile: "height-png16",
+  world_height_min: -40.5,
+  world_height_max: 320.25,
 };
 
 function error(value: unknown): string {
@@ -58,13 +64,24 @@ test("a unit declaration becomes a unit identity", () => {
       origin: "extracted",
       mime: "image/webp",
       bytes: 4096,
-      width: 128,
-      height: 128,
       sourceArchive: "byar_1.2.sdz",
       mapWidth: null,
       mapHeight: null,
+      worldHeightMin: null,
+      worldHeightMax: null,
     },
   });
+});
+
+/**
+ * The client's claim is gone rather than overridden (#105). The hub measures
+ * the header, so a declared pair can only agree with the bytes or be wrong, and
+ * the unknown field rule turns a client that still sends one into a 400 naming
+ * the field rather than a claim that is quietly ignored.
+ */
+test("a declaration cannot say how big the picture is", () => {
+  expect(error({ ...UNIT, width: 128 })).toBe("Unknown field: width");
+  expect(error({ ...UNIT, height: 128 })).toBe("Unknown field: height");
 });
 
 test("a map declaration carries the world size and no game", () => {
@@ -121,8 +138,48 @@ test("a size is a positive integer and not a float, a zero or a string", () => {
   expect(error({ ...UNIT, bytes: 40.5 })).toBe(
     "`bytes` is required and must be a positive integer.",
   );
-  expect(error({ ...UNIT, width: "128" })).toBe(
-    "`width` is required and must be a positive integer.",
+  expect(error({ ...MAP, map_width: "8192" })).toBe(
+    "`map_width` is required and must be a positive integer.",
+  );
+});
+
+test("a map variant is one of the four, the same rule the table has", () => {
+  expect(error({ ...MAP, variant: "metal" })).toBe(
+    "`variant` on a map must be one of minimap, overlay:metal, overlay:type, overlay:height.",
+  );
+  expect(parseAssetUpload({ ...MAP, variant: "overlay:type" }).ok).toBe(true);
+});
+
+/**
+ * A height overlay is a linear ramp between two world heights, and the archive
+ * is the only thing that has them. Everything else is a picture with no range
+ * to record, so carrying one is a client that has confused two variants.
+ */
+test("a height overlay carries its world range and nothing else may", () => {
+  const parsed = parseAssetUpload(HEIGHT);
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.declaration.worldHeightMin).toBe(-40.5);
+  expect(parsed.declaration.worldHeightMax).toBe(320.25);
+
+  const { world_height_min, ...withoutMin } = HEIGHT;
+  void world_height_min;
+  expect(error(withoutMin)).toBe("`world_height_min` is required and must be a number.");
+
+  expect(error({ ...MAP, world_height_min: 0, world_height_max: 320 })).toBe(
+    '`world_height_min` and `world_height_max` belong to "overlay:height" and to nothing else.',
+  );
+});
+
+/** Sea level is zero and the sea floor is below it, so a range that refused a
+ * negative end would refuse most maps. A reversed one reads every sample upside
+ * down, and nothing about the result looks wrong. */
+test("a world height may be negative but the range may not run backwards", () => {
+  expect(parseAssetUpload({ ...HEIGHT, world_height_min: -200, world_height_max: -10 }).ok).toBe(
+    true,
+  );
+  expect(error({ ...HEIGHT, world_height_min: 320, world_height_max: 0 })).toBe(
+    "`world_height_max` cannot be below `world_height_min`.",
   );
 });
 

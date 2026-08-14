@@ -18,7 +18,7 @@ import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
  *
  * It stays a module anyway. The route reads as a sequence of refusals with the
  * write at the end, and {@link checkAssetUpload} is where the reason for each
- * refusal and its cost live. #105 adds to it and #107 owns its numbers.
+ * refusal and its cost live. #107 owns its numbers.
  *
  * ## Why every check is before the write
  *
@@ -33,12 +33,13 @@ import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
  * That keeps one round trip's latency while keeping the answer deterministic,
  * so a request that trips two limits always hears about the same one.
  *
- * ## The seam for #105
+ * ## What is not here
  *
- * #105 reads the real pixel dimensions out of the image header and rejects on
- * the per class caps. It belongs between the last pure check and the first
- * database one: it needs no round trip and it needs the bytes. See
- * `app/api/v1/assets/upload/route.ts`, where that gap is marked.
+ * The per class caps (#105) are in `./caps`, and the route applies them between
+ * the last pure check and the first database one. They need the bytes and this
+ * module never sees them, and they need no round trip, so putting them here
+ * would only move a check the request can answer on its own behind one that
+ * costs a query.
  */
 
 /**
@@ -107,9 +108,10 @@ export const MONTHLY_UPLOAD_BUDGET = BLOB_ADVANCED_OPERATIONS_PER_MONTH - 100;
  * except the ones the hub decides for itself: `path`, `tier`, `moderation`,
  * `approval_source` and `uploaded_by`.
  *
- * `width` and `height` are the client's claim today and #105 replaces them with
- * what the bytes say. Read the note on the check order above before adding
- * anything that trusts them.
+ * `width` and `height` are not here, and their absence is #105's answer. The
+ * hub measures the image header, so a declared pair could only agree with the
+ * bytes or be wrong, and there is no third thing a client could usefully mean
+ * by it. {@link insertPendingAsset} takes the measured pair separately.
  */
 export interface AssetUploadDeclaration {
   identity: AssetIdentity;
@@ -121,12 +123,20 @@ export interface AssetUploadDeclaration {
   origin: AssetOrigin;
   mime: string;
   bytes: number;
-  width: number;
-  height: number;
   /** The map in world units, set on a map row and null on a unit row. */
   mapWidth: number | null;
   mapHeight: number | null;
+  /** The elmo range a height overlay's ramp spans, and null on everything else.
+   * Only the archive has these and nothing downstream can recover them. */
+  worldHeightMin: number | null;
+  worldHeightMax: number | null;
   sourceArchive: string;
+}
+
+/** What the bytes turned out to be, from `./caps`. Never what a client said. */
+export interface AssetImageDimensions {
+  width: number;
+  height: number;
 }
 
 export type AssetUploadCheck =
@@ -378,6 +388,7 @@ export async function insertPendingAsset(
   userId: string,
   declaration: AssetUploadDeclaration,
   path: string,
+  measured: AssetImageDimensions,
 ): Promise<boolean> {
   const { identity } = declaration;
 
@@ -394,10 +405,12 @@ export async function insertPendingAsset(
     tier: "blob",
     mime: declaration.mime,
     bytes: declaration.bytes,
-    width: declaration.width,
-    height: declaration.height,
+    width: measured.width,
+    height: measured.height,
     map_width: declaration.mapWidth,
     map_height: declaration.mapHeight,
+    world_height_min: declaration.worldHeightMin,
+    world_height_max: declaration.worldHeightMax,
     source_archive: declaration.sourceArchive,
     uploaded_by: userId,
   });

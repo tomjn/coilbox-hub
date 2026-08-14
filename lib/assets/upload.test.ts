@@ -36,10 +36,10 @@ function declaration(overrides: Partial<AssetUploadDeclaration> = {}): AssetUplo
     origin: "extracted",
     mime: "image/webp",
     bytes: 4096,
-    width: 128,
-    height: 128,
     mapWidth: null,
     mapHeight: null,
+    worldHeightMin: null,
+    worldHeightMax: null,
     sourceArchive: "byar_1.2.sdz",
     ...overrides,
   };
