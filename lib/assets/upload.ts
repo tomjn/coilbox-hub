@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type AssetIdentity, type AssetOrigin, UNIT_RENDER_VARIANT_PREFIX } from "./asset";
 import { BLOB_ADVANCED_OPERATIONS_PER_MONTH } from "./blob";
-import { capForVariant } from "./caps";
+import { capForVariant, heightOverlayMaxBytes } from "./caps";
 import { identityFilter } from "./have";
 import { type AssetLicenceRow, licenceForMap, mayRedistribute } from "./licence";
 import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
@@ -58,9 +58,15 @@ import { type SourceConflict, sourceConflict } from "./sourceConflict";
  * It is a backstop rather than the cap most uploads meet. #107 asks for the cap
  * before anything is written and a class whose longest edge is fixed says what
  * its bytes may be far more tightly than this does, so buildpics, renders and
- * minimaps are held to `maxBytes` in `./caps` and reach this number never. The
- * three overlays reach it, because their resolution is the map's rather than the
- * hub's and there is nothing to derive a tighter number from.
+ * minimaps are held to `maxBytes` in `./caps` and reach this number never.
+ *
+ * Two classes still take it, and they are `overlay:metal` and `overlay:type`.
+ * `overlay:height` used to, and #142 is why it does not: it is 16 bit at the
+ * map's own resolution, so a large map's runs to four megabytes and this number
+ * was refusing seven of the ninety seven maps in the collection. It gets a cap
+ * off the declared map size instead, in `heightOverlayMaxBytes`. The other two
+ * are 8 bit and heavily quantised, nothing measured says they come near this,
+ * and nothing measured says where their grid is either.
  */
 export const ASSET_MAX_OBJECT_BYTES = 2 * 1024 * 1024;
 
@@ -372,11 +378,17 @@ export async function checkAssetUpload(
     };
   }
 
-  // Per class where the class fixes a longest edge, and the global backstop
-  // where it does not. A null cap here is a variant the hub stores nothing for,
-  // which `checkAssetImage` has already refused and which the path check below
-  // refuses again, so it takes the backstop rather than an exemption.
-  const maxBytes = capForVariant(identity.variant)?.maxBytes ?? ASSET_MAX_OBJECT_BYTES;
+  // Three sources, in order of how much each knows about the picture. The
+  // class's own number where the class fixes a longest edge. The one the
+  // declared map size implies where it does not and the class is sampled from a
+  // grid whose resolution that size gives (#142). The global backstop where
+  // neither answers. A null from all three is a variant the hub stores nothing
+  // for, which `checkAssetImage` has already refused and which the path check
+  // below refuses again, so it takes the backstop rather than an exemption.
+  const maxBytes =
+    capForVariant(identity.variant)?.maxBytes ??
+    heightOverlayMaxBytes(identity.variant, declaration.mapWidth, declaration.mapHeight) ??
+    ASSET_MAX_OBJECT_BYTES;
   if (bytes > maxBytes) {
     return {
       ok: false,

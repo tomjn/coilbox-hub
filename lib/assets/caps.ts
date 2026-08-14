@@ -1,4 +1,8 @@
-import { UNIT_BUILDPIC_VARIANT, UNIT_RENDER_VARIANT_PREFIX } from "./asset";
+import {
+  MAP_HEIGHT_OVERLAY_VARIANT,
+  UNIT_BUILDPIC_VARIANT,
+  UNIT_RENDER_VARIANT_PREFIX,
+} from "./asset";
 import { type ImageHeader, readImageHeader } from "./imageHeader";
 
 /**
@@ -70,9 +74,10 @@ export interface AssetCap {
    * metadata chunks are unbounded and a decoder never reads them, which is how a
    * 256px buildpic arrives as two megabytes.
    *
-   * The overlays have no number because they have no `maxEdge` to derive one
-   * from: they are sampled from the map's own grids at whatever resolution the
-   * map has.
+   * The overlays have no number here because they have no `maxEdge` to derive
+   * one from: they are sampled from the map's own grids at whatever resolution
+   * the map has. `overlay:height` gets one per upload instead, out of the
+   * declared map size, which is {@link heightOverlayMaxBytes} and issue #142.
    */
   maxBytes: number | null;
   square: boolean;
@@ -129,6 +134,103 @@ export const ASSET_CAPS: Record<string, AssetCap> = {
 export function capForVariant(variant: string): AssetCap | null {
   if (variant.startsWith(UNIT_RENDER_VARIANT_PREFIX)) return ASSET_CAPS.render;
   return ASSET_CAPS[variant] ?? null;
+}
+
+/**
+ * How many elmos one heightmap sample spans.
+ *
+ * The engine's `squareSize`, and it is 8 in all 98 map archives in the
+ * maintainer's collection with no exceptions, so it is a constant of the format
+ * rather than a per map field the hub would have to be told.
+ */
+export const ELMOS_PER_HEIGHT_SAMPLE = 8;
+
+/** What one 16 bit grayscale sample takes before compression. */
+const HEIGHT_SAMPLE_BYTES = 2;
+
+/**
+ * How many samples a height overlay carries along an edge that many elmos long.
+ *
+ * One per heightmap vertex, so there is a fencepost more than there are squares:
+ * a 16384 elmo edge is 2048 squares and 2049 samples. Measured, not assumed. The
+ * SMF header gives `mapx` in squares and `squareSize` in elmos, `mapx` is always
+ * a multiple of 64 across the collection, and `map_width` on the row is
+ * `mapx * squareSize`.
+ */
+export function heightOverlaySamples(elmos: number): number {
+  return Math.floor(elmos / ELMOS_PER_HEIGHT_SAMPLE) + 1;
+}
+
+/**
+ * The largest a height overlay for a map this size may be, or null for every
+ * other class (issue #142).
+ *
+ * ## Why the overlays could not take the derivation the other classes take
+ *
+ * `maxBytes` above is the uncompressed size of the largest image `maxEdge`
+ * permits. An overlay has no `maxEdge`, because it is the map's own grid at the
+ * map's own resolution, so all three fell through to the 2 MB backstop in
+ * `./upload`. That made the backstop the operative cap for the one class nobody
+ * had measured.
+ *
+ * ## What the measurement said
+ *
+ * Every `.sd7` and `.sdz` in the maintainer's `~/.spring/maps` was opened
+ * through `bsdtar`, its SMF header read, and its heightmap encoded as the 16 bit
+ * grayscale lossless PNG this class is. 97 archives, largest first:
+ *
+ * - `mediterraneum_v1`, a 32x32 map, 2049 by 2049 samples: 4,511,410 bytes
+ * - `special_hotstepper_1.1.1`, also 32x32: 3,549,982 bytes
+ * - median across the 97: 1,010,809 bytes
+ *
+ * Seven of the 97 are over the 2 MB backstop, so it was not a backstop. It was
+ * refusing about seven per cent of the real corpus, with a 413 naming a number
+ * chosen for classes nobody expected to reach it.
+ *
+ * 32x32 is the ceiling: BAR's published catalogue carries 225 maps with a size
+ * and none is larger in either dimension.
+ *
+ * ## The number, and the same rule as the rest of the file
+ *
+ * The uncompressed size of the picture the declared map size implies, which for
+ * 16 bit grayscale is two bytes a sample rather than the four a colour image
+ * takes. So it is derived exactly the way `maxBytes` is, and it moves with the
+ * map instead of being one number for every map.
+ *
+ * It has room. The worst compression across the 97 was 1.5405 bytes a sample, on
+ * a small noisy map, and the two 32x32 maps came in at 1.07 and 0.85. Nothing
+ * measured is within a quarter of its cap.
+ *
+ * ## Two things this does not fix, and one it gives away
+ *
+ * The largest maps are over the platform's own 4.5 MB limit on a function body
+ * once the derivation is done, and 4,511,410 bytes is close enough to that limit
+ * to be a problem in itself. That is a real ceiling on the class rather than
+ * something a cap here can lift, and it is #162.
+ *
+ * `overlay:metal` and `overlay:type` keep the backstop. They are 8 bit and
+ * heavily quantised, so nothing suggests they are near it, but this measurement
+ * says nothing about them and inventing a grid size for a class nobody has
+ * measured is how a cap starts refusing valid uploads.
+ *
+ * And the map size is declared rather than measured, so a client willing to
+ * overstate it raises its own ceiling. What that buys is the difference between
+ * 2 MB and the 4.5 MB the platform refuses a body at, under an account storage
+ * quota and a monthly upload budget that are unaffected. That is the price of
+ * keeping this check where every other byte check is, in front of the round trip
+ * and off the declaration alone.
+ */
+export function heightOverlayMaxBytes(
+  variant: string,
+  mapWidth: number | null,
+  mapHeight: number | null,
+): number | null {
+  if (variant !== MAP_HEIGHT_OVERLAY_VARIANT) return null;
+  if (mapWidth === null || mapHeight === null) return null;
+
+  return (
+    heightOverlaySamples(mapWidth) * heightOverlaySamples(mapHeight) * HEIGHT_SAMPLE_BYTES
+  );
 }
 
 export type AssetImageCheck =
