@@ -17,6 +17,29 @@
  *
  * That is the only way to ask. `public.user_capability` is readable by nobody,
  * and `has_capability()` answers for the caller alone.
+ *
+ * ## Second factors, which #115 asks for and this does not do
+ *
+ * #115 asks for 2FA on the accounts that hold these, because they are the
+ * higher value targets. Nothing here enforces one, and that is a gap rather
+ * than a decision that it does not matter.
+ *
+ * What exists: Supabase Auth can enrol a TOTP factor, `supabase/config.toml`
+ * has it switched on, and a session that has satisfied one carries `aal2` in
+ * its token, which `auth.jwt() ->> 'aal'` reads inside the database. So the
+ * check itself would be one clause in `has_capability()`.
+ *
+ * What does not exist: anywhere to enrol. No page calls
+ * `supabase.auth.mfa.enroll()`, so no account has a factor, and adding that
+ * clause today would lock every capability holder out of everything they hold,
+ * the only moderator included. Discord cannot stand in for it either. Signing
+ * in through an OAuth provider says nothing about whether that provider asked
+ * for a second factor, so a Discord account with 2FA on and one without arrive
+ * here identically.
+ *
+ * What it would take: an enrolment page, a way back in for somebody who loses
+ * their authenticator, and then the clause. In that order, because the last
+ * step is the one that cannot be taken first.
  */
 
 /**
