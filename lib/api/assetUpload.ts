@@ -22,16 +22,19 @@ import type { AssetUploadDeclaration } from "@/lib/assets/upload";
 export const ASSET_UPLOAD_FORMAT = "coilbox-hub-asset-upload";
 export const ASSET_UPLOAD_VERSION = 1;
 
-/** What the hub decided to do with the bytes, echoed back so a caller can
- * store the path without reconstructing it. */
+/**
+ * What the hub decided to do with the bytes.
+ *
+ * Deliberately does not say where they went. The staging tier is public, so a
+ * pending upload's path is its URL, and the queue's whole authority is that the
+ * hub does not hand that out before a reviewer has seen it (#131). Replying
+ * with it would hand it to the one party the queue is holding the picture back
+ * from, since the uploader is who a modified client is. The path is on the row
+ * and reaches the caller when the row is approved and resolvable.
+ */
 export interface AssetUploadBody {
   format: typeof ASSET_UPLOAD_FORMAT;
   version: typeof ASSET_UPLOAD_VERSION;
-  /** Tier relative, never a fully qualified URL. */
-  path: string;
-  /** Where the staging tier is serving it from right now. Promotion changes
-   * the host and never the path, so this is the disposable half. */
-  url: string;
   /** Always `pending` today. Nothing on this path can approve a row. */
   moderation: "pending";
 }
@@ -251,12 +254,10 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
   };
 }
 
-export function buildAssetUploadBody(path: string, url: string): AssetUploadBody {
+export function buildAssetUploadBody(): AssetUploadBody {
   return {
     format: ASSET_UPLOAD_FORMAT,
     version: ASSET_UPLOAD_VERSION,
-    path,
-    url,
     moderation: "pending",
   };
 }

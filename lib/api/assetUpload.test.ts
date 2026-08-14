@@ -141,12 +141,12 @@ test("a declaration that is not an object, or names neither key, is refused", ()
   expect(error({ ...UNIT, keyed_on: "blueprint" })).toBe('`keyed_on` must be "unit" or "map".');
 });
 
-test("the reply carries the envelope a shipped build reads first", () => {
-  expect(buildAssetUploadBody("units/BYAR/buildpic/enc-abc.webp", "https://blob/x")).toEqual({
+test("the reply carries the envelope a shipped build reads first, and no path", () => {
+  // No `path` and no `url`, deliberately: the store is public, so either one
+  // is a way to see a picture nobody has reviewed yet (#131).
+  expect(buildAssetUploadBody()).toEqual({
     format: ASSET_UPLOAD_FORMAT,
     version: ASSET_UPLOAD_VERSION,
-    path: "units/BYAR/buildpic/enc-abc.webp",
-    url: "https://blob/x",
     moderation: "pending",
   });
 });

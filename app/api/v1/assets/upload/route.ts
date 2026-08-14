@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { buildAssetUploadBody, parseAssetUpload } from "@/lib/api/assetUpload";
 import { corsPreflight, withCors } from "@/lib/api/cors";
 import { apiError } from "@/lib/api/response";
-import { BLOB_TOKEN_ERROR, blobTierUrl, deleteBlobAssets, putBlobAsset } from "@/lib/assets/blob";
+import { BLOB_TOKEN_ERROR, deleteBlobAssets, putBlobAsset } from "@/lib/assets/blob";
 import { checkAssetUpload, insertPendingAsset } from "@/lib/assets/upload";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticateBearer } from "@/lib/supabase/bearer";
@@ -42,6 +42,15 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * A 409 means the hub already holds that identity and the caller should stop
  * asking. Replacing a row whose `source_hash` has changed is #106's, and until
  * it lands an existing identity is refused rather than overwritten.
+ *
+ * ## Why a 201 says so little
+ *
+ * It says the upload was accepted and is pending, and nothing about where the
+ * bytes are. The store is public, so the path is the URL, and a caller that
+ * held either could publish the picture before a reviewer had seen it, which is
+ * the whole of what the queue exists to stop (#131). Withholding it from a
+ * well behaved caller costs nothing: it already has the bytes it just sent, and
+ * an approved row resolves through #108 like any other.
  */
 export const dynamic = "force-dynamic";
 
@@ -122,8 +131,15 @@ export async function POST(request: Request) {
 
   // The advanced operation. Nothing above it has written anything, and nothing
   // below it can refuse the upload.
+  //
+  // `check.path` is where the hub asked for the bytes and `stored` is where
+  // they went, which is not the same string: Blob appends a suffix nobody can
+  // derive, and that suffix is the only thing standing between a pending
+  // upload and a public URL (#131). Everything after this point uses `stored`,
+  // because the derived path addresses no object.
+  let stored: string;
   try {
-    await putBlobAsset(check.path, await file.arrayBuffer(), parsed.declaration.mime);
+    stored = await putBlobAsset(check.path, await file.arrayBuffer(), parsed.declaration.mime);
   } catch (error) {
     if (error instanceof Error && error.message === BLOB_TOKEN_ERROR) {
       return apiError(BLOB_TOKEN_ERROR, 503);
@@ -138,13 +154,13 @@ export async function POST(request: Request) {
   //
   // Deleting on a failed insert is free, so the store does not keep an object
   // no row will ever name.
-  if (!(await insertPendingAsset(admin, auth.user.id, parsed.declaration, check.path))) {
-    await deleteBlobAssets([check.path]).catch(() => {});
+  if (!(await insertPendingAsset(admin, auth.user.id, parsed.declaration, stored))) {
+    await deleteBlobAssets([stored]).catch(() => {});
     return apiError("The asset was uploaded but its record could not be written.", 503);
   }
 
   return withCors(
-    NextResponse.json(buildAssetUploadBody(check.path, blobTierUrl(check.path)), {
+    NextResponse.json(buildAssetUploadBody(), {
       status: 201,
       headers: { "Cache-Control": "no-store" },
     }),
