@@ -1,5 +1,7 @@
 import {
   type AssetIdentity,
+  isMapVariant,
+  MAP_VARIANTS,
   UNIT_BUILDPIC_VARIANT,
   UNIT_RENDER_VARIANT_PREFIX,
 } from "@/lib/assets/asset";
@@ -154,6 +156,24 @@ function parseKey(value: unknown): { ok: true; key: AssetHaveKey } | { ok: false
   if (keyedOn === "map") {
     const mapName = readField(record, "map_name");
     if (!mapName.ok) return mapName;
+
+    // The same rule as `asset_map_variant_check` and as `parseAssetUpload`, off
+    // the same list in `lib/assets/asset.ts`, which is where the vocabulary
+    // lives and which `asset.test.ts` holds against the check constraint.
+    //
+    // A refusal rather than a `missing`, which is the choice #137 asks for.
+    // `missing` is an instruction to go and make the picture, so answering it
+    // for `overlay:metel` costs the caller an extraction and an encode before
+    // the upload tells it what the typo was. Refusing is the same signal one
+    // round trip earlier, and it is what this function already does for a unit
+    // variant, an unknown field and a repeated key. The map side was the only
+    // thing in here still taking any string.
+    if (!isMapVariant(variant.value)) {
+      return {
+        ok: false,
+        error: `\`variant\` on a map must be one of ${MAP_VARIANTS.join(", ")}.`,
+      };
+    }
 
     return {
       ok: true,
