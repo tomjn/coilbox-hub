@@ -5,6 +5,7 @@ import { apiError } from "@/lib/api/response";
 import { BLOB_TOKEN_ERROR, deleteBlobAssets, putBlobAsset } from "@/lib/assets/blob";
 import { checkAssetImage } from "@/lib/assets/caps";
 import { IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
+import { recordSourceConflict } from "@/lib/assets/sourceConflict";
 import { checkAssetUpload, writePendingAsset } from "@/lib/assets/upload";
 import { clientIp, recordUploadIp } from "@/lib/assets/uploadIp";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -155,6 +156,16 @@ export async function POST(request: Request) {
   }
 
   const check = await checkAssetUpload(admin, auth.user.id, parsed.declaration);
+
+  // Before the answer either way, because the 409 below is where #116's case
+  // actually lands: a second account reporting different bytes for the same
+  // archive is a replacement it is not allowed to make, and returning early
+  // would drop the one thing worth keeping about the request. It changes no
+  // answer and costs a round trip on the rare upload that has one.
+  if (check.conflict) {
+    await recordSourceConflict(admin, check.conflict);
+  }
+
   if (!check.ok) {
     return apiError(check.error, check.status);
   }

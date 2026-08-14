@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssetTier, ModeratorRejectionKind } from "./asset";
 import { blobTierUrl } from "./blob";
 import { staticTierUrl } from "./cdn";
+import { fetchSourceConflicts } from "./sourceConflict";
 
 /**
  * The moderation queue for pictures (issue #114): what is waiting, what a
@@ -95,6 +96,9 @@ export interface QueuedPicture {
    * much attention it deserves: `uploaded` is the class the queue exists for. */
   origin: string;
   sourceArchive: string;
+  /** Whether somebody has reported different source bytes for this archive
+   * (#116). The grid marks these and leaves them unticked. */
+  sourceConflict: boolean;
 }
 
 /**
@@ -141,6 +145,13 @@ export async function fetchPictureQueue(
 
   const rows = (data ?? []) as unknown as QueueRow[];
 
+  // A second read rather than an embedded one, and only over the page the
+  // reviewer is about to look at. `./sourceConflict` says why.
+  const flagged = await fetchSourceConflicts(
+    supabase,
+    rows.map((row) => row.id),
+  );
+
   return {
     waiting: rows.map((row) => ({
       id: row.id,
@@ -150,6 +161,7 @@ export async function fetchPictureQueue(
       bytes: row.bytes,
       origin: row.origin,
       sourceArchive: row.source_archive,
+      sourceConflict: flagged.has(row.id),
     })),
     total: count ?? rows.length,
   };

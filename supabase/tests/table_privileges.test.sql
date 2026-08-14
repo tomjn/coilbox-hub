@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(27);
+select plan(30);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -79,6 +79,18 @@ select table_privs_are('public', 'asset_upload_ip', 'authenticated', ARRAY[]::na
   'authenticated holds no table privilege on asset_upload_ip');
 select table_privs_are('public', 'asset_upload_ip', 'service_role', ARRAY['INSERT'],
   'service_role records an uploader address and cannot read one back');
+
+-- public.asset_source_conflict: two clients disagreeing about what one archive
+-- contains (issue #116). Read and written server side and nowhere else: the
+-- upload route records a disagreement and the contact sheet reads which
+-- pictures have one. A reported hash names bytes nobody has reviewed and the
+-- reporter is not the queue's to publish, so a browser holds neither.
+select table_privs_are('public', 'asset_source_conflict', 'anon', ARRAY[]::name[],
+  'anon holds no table privilege on asset_source_conflict');
+select table_privs_are('public', 'asset_source_conflict', 'authenticated', ARRAY[]::name[],
+  'authenticated holds no table privilege on asset_source_conflict');
+select table_privs_are('public', 'asset_source_conflict', 'service_role', ARRAY['SELECT', 'INSERT'],
+  'service_role records a disagreement and reads it back, and can neither change nor erase one');
 
 -- public.asset_licence: read by the route so it can answer whether the hub may
 -- publish a subject's pictures at all, and written only by a migration, where

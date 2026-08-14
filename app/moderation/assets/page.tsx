@@ -62,6 +62,26 @@ const REJECT =
 const REJECT_UNSAFE =
   "rounded-sm bg-black/70 px-2 py-1.5 text-xs text-red-500 transition-colors hover:bg-black hover:text-red-300 focus-visible:text-red-300";
 
+/**
+ * How a picture somebody has reported different source bytes for is marked
+ * (issue #116).
+ *
+ * The ring is on the list item and the note sits under the label rather than
+ * over it, and both are outside the label on purpose. A tile is greyscaled
+ * while it is unticked, a flagged tile starts unticked, and an amber mark
+ * inside the label would therefore render grey at exactly the moment it most
+ * needs to be seen. Under it rather than over it because the corners are spoken
+ * for: the reject buttons sit top right and a badge opposite them collides on a
+ * narrow tile.
+ *
+ * Amber rather than red. This is not a rejection and not an accusation, it is
+ * one picture in the sheet worth a second of attention.
+ */
+const FLAGGED = "relative flex flex-col gap-1 rounded-md p-0.5 ring-2 ring-amber-500/80";
+
+const FLAG =
+  "rounded-sm bg-amber-950/80 px-1.5 py-1 text-[0.65rem] leading-tight font-medium text-amber-300";
+
 function waitingLine(shown: number, total: number): string {
   if (total > shown) return `The ${shown} oldest of ${total} waiting.`;
   return total === 1 ? "One picture waiting." : `${total} pictures waiting.`;
@@ -125,7 +145,9 @@ export default async function PictureQueue() {
                 <p className="text-sm text-neutral-400">
                   {waitingLine(waiting.length, total)} Untick anything you are not
                   sure about. Reject what does not belong here, and mark as unsafe
-                  anything illegal or seriously harmful, which is final.
+                  anything illegal or seriously harmful, which is final. Anything
+                  ringed in amber came out of an archive that produced different
+                  bytes for somebody else, and starts unticked.
                 </p>
                 <button type="submit" className={BUTTON}>
                   Approve the ticked
@@ -134,13 +156,18 @@ export default async function PictureQueue() {
 
               <ul className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
                 {waiting.map((picture) => (
-                  <li key={picture.id} className="relative">
+                  <li key={picture.id} className={picture.sourceConflict ? FLAGGED : "relative"}>
                     <label className={TILE}>
+                      {/* Unticked when the archive disagrees with itself, which
+                          is the whole of what the flag does. Not a gate: it is
+                          one click to tick it and it goes out with the rest of
+                          the batch. What it stops is the picture nobody looked
+                          at riding the approve-everything button. */}
                       <input
                         type="checkbox"
                         name="asset"
                         value={picture.id}
-                        defaultChecked
+                        defaultChecked={!picture.sourceConflict}
                         className="sr-only"
                       />
                       {/* Not next/image. Hobby allows around 5,000
@@ -168,8 +195,26 @@ export default async function PictureQueue() {
                         <span className="truncate text-neutral-600" title={picture.sourceArchive}>
                           {picture.origin}, {Math.round(picture.bytes / 1024)} kB
                         </span>
+                        {/* Inside the label, so the mark is part of the
+                            checkbox's own name. The ring and the note below are
+                            both outside it and neither is announced, which
+                            would leave a tile that is unticked for no stated
+                            reason. */}
+                        {picture.sourceConflict && (
+                          <span className="sr-only">
+                            {`Another upload reported different source bytes out of the same archive, ${picture.sourceArchive}. Unticked until you have looked at it.`}
+                          </span>
+                        )}
                       </span>
                     </label>
+                    {picture.sourceConflict && (
+                      <p
+                        className={FLAG}
+                        title={`Another upload reported different source bytes out of ${picture.sourceArchive}. Either a modified client or a corrupted install.`}
+                      >
+                        Same archive, different bytes
+                      </p>
+                    )}
                     <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
                       <button
                         type="submit"
