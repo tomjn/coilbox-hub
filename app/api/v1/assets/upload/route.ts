@@ -4,6 +4,7 @@ import { corsPreflight, withCors } from "@/lib/api/cors";
 import { apiError } from "@/lib/api/response";
 import { BLOB_TOKEN_ERROR, deleteBlobAssets, putBlobAsset } from "@/lib/assets/blob";
 import { checkAssetImage } from "@/lib/assets/caps";
+import { encodedHash } from "@/lib/assets/hash";
 import { IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
 import { recordSourceConflict } from "@/lib/assets/sourceConflict";
 import { checkAssetUpload, writePendingAsset } from "@/lib/assets/upload";
@@ -51,7 +52,8 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * 3. the declaration parses, with unknown fields refused
  * 4. the bytes received are the length the declaration claims
  * 5. `checkAssetImage`: the image header, against the caps for its class
- * 6. `checkAssetUpload`: MIME, size, path, licence, identity, four quotas
+ * 6. `encodedHash`: the hash of the bytes, which is where they will land
+ * 7. `checkAssetUpload`: MIME, size, path, licence, identity, four quotas
  *
  * ## 201 created, 200 replaced
  *
@@ -134,19 +136,35 @@ export async function POST(request: Request) {
     );
   }
 
+  // Every byte, once, and everything below reads this rather than the Blob
+  // again. The whole body is already in memory by the time `formData()`
+  // returns, so this is not a second copy of anything.
+  const bytes = await file.arrayBuffer();
+
   // The real dimensions, out of the image header rather than out of the
   // declaration (#105). A few KB, no decode, no round trip, and the last thing
   // that can refuse the upload for free. `image.width` and `image.height` are
   // what reach the row: the declaration no longer carries a pair at all.
-  const header = await file.slice(0, IMAGE_HEADER_BYTES).arrayBuffer();
   const image = checkAssetImage(
     parsed.declaration.identity.variant,
     parsed.declaration.mime,
-    new Uint8Array(header),
+    new Uint8Array(bytes, 0, Math.min(IMAGE_HEADER_BYTES, bytes.byteLength)),
   );
   if (!image.ok) {
     return apiError(image.error, image.status);
   }
+
+  // Where the bytes will land, out of the bytes (#154). It was the client's to
+  // declare until now, and `hash` is the whole leaf of a map path, so declaring
+  // somebody else's put your picture over theirs the moment promotion (#111)
+  // committed it to a permanent public history. Costs no round trip and no
+  // advanced operation, so it sits here with the free refusals rather than
+  // after the write, and there is nothing left to refuse: a hash the hub
+  // computed is always a hash the hub can spell as a path.
+  //
+  // `source_hash` is not this and cannot be. It is over the raw archive, which
+  // never reaches the hub, so it stays the client's word. It names no object.
+  const hash = await encodedHash(bytes);
 
   let admin;
   try {
@@ -155,7 +173,7 @@ export async function POST(request: Request) {
     return apiError(SUPABASE_SERVICE_ROLE_ERROR, 503);
   }
 
-  const check = await checkAssetUpload(admin, auth.user.id, parsed.declaration);
+  const check = await checkAssetUpload(admin, auth.user.id, parsed.declaration, hash);
 
   // Before the answer either way, because the 409 below is where #116's case
   // actually lands: a second account reporting different bytes for the same
@@ -180,7 +198,7 @@ export async function POST(request: Request) {
   // because the derived path addresses no object.
   let stored: string;
   try {
-    stored = await putBlobAsset(check.path, await file.arrayBuffer(), parsed.declaration.mime);
+    stored = await putBlobAsset(check.path, bytes, parsed.declaration.mime);
   } catch (error) {
     if (error instanceof Error && error.message === BLOB_TOKEN_ERROR) {
       return apiError(BLOB_TOKEN_ERROR, 503);
@@ -201,6 +219,7 @@ export async function POST(request: Request) {
     admin,
     auth.user.id,
     parsed.declaration,
+    hash,
     stored,
     image,
     check.replacing,

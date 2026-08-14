@@ -138,13 +138,20 @@ export const MONTHLY_UPLOAD_BUDGET = BLOB_ADVANCED_OPERATIONS_PER_MONTH - 100;
  * hub measures the image header, so a declared pair could only agree with the
  * bytes or be wrong, and there is no third thing a client could usefully mean
  * by it. {@link writePendingAsset} takes the measured pair separately.
+ *
+ * `hash` is not here either, and its absence is #154's answer. It is over the
+ * encoded bytes, which arrive in the same request, so the hub computes it in
+ * `./hash` and both functions below take it separately for the same reason the
+ * measured pair is separate: a value the hub worked out does not belong in the
+ * type named for what a client claimed. `source_hash` does stay, because the
+ * hub never sees an archive and so has nothing to check it against.
  */
 export interface AssetUploadDeclaration {
   identity: AssetIdentity;
-  /** Over the raw archive bytes. Identity, and what the have check compares. */
+  /** Over the raw archive bytes. Identity, and what the have check compares.
+   * Unverifiable here and deliberately trusted: the archive never reaches the
+   * hub, and this names no object and decides no path. */
   sourceHash: string;
-  /** Over the encoded bytes. The path component. */
-  hash: string;
   encodeProfile: string;
   origin: AssetOrigin;
   mime: string;
@@ -308,11 +315,16 @@ const QUOTA_UNAVAILABLE = {
  * `supabase` must be the secret key client. Every question here is about rows
  * `asset_read_approved` hides, and asking through the publishable key would
  * read a pending upload as absent and a full store as empty.
+ *
+ * `hash` is the hub's own, out of `./hash`, and is a parameter rather than a
+ * field on the declaration so that there is no declared value here to reach for
+ * by mistake. It is the leaf of the path this answers with (#154).
  */
 export async function checkAssetUpload(
   supabase: SupabaseClient,
   userId: string,
   declaration: AssetUploadDeclaration,
+  hash: string,
 ): Promise<AssetUploadCheck> {
   const { identity, origin, mime, bytes } = declaration;
 
@@ -339,12 +351,14 @@ export async function checkAssetUpload(
     };
   }
 
-  const path = assetObjectPath(identity, declaration.hash, mime);
+  // The hash is the hub's, so the only part of this that can fail now is the
+  // identity. It is still asked, because `assetObjectPath` answers for both.
+  const path = assetObjectPath(identity, hash, mime);
   if (!path) {
     return {
       ok: false,
       error:
-        "`game`, `variant` and `hash` have to be storable as path segments: letters, digits, dots, dashes and underscores, and a variant may separate segments with a colon.",
+        "`game` and `variant` have to be storable as path segments: letters, digits, dots, dashes and underscores, and a variant may separate segments with a colon.",
       status: 400,
     };
   }
@@ -532,12 +546,13 @@ export async function checkAssetUpload(
  * therefore everything a newer archive changes. */
 function assetColumns(
   declaration: AssetUploadDeclaration,
+  hash: string,
   path: string,
   measured: AssetImageDimensions,
 ) {
   return {
     source_hash: declaration.sourceHash,
-    hash: declaration.hash,
+    hash,
     encode_profile: declaration.encodeProfile,
     path,
     origin: declaration.origin,
@@ -557,6 +572,9 @@ function assetColumns(
 /**
  * Write the pending row for an upload the hub has just accepted, replacing the
  * row named by `replacing` when a newer archive changed the bytes (#106).
+ *
+ * `hash` and `measured` are both what the bytes turned out to be rather than
+ * what the declaration said, which is why they arrive separately from it.
  *
  * `moderation` and `approval_source` are left at their defaults on an insert
  * and set back to them on a replacement, so nothing on this path can put a row
@@ -587,12 +605,13 @@ export async function writePendingAsset(
   supabase: SupabaseClient,
   userId: string,
   declaration: AssetUploadDeclaration,
+  hash: string,
   path: string,
   measured: AssetImageDimensions,
   replacing: string | null,
 ): Promise<string | null> {
   const { identity } = declaration;
-  const columns = assetColumns(declaration, path, measured);
+  const columns = assetColumns(declaration, hash, path, measured);
 
   if (replacing) {
     const { error } = await supabase
