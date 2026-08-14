@@ -37,8 +37,24 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * written only from there would be a code path nobody can exercise in
  * development and would be discovered broken in production. #106's confirm
  * route is the primary path and writes the row for this half of the pipeline.
- * Until it lands, an upload through here leaves an object with no row, which is
- * unreachable because nothing hands out its URL, and #113 clears orphans.
+ * Until it lands, an upload through here leaves an object with no row, and #113
+ * clears orphans.
+ *
+ * Two things #106 inherits from #131 and cannot skip. The row's path is the
+ * pathname Blob returned to the browser and not the one derived here, because
+ * the derived one addresses nothing. And that pathname arrives from the client,
+ * so the confirm route has to check it starts with the path derived from the
+ * declaration it is confirming, or a caller could point its row at somebody
+ * else's object.
+ *
+ * ## What the suffix does not fix here
+ *
+ * `upload()` hands the browser the finished URL, so on this path the uploader
+ * learns where its own object is however unguessable that is. The suffix stops
+ * everybody else, and the server side route stops the uploader too because the
+ * hub is the only party that ever sees the path. Closing it on this path means
+ * not uploading client direct to a public store, which is a bigger decision
+ * than #131 and is filed separately.
  */
 export const dynamic = "force-dynamic";
 
@@ -132,6 +148,13 @@ export async function POST(request: Request) {
   // The client picks the pathname it asks for and the token is issued against
   // it, so this is where the hub's own derivation becomes binding rather than
   // advisory.
+  //
+  // Still an equality check, and it can stay one because what it binds is the
+  // path Blob then appends its suffix to. So it settles what the client may
+  // ask for, which is exactly one place derived from its own declaration, and
+  // no longer settles where the object ends up (#131). Naming the derived path
+  // in the refusal discloses nothing: the client can derive it, and it is not
+  // where anything is stored.
   if (body.payload.pathname !== check.path) {
     return apiError(`That declaration belongs at "${check.path}".`, 409);
   }
@@ -153,8 +176,11 @@ export async function POST(request: Request) {
     onBeforeGenerateToken: async () => ({
       allowedContentTypes: [parsed.declaration.mime],
       maximumSizeInBytes: ASSET_MAX_OBJECT_BYTES,
-      addRandomSuffix: false,
-      allowOverwrite: true,
+      // The same suffix `putBlobAsset` asks for, and it has to be asked for
+      // here too because this token is what Blob honours on this path. Set on
+      // the token rather than left to the client, which does not get to decide
+      // whether its own upload is findable.
+      addRandomSuffix: true,
       tokenPayload: null,
     }),
   });
