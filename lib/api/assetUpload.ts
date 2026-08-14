@@ -7,12 +7,9 @@ import {
 import type { AssetUploadDeclaration } from "@/lib/assets/upload";
 
 /**
- * The wire shape of an upload declaration (issue #104), shared by both upload
- * paths: the JSON part of the multipart body Coilbox posts, and the
- * `clientPayload` the website sends when it asks for a client token.
- *
- * One shape rather than two, because the two paths share their checks and a
- * second shape would be a second thing to keep in step with the table.
+ * The wire shape of an upload declaration (issue #104): the JSON part of the
+ * multipart body posted to `POST /api/v1/assets/upload`, which since #133 is
+ * the only way to upload.
  *
  * Carries `format` and `version` on the reply the way `/api/v1/assets/have`
  * does. A shipped desktop build sits on disk for months, so it reads those two

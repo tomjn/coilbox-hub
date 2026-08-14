@@ -9,20 +9,31 @@ import { authenticateBearer } from "@/lib/supabase/bearer";
 import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
 
 /**
- * The upload route (issue #104). Coilbox posts the bytes here and this calls
- * `put()`.
+ * The upload route (issue #104). Everything that uploads posts the bytes here
+ * and this calls `put()`. There is no other way in.
  *
  * Not client direct, and the reasons are in the issue rather than a preference.
  * The `vercel_blob` Rust crate has one release last touched about three years
  * ago, which is not something to put a shipped desktop client on, and reverse
  * engineering Blob's HTTP contract out of the JS SDK works right up until
  * Vercel changes an unpublished interface and breaks builds already on people's
- * machines. The website has a supported client direct path and uses it, at
- * `./token`, and both share every check in `lib/assets/upload.ts`.
+ * machines.
+ *
+ * The website used to upload client direct, which is the supported path in a
+ * browser and the one that keeps the bytes out of a function. It was removed in
+ * #133 because `upload()` hands the browser the finished URL, so the uploader
+ * learned where its own unreviewed picture was and could publish it. Nothing
+ * about the path scheme fixes that: the client does the PUT, so it has to be
+ * told where to send the bytes. Routing everything through here is what makes
+ * the hub the only party that ever sees the path, which is what the moderation
+ * queue rests on.
  *
  * The 4.5 MB platform limit on a function body is not a constraint here. It is
  * free size enforcement that runs before any of this code does, and the assets
- * are 5 to 150 KB.
+ * are 5 to 150 KB. Next puts no limit of its own on a route handler body, so
+ * that platform limit is the only one. The bandwidth cost of every upload now
+ * crossing a function is the same 5 to 150 KB, and the seed never comes through
+ * here at all.
  *
  * ## The order, and why nothing writes before it finishes
  *
@@ -149,8 +160,9 @@ export async function POST(request: Request) {
 
   // The row is written here rather than by a second call, because this request
   // already holds everything the row needs and a confirm step that can fail
-  // separately is a way to leave an object nothing points at. #106 takes that
-  // over for the client direct path, where the server never sees the bytes.
+  // separately is a way to leave an object nothing points at. With the client
+  // direct path gone (#133) there is no upload the server does not see the
+  // bytes of, so no confirm route has a row to write.
   //
   // Deleting on a failed insert is free, so the store does not keep an object
   // no row will ever name.
