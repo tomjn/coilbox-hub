@@ -108,11 +108,14 @@ interface World {
   perMapLicence: AssetLicenceRow | null;
   allMapsLicence: AssetLicenceRow | null;
   existing: ExistingRow | null;
+  /** What `reusable_staging_object` answers: an object already holding these
+   * bytes, or null for the ordinary case where the store has never seen them. */
+  stored: string | null;
   unitRenders: number;
   accountBytes: number;
   recent: number;
   thisMonth: number;
-  broken?: "licence" | "identity" | "bytes";
+  broken?: "licence" | "identity" | "bytes" | "reuse";
 }
 
 function world(overrides: Partial<World> = {}): World {
@@ -121,6 +124,7 @@ function world(overrides: Partial<World> = {}): World {
     perMapLicence: null,
     allMapsLicence: licence("allowed"),
     existing: null,
+    stored: null,
     unitRenders: 0,
     accountBytes: 0,
     recent: 0,
@@ -199,12 +203,23 @@ function fakeSupabase(state: World, seen: Query[] = []): SupabaseClient {
     return builder;
   };
 
-  const rpc = () =>
-    Promise.resolve(
+  const rpc = (name: string, args: Record<string, unknown>) => {
+    seen.push({ table: `rpc:${name}`, filters: Object.values(args).map(String) });
+
+    if (name === "reusable_staging_object") {
+      return Promise.resolve(
+        state.broken === "reuse"
+          ? { data: null, error: { message: "down" } }
+          : { data: state.stored, error: null },
+      );
+    }
+
+    return Promise.resolve(
       state.broken === "bytes"
         ? { data: null, error: { message: "down" } }
         : { data: state.accountBytes, error: null },
     );
+  };
 
   return { from, rpc } as unknown as SupabaseClient;
 }
@@ -433,6 +448,43 @@ test("the same source bytes again are refused rather than stored twice", async (
   if (result.ok) return;
   expect(result.status).toBe(409);
   expect(result.error).toContain("/api/v1/assets/have");
+});
+
+/**
+ * #132. Two units in a game shipping the same placeholder buildpic encode to the
+ * same bytes, and the hub computes the hash from the bytes (#154), so the second
+ * upload can be recognised before it spends one advanced operation out of 2,000
+ * a month writing the store what it already holds.
+ */
+test("bytes the store already holds come back as an object to reuse", async () => {
+  const already = "units/BYAR/buildpic/encabc-Hn4vQ2rT.webp";
+
+  expect(await check(world({ stored: already }))).toEqual({
+    ok: true,
+    path: "units/BYAR/buildpic/encabc.webp",
+    replacing: null,
+    stored: already,
+  });
+});
+
+test("the lookup is on the hash the hub computed and nothing off the declaration", async () => {
+  const seen: Query[] = [];
+  await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration(), HASH);
+
+  expect(seen.find((query) => query.table === "rpc:reusable_staging_object")?.filters).toEqual([
+    HASH,
+  ]);
+});
+
+/** An optimisation that fails should cost an operation, not an upload. Every
+ * other query in this file is a limit, and a limit that cannot be read refuses.
+ * This one is not a limit. */
+test("a reuse lookup that fails writes the object rather than refusing the upload", async () => {
+  expect(await check(world({ broken: "reuse", stored: "units/BYAR/buildpic/encabc-x.webp" }))).toEqual({
+    ok: true,
+    path: "units/BYAR/buildpic/encabc.webp",
+    replacing: null,
+  });
 });
 
 /**

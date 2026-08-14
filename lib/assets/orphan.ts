@@ -38,10 +38,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * Nothing is deleted on the strength of the queue alone. {@link sweepOrphans}
  * asks Postgres whether any row names each path first, and skips the ones that
- * do. A pathname carries Blob's random suffix so a recycled one should be
- * impossible, and that is exactly the kind of assumption that is worth one query
- * rather than a comment: the cost of being wrong is deleting bytes a live row
- * points at, and deletion is the one step nothing here can undo.
+ * do.
+ *
+ * That check used to be a guard against an assumption: a pathname carries Blob's
+ * random suffix, so a recycled one should be impossible, and the cost of being
+ * wrong is deleting bytes a live row points at. #132 turned it into the rule.
+ * An upload whose bytes are already in the store now reuses the object rather
+ * than spending an advanced operation writing them again, so two rows sharing
+ * one pathname is an ordinary state and not an anomaly, and {@link
+ * stagingPathsInUse} is the one question every deletion in this codebase asks
+ * first. `lib/assets/promote.ts` asks it too, before it drains.
  */
 
 /** How many objects one sweep handles. The queue is normally empty and a
@@ -85,13 +91,45 @@ export async function fetchOrphans(
 }
 
 /**
+ * Which of these staging pathnames a row is still serving its picture from.
+ *
+ * The gate on every deletion in the codebase, here and in
+ * `lib/assets/promote.ts`. Since #132 an object can be named by a row that never
+ * wrote it, so "the row that stored this has moved on" no longer means the
+ * object is spare, and the only honest question is whether any row at all names
+ * it. Postgres holds every reference, so it is the one asked, rather than a
+ * count kept alongside that could drift.
+ *
+ * Only `path`, and only on the staging tier. `blob_path` is a queued deletion
+ * rather than a picture being served, and deleting an object twice is free.
+ */
+export async function stagingPathsInUse(
+  supabase: SupabaseClient,
+  paths: string[],
+): Promise<Set<string>> {
+  if (paths.length === 0) return new Set();
+
+  const { data, error } = await supabase
+    .from("asset")
+    .select("path")
+    .eq("tier", "blob")
+    .in("path", paths);
+
+  if (error) {
+    throw new Error(`Could not check what still claims these objects: ${error.message}`);
+  }
+
+  return new Set(((data ?? []) as { path: string }[]).map((row) => row.path));
+}
+
+/**
  * Which of these pathnames some row still names, either as the object it serves
  * from or as one it has queued for deletion.
  *
- * Both columns, because both are a claim. `path` on a staging row is the live
- * object, and `blob_path` is promotion's own drain queue, and deleting either
- * out from under it would be this module reaching into a job that is already
- * doing the work carefully.
+ * Both columns, because both are a claim on this module's behaviour. The first
+ * is a live picture, which {@link stagingPathsInUse} answers for. The second is
+ * promotion's own drain queue, and taking one out from under it would be this
+ * module reaching into a job that is already doing the work carefully.
  */
 export async function claimedPaths(
   supabase: SupabaseClient,
@@ -100,18 +138,16 @@ export async function claimedPaths(
   if (paths.length === 0) return new Set();
 
   const [live, queued] = await Promise.all([
-    supabase.from("asset").select("path").eq("tier", "blob").in("path", paths),
+    stagingPathsInUse(supabase, paths),
     supabase.from("asset").select("blob_path").in("blob_path", paths),
   ]);
 
-  if (live.error || queued.error) {
-    throw new Error(
-      `Could not check what still claims these objects: ${(live.error ?? queued.error)?.message}`,
-    );
+  if (queued.error) {
+    throw new Error(`Could not check what still claims these objects: ${queued.error.message}`);
   }
 
   return new Set([
-    ...((live.data ?? []) as { path: string }[]).map((row) => row.path),
+    ...live,
     ...((queued.data ?? []) as { blob_path: string }[]).map((row) => row.blob_path),
   ]);
 }
