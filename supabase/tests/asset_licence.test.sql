@@ -8,9 +8,21 @@
 -- nothing by existing, and saying yes has to say what the yes rests on.
 
 begin;
-select plan(22);
+select plan(23);
 
 create extension if not exists pgtap with schema extensions;
+
+-- Nothing the migrations put in this table permits anything. 20260814150100
+-- records what three games publish about their art, and recording research is
+-- not granting permission. A migration that shipped an `allowed` would publish
+-- a corpus into a permanent public history on nobody's decision, so this is
+-- checked before the rows this file adds of its own.
+select is(
+  (select count(*) from public.asset_licence
+    where redistribute_extracted <> 'unknown' or redistribute_rendered <> 'unknown')::int,
+  0,
+  'no migration grants permission to redistribute anything'
+);
 
 -- A row inserted to record a licence permits nothing until somebody says so.
 -- Everything downstream reads these two columns and nothing else, so a default
