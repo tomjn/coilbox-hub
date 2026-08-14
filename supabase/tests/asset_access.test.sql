@@ -16,7 +16,7 @@
 -- tests alone cannot see that.
 
 begin;
-select plan(24);
+select plan(26);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -141,9 +141,20 @@ select throws_ok(
   'and cannot withdraw it afterwards either'
 );
 
--- A moderator gains nothing here. The grid that reads the queue is #114's, and
--- it decides whether it reads through a policy of its own or through the
--- route, so until it lands can_moderate buys no extra row.
+-- A moderator gains nothing here, and #114 has now decided that on purpose
+-- rather than leaving it open. The contact sheet reads the queue server side
+-- with the secret key, so `can_moderate` buys no extra row through PostgREST.
+--
+-- The reason is `path`. On a pending row it is a working URL into a public
+-- store for bytes nobody has reviewed, and Blob's random suffix is the whole of
+-- what keeps it out of sight (#131). A select policy here would make that
+-- column readable with the publishable key by any browser holding a moderator
+-- session, which puts the queue's one secret into a browser and cannot be taken
+-- back: the path cannot be rotated without rewriting the object. Reading it
+-- server side keeps the path on the server, and app/moderation/assets/[id]
+-- re-asks is_moderator() for every thumbnail it serves.
+--
+-- So the two assertions below are the decision, not a placeholder for one.
 reset role;
 insert into public.user_capability (user_id, capability)
 values ('11111111-1111-1111-1111-111111111111', 'can_moderate');
@@ -159,7 +170,15 @@ select is(
 select is(
   (select count(*) from public.asset
     where hash in ('enc-approved', 'enc-pending', 'enc-rejected'))::int, 1,
-  'and still reads only the approved row, because no policy carries moderation yet'
+  'and still reads only the approved row, because the grid reads the queue as service_role instead'
+);
+
+select throws_ok(
+  $$update public.asset set moderation = 'approved', approval_source = 'moderator'
+    where hash = 'enc-pending'$$,
+  '42501',
+  null,
+  'and cannot approve one from a browser either, since approving is a server action and not a write a session makes'
 );
 
 -- The Vercel route, which holds the secret key and nothing in a browser does.
@@ -182,6 +201,15 @@ select lives_ok(
   $$update public.asset set moderation = 'approved', approval_source = 'moderator'
     where hash = 'enc-pending'$$,
   'and moves a row through the queue'
+);
+
+-- The other half of what the grid does (#114). Rejecting leaves
+-- approval_source alone, which asset_approval_state_check permits and #115
+-- depends on: on a rejected row the column reads how it was approved before it
+-- was rejected, and is null when it never was.
+select lives_ok(
+  $$update public.asset set moderation = 'rejected' where hash = 'enc-new'$$,
+  'and rejects one without having to say what approved it'
 );
 
 select throws_ok(

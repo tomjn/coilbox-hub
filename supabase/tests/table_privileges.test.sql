@@ -45,7 +45,10 @@ select column_privs_are('public', 'item', 'author_name', 'authenticated',
 -- authenticated read and write nothing at all. The route writes as
 -- service_role, which reads before it writes and never deletes (issue #102).
 -- asset_read_approved is the second layer, and asset_access.test.sql is what
--- proves it narrows this select grant to approved rows.
+-- proves it narrows this select grant to approved rows. #114 kept it that way:
+-- the moderation grid reads the queue as service_role rather than through a
+-- policy of its own, so a moderator's session holds exactly what is listed
+-- here and no more.
 select table_privs_are('public', 'asset', 'anon', ARRAY['SELECT'],
   'anon can only select on asset');
 select table_privs_are('public', 'asset', 'authenticated', ARRAY['SELECT'],

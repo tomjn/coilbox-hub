@@ -34,7 +34,17 @@ export default async function Moderation() {
     <main className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
-        <h1 className="text-3xl font-semibold tracking-tight">Reports</h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight">Reports</h1>
+          {/* The other queue. One nav entry covers both, so this is how a
+              moderator reaches the contact sheet (issue #114). */}
+          <Link
+            href="/moderation/assets"
+            className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+          >
+            Pictures
+          </Link>
+        </div>
 
         {open.length === 0 ? (
           <p className="rounded-md border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-400">
