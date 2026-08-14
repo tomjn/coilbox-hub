@@ -85,6 +85,9 @@ export const UNIT_VARIANT_CEILING = 8;
  * insurance against a client looping rather than a pace anybody meets, in the
  * spirit of `enforce_publish_rate_limit` on `public.item`.
  *
+ * Counted on `seen_at`, for the reason {@link MONTHLY_UPLOAD_BUDGET} gives: a
+ * replacement is an upload as far as anything that costs money is concerned.
+ *
  * One rule with a subject rather than two rules, because a map asset is not
  * scoped to a game and inventing a game for it would either exempt maps or
  * force a second limit that drifts from this one.
@@ -96,10 +99,17 @@ export const SUBJECT_UPLOADS_PER_HOUR = 100;
  *
  * Every accepted upload is one `put()` and therefore one advanced operation,
  * and going over the store's allowance is a 30 day outage that cannot be paid
- * through. The margin below the allowance is deliberate: this counts rows the
- * hub wrote, so anything that spends an operation outside this route, or a row
- * written and then rolled back, eats into the margin rather than into the
- * outage.
+ * through. The margin below the allowance is deliberate: this counts writes the
+ * hub made, so anything that spends an operation outside this route, or a write
+ * rolled back afterwards, eats into the margin rather than into the outage.
+ *
+ * Counted on `seen_at` rather than `created_at`, because a replacement (#106)
+ * spends an operation without creating a row. `created_at` would read a client
+ * looping on replacements as no uploads at all, which is the one way to reach
+ * the lockout unnoticed. `updated_at` is wrong in the other direction, since
+ * approving a row in the moderation grid touches it and spends nothing.
+ * `seen_at` is written by exactly the two things that call `put()`: a first
+ * upload and a replacement.
  */
 export const MONTHLY_UPLOAD_BUDGET = BLOB_ADVANCED_OPERATIONS_PER_MONTH - 100;
 
@@ -317,13 +327,13 @@ export async function checkAssetUpload(
           .select("id", { count: "exact", head: true })
           .eq("uploaded_by", userId)
           .eq("game", identity.game)
-          .gte("created_at", since)
+          .gte("seen_at", since)
       : supabase
           .from("asset")
           .select("id", { count: "exact", head: true })
           .eq("uploaded_by", userId)
           .not("map_name", "is", null)
-          .gte("created_at", since);
+          .gte("seen_at", since);
 
   const [licence, existing, unitVariants, accountBytes, recent, thisMonth] = await Promise.all([
     fetchLicence(supabase, identity),
@@ -344,7 +354,7 @@ export async function checkAssetUpload(
         .from("asset")
         .select("id", { count: "exact", head: true })
         .not("uploaded_by", "is", null)
-        .gte("created_at", monthStart(new Date())),
+        .gte("seen_at", monthStart(new Date())),
     ),
   ]);
 
