@@ -56,6 +56,12 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * 6. `encodedHash`: the hash of the bytes, which is where they will land
  * 7. `checkAssetUpload`: MIME, size, path, licence, identity, four quotas
  *
+ * An accepted upload does not always write, either. `checkAssetUpload` asks in
+ * the same round trip whether the staging store already holds an object with
+ * this hash, and an upload that repeats bytes the hub has takes the object it
+ * has (#132). That is one operation saved on every duplicate, which for
+ * placeholder buildpics is most of a roster.
+ *
  * ## 201 created, 200 replaced
  *
  * An identity the hub already holds is not automatically a refusal any more
@@ -189,22 +195,33 @@ export async function POST(request: Request) {
     return apiError(check.error, check.status);
   }
 
-  // The advanced operation. Nothing above it has written anything, and nothing
-  // below it can refuse the upload.
+  // The advanced operation, unless the store already holds these exact bytes.
+  // Nothing above it has written anything, and nothing below it can refuse the
+  // upload.
   //
   // `check.path` is where the hub asked for the bytes and `stored` is where
   // they went, which is not the same string: Blob appends a suffix nobody can
   // derive, and that suffix is the only thing standing between a pending
   // upload and a public URL (#131). Everything after this point uses `stored`,
   // because the derived path addresses no object.
+  //
+  // `check.stored` is #132: a staging object whose bytes are these bytes, since
+  // the hub computes the hash and the hash is the path. Reusing it costs
+  // nothing and writes nothing, so there is no operation to spend and no object
+  // this request would have to clean up if the row below fails. Two rows then
+  // name one object, which the database and both deleters are built for.
   let stored: string;
-  try {
-    stored = await putBlobAsset(check.path, bytes, parsed.declaration.mime);
-  } catch (error) {
-    if (error instanceof Error && error.message === BLOB_TOKEN_ERROR) {
-      return apiError(BLOB_TOKEN_ERROR, 503);
+  if (check.stored) {
+    stored = check.stored;
+  } else {
+    try {
+      stored = await putBlobAsset(check.path, bytes, parsed.declaration.mime);
+    } catch (error) {
+      if (error instanceof Error && error.message === BLOB_TOKEN_ERROR) {
+        return apiError(BLOB_TOKEN_ERROR, 503);
+      }
+      return apiError("The asset store would not accept that upload just now.", 502);
     }
-    return apiError("The asset store would not accept that upload just now.", 502);
   }
 
   // The row is written here rather than by a second call, because this request
@@ -227,19 +244,26 @@ export async function POST(request: Request) {
   );
 
   if (!assetId) {
-    // Deleting is free, so it is always worth trying. When it fails as well the
-    // object is sitting in a public store with nothing naming it, and Postgres
-    // is the only place a sweep can ever find it again: `list()` is banned, so
-    // an object nobody wrote down is an object nobody can reach (#113). Writing
-    // the name down is the last chance to keep it findable, and it is best
-    // effort too, because the upload has already failed and a second error
-    // helps nobody.
-    const gone = await deleteBlobAssets([stored]).then(
-      () => true,
-      () => false,
-    );
-    if (!gone) {
-      await recordUnclaimedObject(admin, stored, file.size).catch(() => false);
+    // Only an object this request made. A reused one belongs to the row that
+    // put it there and is still serving it, so deleting it here would take a
+    // picture away over a failure that has nothing to do with it, and recording
+    // it as unclaimed would queue the same thing for a sweep to do later.
+    //
+    // Otherwise: deleting is free, so it is always worth trying. When it fails
+    // as well the object is sitting in a public store with nothing naming it,
+    // and Postgres is the only place a sweep can ever find it again: `list()`
+    // is banned, so an object nobody wrote down is an object nobody can reach
+    // (#113). Writing the name down is the last chance to keep it findable, and
+    // it is best effort too, because the upload has already failed and a second
+    // error helps nobody.
+    if (!check.stored) {
+      const gone = await deleteBlobAssets([stored]).then(
+        () => true,
+        () => false,
+      );
+      if (!gone) {
+        await recordUnclaimedObject(admin, stored, file.size).catch(() => false);
+      }
     }
     return apiError("The asset was uploaded but its record could not be written.", 503);
   }

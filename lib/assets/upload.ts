@@ -187,6 +187,15 @@ export type AssetUploadCheck =
       path: string;
       /** The row a newer archive is replacing, or null on a first upload. */
       replacing: string | null;
+      /**
+       * The staging object that already holds these exact bytes, when the store
+       * has one (#132). Present means the caller writes nothing and puts this
+       * pathname on the row, which is an advanced operation saved.
+       *
+       * Absent on almost every upload, so it is optional in the same way
+       * `conflict` is rather than a null the caller has to read past.
+       */
+      stored?: string;
       conflict?: SourceConflict;
     }
   | { ok: false; error: string; status: number; conflict?: SourceConflict };
@@ -257,6 +266,31 @@ async function fetchLicence(
       allMaps.data as AssetLicenceRow | null,
     ),
   };
+}
+
+/**
+ * The staging object already holding these bytes, or null when there is none.
+ *
+ * The whole of #132's saving. Paths are content addressed on the hash of the
+ * encoded bytes and the hub computes that hash (#154), so a match here is an
+ * object byte for byte identical to the one this upload is about to write, and
+ * writing it again would spend one advanced operation out of 2,000 a month to
+ * leave the store exactly as it was. Placeholder buildpics repeat across a
+ * roster, so this is not a rare shape.
+ *
+ * A function rather than a filter, because "already holding" excludes objects
+ * that are on their way out and no PostgREST query says that in one round trip.
+ * `20260814260000_asset_object_reuse.sql` is where the rule is.
+ *
+ * Null when the query fails, which is the right way for an optimisation to fail:
+ * the upload writes its own object and costs what it always cost. Nothing else
+ * in this module reads a failed query as an absence, and the difference is that
+ * every other one is a limit.
+ */
+async function reusableObject(supabase: SupabaseClient, hash: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc("reusable_staging_object", { object_hash: hash });
+
+  return !error && typeof data === "string" ? data : null;
 }
 
 /**
@@ -382,29 +416,31 @@ export async function checkAssetUpload(
           .not("map_name", "is", null)
           .gte("seen_at", since);
 
-  const [licence, existing, unitRenders, accountBytes, recent, thisMonth] = await Promise.all([
-    fetchLicence(supabase, identity),
-    fetchExisting(supabase, identity),
-    identity.keyedOn === "unit" && identity.variant.startsWith(UNIT_RENDER_VARIANT_PREFIX)
-      ? countRows(
-          supabase
-            .from("asset")
-            .select("id", { count: "exact", head: true })
-            .eq("game", identity.game)
-            .eq("unit_name", identity.unitName)
-            .like("variant", `${UNIT_RENDER_VARIANT_PREFIX}%`),
-        )
-      : Promise.resolve(0),
-    supabase.rpc("account_asset_bytes", { account: userId }),
-    countRows(recentForSubject),
-    countRows(
-      supabase
-        .from("asset")
-        .select("id", { count: "exact", head: true })
-        .not("uploaded_by", "is", null)
-        .gte("seen_at", monthStart(new Date())),
-    ),
-  ]);
+  const [licence, existing, stored, unitRenders, accountBytes, recent, thisMonth] =
+    await Promise.all([
+      fetchLicence(supabase, identity),
+      fetchExisting(supabase, identity),
+      reusableObject(supabase, hash),
+      identity.keyedOn === "unit" && identity.variant.startsWith(UNIT_RENDER_VARIANT_PREFIX)
+        ? countRows(
+            supabase
+              .from("asset")
+              .select("id", { count: "exact", head: true })
+              .eq("game", identity.game)
+              .eq("unit_name", identity.unitName)
+              .like("variant", `${UNIT_RENDER_VARIANT_PREFIX}%`),
+          )
+        : Promise.resolve(0),
+      supabase.rpc("account_asset_bytes", { account: userId }),
+      countRows(recentForSubject),
+      countRows(
+        supabase
+          .from("asset")
+          .select("id", { count: "exact", head: true })
+          .not("uploaded_by", "is", null)
+          .gte("seen_at", monthStart(new Date())),
+      ),
+    ]);
 
   if (!licence.ok) return QUOTA_UNAVAILABLE;
   if (!licencePermits(licence.licence, origin)) {
@@ -539,7 +575,13 @@ export async function checkAssetUpload(
     };
   }
 
-  return { ok: true, path, replacing: replacing?.id ?? null, ...(conflict ? { conflict } : {}) };
+  return {
+    ok: true,
+    path,
+    replacing: replacing?.id ?? null,
+    ...(stored ? { stored } : {}),
+    ...(conflict ? { conflict } : {}),
+  };
 }
 
 /** Everything on the row that describes the bytes rather than the identity, and
