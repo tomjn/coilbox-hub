@@ -5,6 +5,7 @@ import {
   ASSET_MODERATION_STATES,
   ASSET_ORIGINS,
   ASSET_TIERS,
+  MAP_VARIANTS,
   UNIT_BUILDPIC_VARIANT,
   UNIT_RENDER_VARIANT_PREFIX,
 } from "./asset";
@@ -48,6 +49,10 @@ test("the database accepts exactly the approval sources the hub knows about", ()
   expect(listTheDatabaseAccepts("approval_source").sort()).toEqual(
     [...ASSET_APPROVAL_SOURCES].sort(),
   );
+});
+
+test("the database accepts exactly the map variants the hub knows about", () => {
+  expect(listTheDatabaseAccepts("variant").sort()).toEqual([...MAP_VARIANTS].sort());
 });
 
 /**

@@ -9,7 +9,7 @@
 -- item_rls.test.sql and table_privileges.test.sql alongside the existing ones.
 
 begin;
-select plan(35);
+select plan(42);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -75,7 +75,7 @@ select throws_ok(
 -- would mean three copies of one picture.
 select throws_ok(
   $$insert into public.asset (game, map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive)
-    values ('bar', 'Comet Catcher Remake 1.8', 'metal', 'src-f', 'enc-f', 'overlay-lossless', 'p', 'extracted', 'image/webp', 900, 512, 512, 8192, 8192, 'a.sd7')$$,
+    values ('bar', 'Comet Catcher Remake 1.8', 'overlay:metal', 'src-f', 'enc-f', 'overlay-lossless', 'p', 'extracted', 'image/webp', 900, 512, 512, 8192, 8192, 'a.sd7')$$,
   '23514',
   null,
   'a map asset cannot be scoped to one game'
@@ -120,10 +120,71 @@ select lives_ok(
   'a later revision of a map is its own row, not a replacement'
 );
 
+-- The map side of the variant vocabulary, which #105 closes now that the caps
+-- name all four of them.
 select lives_ok(
   $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive)
-    values ('Comet Catcher Remake 1.8', 'metal', 'src-l', 'enc-l', 'overlay-lossless', 'map/comet/metal/enc-l.webp', 'extracted', 'image/webp', 9000, 512, 512, 8192, 8192, 'comet_catcher_remake_1.8.sd7')$$,
-  'the map side takes any variant name, since the overlay layers are not all written yet'
+    values ('Comet Catcher Remake 1.8', 'overlay:metal', 'src-l', 'enc-l', 'overlay-lossless', 'maps/overlay/metal/enc-l.webp', 'extracted', 'image/webp', 9000, 512, 512, 8192, 8192, 'comet_catcher_remake_1.8.sd7')$$,
+  'a map takes the minimap and the three overlay layers'
+);
+
+-- Two writers, one vocabulary. The route refuses this list too, but the seed
+-- (#110) writes rows without going near the route, and 'metal' where the rest
+-- of the hub says 'overlay:metal' is a picture that resolves for nobody.
+select throws_ok(
+  $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive)
+    values ('Comet Catcher Remake 1.8', 'metal', 'src-l2', 'enc-l2', 'overlay-lossless', 'p', 'extracted', 'image/webp', 9000, 512, 512, 8192, 8192, 'a.sd7')$$,
+  '23514',
+  null,
+  'a map variant outside the vocabulary is refused'
+);
+
+-- The height overlay is a linear ramp between two world heights, and only the
+-- archive has them. A row without them stores a picture of a heightmap.
+select lives_ok(
+  $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, world_height_min, world_height_max, source_archive)
+    values ('Comet Catcher Remake 1.8', 'overlay:height', 'src-l3', 'enc-l3', 'height-png16', 'maps/overlay/height/enc-l3.png', 'extracted', 'image/png', 90000, 513, 513, 8192, 8192, -40.5, 320.25, 'comet_catcher_remake_1.8.sd7')$$,
+  'a height overlay records the elmo range its ramp spans'
+);
+
+select throws_ok(
+  $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive)
+    values ('Tangerine 1.1', 'overlay:height', 'src-l4', 'enc-l4', 'height-png16', 'p', 'extracted', 'image/png', 90000, 513, 513, 8192, 8192, 'a.sd7')$$,
+  '23514',
+  null,
+  'a height overlay without its world range is refused'
+);
+
+select throws_ok(
+  $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, world_height_min, world_height_max, source_archive)
+    values ('Tangerine 1.1', 'minimap', 'src-l5', 'enc-l5', 'minimap-q80', 'p', 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 0, 320, 'a.sd7')$$,
+  '23514',
+  null,
+  'a world range on anything but a height overlay is refused'
+);
+
+select throws_ok(
+  $$insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, world_height_min, world_height_max, source_archive)
+    values ('bar', 'armllt', 'buildpic', 'src-l6', 'enc-l6', 'buildpic-lossless', 'p', 'extracted', 'image/webp', 900, 128, 128, 0, 320, 'a.sdd')$$,
+  '23514',
+  null,
+  'a unit asset carrying a world range is refused'
+);
+
+-- A flat map has one height, so the ends may meet. A reversed range reads every
+-- sample upside down and nothing about the result looks wrong.
+select lives_ok(
+  $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, world_height_min, world_height_max, source_archive)
+    values ('Flatland 1.0', 'overlay:height', 'src-l7', 'enc-l7', 'height-png16', 'maps/overlay/height/enc-l7.png', 'extracted', 'image/png', 9000, 129, 129, 1024, 1024, 100, 100, 'flatland_1.0.sd7')$$,
+  'a flat map may have a range of no width'
+);
+
+select throws_ok(
+  $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, world_height_min, world_height_max, source_archive)
+    values ('Tangerine 1.1', 'overlay:height', 'src-l8', 'enc-l8', 'height-png16', 'p', 'extracted', 'image/png', 9000, 129, 129, 1024, 1024, 320, 0, 'a.sd7')$$,
+  '23514',
+  null,
+  'a reversed world range is refused'
 );
 
 -- map_width and map_height are the map in world units, not the texture in
