@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssetTier, ModeratorRejectionKind } from "./asset";
-import { blobTierUrl } from "./blob";
-import { staticTierUrl } from "./cdn";
+import { assetTierUrl } from "./resolve";
 import { fetchSourceConflicts } from "./sourceConflict";
 
 /**
@@ -167,20 +166,6 @@ export async function fetchPictureQueue(
   };
 }
 
-/**
- * Where a row's bytes actually are.
- *
- * Two rungs of the ladder #108 owns, called directly because the resolver does
- * not exist yet and the queue needs an answer today. #108 replaces the body and
- * keeps the shape: given a row, an absolute URL. The rungs it adds, the atlas
- * and the substitutes, are all things to show in place of a picture the hub
- * holds, and a moderator has to see the picture itself, so this caller will
- * always want the plain object.
- */
-export function assetTierUrl(tier: AssetTier, path: string): string {
-  return tier === "static" ? staticTierUrl(path) : blobTierUrl(path);
-}
-
 export interface AssetObject {
   url: string;
   mime: string;
@@ -196,6 +181,11 @@ export interface AssetObject {
  * A rejected row included, which #115 turns from a convenience into a
  * requirement: the bytes are the thing a report is about, and a moderator who
  * cannot see what they rejected cannot describe it to anybody.
+ *
+ * The bare tier rung rather than `resolveAsset` in `./resolve`, deliberately.
+ * That ladder serves the public site, so it refuses anything unapproved and
+ * substitutes a drawing for a picture it cannot find, and both are the opposite
+ * of what a reviewer needs. This asks for one row's own bytes and nothing else.
  */
 export async function fetchAssetObject(
   supabase: SupabaseClient,
