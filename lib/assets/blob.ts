@@ -139,7 +139,9 @@ export function requireBlobToken(): string {
 }
 
 /**
- * Write one object to the staging tier. Returns its absolute URL.
+ * Write one object to the staging tier. Returns the path it actually landed at,
+ * which is the caller's path plus a suffix Blob chose and is the value that
+ * belongs on the row.
  *
  * The only advanced operation this codebase makes, so it is the only function
  * with a per-call cost against 2,000 a month. Everything an upload can be
@@ -152,12 +154,19 @@ export function requireBlobToken(): string {
  * - `access: "public"` is deliberate. It is what puts delivery on the blob data
  *   transfer meter instead of fast data transfer, and everything the hub stores
  *   here is a picture it intends to show.
- * - `addRandomSuffix: false` because the row stores the path, and a suffix the
- *   database never saw makes the object unreachable from it. This is the SDK
- *   default in v2 and is set anyway, since the whole scheme rests on it.
- * - `allowOverwrite: true` because paths are content addressed, so the same
- *   path is the same bytes and rewriting them changes nothing. Without it a
- *   retry after a partial failure throws and strands the row.
+ * - `addRandomSuffix: true` because the store is public and a pending upload is
+ *   reachable the moment this returns, so the only thing keeping it out of
+ *   sight until a reviewer has seen it is that nobody knows where it is. The
+ *   caller's path is derived from the identity and the hash of the bytes, and
+ *   the uploader holds the bytes, so the uploader can compute it. The suffix is
+ *   Blob's and nobody can compute it, which is what makes an undisclosed URL
+ *   undisclosed (#131). This is not the SDK default, so it is set here and
+ *   again on the client direct token in `app/api/v1/assets/upload/token`.
+ *
+ * `allowOverwrite` is absent because with a suffix there is nothing to
+ * overwrite: every call lands at a key that did not exist. The cost is that a
+ * retry after a partial failure writes a second object rather than replacing
+ * the first, which is an orphan for #113 rather than a stranded row.
  *
  * `cacheControlMaxAge` is left at the SDK default of one month, which already
  * outlives the object: promotion (#111) moves anything approved out after seven
@@ -172,13 +181,12 @@ export async function putBlobAsset(
 
   const result = await put(pathname(path), body, {
     access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
+    addRandomSuffix: true,
     contentType,
     token,
   });
 
-  return result.url;
+  return result.pathname;
 }
 
 /**
