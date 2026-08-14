@@ -53,6 +53,15 @@ const BUTTON =
 const TILE =
   "flex cursor-pointer flex-col gap-2 rounded-md border border-neutral-800 bg-neutral-950 p-2 opacity-40 grayscale transition-all hover:border-neutral-600 has-checked:border-neutral-400 has-checked:opacity-100 has-checked:grayscale-0 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-neutral-300";
 
+/** The two rejections a tile offers (issue #115). Quiet for the everyday one
+ * and red for the one that cannot be undone, so the two are told apart before
+ * the label is read rather than after. */
+const REJECT =
+  "rounded-sm bg-black/70 px-2 py-1.5 text-xs text-neutral-400 transition-colors hover:bg-black hover:text-neutral-100 focus-visible:text-neutral-100";
+
+const REJECT_UNSAFE =
+  "rounded-sm bg-black/70 px-2 py-1.5 text-xs text-red-500 transition-colors hover:bg-black hover:text-red-300 focus-visible:text-red-300";
+
 function waitingLine(shown: number, total: number): string {
   if (total > shown) return `The ${shown} oldest of ${total} waiting.`;
   return total === 1 ? "One picture waiting." : `${total} pictures waiting.`;
@@ -73,12 +82,20 @@ export default async function PictureQueue() {
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-12">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-3xl font-semibold tracking-tight">Pictures</h1>
-          <Link
-            href="/moderation"
-            className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-          >
-            Reports
-          </Link>
+          <div className="flex gap-4">
+            <Link
+              href="/moderation/trail"
+              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+            >
+              Trail
+            </Link>
+            <Link
+              href="/moderation"
+              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+            >
+              Reports
+            </Link>
+          </div>
         </div>
 
         {waiting.length === 0 ? (
@@ -87,17 +104,28 @@ export default async function PictureQueue() {
           </p>
         ) : (
           <>
-            {/* The reject buttons down in the grid belong to this form rather
+            {/* The reject buttons down in the grid belong to these forms rather
                 than to the one around them, which is what the `form` attribute
                 is for. A form cannot be nested inside another, and rejecting one
-                picture must not carry every other picture's tick with it. */}
-            <form id="reject-picture" action={rejectOne} />
+                picture must not carry every other picture's tick with it.
+
+                One form per kind (#115), because a submit button carries one
+                name and one value and the tile's button has to spend those on
+                saying which picture. The kind rides along as a hidden field, so
+                which button was pressed is which form was submitted. */}
+            <form id="reject-editorial" action={rejectOne}>
+              <input type="hidden" name="kind" value="editorial" />
+            </form>
+            <form id="reject-safety" action={rejectOne}>
+              <input type="hidden" name="kind" value="safety" />
+            </form>
 
             <form action={approveSelected} className="flex flex-col gap-5">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <p className="text-sm text-neutral-400">
                   {waitingLine(waiting.length, total)} Untick anything you are not
-                  sure about, and reject anything that does not belong.
+                  sure about. Reject what does not belong here, and mark as unsafe
+                  anything illegal or seriously harmful, which is final.
                 </p>
                 <button type="submit" className={BUTTON}>
                   Approve the ticked
@@ -142,16 +170,33 @@ export default async function PictureQueue() {
                         </span>
                       </span>
                     </label>
-                    <button
-                      type="submit"
-                      form="reject-picture"
-                      name="asset"
-                      value={picture.id}
-                      className="absolute top-3 right-3 rounded-sm bg-black/70 px-2 py-1 text-xs text-neutral-400 transition-colors hover:bg-black hover:text-red-400 focus-visible:text-red-400"
-                    >
-                      Reject
-                      <span className="sr-only"> {picture.name}</span>
-                    </button>
+                    <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
+                      <button
+                        type="submit"
+                        form="reject-editorial"
+                        name="asset"
+                        value={picture.id}
+                        title="Out of scope, the wrong game, a duplicate or junk. Can be put back."
+                        className={REJECT}
+                      >
+                        Reject
+                        <span className="sr-only"> {picture.name} as not belonging here</span>
+                      </button>
+                      <button
+                        type="submit"
+                        form="reject-safety"
+                        name="asset"
+                        value={picture.id}
+                        title="Illegal or seriously harmful. Nothing in the hub can undo this."
+                        className={REJECT_UNSAFE}
+                      >
+                        Unsafe
+                        <span className="sr-only">
+                          {" "}
+                          {picture.name} on safety grounds, which cannot be undone
+                        </span>
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

@@ -306,7 +306,8 @@ select lives_ok(
 -- #115 has to be able to demonstrate afterwards, so rejecting must not have to
 -- destroy the record of who approved it first.
 select lives_ok(
-  $$update public.asset set moderation = 'rejected' where hash = 'enc-m'$$,
+  $$update public.asset set moderation = 'rejected', rejection_kind = 'safety'
+    where hash = 'enc-m'$$,
   'an approved row can be rejected later'
 );
 
@@ -316,7 +317,8 @@ select is(
 );
 
 select lives_ok(
-  $$update public.asset set moderation = 'rejected' where hash = 'enc-q'$$,
+  $$update public.asset set moderation = 'rejected', rejection_kind = 'editorial'
+    where hash = 'enc-q'$$,
   'a row rejected straight out of the queue was never approved by anything'
 );
 

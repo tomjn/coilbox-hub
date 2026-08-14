@@ -42,9 +42,9 @@ insert into public.asset (game, unit_name, variant, source_hash, hash, encode_pr
 values
   ('bar', 'armsolar', 'render:front', 'src-p', 'enc-pending', 'render-q80', 'unit/bar/armsolar/render-front/enc-pending.webp', 'rendered', 'image/webp', 8192, 256, 256, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111');
 
-insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive, moderation)
+insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive, moderation, rejection_kind)
 values
-  ('Tangerine 1.1', 'minimap', 'src-r', 'enc-rejected', 'minimap-q80', 'map/tangerine/minimap/enc-rejected.webp', 'uploaded', 'image/webp', 40000, 512, 512, 8192, 8192, 'tangerine_1.1.sd7', 'rejected');
+  ('Tangerine 1.1', 'minimap', 'src-r', 'enc-rejected', 'minimap-q80', 'map/tangerine/minimap/enc-rejected.webp', 'uploaded', 'image/webp', 40000, 512, 512, 8192, 8192, 'tangerine_1.1.sd7', 'rejected', 'editorial');
 
 -- A visitor with no account at all.
 reset role;
@@ -207,8 +207,15 @@ select lives_ok(
 -- approval_source alone, which asset_approval_state_check permits and #115
 -- depends on: on a rejected row the column reads how it was approved before it
 -- was rejected, and is null when it never was.
+--
+-- It does have to say which kind of rejection it is (#115), which
+-- asset_rejection_state_check requires of every rejected row. That is the
+-- opposite requirement to approval_source above and they are not in tension:
+-- one is a fact about the past that may be absent, the other is the decision
+-- being made now.
 select lives_ok(
-  $$update public.asset set moderation = 'rejected' where hash = 'enc-new'$$,
+  $$update public.asset set moderation = 'rejected', rejection_kind = 'editorial'
+    where hash = 'enc-new'$$,
   'and rejects one without having to say what approved it'
 );
 

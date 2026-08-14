@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AssetTier } from "./asset";
+import type { AssetTier, ModeratorRejectionKind } from "./asset";
 import { blobTierUrl } from "./blob";
 import { staticTierUrl } from "./cdn";
 
@@ -180,6 +180,10 @@ export interface AssetObject {
  * Every moderation state, not just pending. A moderator looking at a picture
  * they have just approved or rejected should not get a broken image, and an
  * approved row's bytes are public anyway.
+ *
+ * A rejected row included, which #115 turns from a convenience into a
+ * requirement: the bytes are the thing a report is about, and a moderator who
+ * cannot see what they rejected cannot describe it to anybody.
  */
 export async function fetchAssetObject(
   supabase: SupabaseClient,
@@ -205,6 +209,12 @@ export async function fetchAssetObject(
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Whether a value taken off a form or a query string may be used as an id at
+ * all. Account ids arrive the same way row ids do, so the trail asks this too. */
+export function isUuid(value: string): boolean {
+  return UUID.test(value);
+}
+
 /**
  * The ids a submitted form is allowed to act on.
  *
@@ -214,21 +224,31 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * rather than a second row.
  */
 export function pictureIds(values: string[]): string[] {
-  return [...new Set(values.filter((value) => UUID.test(value)))].slice(0, QUEUE_PAGE_SIZE);
+  return [...new Set(values.filter(isUuid))].slice(0, QUEUE_PAGE_SIZE);
 }
+
+/**
+ * The three writes, and why none of them is a PostgREST update any more (#115).
+ *
+ * Each one is a call to a security definer function in
+ * `20260814220200_asset_moderation_functions.sql`, and each one wants the
+ * moderator's own session client rather than the admin client the reads above
+ * use. That is the opposite way round from the rest of this file and it is the
+ * point: `public.asset_event` records who made every decision, and it reads
+ * `auth.uid()`, which is null on anything written with the secret key. A write
+ * made as `service_role` would log the decision and not the decider.
+ *
+ * The functions ask `is_moderator()` for themselves before they write, so
+ * `authenticated` still holds no update grant on `public.asset` and these are
+ * the only way a session moves a row.
+ */
 
 /**
  * Approve pictures, and return how many rows actually moved.
  *
- * `moderation` and `approval_source` are set together because
- * `asset_approval_state_check` will not have an approved row that does not say
- * what approved it. `moderator` is the value for a person doing it in the grid,
- * as against `seed` and `bypass`, which are the two ways a row skips this queue
- * entirely.
- *
- * Narrowed to rows that are still pending. A moderator holding a tab open from
- * an hour ago should not re-approve something another moderator has since
- * rejected, and without this filter the stale tab wins.
+ * Narrowed inside the function to rows that are still pending. A moderator
+ * holding a tab open from an hour ago should not re-approve something another
+ * moderator has since rejected, and without that filter the stale tab wins.
  */
 export async function approvePictures(
   supabase: SupabaseClient,
@@ -236,40 +256,45 @@ export async function approvePictures(
 ): Promise<number> {
   if (ids.length === 0) return 0;
 
-  const { data } = await supabase
-    .from("asset")
-    .update({ moderation: "approved", approval_source: "moderator" })
-    .in("id", ids)
-    .eq("moderation", "pending")
-    .select("id");
+  const { data } = await supabase.rpc("approve_assets", { ids });
 
-  return data?.length ?? 0;
+  return typeof data === "number" ? data : 0;
 }
 
 /**
- * Reject one picture, so the anomaly leaves the queue rather than coming back on
- * the next page.
+ * Reject one picture, saying which kind of rejection it is.
  *
- * The whole of rejection that the grid needs, and deliberately not the whole of
- * #115. It records no reason, keeps no audit row and tells the uploader nothing.
- * `approval_source` is untouched on purpose: the table's rule is that on a
- * rejected row it reads "how this was approved before it was rejected", which is
- * the record #115 needs when a rejection overturns an approval.
+ * Nothing deletes the object. Nobody holds delete on `public.asset`, the bytes
+ * stay in the store, and a safety rejection freezes the row against every
+ * writer including the secret key, so the picture and its provenance are still
+ * there afterwards to be handed to whoever asks for them.
  *
- * Nothing deletes the object. Nobody holds delete on `public.asset` and the
- * bytes stay in the store for #113 to sweep, so a rejection is reversible by a
- * person who can reach the database and irreversible through the hub.
+ * `approval_source` is untouched on purpose: on a rejected row it reads "how
+ * this was approved before it was rejected", which is the record #115 needs
+ * when a rejection overturns an approval.
  */
 export async function rejectPicture(
   supabase: SupabaseClient,
   id: string,
+  kind: ModeratorRejectionKind,
 ): Promise<boolean> {
-  const { data } = await supabase
-    .from("asset")
-    .update({ moderation: "rejected" })
-    .eq("id", id)
-    .eq("moderation", "pending")
-    .select("id");
+  const { data } = await supabase.rpc("reject_asset", { asset_id: id, kind });
 
-  return (data?.length ?? 0) > 0;
+  return data === true;
+}
+
+/**
+ * Put an editorial rejection back in the queue, and refuse to do it to a safety
+ * rejection.
+ *
+ * The refusal is the function's and the table's rather than this one's. What is
+ * here is the call.
+ */
+export async function returnPicture(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<boolean> {
+  const { data } = await supabase.rpc("return_asset", { asset_id: id });
+
+  return data === true;
 }

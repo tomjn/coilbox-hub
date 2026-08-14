@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(21);
+select plan(27);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -56,6 +56,29 @@ select table_privs_are('public', 'asset', 'authenticated', ARRAY['SELECT'],
 select table_privs_are('public', 'asset', 'service_role',
   ARRAY['SELECT', 'INSERT', 'UPDATE'],
   'service_role can read and write asset, and cannot delete');
+
+-- public.asset_event: the audit trail (issue #115), which nothing writes but
+-- the trigger that keeps it. The trigger is security definer and therefore
+-- writes as the table owner, so no role holds insert, update or delete, and a
+-- compromised secret key can make decisions it cannot then tidy up after. The
+-- trail page reads it server side, which is the one grant.
+select table_privs_are('public', 'asset_event', 'anon', ARRAY[]::name[],
+  'anon holds no table privilege on asset_event');
+select table_privs_are('public', 'asset_event', 'authenticated', ARRAY[]::name[],
+  'authenticated holds no table privilege on asset_event, so who moderated what is not served to a browser');
+select table_privs_are('public', 'asset_event', 'service_role', ARRAY['SELECT'],
+  'service_role reads the audit trail and cannot write or erase a line of it');
+
+-- public.asset_upload_ip: where an upload came from (issue #115). Write only,
+-- including for the secret key, so the hub can record an address and nothing
+-- in it can read one back. Retention is a trigger on public.asset rather than
+-- a grant, and asset_rejection.test.sql is what proves it.
+select table_privs_are('public', 'asset_upload_ip', 'anon', ARRAY[]::name[],
+  'anon holds no table privilege on asset_upload_ip');
+select table_privs_are('public', 'asset_upload_ip', 'authenticated', ARRAY[]::name[],
+  'authenticated holds no table privilege on asset_upload_ip');
+select table_privs_are('public', 'asset_upload_ip', 'service_role', ARRAY['INSERT'],
+  'service_role records an uploader address and cannot read one back');
 
 -- public.asset_licence: read by the route so it can answer whether the hub may
 -- publish a subject's pictures at all, and written only by a migration, where

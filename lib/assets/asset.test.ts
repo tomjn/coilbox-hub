@@ -2,10 +2,13 @@ import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import {
   ASSET_APPROVAL_SOURCES,
+  ASSET_EVENT_ACTIONS,
   ASSET_MODERATION_STATES,
   ASSET_ORIGINS,
+  ASSET_REJECTION_KINDS,
   ASSET_TIERS,
   MAP_VARIANTS,
+  MODERATOR_REJECTION_KINDS,
   UNIT_BUILDPIC_VARIANT,
   UNIT_RENDER_VARIANT_PREFIX,
 } from "./asset";
@@ -18,10 +21,12 @@ import {
  * check on its own.
  */
 
-/** The last migration that constrains `column`, read for its literal list. */
+/** The last migration that constrains `column`, read for its literal list.
+ * Anchored on a word boundary, so asking about `kind` does not read back the
+ * list belonging to `rejection_kind`. */
 function listTheDatabaseAccepts(column: string): string[] {
   const dir = "supabase/migrations";
-  const pattern = new RegExp(`${column} in \\(([^)]*)\\)`);
+  const pattern = new RegExp(`\\b${column} in \\(([^)]*)\\)`);
   const constraint = readdirSync(dir)
     .sort()
     .map((file) => readFileSync(`${dir}/${file}`, "utf8"))
@@ -49,6 +54,27 @@ test("the database accepts exactly the approval sources the hub knows about", ()
   expect(listTheDatabaseAccepts("approval_source").sort()).toEqual(
     [...ASSET_APPROVAL_SOURCES].sort(),
   );
+});
+
+test("the database accepts exactly the rejection kinds the hub knows about", () => {
+  expect(listTheDatabaseAccepts("rejection_kind").sort()).toEqual(
+    [...ASSET_REJECTION_KINDS].sort(),
+  );
+});
+
+/**
+ * `unrecorded` is the backfill for rows rejected before there were kinds, and
+ * `reject_asset` refuses it. A grid that offered it would let a moderator
+ * decide today and decline to say what they decided, which is the hole #115
+ * closes.
+ */
+test("a moderator may only choose between the two real kinds", () => {
+  expect([...MODERATOR_REJECTION_KINDS].sort()).toEqual(["editorial", "safety"]);
+  expect(MODERATOR_REJECTION_KINDS as readonly string[]).not.toContain("unrecorded");
+});
+
+test("the database accepts exactly the audit actions the hub knows about", () => {
+  expect(listTheDatabaseAccepts("action").sort()).toEqual([...ASSET_EVENT_ACTIONS].sort());
 });
 
 test("the database accepts exactly the map variants the hub knows about", () => {

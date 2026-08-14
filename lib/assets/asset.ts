@@ -61,6 +61,57 @@ export const ASSET_APPROVAL_SOURCES = ["seed", "bypass", "moderator"] as const;
 
 export type AssetApprovalSource = (typeof ASSET_APPROVAL_SOURCES)[number];
 
+/**
+ * Which sort of rejection a rejected row is (issue #115), set on every rejected
+ * row and on nothing else.
+ *
+ * `safety` is the picture being the problem, which is illegal or seriously
+ * harmful content. It is never overturned, and
+ * `asset_safety_rejection_is_final` in the database is what makes that true
+ * rather than intended. `editorial` is the upload being the problem, out of
+ * scope, the wrong game, a duplicate or junk, and it can be put back in the
+ * queue.
+ *
+ * `unrecorded` is what the rows rejected before kinds existed were backfilled
+ * to. Nothing writes it: `reject_asset` refuses it, and it is in the list
+ * because the database accepts it on those older rows.
+ *
+ * Novelty and troll maps are content the hub allows, so they are not a
+ * rejection of either kind.
+ */
+export const ASSET_REJECTION_KINDS = ["safety", "editorial", "unrecorded"] as const;
+
+export type AssetRejectionKind = (typeof ASSET_REJECTION_KINDS)[number];
+
+/** The two a moderator may choose, in the order the grid offers them. */
+export const MODERATOR_REJECTION_KINDS = ["editorial", "safety"] as const;
+
+export type ModeratorRejectionKind = (typeof MODERATOR_REJECTION_KINDS)[number];
+
+export function isModeratorRejectionKind(value: string): value is ModeratorRejectionKind {
+  return (MODERATOR_REJECTION_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * What `public.asset_event` records, which is every transition that changes
+ * what the public can see.
+ *
+ * `seeded` and `bypassed` are the two trusted paths, and they stay apart for
+ * the reason #101 splits the capabilities behind them: seeding content and
+ * waiving the queue are different decisions. `returned` is a row going back to
+ * pending, either because a moderator undid an editorial rejection or because a
+ * newer archive replaced the bytes.
+ */
+export const ASSET_EVENT_ACTIONS = [
+  "seeded",
+  "bypassed",
+  "approved",
+  "rejected",
+  "returned",
+] as const;
+
+export type AssetEventAction = (typeof ASSET_EVENT_ACTIONS)[number];
+
 /** The only variant a unit has besides a render. */
 export const UNIT_BUILDPIC_VARIANT = "buildpic";
 
@@ -163,6 +214,9 @@ export interface AssetRow {
   /** Null while pending, and null on a row rejected without ever having been
    * approved. Set for anything the hub is serving. */
   approval_source: AssetApprovalSource | null;
+  /** Set on a rejected row and null on every other, which the table enforces
+   * both ways. */
+  rejection_kind: AssetRejectionKind | null;
 
   created_at: string;
   updated_at: string;
