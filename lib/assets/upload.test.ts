@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssetIdentity } from "./asset";
+import { ASSET_CAPS } from "./caps";
 import type { AssetLicenceRow, AssetRedistribution } from "./licence";
 import {
   ACCOUNT_STORAGE_QUOTA_BYTES,
@@ -8,7 +9,7 @@ import {
   type AssetUploadDeclaration,
   MONTHLY_UPLOAD_BUDGET,
   SUBJECT_UPLOADS_PER_HOUR,
-  UNIT_VARIANT_CEILING,
+  UNIT_RENDER_CEILING,
   checkAssetUpload,
 } from "./upload";
 
@@ -21,11 +22,16 @@ const UNIT: AssetIdentity = {
   variant: "buildpic",
 };
 
+const RENDER: AssetIdentity = { ...UNIT, variant: "render:315" };
+
 const MAP: AssetIdentity = {
   keyedOn: "map",
   mapName: "Comet Catcher Remake 1.8",
   variant: "minimap",
 };
+
+/** The one class with no cap of its own, so the backstop is what refuses it. */
+const HEIGHT_OVERLAY: AssetIdentity = { ...MAP, variant: "overlay:height" };
 
 function declaration(overrides: Partial<AssetUploadDeclaration> = {}): AssetUploadDeclaration {
   return {
@@ -94,7 +100,7 @@ interface World {
   perMapLicence: AssetLicenceRow | null;
   allMapsLicence: AssetLicenceRow | null;
   existing: ExistingRow | null;
-  unitVariants: number;
+  unitRenders: number;
   accountBytes: number;
   recent: number;
   thisMonth: number;
@@ -107,7 +113,7 @@ function world(overrides: Partial<World> = {}): World {
     perMapLicence: null,
     allMapsLicence: licence("allowed"),
     existing: null,
-    unitVariants: 0,
+    unitRenders: 0,
     accountBytes: 0,
     recent: 0,
     thisMonth: 0,
@@ -151,7 +157,7 @@ function fakeSupabase(state: World, seen: Query[] = []): SupabaseClient {
     if (query.filters.includes("eq:uploaded_by")) {
       return { count: state.recent, error: null };
     }
-    return { count: state.unitVariants, error: null };
+    return { count: state.unitRenders, error: null };
   };
 
   const from = (table: string) => {
@@ -168,6 +174,10 @@ function fakeSupabase(state: World, seen: Query[] = []): SupabaseClient {
       },
       not: (column: string) => {
         query.filters.push(`not:${column}`);
+        return builder;
+      },
+      like: (column: string, pattern: string) => {
+        query.filters.push(`like:${column}:${pattern}`);
         return builder;
       },
       or: (filter: string) => {
@@ -235,6 +245,40 @@ test("an object over the cap is refused without asking the database", async () =
   if (result.ok) return;
   expect(result.status).toBe(413);
   expect(seen).toEqual([]);
+});
+
+/**
+ * A class with a fixed longest edge says what its bytes may be far more tightly
+ * than the backstop does, and the dimension cap does not say it: metadata is
+ * unbounded and no decoder reads it, so a 256px buildpic can weigh two
+ * megabytes and still measure 256px.
+ */
+test("the object cap is the class's rather than one number for everything", async () => {
+  const buildpicCap = ASSET_CAPS.buildpic.maxBytes as number;
+  expect(buildpicCap).toBeLessThan(ASSET_MAX_OBJECT_BYTES);
+
+  expect((await check(world(), { bytes: buildpicCap })).ok).toBe(true);
+
+  const result = await check(world(), { bytes: buildpicCap + 1 });
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.status).toBe(413);
+  expect(result.error).toContain("buildpic");
+});
+
+/** The overlays are sampled from the map's own grids, so there is no edge to
+ * derive a number from and the backstop is what answers for them. */
+test("a class with no cap of its own takes the backstop", async () => {
+  const overlay = {
+    identity: HEIGHT_OVERLAY,
+    mime: "image/png",
+    mapWidth: 8192,
+    mapHeight: 8192,
+  };
+
+  expect(ASSET_CAPS["overlay:height"].maxBytes).toBeNull();
+  expect((await check(world(), { ...overlay, bytes: ASSET_MAX_OBJECT_BYTES })).ok).toBe(true);
+  expect((await check(world(), { ...overlay, bytes: ASSET_MAX_OBJECT_BYTES + 1 })).ok).toBe(false);
 });
 
 test("an identity that cannot be spelled as a path is refused without asking the database", async () => {
@@ -372,25 +416,47 @@ test("a replacement is refused when the subject's permission has been revoked", 
   ).toBe(false);
 });
 
-test("a unit at the variant ceiling takes no more", async () => {
-  expect((await check(world({ unitVariants: UNIT_VARIANT_CEILING - 1 }))).ok).toBe(true);
+test("a unit at the render ceiling takes no more", async () => {
+  const render = { identity: RENDER, origin: "rendered" as const };
 
-  const result = await check(world({ unitVariants: UNIT_VARIANT_CEILING }));
+  expect((await check(world({ unitRenders: UNIT_RENDER_CEILING - 1 }), render)).ok).toBe(true);
+
+  const result = await check(world({ unitRenders: UNIT_RENDER_CEILING }), render);
   expect(result.ok).toBe(false);
   if (result.ok) return;
   expect(result.status).toBe(409);
 });
 
-/** The ceiling is on stored variants and a replacement stores no new one, so it
+/** The ceiling is on stored renders and a replacement stores no new one, so it
  * is measured against what the table holds afterwards rather than before. */
-test("a unit at the variant ceiling can still have one of its variants replaced", async () => {
-  const atCeiling = world({ existing: held(), unitVariants: UNIT_VARIANT_CEILING });
+test("a unit at the render ceiling can still have one of its renders replaced", async () => {
+  const atCeiling = world({ existing: held(), unitRenders: UNIT_RENDER_CEILING });
 
-  expect((await check(atCeiling)).ok).toBe(true);
+  expect((await check(atCeiling, { identity: RENDER, origin: "rendered" })).ok).toBe(true);
 });
 
-test("the variant ceiling is a unit rule and does not apply to maps", async () => {
-  const result = await check(world({ unitVariants: UNIT_VARIANT_CEILING + 50 }), {
+/**
+ * The correction #107 asks for. Counting every variant made a unit full of
+ * renders turn away its buildpic, which is the one picture every unit wants and
+ * the class the issue calls negligible. It counts renders, so it refuses
+ * renders. The buildpic never asks, so the count is not even read.
+ */
+test("a unit full of renders still takes its buildpic", async () => {
+  const seen: Query[] = [];
+  const result = await checkAssetUpload(
+    fakeSupabase(world({ unitRenders: UNIT_RENDER_CEILING + 50 }), seen),
+    USER,
+    declaration(),
+  );
+
+  expect(result.ok).toBe(true);
+  expect(seen.some((query) => query.filters.some((filter) => filter.startsWith("like:")))).toBe(
+    false,
+  );
+});
+
+test("the render ceiling is a unit rule and does not apply to maps", async () => {
+  const result = await check(world({ unitRenders: UNIT_RENDER_CEILING + 50 }), {
     identity: MAP,
     mapWidth: 8192,
     mapHeight: 8192,
@@ -417,6 +483,20 @@ test("a replacement is charged the difference rather than the whole object", asy
 
   expect((await check(world(full), { bytes: 4096 })).ok).toBe(true);
   expect((await check(world(full), { bytes: 4097 })).ok).toBe(false);
+});
+
+/**
+ * #107 asks for this one per user per game, and on a unit asset that is what the
+ * subject is. Asserted on the filters rather than on the count, because a limit
+ * that counted the account's uploads across every game would pass every count
+ * based test in this file and still be the wrong rule.
+ */
+test("the hourly limit is scoped to one account and one game", async () => {
+  const seen: Query[] = [];
+  await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration());
+
+  const hourly = seen.find((query) => query.filters.includes("eq:uploaded_by"));
+  expect(hourly?.filters).toEqual(["eq:uploaded_by", "eq:game", "gte:seen_at"]);
 });
 
 test("a client looping on one subject is slowed down rather than served", async () => {

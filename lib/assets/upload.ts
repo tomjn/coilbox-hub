@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AssetIdentity, AssetOrigin } from "./asset";
+import { type AssetIdentity, type AssetOrigin, UNIT_RENDER_VARIANT_PREFIX } from "./asset";
 import { BLOB_ADVANCED_OPERATIONS_PER_MONTH } from "./blob";
+import { capForVariant } from "./caps";
 import { identityFilter } from "./have";
 import { type AssetLicenceRow, licenceForMap, mayRedistribute } from "./licence";
 import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
@@ -39,12 +40,13 @@ import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
  * the last pure check and the first database one. They need the bytes and this
  * module never sees them, and they need no round trip, so putting them here
  * would only move a check the request can answer on its own behind one that
- * costs a query.
+ * costs a query. The per class byte ceiling is the exception and is read here,
+ * because a byte count is the one thing about a picture the declaration carries.
  */
 
 /**
- * The largest object the hub will take, well under the 4.5 MB the platform
- * refuses a function body at.
+ * The largest object the hub will take from a class that has no number of its
+ * own, well under the 4.5 MB the platform refuses a function body at.
  *
  * The platform limit is free enforcement that runs before any code here does,
  * so this number is not about protecting the function. It is about what a game
@@ -52,7 +54,12 @@ import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
  * 150 KB, so 2 MB is more than an order of magnitude of headroom and anything
  * over it is not the thing it claims to be.
  *
- * #107 owns this number and may tighten it per class.
+ * It is a backstop rather than the cap most uploads meet. #107 asks for the cap
+ * before anything is written and a class whose longest edge is fixed says what
+ * its bytes may be far more tightly than this does, so buildpics, renders and
+ * minimaps are held to `maxBytes` in `./caps` and reach this number never. The
+ * three overlays reach it, because their resolution is the map's rather than the
+ * hub's and there is nothing to derive a tighter number from.
  */
 export const ASSET_MAX_OBJECT_BYTES = 2 * 1024 * 1024;
 
@@ -66,15 +73,23 @@ export const ASSET_MAX_OBJECT_BYTES = 2 * 1024 * 1024;
 export const ACCOUNT_STORAGE_QUOTA_BYTES = 64 * 1024 * 1024;
 
 /**
- * How many stored variants any one `(game, unit_name)` may have.
+ * How many stored renders any one `(game, unit_name)` may have.
  *
- * The cap #107 calls the one that matters most, and it is here rather than in
- * #107 because renders are the only asset class with no natural bound: units
- * times angles, with nothing in the data stopping either from growing. A
- * buildpic plus seven angles is already more than any use case has asked for,
- * and the point is that nothing can bulk render a roster.
+ * The cap #107 calls the one that matters most, and the reason it gives is
+ * specific to renders: buildpics are negligible at about 20 MB for the whole
+ * corpus and the map set is fixed at around 3,575, so renders are the only class
+ * that scales without a bound in the data, at units times angles. Eight angles
+ * is already more than any use case has asked for, and the point is that nothing
+ * can bulk render a roster.
+ *
+ * On renders rather than on variants, which is the correction #107 asks for.
+ * Counting every variant made this refuse the wrong upload: a unit holding eight
+ * renders would turn away its buildpic, the one picture every unit wants and the
+ * class the issue calls negligible. Nothing needs a second cap over the rest,
+ * because a unit's only other variant is the buildpic and its identity index
+ * already holds it to one.
  */
-export const UNIT_VARIANT_CEILING = 8;
+export const UNIT_RENDER_CEILING = 8;
 
 /**
  * How many assets one account may upload for one subject in an hour, where the
@@ -298,10 +313,15 @@ export async function checkAssetUpload(
     };
   }
 
-  if (bytes > ASSET_MAX_OBJECT_BYTES) {
+  // Per class where the class fixes a longest edge, and the global backstop
+  // where it does not. A null cap here is a variant the hub stores nothing for,
+  // which `checkAssetImage` has already refused and which the path check below
+  // refuses again, so it takes the backstop rather than an exemption.
+  const maxBytes = capForVariant(identity.variant)?.maxBytes ?? ASSET_MAX_OBJECT_BYTES;
+  if (bytes > maxBytes) {
     return {
       ok: false,
-      error: `An asset may be at most ${ASSET_MAX_OBJECT_BYTES} bytes. That one declares ${bytes}.`,
+      error: `A "${identity.variant}" may be at most ${maxBytes} bytes. That one declares ${bytes}.`,
       status: 413,
     };
   }
@@ -335,16 +355,17 @@ export async function checkAssetUpload(
           .not("map_name", "is", null)
           .gte("seen_at", since);
 
-  const [licence, existing, unitVariants, accountBytes, recent, thisMonth] = await Promise.all([
+  const [licence, existing, unitRenders, accountBytes, recent, thisMonth] = await Promise.all([
     fetchLicence(supabase, identity),
     fetchExisting(supabase, identity),
-    identity.keyedOn === "unit"
+    identity.keyedOn === "unit" && identity.variant.startsWith(UNIT_RENDER_VARIANT_PREFIX)
       ? countRows(
           supabase
             .from("asset")
             .select("id", { count: "exact", head: true })
             .eq("game", identity.game)
-            .eq("unit_name", identity.unitName),
+            .eq("unit_name", identity.unitName)
+            .like("variant", `${UNIT_RENDER_VARIANT_PREFIX}%`),
         )
       : Promise.resolve(0),
     supabase.rpc("account_asset_bytes", { account: userId }),
@@ -421,14 +442,15 @@ export async function checkAssetUpload(
     }
   }
 
-  if (unitVariants === null) return QUOTA_UNAVAILABLE;
+  if (unitRenders === null) return QUOTA_UNAVAILABLE;
   // Measured on what the table will hold afterwards, which is one more on a
   // first upload and the same number on a replacement. A replacement stores no
-  // new variant, so the ceiling has nothing to refuse.
-  if (unitVariants + (replacing ? 0 : 1) > UNIT_VARIANT_CEILING) {
+  // new render, so the ceiling has nothing to refuse. Anything that is not a
+  // render counted zero above and cannot trip this.
+  if (unitRenders + (replacing ? 0 : 1) > UNIT_RENDER_CEILING) {
     return {
       ok: false,
-      error: `That unit already has ${unitVariants} stored variants, which is the ceiling of ${UNIT_VARIANT_CEILING}.`,
+      error: `That unit already has ${unitRenders} stored renders, which is the ceiling of ${UNIT_RENDER_CEILING}.`,
       status: 409,
     };
   }
