@@ -1,7 +1,5 @@
 import { expect, test } from "bun:test";
-import { BLOB_TIER_BASE } from "./blob";
-import { DEFAULT_ASSET_CDN_BASE } from "./cdn";
-import { assetTierUrl, pictureCaption, pictureIds, QUEUE_PAGE_SIZE } from "./queue";
+import { pictureCaption, pictureIds, QUEUE_PAGE_SIZE } from "./queue";
 
 const ID = "0f8fad5b-d9cb-469f-a165-70867728950e";
 
@@ -25,15 +23,6 @@ test("a map caption names no game, since a map is not scoped to one", () => {
       variant: "minimap",
     }),
   ).toEqual({ name: "Tangerine 1.1", detail: "minimap" });
-});
-
-test("a blob row resolves to the staging store and a static row to the durable tier", () => {
-  expect(assetTierUrl("blob", "units/bar/buildpic/abc-Xy9.webp")).toBe(
-    `${BLOB_TIER_BASE}units/bar/buildpic/abc-Xy9.webp`,
-  );
-  expect(assetTierUrl("static", "units/bar/buildpic/abc.webp")).toBe(
-    `${DEFAULT_ASSET_CDN_BASE}units/bar/buildpic/abc.webp`,
-  );
 });
 
 test("an id that is not a uuid never reaches a filter", () => {

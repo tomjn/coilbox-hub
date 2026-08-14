@@ -91,8 +91,16 @@ export function queryChunks<T>(identities: T[], size = KEYS_PER_QUERY): T[][] {
 
 /** Which key a row answers for, read back from the columns. `map_name` is set
  * on a map row and null on a unit row, and `asset_identity_check` in the
- * migration is what makes that a safe thing to test. */
-function rowIdentity(row: AssetHaveRow): AssetIdentity {
+ * migration is what makes that a safe thing to test.
+ *
+ * Exported for `./resolve`, which reads a different set of columns off the same
+ * table and has to key them the same way. */
+export function rowIdentity(row: {
+  game: string | null;
+  unit_name: string | null;
+  map_name: string | null;
+  variant: string;
+}): AssetIdentity {
   return row.map_name === null
     ? {
         keyedOn: "unit",
