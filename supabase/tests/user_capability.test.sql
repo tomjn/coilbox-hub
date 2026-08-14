@@ -171,11 +171,14 @@ select is(
   'a holder deleting their account takes their capabilities with them'
 );
 
--- RLS and grants. #102 settles whether anything may read this table directly.
--- Until it does it refuses everyone, and that is asserted rather than assumed,
--- because #59 found a production project holding grants the migrations never
--- wrote. The three table_privs_are checks are in table_privileges.test.sql
--- alongside the others.
+-- RLS and grants. #102 settled it: nothing reads this table directly, not even
+-- the holder of a capability and not the route, because has_capability()
+-- already answers for the caller alone, and nothing writes it but the
+-- maintainer as the table owner, because a role that may insert here may grant
+-- itself anything. So it still refuses everyone, and that is asserted rather
+-- than assumed, because #59 found a production project holding grants the
+-- migrations never wrote. The three table_privs_are checks are in
+-- table_privileges.test.sql alongside the others.
 select is(
   (select relrowsecurity from pg_class where oid = 'public.user_capability'::regclass), true,
   'row level security is on, so safety does not rest on the absence of a grant'
@@ -183,7 +186,7 @@ select is(
 
 select is(
   (select count(*) from pg_policy where polrelid = 'public.user_capability'::regclass)::int, 0,
-  'and no policy lets anybody through it yet'
+  'and no policy lets anybody through it'
 );
 
 select function_privs_are('public', 'has_capability', ARRAY['text'], 'anon',

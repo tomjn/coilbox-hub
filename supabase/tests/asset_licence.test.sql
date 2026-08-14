@@ -8,7 +8,7 @@
 -- nothing by existing, and saying yes has to say what the yes rests on.
 
 begin;
-select plan(34);
+select plan(32);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -258,21 +258,19 @@ select is(
 select has_trigger('public', 'asset_licence', 'asset_licence_touch_updated_at',
   'updated_at is maintained by the table, not trusted from whoever wrote the row');
 
--- Grants and RLS. #102 settles who may read and write this alongside the asset
--- table, and until it does the table refuses everyone. That is asserted rather
--- than assumed, because #59 found a production project holding grants these
--- migrations never wrote.
+-- RLS. #102 settled who may read and write this: the route reads it as
+-- service_role and only a migration writes it, so no policy lets a browser
+-- through. The grants themselves are asserted in table_privileges.test.sql
+-- alongside every other table's, and the behaviour in asset_access.test.sql.
 select is(
   (select relrowsecurity from pg_class where oid = 'public.asset_licence'::regclass), true,
   'row level security is on, so safety does not rest on the absence of a grant'
 );
 
-select table_privs_are('public', 'asset_licence', 'anon', ARRAY[]::name[],
-  'anon holds no table privilege on asset_licence');
-select table_privs_are('public', 'asset_licence', 'authenticated', ARRAY[]::name[],
-  'authenticated holds no table privilege on asset_licence');
-select table_privs_are('public', 'asset_licence', 'service_role', ARRAY[]::name[],
-  'service_role holds no table privilege on asset_licence');
+select is(
+  (select count(*) from pg_policy where polrelid = 'public.asset_licence'::regclass)::int, 0,
+  'and no policy lets anybody holding the publishable key through it'
+);
 
 select * from finish();
 rollback;
