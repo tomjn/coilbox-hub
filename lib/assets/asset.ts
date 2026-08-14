@@ -69,6 +69,34 @@ export const UNIT_BUILDPIC_VARIANT = "buildpic";
 export const UNIT_RENDER_VARIANT_PREFIX = "render:";
 
 /**
+ * The map side of the variant vocabulary, which #105 is the first change to
+ * know in full: the minimap texture, and the three extracted overlay layers.
+ *
+ * A closed list, unlike the unit side, because nothing here is open ended the
+ * way a render angle is. The table left it unconstrained while the issues that
+ * name these were unwritten, and the caps in `./caps` name all four, so the
+ * check constraint arrives with them.
+ */
+/**
+ * The one variant that carries a world height range, because it is the one
+ * whose samples mean nothing without it.
+ */
+export const MAP_HEIGHT_OVERLAY_VARIANT = "overlay:height";
+
+export const MAP_VARIANTS = [
+  "minimap",
+  "overlay:metal",
+  "overlay:type",
+  MAP_HEIGHT_OVERLAY_VARIANT,
+] as const;
+
+export type MapVariant = (typeof MAP_VARIANTS)[number];
+
+export function isMapVariant(value: string): value is MapVariant {
+  return (MAP_VARIANTS as readonly string[]).includes(value);
+}
+
+/**
  * Which of the two keys addresses this asset. They are different shapes on
  * purpose and are not unified, so a caller has to say which one it means rather
  * than filling in whichever fields it happens to have.
