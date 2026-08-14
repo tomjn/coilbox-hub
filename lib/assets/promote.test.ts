@@ -501,6 +501,57 @@ test("two rows that are the same picture share one object and both move", async 
   expect([...world.blob]).toEqual([]);
 });
 
+/**
+ * The claim #132 rests on, and the only way this file can delete a live
+ * picture.
+ *
+ * Skipping the `put()` for bytes the store already holds means the second row
+ * carries the pathname of an object the first row put there. Promotion then
+ * finishes with that object as far as the first row is concerned and puts it in
+ * `blob_path`, which used to be the whole of the argument for deleting it. It is
+ * not any more: the second row is still serving the picture from it and is not
+ * due to move for another six days.
+ */
+test("a shared object is kept while a second row is still serving it", async () => {
+  const shared = "units/bar/buildpic/aaa1-Hn4vQ2rT.webp";
+  world = new World([
+    unit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1"),
+    // The same buildpic, uploaded for another unit, which wrote no object.
+    unit("00000000-0000-4000-8000-000000000002", "armadvsol", "aaa1", {
+      path: shared,
+      updated_at: RECENT,
+    }),
+  ]);
+
+  const first = await run();
+
+  expect(first.promoted).toBe(1);
+  expect(first.deleted).toBe(0);
+  expect(world.discarded).toEqual([]);
+  expect(world.blob.has(shared)).toBe(true);
+  expect(world.rows[0].blob_path).toBe(shared);
+  expect(world.said).toContain(`keep ${shared}: another row is still serving that object.`);
+  invariants(world);
+
+  // Six days later, and the second row is due as well.
+  world.rows[1].updated_at = OLD;
+  const second = await run();
+
+  expect(second.promoted).toBe(1);
+  expect(world.discarded).toEqual([shared]);
+  expect(world.rows.every((row) => row.tier === "static")).toBe(true);
+  invariants(world);
+
+  // The first row's entry outlived the deletion, so a third run settles it and
+  // deleting an object that is already gone is free.
+  const third = await run();
+
+  expect(third.drained).toBe(1);
+  expect(world.rows.every((row) => row.blob_path === null)).toBe(true);
+  expect([...world.blob]).toEqual([]);
+  invariants(world);
+});
+
 test("bytes that are not the length the row claims are never committed", async () => {
   world = new World([unit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1")]);
 

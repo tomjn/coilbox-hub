@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { blobTierUrl } from "./blob";
 import { rowIdentity } from "./have";
+import { stagingPathsInUse } from "./orphan";
 import { assetObjectPath } from "./path";
 
 /**
@@ -347,10 +348,18 @@ export interface PromotionResult {
  * durable tier itself rather than trusting that a push earlier in this run, or
  * in a run days ago, was followed by a deploy that worked.
  *
- * A row that is back on the staging tier is not gated, because there is
- * nothing to gate on: a newer archive has replaced the bytes, `path` names the
- * replacement, and the object in `blob_path` is the superseded one that
- * nothing will ever point at again.
+ * A row that is back on the staging tier is not gated on the durable tier,
+ * because there is nothing to gate on: a newer archive has replaced the bytes
+ * and `path` names the replacement.
+ *
+ * It is gated on the second question, and so is everything else here. Since
+ * #132 an upload whose bytes are already in the staging store reuses the object
+ * instead of writing it again, so the row that put an object there is not the
+ * only row that can be serving it. `blob_path` says this row has finished with
+ * the object and says nothing about anybody else, and deleting on that alone
+ * would take the picture off a row that is still pointing at it. So every
+ * pathname is checked against the table first, which is the same rule
+ * `lib/assets/orphan.ts` sweeps by and the same function.
  *
  * Anything the durable tier is not serving yet is left alone and said out
  * loud. It stays in both tiers, which is the safe direction, and the next run
@@ -363,13 +372,21 @@ async function deletePromoted(
 ): Promise<number> {
   if (pending.length === 0) return 0;
 
-  const live = new Set(
-    await ports.serving(pending.filter((row) => row.tier === "static").map((row) => row.path)),
-  );
+  const [live, shared] = await Promise.all([
+    ports
+      .serving(pending.filter((row) => row.tier === "static").map((row) => row.path))
+      .then((paths) => new Set(paths)),
+    stagingPathsInUse(
+      supabase,
+      pending.map((row) => row.blob_path),
+    ),
+  ]);
 
   const going: PendingDeletion[] = [];
   for (const row of pending) {
-    if (row.tier !== "static" || live.has(row.path)) {
+    if (shared.has(row.blob_path)) {
+      ports.say(`keep ${row.blob_path}: another row is still serving that object.`);
+    } else if (row.tier !== "static" || live.has(row.path)) {
       going.push(row);
     } else {
       ports.say(`keep ${row.blob_path}: the durable tier is not serving ${row.path} yet.`);
