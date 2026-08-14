@@ -12,7 +12,6 @@ const UNIT = {
   unit_name: "armsolar",
   variant: "buildpic",
   source_hash: "raw-abc",
-  hash: "enc-abc",
   encode_profile: "buildpic-q80",
   origin: "extracted",
   mime: "image/webp",
@@ -27,7 +26,6 @@ const MAP = {
   map_width: 8192,
   map_height: 8192,
   source_hash: "raw-def",
-  hash: "enc-def",
   encode_profile: "minimap-q80",
   origin: "extracted",
   mime: "image/webp",
@@ -38,7 +36,6 @@ const MAP = {
 const HEIGHT = {
   ...MAP,
   variant: "overlay:height",
-  hash: "enc-ghi",
   mime: "image/png",
   encode_profile: "height-png16",
   world_height_min: -40.5,
@@ -59,7 +56,6 @@ test("a unit declaration becomes a unit identity", () => {
     declaration: {
       identity: { keyedOn: "unit", game: "BYAR", unitName: "armsolar", variant: "buildpic" },
       sourceHash: "raw-abc",
-      hash: "enc-abc",
       encodeProfile: "buildpic-q80",
       origin: "extracted",
       mime: "image/webp",
@@ -82,6 +78,21 @@ test("a unit declaration becomes a unit identity", () => {
 test("a declaration cannot say how big the picture is", () => {
   expect(error({ ...UNIT, width: 128 })).toBe("Unknown field: width");
   expect(error({ ...UNIT, height: 128 })).toBe("Unknown field: height");
+});
+
+/**
+ * The same removal for a sharper reason (#154). `hash` is the leaf of the path
+ * promotion commits the bytes under, and a map path is nothing but the hash, so
+ * a declared one is an uploader choosing which existing picture to overwrite in
+ * a permanent public history. The hub has the bytes, so it computes it.
+ *
+ * `source_hash` stays and is asserted alongside, because the two look alike and
+ * are not: the archive never reaches the hub, so there is nothing to compute
+ * that one from, and it names no object.
+ */
+test("a declaration cannot say where the bytes will land", () => {
+  expect(error({ ...UNIT, hash: "enc-abc" })).toBe("Unknown field: hash");
+  expect(parseAssetUpload(UNIT).ok).toBe(true);
 });
 
 test("a map declaration carries the world size and no game", () => {

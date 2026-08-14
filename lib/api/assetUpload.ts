@@ -49,12 +49,31 @@ export type ParsedAssetUpload =
  * with the bytes or be wrong, and the unknown field rule below turns a client
  * that still sends them into a 400 that names the field rather than a silently
  * ignored claim.
+ *
+ * `hash` is absent for the same reason and a sharper one (#154). It is over the
+ * encoded bytes, which are in this request, so the hub computes it in
+ * `lib/assets/hash.ts` and a declared value could only agree or be wrong. The
+ * sharper reason is what a wrong one buys: `hash` is the leaf of the content
+ * addressed path, so a client that could declare it could choose which picture
+ * promotion overwrites in a permanent public history.
+ *
+ * Dropped rather than kept and refused on mismatch. Refusing would be a second
+ * rule saying what the hub already knows on its own, and it would tie every
+ * shipped desktop build to the hub's exact spelling of a digest for no gain,
+ * since the hub's own value is the one that gets used either way. What a broken
+ * client needs is to be told, and the unknown field rule below does that
+ * already: it answers 400 naming `hash`, on the first upload, rather than
+ * accepting a request whose declaration disagrees with its own bytes.
+ *
+ * `source_hash` stays, and the difference is not an inconsistency. It is over
+ * the raw archive bytes, which never reach the hub, so there is nothing here to
+ * compute it from and it remains the client's word. It also names no object and
+ * decides no path.
  */
 const COMMON_FIELDS = [
   "keyed_on",
   "variant",
   "source_hash",
-  "hash",
   "encode_profile",
   "origin",
   "mime",
@@ -81,7 +100,6 @@ const MAX_LENGTHS = {
   map_name: 256,
   variant: 64,
   source_hash: 128,
-  hash: 128,
   encode_profile: 64,
   mime: 128,
   source_archive: 256,
@@ -227,9 +245,6 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
   const sourceHash = readText(record, "source_hash");
   if (!sourceHash.ok) return sourceHash;
 
-  const hash = readText(record, "hash");
-  if (!hash.ok) return hash;
-
   const encodeProfile = readText(record, "encode_profile");
   if (!encodeProfile.ok) return encodeProfile;
 
@@ -248,7 +263,6 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
 
   const common = {
     sourceHash: sourceHash.value,
-    hash: hash.value,
     encodeProfile: encodeProfile.value,
     origin: record.origin,
     mime: mime.value,

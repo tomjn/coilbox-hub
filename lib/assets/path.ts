@@ -35,6 +35,13 @@
  * written both to the same durable path. #132 wants to spot the second upload
  * before it spends an operation, and the column that answers that is now `hash`
  * rather than `path`.
+ *
+ * That is only safe now the hub computes the hash (#154). Two rows sharing a
+ * path used to mean either the same bytes or a client that had declared
+ * somebody else's hash, and a #132 style check would have reused a stranger's
+ * object on the strength of the second. With the hash taken from the bytes, a
+ * shared path means shared bytes and nothing else, which is the honest case
+ * #132 is about and the only one left.
  */
 
 import type { AssetIdentity } from "./asset";

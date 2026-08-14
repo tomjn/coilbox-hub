@@ -15,6 +15,11 @@ import {
 
 const USER = "11111111-1111-1111-1111-111111111111";
 
+/** What the route worked out from the bytes (#154), which is a parameter here
+ * and never a field on the declaration. Short and hex rather than a real
+ * SHA-256, so the expected paths below stay readable. */
+const HASH = "encabc";
+
 const UNIT: AssetIdentity = {
   keyedOn: "unit",
   game: "BYAR",
@@ -37,7 +42,6 @@ function declaration(overrides: Partial<AssetUploadDeclaration> = {}): AssetUplo
   return {
     identity: UNIT,
     sourceHash: "raw-abc",
-    hash: "encabc",
     encodeProfile: "buildpic-q80",
     origin: "extracted",
     mime: "image/webp",
@@ -206,7 +210,7 @@ function fakeSupabase(state: World, seen: Query[] = []): SupabaseClient {
 }
 
 async function check(state: World, overrides: Partial<AssetUploadDeclaration> = {}) {
-  return checkAssetUpload(fakeSupabase(state), USER, declaration(overrides));
+  return checkAssetUpload(fakeSupabase(state), USER, declaration(overrides), HASH);
 }
 
 test("a declaration that clears everything comes back with the path the bytes go to", async () => {
@@ -215,6 +219,22 @@ test("a declaration that clears everything comes back with the path the bytes go
     path: "units/BYAR/buildpic/encabc.webp",
     replacing: null,
   });
+});
+
+/**
+ * The whole of #154 in one assertion. A map path carries no map name, so the
+ * leaf is the entire filename, and the leaf follows the hash argument, which
+ * the route takes from the bytes. Nothing on the declaration reaches it, so
+ * there is no value an uploader can send that moves the picture somewhere else.
+ */
+test("the path leaf is the hash the caller computed and nothing off the declaration", async () => {
+  const minimap = { identity: MAP, mapWidth: 8192, mapHeight: 8192 };
+
+  const mine = await checkAssetUpload(fakeSupabase(world()), USER, declaration(minimap), "mine");
+  const yours = await checkAssetUpload(fakeSupabase(world()), USER, declaration(minimap), "yours");
+
+  expect(mine).toMatchObject({ ok: true, path: "maps/minimap/mine.webp" });
+  expect(yours).toMatchObject({ ok: true, path: "maps/minimap/yours.webp" });
 });
 
 /**
@@ -227,6 +247,7 @@ test("a type outside the allowlist is refused without asking the database", asyn
     fakeSupabase(world(), seen),
     USER,
     declaration({ mime: "image/gif" }),
+    HASH,
   );
 
   expect(result).toEqual({
@@ -243,6 +264,7 @@ test("an object over the cap is refused without asking the database", async () =
     fakeSupabase(world(), seen),
     USER,
     declaration({ bytes: ASSET_MAX_OBJECT_BYTES + 1 }),
+    HASH,
   );
 
   expect(result.ok).toBe(false);
@@ -291,6 +313,7 @@ test("an identity that cannot be spelled as a path is refused without asking the
     fakeSupabase(world(), seen),
     USER,
     declaration({ identity: { ...UNIT, game: "../etc" } }),
+    HASH,
   );
 
   expect(result.ok).toBe(false);
@@ -467,12 +490,15 @@ test("a second account reporting different bytes for the same archive is refused
 });
 
 /** Comparing on the encoded hash would fire on every Coilbox and libwebp
- * upgrade at once. The rule reads `source_hash` and the declaration's encoded
- * hash never enters it. */
+ * upgrade at once. The rule reads `source_hash`, and the encoded hash the hub
+ * computed never enters it. */
 test("a changed encoded hash on the same source bytes is not a conflict, it is a duplicate", async () => {
-  const result = await check(
-    world({ existing: held({ source_archive: "byar_1.2.sdz", source_hash: "raw-abc" }) }),
-    { hash: "enc-different" },
+  const existing = held({ source_archive: "byar_1.2.sdz", source_hash: "raw-abc" });
+  const result = await checkAssetUpload(
+    fakeSupabase(world({ existing })),
+    USER,
+    declaration(),
+    "encdifferent",
   );
 
   expect(result.ok).toBe(false);
@@ -520,6 +546,7 @@ test("a unit full of renders still takes its buildpic", async () => {
     fakeSupabase(world({ unitRenders: UNIT_RENDER_CEILING + 50 }), seen),
     USER,
     declaration(),
+    HASH,
   );
 
   expect(result.ok).toBe(true);
@@ -566,7 +593,7 @@ test("a replacement is charged the difference rather than the whole object", asy
  */
 test("the hourly limit is scoped to one account and one game", async () => {
   const seen: Query[] = [];
-  await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration());
+  await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration(), HASH);
 
   const hourly = seen.find((query) => query.filters.includes("eq:uploaded_by"));
   expect(hourly?.filters).toEqual(["eq:uploaded_by", "eq:game", "gte:seen_at"]);
