@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(33);
+select plan(36);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -103,6 +103,19 @@ select table_privs_are('public', 'asset_withdrawal', 'authenticated', ARRAY[]::n
   'authenticated holds no table privilege on asset_withdrawal');
 select table_privs_are('public', 'asset_withdrawal', 'service_role', ARRAY['SELECT'],
   'service_role reads the takedown queue and can neither add to it nor settle a row by hand');
+
+-- public.asset_orphan: staging objects nothing points at, waiting to be swept
+-- (issue #113). Select only, and only server side. A row names a reachable
+-- object in a public store holding bytes nobody has reviewed, so handing a
+-- browser this list would hand it the pending pictures the moderation queue
+-- exists to keep out of sight. The trigger and the two functions in
+-- 20260814250000 are the only writers.
+select table_privs_are('public', 'asset_orphan', 'anon', ARRAY[]::name[],
+  'anon holds no table privilege on asset_orphan');
+select table_privs_are('public', 'asset_orphan', 'authenticated', ARRAY[]::name[],
+  'authenticated holds no table privilege on asset_orphan');
+select table_privs_are('public', 'asset_orphan', 'service_role', ARRAY['SELECT'],
+  'service_role reads the sweep queue and can neither add to it nor settle a row by hand');
 
 -- public.asset_licence: read by the route so it can answer whether the hub may
 -- publish a subject's pictures at all, and written only by a migration, where
