@@ -9,10 +9,24 @@
  *
  *   bun run promote:assets --assets-repo ../coilbox-assets --dry-run
  *   bun run promote:assets --assets-repo ../coilbox-assets --write
+ *   bun run promote:assets --withdrawn <asset-id>
  *
  * A dry run reads Postgres and reports. It writes nothing, pushes nothing,
  * deletes nothing and does not even read the bytes, so it costs one query and
  * can be run against production to see whether staging is draining.
+ *
+ * ## The takedown queue, which this reports and never acts on
+ *
+ * Every run, dry or not, starts by saying what was rejected on safety grounds
+ * after it had already been promoted (#153). Those files are in a public git
+ * history and nothing here removes them: a commit against the assets repo and a
+ * `git filter-repo` force push that breaks every clone are not things to hand a
+ * daily job and a stored credential, and doing the first without the second
+ * reads as finished while the blob is still fetchable at its old commit.
+ *
+ * So a person does both, and `--withdrawn <asset-id>` is how they say so. The
+ * reasoning is in `lib/assets/withdraw.ts`, including why promotion is not
+ * gated on the queue being empty.
  *
  * ## Where this runs, and which secret is where
  *
@@ -47,6 +61,11 @@ import { createClient } from "@supabase/supabase-js";
 import { deleteBlobAssets } from "@/lib/assets/blob";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { PROMOTION_BATCH, type PromotionPorts, runPromotion } from "@/lib/assets/promote";
+import {
+  fetchOutstandingWithdrawals,
+  recordWithdrawn,
+  withdrawalReport,
+} from "@/lib/assets/withdraw";
 
 /** How long to wait for a push to become a published site. Pages redeploys the
  *  whole tier on every push (#119), so this grows with the corpus rather than
@@ -80,7 +99,16 @@ const write = args.includes("--write");
 const repo = option("assets-repo");
 const limit = Number(option("limit") ?? PROMOTION_BATCH);
 
-if (!repo) {
+// Settling a takedown is its own errand. It touches no checkout, promotes
+// nothing and is somebody reporting what they did to a git repository by hand.
+const withdrawn = option("withdrawn");
+
+if (withdrawn && write) {
+  console.error("Asked to promote and to settle a takedown in the same run. Pick one.");
+  process.exit(1);
+}
+
+if (!repo && !withdrawn) {
   console.error(
     "Need --assets-repo <path>, a checkout of tomjn/coilbox-assets on the branch it publishes.",
   );
@@ -245,7 +273,20 @@ const ports: PromotionPorts = {
   say: (message) => console.log(message),
 };
 
-if (!write) {
+// First, and on every run whatever it was asked to do. A takedown that only
+// shows up when somebody thinks to look for it is a takedown nobody sees.
+for (const line of withdrawalReport(await fetchOutstandingWithdrawals(supabase))) {
+  console.log(line);
+}
+
+if (withdrawn) {
+  const settled = await recordWithdrawn(supabase, [withdrawn]);
+  console.log(
+    settled === 1
+      ? `Recorded ${withdrawn} as removed from the durable tier.`
+      : `Nothing outstanding for ${withdrawn}. It was never queued, or it is already settled.`,
+  );
+} else if (!write) {
   const { durablePath, fetchPendingDeletions, fetchPromotable } = await import(
     "@/lib/assets/promote"
   );
