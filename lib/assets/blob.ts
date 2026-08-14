@@ -124,8 +124,15 @@ export function blobTierUrl(path: string): string {
  * The token, or an error naming it. Follows `requireSupabaseConfig` in
  * `lib/supabase/config.ts`: a missing variable should not reach the SDK as
  * `undefined` and throw from inside it (issue 54).
+ *
+ * Exported for the client direct upload path (#104), which calls
+ * `handleUpload` from `@vercel/blob/client` rather than anything in this file
+ * and would otherwise read the variable a second time. `@vercel/blob/client`
+ * is deliberately not restricted by the ESLint rule, because it carries the
+ * supported browser upload path and none of the metered lookups, but the token
+ * still has exactly one reader.
  */
-function requireBlobToken(): string {
+export function requireBlobToken(): string {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) throw new Error(BLOB_TOKEN_ERROR);
   return token;
