@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(15);
+select plan(21);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -41,11 +41,37 @@ select column_privs_are('public', 'item', 'author_name', 'authenticated',
   ARRAY['SELECT'],
   'authenticated can neither insert nor update item.author_name');
 
+-- public.asset: approved rows are public and nothing else is, so anon and
+-- authenticated read and write nothing at all. The route writes as
+-- service_role, which reads before it writes and never deletes (issue #102).
+-- asset_read_approved is the second layer, and asset_access.test.sql is what
+-- proves it narrows this select grant to approved rows.
+select table_privs_are('public', 'asset', 'anon', ARRAY['SELECT'],
+  'anon can only select on asset');
+select table_privs_are('public', 'asset', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on asset, the same as anon');
+select table_privs_are('public', 'asset', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE'],
+  'service_role can read and write asset, and cannot delete');
+
+-- public.asset_licence: read by the route so it can answer whether the hub may
+-- publish a subject's pictures at all, and written only by a migration, where
+-- a person reviews the decision before it becomes permanent. Nothing serves it
+-- to a browser, so anon and authenticated hold nothing (issue #102).
+select table_privs_are('public', 'asset_licence', 'anon', ARRAY[]::name[],
+  'anon holds no table privilege on asset_licence');
+select table_privs_are('public', 'asset_licence', 'authenticated', ARRAY[]::name[],
+  'authenticated holds no table privilege on asset_licence');
+select table_privs_are('public', 'asset_licence', 'service_role', ARRAY['SELECT'],
+  'service_role can read asset_licence and cannot change a decision');
+
 -- public.user_capability: who holds a capability is not public, and neither
 -- is the fact that anybody does. Nobody gets a table grant, not even
--- authenticated. has_capability() reads it as its own definer, and
--- is_moderator() is one question asked of it (issue #101). This replaces
--- public.moderator, which that migration folded into this table.
+-- authenticated or service_role. has_capability() reads it as its own definer,
+-- and is_moderator() is one question asked of it (issue #101). This replaces
+-- public.moderator, which that migration folded into this table. #102 settled
+-- the two questions #101 left: a holder does not read their own capabilities
+-- back, and only the table owner grants or revokes.
 select table_privs_are('public', 'user_capability', 'anon', ARRAY[]::name[],
   'anon has no table privilege on user_capability');
 select table_privs_are('public', 'user_capability', 'authenticated', ARRAY[]::name[],
