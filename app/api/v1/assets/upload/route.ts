@@ -5,7 +5,7 @@ import { apiError } from "@/lib/api/response";
 import { BLOB_TOKEN_ERROR, deleteBlobAssets, putBlobAsset } from "@/lib/assets/blob";
 import { checkAssetImage } from "@/lib/assets/caps";
 import { IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
-import { checkAssetUpload, insertPendingAsset } from "@/lib/assets/upload";
+import { checkAssetUpload, writePendingAsset } from "@/lib/assets/upload";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticateBearer } from "@/lib/supabase/bearer";
 import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
@@ -51,15 +51,21 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * 5. `checkAssetImage`: the image header, against the caps for its class
  * 6. `checkAssetUpload`: MIME, size, path, licence, identity, four quotas
  *
- * ## Two responses that are not the same failure
+ * ## 201 created, 200 replaced
  *
- * A 409 means the hub already holds that identity and the caller should stop
- * asking. Replacing a row whose `source_hash` has changed is #106's, and until
- * it lands an existing identity is refused rather than overwritten.
+ * An identity the hub already holds is not automatically a refusal any more
+ * (#106). A newer archive with a different `source_hash` replaces the row it
+ * already has, in place and back to pending, and that answers 200 because
+ * nothing was created. Everything above still runs on it, unchanged and in the
+ * same order, so a replacement is held to every rule a first upload is.
  *
- * ## Why a 201 says so little
+ * The 409s that remain all mean stop asking rather than try again: the identity
+ * belongs to another account, or it was rejected, or it already holds the same
+ * `source_hash`.
  *
- * It says the upload was accepted and is pending, and nothing about where the
+ * ## Why either of them says so little
+ *
+ * They say the upload was accepted and is pending, and nothing about where the
  * bytes are. The store is public, so the path is the URL, and a caller that
  * held either could publish the picture before a reviewer had seen it, which is
  * the whole of what the queue exists to stop (#131). Withholding it from a
@@ -176,16 +182,26 @@ export async function POST(request: Request) {
   // direct path gone (#133) there is no upload the server does not see the
   // bytes of, so no confirm route has a row to write.
   //
-  // Deleting on a failed insert is free, so the store does not keep an object
-  // no row will ever name.
-  if (!(await insertPendingAsset(admin, auth.user.id, parsed.declaration, stored, image))) {
+  // Deleting on a failed write is free, so the store does not keep an object no
+  // row will ever name. It is the object this request just made either way: on
+  // a failed replacement the row still names the object it named before.
+  if (
+    !(await writePendingAsset(
+      admin,
+      auth.user.id,
+      parsed.declaration,
+      stored,
+      image,
+      check.replacing,
+    ))
+  ) {
     await deleteBlobAssets([stored]).catch(() => {});
     return apiError("The asset was uploaded but its record could not be written.", 503);
   }
 
   return withCors(
     NextResponse.json(buildAssetUploadBody(), {
-      status: 201,
+      status: check.replacing ? 200 : 201,
       headers: { "Cache-Control": "no-store" },
     }),
   );
