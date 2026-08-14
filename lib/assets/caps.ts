@@ -46,8 +46,12 @@ import { type ImageHeader, readImageHeader } from "./imageHeader";
  * None of these numbers is a budget. An image that is not square and is larger
  * than 256px is not a buildpic whatever the client labelled it, and refusing it
  * deterministically takes a whole class of "this is not a game asset" out of the
- * moderation queue before a person sees it. The byte sizes and the allowances
- * are #107's and are elsewhere.
+ * moderation queue before a person sees it. The allowances are #107's and are
+ * elsewhere.
+ *
+ * `maxBytes` is here for the same reason and on the same terms. It is not a
+ * budget either: it is derived from `maxEdge` rather than chosen, and #107 reads
+ * it in `./upload` where the rest of the refusals live.
  */
 
 export interface AssetCap {
@@ -55,6 +59,22 @@ export interface AssetCap {
   mime: "image/png" | "image/webp";
   /** The largest either edge may be, or null when the source decides. */
   maxEdge: number | null;
+  /**
+   * The largest the encoded object may be, or null when the class has no number
+   * of its own and the global backstop in `./upload` decides (issue #107).
+   *
+   * Derived rather than picked: it is the uncompressed size of the largest image
+   * `maxEdge` permits, four bytes a pixel. So no encoding of a picture this
+   * class allows can reach it, and anything that does is carrying something
+   * other than the picture. A capped edge does not cap bytes on its own, since
+   * metadata chunks are unbounded and a decoder never reads them, which is how a
+   * 256px buildpic arrives as two megabytes.
+   *
+   * The overlays have no number because they have no `maxEdge` to derive one
+   * from: they are sampled from the map's own grids at whatever resolution the
+   * map has.
+   */
+  maxBytes: number | null;
   square: boolean;
   /** Whether the encoding has to preserve every sample. */
   lossless: boolean;
@@ -63,8 +83,14 @@ export interface AssetCap {
   grayscale: boolean;
 }
 
+/** The uncompressed size of a square image of `edge` pixels, four bytes each. */
+function rawBytes(edge: number): number {
+  return edge * edge * 4;
+}
+
 const DEFAULTS = {
   maxEdge: null,
+  maxBytes: null,
   square: false,
   lossless: false,
   minBitDepth: null,
@@ -77,9 +103,15 @@ const DEFAULTS = {
  * be.
  */
 export const ASSET_CAPS: Record<string, AssetCap> = {
-  [UNIT_BUILDPIC_VARIANT]: { ...DEFAULTS, mime: "image/webp", maxEdge: 256, square: true },
-  render: { ...DEFAULTS, mime: "image/webp", maxEdge: 256 },
-  minimap: { ...DEFAULTS, mime: "image/webp", maxEdge: 512 },
+  [UNIT_BUILDPIC_VARIANT]: {
+    ...DEFAULTS,
+    mime: "image/webp",
+    maxEdge: 256,
+    maxBytes: rawBytes(256),
+    square: true,
+  },
+  render: { ...DEFAULTS, mime: "image/webp", maxEdge: 256, maxBytes: rawBytes(256) },
+  minimap: { ...DEFAULTS, mime: "image/webp", maxEdge: 512, maxBytes: rawBytes(512) },
   "overlay:metal": { ...DEFAULTS, mime: "image/webp", lossless: true },
   "overlay:type": { ...DEFAULTS, mime: "image/webp", lossless: true },
   "overlay:height": {

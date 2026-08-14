@@ -145,6 +145,22 @@ test("bytes with no header the hub can measure are refused before anything is wr
   );
 });
 
+/**
+ * A class that fixes a longest edge fixes what its bytes may be, and a class
+ * added later without a byte number would quietly take the 2 MB backstop in
+ * `./upload` instead. The number itself is the uncompressed size of the largest
+ * image the edge permits, so no encoding of that picture can reach it.
+ */
+test("a class with a longest edge says what its bytes may be, and the overlays do not", () => {
+  for (const cap of Object.values(ASSET_CAPS)) {
+    if (cap.maxEdge === null) {
+      expect(cap.maxBytes).toBeNull();
+      continue;
+    }
+    expect(cap.maxBytes).toBe(cap.maxEdge * cap.maxEdge * 4);
+  }
+});
+
 test("every variant the hub stores has a cap, and nothing else does", () => {
   for (const variant of MAP_VARIANTS) {
     expect(capForVariant(variant)).toBeDefined();
