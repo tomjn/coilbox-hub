@@ -5,6 +5,7 @@ import { capForVariant } from "./caps";
 import { identityFilter } from "./have";
 import { type AssetLicenceRow, licenceForMap, mayRedistribute } from "./licence";
 import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
+import { type SourceConflict, sourceConflict } from "./sourceConflict";
 
 /**
  * Everything an upload is refused for, in one place (issue #104).
@@ -164,24 +165,36 @@ export interface AssetImageDimensions {
   height: number;
 }
 
+/**
+ * Present on either answer, and set only when this upload reports different
+ * source bytes for an archive the hub already holds bytes for (#116).
+ *
+ * On both, because the case the issue is about is a *refused* upload: a second
+ * account cannot replace the row, so the disagreement arrives attached to a 409
+ * and would otherwise leave no trace at all. It is a note for the caller to
+ * record and never a reason for either answer. See `./sourceConflict`.
+ */
 export type AssetUploadCheck =
   | {
       ok: true;
       path: string;
       /** The row a newer archive is replacing, or null on a first upload. */
       replacing: string | null;
+      conflict?: SourceConflict;
     }
-  | { ok: false; error: string; status: number };
+  | { ok: false; error: string; status: number; conflict?: SourceConflict };
 
 /** What the identity check needs off a row that already exists. Each column is
  * a question a later check asks: who may replace it, whether these are the same
- * source bytes, whether it is in a state that may be replaced at all, and how
- * much of the account's quota the superseded row is holding. */
-const EXISTING_COLUMNS = "id, source_hash, uploaded_by, moderation, bytes";
+ * source bytes, which archive those bytes came out of, whether it is in a state
+ * that may be replaced at all, and how much of the account's quota the
+ * superseded row is holding. */
+const EXISTING_COLUMNS = "id, source_hash, source_archive, uploaded_by, moderation, bytes";
 
 interface ExistingAsset {
   id: string;
   source_hash: string;
+  source_archive: string;
   uploaded_by: string | null;
   moderation: string;
   bytes: number;
@@ -394,6 +407,18 @@ export async function checkAssetUpload(
   if (!existing.ok) return QUOTA_UNAVAILABLE;
   const replacing = existing.row;
 
+  // Worked out before any of the refusals below, because the two outcomes it
+  // rides along on are on opposite sides of them: the identity belonging to
+  // somebody else, and the upload being accepted.
+  //
+  // Deliberately not carried by the refusals in between. A conflicting upload
+  // that then trips the render ceiling or an hourly limit is a client that will
+  // try again, and recording a disagreement about bytes the hub declined to
+  // take on capacity grounds would mark a tile over a queue length.
+  const conflict = replacing
+    ? (sourceConflict(replacing, declaration, userId) ?? undefined)
+    : undefined;
+
   if (replacing) {
     // Only the account that uploaded it. The alternative, anyone may replace
     // anyone's asset, hands every signed in account a way to take the whole
@@ -407,11 +432,19 @@ export async function checkAssetUpload(
     // picture, so the corpus can go stale. That is the lesser harm and the
     // fixable one: replacing across accounts wants a capability of the kind
     // #101 already has, and #138 is where it goes.
+    //
+    // This refusal is also the whole of #116's interesting case, which is why
+    // it carries the conflict. "A second user reports different source bytes
+    // from the same archive" is exactly a stranger's replacement, so the rule
+    // above already stops it dead and, until now, stopped it silently. The
+    // upload is still refused, unchanged. What the note adds is that the
+    // picture the hub is keeping gets marked, so somebody looks at it.
     if (replacing.uploaded_by !== userId) {
       return {
         ok: false,
         error: "Another account uploaded the asset with that identity, so it cannot be replaced.",
         status: 409,
+        conflict,
       };
     }
 
@@ -492,7 +525,7 @@ export async function checkAssetUpload(
     };
   }
 
-  return { ok: true, path, replacing: replacing?.id ?? null };
+  return { ok: true, path, replacing: replacing?.id ?? null, ...(conflict ? { conflict } : {}) };
 }
 
 /** Everything on the row that describes the bytes rather than the identity, and

@@ -77,17 +77,21 @@ function licence(
 interface ExistingRow {
   id: string;
   source_hash: string;
+  source_archive: string;
   uploaded_by: string | null;
   moderation: string;
   bytes: number;
 }
 
 /** The row this identity already has, owned by the caller and holding source
- * bytes a newer archive has moved on from. */
+ * bytes a newer archive has moved on from. The archive is the older one, so the
+ * default is an ordinary version rollover rather than the anomaly #116 is
+ * about. */
 function held(overrides: Partial<ExistingRow> = {}): ExistingRow {
   return {
     id: "held",
     source_hash: "raw-old",
+    source_archive: "byar_1.1.sdz",
     uploaded_by: USER,
     moderation: "approved",
     bytes: 4096,
@@ -405,6 +409,75 @@ test("the same source bytes again are refused rather than stored twice", async (
   expect(result.ok).toBe(false);
   if (result.ok) return;
   expect(result.status).toBe(409);
+  expect(result.error).toContain("/api/v1/assets/have");
+});
+
+/**
+ * The cheap signal #116 asks for, and the reason it rides along on the answer
+ * rather than being one.
+ *
+ * An identity replaced from a different archive is a version rollover, which is
+ * what every replacement test above is, and none of them comes back with a
+ * conflict on it. Same archive, different raw bytes is the odd one.
+ */
+test("an ordinary version rollover carries no conflict", async () => {
+  const result = await check(world({ existing: held() }));
+
+  expect(result).toEqual({
+    ok: true,
+    path: "units/BYAR/buildpic/encabc.webp",
+    replacing: "held",
+  });
+});
+
+test("the same archive reporting different source bytes is noted, and still accepted", async () => {
+  const result = await check(world({ existing: held({ source_archive: "byar_1.2.sdz" }) }));
+
+  expect(result).toEqual({
+    ok: true,
+    path: "units/BYAR/buildpic/encabc.webp",
+    replacing: "held",
+    conflict: {
+      assetId: "held",
+      sourceArchive: "byar_1.2.sdz",
+      heldSourceHash: "raw-old",
+      reportedSourceHash: "raw-abc",
+      reportedBy: USER,
+    },
+  });
+});
+
+/**
+ * The case the issue is actually about, and the one only-the-uploader-may-
+ * replace already stopped dead and stopped silently. The refusal is unchanged
+ * and the note is what the queue gets out of it.
+ */
+test("a second account reporting different bytes for the same archive is refused and noted", async () => {
+  const stranger = held({
+    source_archive: "byar_1.2.sdz",
+    uploaded_by: "22222222-2222-2222-2222-222222222222",
+  });
+  const result = await check(world({ existing: stranger }));
+
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.status).toBe(409);
+  expect(result.conflict?.reportedBy).toBe(USER);
+  expect(result.conflict?.assetId).toBe("held");
+});
+
+/** Comparing on the encoded hash would fire on every Coilbox and libwebp
+ * upgrade at once. The rule reads `source_hash` and the declaration's encoded
+ * hash never enters it. */
+test("a changed encoded hash on the same source bytes is not a conflict, it is a duplicate", async () => {
+  const result = await check(
+    world({ existing: held({ source_archive: "byar_1.2.sdz", source_hash: "raw-abc" }) }),
+    { hash: "enc-different" },
+  );
+
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.conflict).toBeUndefined();
   expect(result.error).toContain("/api/v1/assets/have");
 });
 
