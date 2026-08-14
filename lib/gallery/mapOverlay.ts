@@ -6,6 +6,11 @@
  * are playing in, and how the engine will pick start positions. Only a preset
  * has any of that. A setup pack names a map and nothing else about how it gets
  * played, so it gets a bare picture.
+ *
+ * A map BAR does not list gets no overlay at all, whatever the item says. Boxes
+ * and spawn points are geometry off BAR's own entry, so without one there is
+ * nothing to draw them against, and the hub's own stored minimap (issue #109) is
+ * a picture rather than a layout.
  */
 
 import type { BarMap } from "@/lib/bar/maps";
@@ -30,10 +35,10 @@ const NOTHING: MapOverlay = { layout: { boxes: [], dots: [] }, allyColors: [], n
 export function mapOverlay(
   kind: string,
   container: unknown,
-  map: BarMap,
+  map: BarMap | null,
 ): MapOverlay {
   const payload = (container as { payload?: unknown } | null)?.payload;
-  if (kind !== "preset" || typeof payload !== "object" || payload === null) {
+  if (!map || kind !== "preset" || typeof payload !== "object" || payload === null) {
     return NOTHING;
   }
 
