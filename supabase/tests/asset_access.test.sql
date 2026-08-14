@@ -20,6 +20,13 @@ select plan(24);
 
 create extension if not exists pgtap with schema extensions;
 
+-- Every count below names the three hashes this file inserts rather than
+-- counting the table (issue #140). Counting the table passes on a fresh
+-- database and fails on any machine where somebody has exercised the upload
+-- route, and the failure then names the access rules rather than the leftover
+-- row. Nothing can delete an asset row through the API by design, so a stale
+-- local row is not something a run can clear up after itself.
+
 -- Somebody who uploaded one of the rows below, so "not readable" can be told
 -- apart from "not readable by other people".
 insert into auth.users (id, instance_id, aud, role, email)
@@ -45,7 +52,8 @@ set local role anon;
 set local request.jwt.claims = '{"role":"anon"}';
 
 select is(
-  (select count(*) from public.asset)::int, 1,
+  (select count(*) from public.asset
+    where hash in ('enc-approved', 'enc-pending', 'enc-rejected'))::int, 1,
   'a visitor sees the approved asset and neither of the other two'
 );
 
@@ -55,7 +63,9 @@ select is(
 );
 
 select is(
-  (select path from public.asset), 'unit/bar/armsolar/buildpic/enc-approved.webp',
+  (select path from public.asset
+    where hash in ('enc-approved', 'enc-pending', 'enc-rejected')),
+  'unit/bar/armsolar/buildpic/enc-approved.webp',
   'and the approved row is whole, since the picture is already public'
 );
 
@@ -103,7 +113,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 
 select is(
-  (select count(*) from public.asset)::int, 1,
+  (select count(*) from public.asset
+    where hash in ('enc-approved', 'enc-pending', 'enc-rejected'))::int, 1,
   'an account reads exactly what a visitor reads, including its own pending upload, which it does not'
 );
 
@@ -146,7 +157,8 @@ select is(
 );
 
 select is(
-  (select count(*) from public.asset)::int, 1,
+  (select count(*) from public.asset
+    where hash in ('enc-approved', 'enc-pending', 'enc-rejected'))::int, 1,
   'and still reads only the approved row, because no policy carries moderation yet'
 );
 
@@ -155,7 +167,8 @@ reset role;
 set local role service_role;
 
 select is(
-  (select count(*) from public.asset)::int, 3,
+  (select count(*) from public.asset
+    where hash in ('enc-approved', 'enc-pending', 'enc-rejected'))::int, 3,
   'the route reads every row whatever its moderation state'
 );
 
