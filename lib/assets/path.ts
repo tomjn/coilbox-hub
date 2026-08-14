@@ -10,9 +10,15 @@
  * ## What is in a path, and what is deliberately not
  *
  * The leaf is `hash`, over the encoded bytes, so the path is content addressed:
- * the same bytes always land at the same key, which is what makes
- * `allowOverwrite: true` in `./blob` safe and what lets a retry after a partial
- * failure cost nothing new.
+ * the same bytes always name the same key, which is what lets the durable tier
+ * hold one object per picture and what #112 packs an atlas out of.
+ *
+ * On the staging tier this is the path the hub asks for rather than the path
+ * the object ends up at. Blob appends a suffix, the row stores what came back,
+ * and promotion (#111) recomputes this path from the row when it writes the
+ * object into the durable tier. The reason is #131: the uploader holds the
+ * bytes, so the uploader can derive anything derived from them, and a public
+ * store makes a derivable path a public URL before anybody has reviewed it.
  *
  * `unit_name` and `map_name` are not in the path, for two different reasons.
  * A map name is the full canonical name the engine reports, which is free text
@@ -24,7 +30,11 @@
  *
  * The consequence is worth naming: two rows can point at one object. Deleting
  * the object for one row therefore has to consider the other, which is #113's
- * problem and not this file's.
+ * problem and not this file's. On the staging tier they no longer do, since
+ * each upload gets its own suffix, so they converge only once promotion has
+ * written both to the same durable path. #132 wants to spot the second upload
+ * before it spends an operation, and the column that answers that is now `hash`
+ * rather than `path`.
  */
 
 import type { AssetIdentity } from "./asset";

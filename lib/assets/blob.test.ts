@@ -5,11 +5,17 @@ import { afterEach, expect, mock, test } from "bun:test";
 // assertions are about what this module asks it to do.
 const calls: { put: unknown[][]; del: unknown[][] } = { put: [], del: [] };
 
+// The suffix in the faked reply is what the store does with
+// `addRandomSuffix: true`: a string the caller did not send and cannot work
+// out. Fixed here so the assertions can name it.
+const SUFFIXED = "units/bar/abc-Hn4vQ2rT8kZ1x.webp";
+
 mock.module("@vercel/blob", () => ({
   put: (...args: unknown[]) => {
     calls.put.push(args);
     return Promise.resolve({
-      url: "https://eyugwjvmp953ayog.public.blob.vercel-storage.com/units/bar/abc.webp",
+      pathname: SUFFIXED,
+      url: `https://eyugwjvmp953ayog.public.blob.vercel-storage.com/${SUFFIXED}`,
     });
   },
   del: (...args: unknown[]) => {
@@ -63,22 +69,33 @@ test("nested tier relative paths survive intact", () => {
   );
 });
 
-test("a put is public, unsuffixed and overwritable, and returns the stored URL", async () => {
+test("a put is public and suffixed, and answers with where the bytes went", async () => {
   env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_test_token";
 
-  const url = await putBlobAsset("units/bar/abc.webp", "bytes", "image/webp");
+  const stored = await putBlobAsset("units/bar/abc.webp", "bytes", "image/webp");
 
   expect(calls.put).toHaveLength(1);
   expect(calls.put[0][0]).toBe("units/bar/abc.webp");
   expect(calls.put[0][1]).toBe("bytes");
   expect(calls.put[0][2]).toEqual({
     access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
+    addRandomSuffix: true,
     contentType: "image/webp",
     token: "vercel_blob_rw_test_token",
   });
-  expect(url).toBe("https://eyugwjvmp953ayog.public.blob.vercel-storage.com/units/bar/abc.webp");
+  expect(stored).toBe(SUFFIXED);
+});
+
+test("the path that comes back is the store's and not the one asked for", async () => {
+  // The defect in #131, as a test. A row holding the requested path holds a
+  // path the uploader derived from bytes it has, so the pending object it
+  // points at is one anybody who can produce those bytes can reach.
+  env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_test_token";
+
+  const stored = await putBlobAsset("units/bar/abc.webp", "bytes", "image/webp");
+
+  expect(stored).not.toBe("units/bar/abc.webp");
+  expect(stored.startsWith("units/bar/abc")).toBe(true);
 });
 
 test("a put normalises the path the same way the URL does", async () => {
