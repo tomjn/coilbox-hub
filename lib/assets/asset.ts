@@ -6,9 +6,10 @@
  * before any of them.
  *
  * The migration is
- * `supabase/migrations/20260814090000_unit_and_map_assets.sql` and is the
- * authority on all of this. The two literal lists below are repeated there as
- * check constraints, which no amount of TypeScript can keep in step, so
+ * `supabase/migrations/20260814090000_unit_and_map_assets.sql`, as amended by
+ * `20260814120000_asset_origin_and_approval_source.sql`, and is the authority
+ * on all of this. The literal lists below are repeated there as check
+ * constraints, which no amount of TypeScript can keep in step, so
  * `asset.test.ts` compares the two the same way `container.test.ts` does for
  * `item.kind`.
  */
@@ -27,6 +28,38 @@ export type AssetTier = (typeof ASSET_TIERS)[number];
 export const ASSET_MODERATION_STATES = ["pending", "approved", "rejected"] as const;
 
 export type AssetModeration = (typeof ASSET_MODERATION_STATES)[number];
+
+/**
+ * How the bytes were produced, not how they arrived. A client that extracts a
+ * buildpic and then posts it writes `extracted`, because the archive can
+ * produce those bytes again.
+ *
+ * `extracted` comes out of a game or map archive, `rendered` is drawn from the
+ * unit's model, and `uploaded` is an image a person supplied themselves. The
+ * last one is the class the moderation queue exists for: the other two can be
+ * re-derived and checked against a source archive, and an uploaded one is
+ * whatever bytes somebody chose.
+ */
+export const ASSET_ORIGINS = ["extracted", "rendered", "uploaded"] as const;
+
+export type AssetOrigin = (typeof ASSET_ORIGINS)[number];
+
+/**
+ * Which authority put the row in front of the public, once something did.
+ *
+ * `seed` is the hand curated corpus written straight to the durable tier,
+ * `bypass` is an uploader holding a capability that skips the queue, and
+ * `moderator` is a person approving it in the grid. The first two are both
+ * bypasses and are still separate, because seeding content and waiving a
+ * safety control are separate grants and the audit trail has to say which one
+ * was used.
+ *
+ * Null while pending, and on a rejected row it reads "how this was approved
+ * before it was rejected", or null if it never was.
+ */
+export const ASSET_APPROVAL_SOURCES = ["seed", "bypass", "moderator"] as const;
+
+export type AssetApprovalSource = (typeof ASSET_APPROVAL_SOURCES)[number];
 
 /** The only variant a unit has besides a render. */
 export const UNIT_BUILDPIC_VARIANT = "buildpic";
@@ -80,7 +113,7 @@ export interface AssetRow {
   encode_profile: string;
   /** Tier relative, never a fully qualified URL. */
   path: string;
-  origin: string;
+  origin: AssetOrigin;
   tier: AssetTier;
 
   mime: string;
@@ -99,7 +132,9 @@ export interface AssetRow {
   promoted_at: string | null;
   uploaded_by: string | null;
   moderation: AssetModeration;
-  approval_source: string | null;
+  /** Null while pending, and null on a row rejected without ever having been
+   * approved. Set for anything the hub is serving. */
+  approval_source: AssetApprovalSource | null;
 
   created_at: string;
   updated_at: string;

@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import {
+  ASSET_APPROVAL_SOURCES,
   ASSET_MODERATION_STATES,
+  ASSET_ORIGINS,
   ASSET_TIERS,
   UNIT_BUILDPIC_VARIANT,
   UNIT_RENDER_VARIANT_PREFIX,
@@ -35,6 +37,16 @@ test("the database accepts exactly the tiers the hub knows about", () => {
 test("the database accepts exactly the moderation states the hub knows about", () => {
   expect(listTheDatabaseAccepts("moderation").sort()).toEqual(
     [...ASSET_MODERATION_STATES].sort(),
+  );
+});
+
+test("the database accepts exactly the origins the hub knows about", () => {
+  expect(listTheDatabaseAccepts("origin").sort()).toEqual([...ASSET_ORIGINS].sort());
+});
+
+test("the database accepts exactly the approval sources the hub knows about", () => {
+  expect(listTheDatabaseAccepts("approval_source").sort()).toEqual(
+    [...ASSET_APPROVAL_SOURCES].sort(),
   );
 });
 
