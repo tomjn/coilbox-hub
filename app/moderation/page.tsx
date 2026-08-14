@@ -36,14 +36,24 @@ export default async function Moderation() {
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-3xl font-semibold tracking-tight">Reports</h1>
-          {/* The other queue. One nav entry covers both, so this is how a
-              moderator reaches the contact sheet (issue #114). */}
-          <Link
-            href="/moderation/assets"
-            className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-          >
-            Pictures
-          </Link>
+          <div className="flex gap-4">
+            {/* The other queue. One nav entry covers both, so this is how a
+                moderator reaches the contact sheet (issue #114). */}
+            <Link
+              href="/moderation/assets"
+              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+            >
+              Pictures
+            </Link>
+            {/* And the meters (issue #113), which are behind the same check and
+                would otherwise be a URL somebody has to remember. */}
+            <Link
+              href="/ops"
+              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+            >
+              Allowances
+            </Link>
+          </div>
         </div>
 
         {open.length === 0 ? (

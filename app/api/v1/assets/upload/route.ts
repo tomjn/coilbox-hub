@@ -6,6 +6,7 @@ import { BLOB_TOKEN_ERROR, deleteBlobAssets, putBlobAsset } from "@/lib/assets/b
 import { checkAssetImage } from "@/lib/assets/caps";
 import { encodedHash } from "@/lib/assets/hash";
 import { IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
+import { recordUnclaimedObject } from "@/lib/assets/orphan";
 import { recordSourceConflict } from "@/lib/assets/sourceConflict";
 import { checkAssetUpload, writePendingAsset } from "@/lib/assets/upload";
 import { clientIp, recordUploadIp } from "@/lib/assets/uploadIp";
@@ -226,7 +227,20 @@ export async function POST(request: Request) {
   );
 
   if (!assetId) {
-    await deleteBlobAssets([stored]).catch(() => {});
+    // Deleting is free, so it is always worth trying. When it fails as well the
+    // object is sitting in a public store with nothing naming it, and Postgres
+    // is the only place a sweep can ever find it again: `list()` is banned, so
+    // an object nobody wrote down is an object nobody can reach (#113). Writing
+    // the name down is the last chance to keep it findable, and it is best
+    // effort too, because the upload has already failed and a second error
+    // helps nobody.
+    const gone = await deleteBlobAssets([stored]).then(
+      () => true,
+      () => false,
+    );
+    if (!gone) {
+      await recordUnclaimedObject(admin, stored, file.size).catch(() => false);
+    }
     return apiError("The asset was uploaded but its record could not be written.", 503);
   }
 
