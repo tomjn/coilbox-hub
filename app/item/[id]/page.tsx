@@ -9,6 +9,7 @@ import { MapMinimap } from "@/components/MapMinimap";
 import { ReportButton } from "@/components/ReportButton";
 import { findBarMap } from "@/lib/bar/maps";
 import { itemArt } from "@/lib/gallery/itemArt";
+import { itemPictures } from "@/lib/gallery/itemPictures";
 import { mapOverlay } from "@/lib/gallery/mapOverlay";
 import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
@@ -116,11 +117,18 @@ export default async function Item({
   const { drawing, strength } = itemArt(item.kind, item.mode);
 
   // Null for every kind that names no map, and for a map BAR does not list.
-  // Either way the page is exactly what it was before this existed.
   const barMap = await findBarMap(item.map_name);
-  const minimap = barMap?.images?.preview ? (
+  // Both pictures in one query: the map, and a buildpic for every distinct unit
+  // in a blueprint (issue #109).
+  const pictures = await itemPictures(supabase, item, barMap);
+  // An item that names a map always gets the slot now. Which of BAR's
+  // thumbnail, the hub's own minimap or a drawing fills it is `MapMinimap`'s to
+  // decide, and one of the three always can.
+  const minimap = pictures.map ? (
     <MapMinimap
       map={barMap}
+      name={barMap?.displayName ?? item.map_name ?? ""}
+      picture={pictures.map}
       {...mapOverlay(item.kind, item.container, barMap)}
     />
   ) : null;
@@ -154,11 +162,19 @@ export default async function Item({
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
             <div className="w-full shrink-0 sm:w-80">{minimap}</div>
             <div className="min-w-0 flex-1 empty:hidden">
-              <ItemPreview kind={item.kind} container={item.container} />
+              <ItemPreview
+                kind={item.kind}
+                container={item.container}
+                units={pictures.units}
+              />
             </div>
           </div>
         ) : (
-          <ItemPreview kind={item.kind} container={item.container} />
+          <ItemPreview
+            kind={item.kind}
+            container={item.container}
+            units={pictures.units}
+          />
         )}
 
         <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-5">

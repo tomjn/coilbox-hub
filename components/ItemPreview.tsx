@@ -17,6 +17,7 @@
  * still has none.
  */
 
+import type { ServedAsset } from "@/lib/assets/resolve";
 import {
   blueprintShape,
   type BlueprintShape,
@@ -398,9 +399,15 @@ function threadOpacity(stops: number): number {
  *
  * One rounded square per building, each as big as the ground that building
  * stands on, laid out where the author put it, on the build grid it was drawn
- * against. There are no unit pictures here and no models, so the shape of the
- * base and the relative size of the things in it are the whole of what can be
- * shown, which is also most of what a person recognises a base by.
+ * against.
+ *
+ * A building the hub holds a buildpic of is drawn as that unit (issue #109).
+ * The picture sits inside the ground the building stands on and the outline
+ * stays over it, so a plan with pictures in it is still a plan and still reads
+ * against the grid. A building with no picture keeps its tinted square, which is
+ * what every building was before this and is a better answer than a row of
+ * dashed boxes: the shape of the base and the relative size of the things in it
+ * are most of what a person recognises a base by, and the square says both.
  *
  * This is coilbox's `src/blueprint/LayoutPlan.tsx` drawn the same way, down to
  * the grid and the weight of every mark (tomjn/coilbox#1506). The site has no
@@ -413,7 +420,13 @@ function threadOpacity(stops: number): number {
  * one nobody can take in at a glance, so the sheet keeps its shape and the base
  * sits on it (tomjn/coilbox#1508).
  */
-function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
+function BlueprintLayout({
+  shape,
+  units,
+}: {
+  shape: BlueprintShape;
+  units: ReadonlyMap<string, ServedAsset>;
+}) {
   const buildings = shape.squares.length;
   const sheet = blueprintSheet(shape, PAGE_BOX);
   const centres = shape.squares.map(
@@ -476,28 +489,49 @@ function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
             vectorEffect="non-scaling-stroke"
           />
         ) : null}
-        {shape.squares.map((square, i) => (
-          <rect
-            key={i}
-            x={square.x}
-            y={square.y}
-            width={square.width}
-            height={square.height}
-            rx={corner(sheet.scale, square.width, square.height)}
-            fill="currentColor"
-            // A building the payload never sized is left an outline, so a guess
-            // at one square does not read as a measurement.
-            fillOpacity={square.sized ? FILL : 0}
-            stroke="currentColor"
-            strokeOpacity={OUTLINE}
-            // Strokes in pixels rather than build squares, so a big base gets
-            // the same hairline as a small one instead of a line thinner than
-            // the screen can draw.
-            strokeWidth={1.25}
-            strokeDasharray={square.sized ? undefined : "2 2"}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
+        {shape.squares.map((square, i) => {
+          const picture = units.get(square.def.toLowerCase());
+          return (
+            <g key={i}>
+              {picture ? (
+                // Fitted inside the ground rather than filling it, so a square
+                // buildpic on a 3 by 5 building is not stretched into the wrong
+                // shape. Nothing here goes through `next/image`: these are
+                // already encoded at the size they are shown, and a Hobby plan
+                // gets around 5,000 transformations a month metered per unique
+                // source image, which is one per unit in the game.
+                <image
+                  href={picture.url}
+                  x={square.x}
+                  y={square.y}
+                  width={square.width}
+                  height={square.height}
+                  preserveAspectRatio="xMidYMid meet"
+                />
+              ) : null}
+              <rect
+                x={square.x}
+                y={square.y}
+                width={square.width}
+                height={square.height}
+                rx={corner(sheet.scale, square.width, square.height)}
+                fill="currentColor"
+                // A building the payload never sized is left an outline, so a
+                // guess at one square does not read as a measurement, and a
+                // building showing its own picture needs no tint under it.
+                fillOpacity={picture || !square.sized ? 0 : FILL}
+                stroke="currentColor"
+                strokeOpacity={OUTLINE}
+                // Strokes in pixels rather than build squares, so a big base
+                // gets the same hairline as a small one instead of a line
+                // thinner than the screen can draw.
+                strokeWidth={1.25}
+                strokeDasharray={square.sized ? undefined : "2 2"}
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
+          );
+        })}
         {thread ? (
           // Where the build order starts, drawn over the building it starts on.
           <circle
@@ -516,6 +550,10 @@ function BlueprintLayout({ shape }: { shape: BlueprintShape }) {
     </div>
   );
 }
+
+/** No pictures, which is what a caller that has not looked any up passes and
+ *  what every caller got before issue #109. */
+const EMPTY: ReadonlyMap<string, ServedAsset> = new Map();
 
 /** Stat rows carry a label and a value that is not always a number, unlike
  * {@link Stat}. */
@@ -607,9 +645,14 @@ function ScenarioPreview({ payload }: { payload: Record<string, unknown> }) {
 export function ItemPreview({
   kind,
   container,
+  units = EMPTY,
 }: {
   kind: string;
   container: unknown;
+  /** What the hub has a picture of, keyed by lower case def name, from
+   *  `lib/gallery/itemPictures.ts`. Only the blueprint plan reads it, and a def
+   *  that is absent is drawn as its footprint. */
+  units?: ReadonlyMap<string, ServedAsset>;
 }) {
   const payload = (container as { payload?: unknown } | null)?.payload;
   if (typeof payload !== "object" || payload === null) return null;
@@ -621,7 +664,7 @@ export function ItemPreview({
   if (kind === "scenario") return <ScenarioPreview payload={record} />;
   if (kind === "blueprint") {
     const shape = blueprintShape(record);
-    return shape ? <BlueprintLayout shape={shape} /> : null;
+    return shape ? <BlueprintLayout shape={shape} units={units} /> : null;
   }
   return null;
 }

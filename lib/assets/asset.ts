@@ -134,8 +134,12 @@ export const UNIT_RENDER_VARIANT_PREFIX = "render:";
  */
 export const MAP_HEIGHT_OVERLAY_VARIANT = "overlay:height";
 
+/** The picture of the map itself, as opposed to a layer drawn over it. Named
+ * because it is the one a page asks for by hand (issue #109). */
+export const MAP_MINIMAP_VARIANT = "minimap";
+
 export const MAP_VARIANTS = [
-  "minimap",
+  MAP_MINIMAP_VARIANT,
   "overlay:metal",
   "overlay:type",
   MAP_HEIGHT_OVERLAY_VARIANT,
