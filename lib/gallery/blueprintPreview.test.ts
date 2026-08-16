@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import {
   type BlueprintShape,
   BUILDING_GAP,
+  blueprintBuildOrder,
+  blueprintRoster,
   blueprintShape,
   blueprintSheet,
   planLabel,
@@ -252,4 +254,188 @@ test("the plan label rounds sides a footprint gap leaves fractional", () => {
   expect(planLabel(counted(2, 5.76, 3.24))).toBe(
     "2 buildings over 6 by 3 build squares",
   );
+});
+
+test("the roster says what the buildings are, and how many of each", () => {
+  const roster = blueprintRoster(
+    payload({
+      buildings: [
+        { def: "armsolar", ...AT_ORIGIN },
+        { def: "armlab", offset: { x: 160, z: 0 }, facing: 0 },
+        { def: "armsolar", offset: { x: 32, z: 0 }, facing: 0 },
+      ],
+      footprints: { armsolar: { x: 2, z: 2 }, armlab: { x: 8, z: 5 } },
+    }),
+  );
+
+  expect(roster).toEqual([
+    { def: "armsolar", count: 2, footprint: { x: 2, z: 2 } },
+    { def: "armlab", count: 1, footprint: { x: 8, z: 5 } },
+  ]);
+});
+
+test("the most numerous kind comes first, and ties read alphabetically", () => {
+  // What a base is mostly made of is the thing worth saying first. A tie is
+  // ordered by name so one layout always lists the same way.
+  const roster = blueprintRoster(
+    payload({
+      buildings: [
+        { def: "armwin", ...AT_ORIGIN },
+        { def: "armlab", ...AT_ORIGIN },
+        { def: "armsolar", ...AT_ORIGIN },
+        { def: "armsolar", ...AT_ORIGIN },
+      ],
+    }),
+  );
+
+  expect(roster.map((kind) => kind.def)).toEqual([
+    "armsolar",
+    "armlab",
+    "armwin",
+  ]);
+});
+
+test("a def spelled two ways is one kind", () => {
+  // A layout holds whatever its author typed, and the payload keys footprints
+  // in lower case, so the roster counts the same way it looks a size up.
+  const roster = blueprintRoster(
+    payload({
+      buildings: [
+        { def: "ArmSolar", ...AT_ORIGIN },
+        { def: "armsolar", ...AT_ORIGIN },
+      ],
+      footprints: { armsolar: { x: 2, z: 2 } },
+    }),
+  );
+
+  expect(roster).toEqual([
+    { def: "armsolar", count: 2, footprint: { x: 2, z: 2 } },
+  ]);
+});
+
+test("a kind the payload never sized carries no footprint, rather than a guess", () => {
+  const roster = blueprintRoster(
+    payload({ buildings: [{ def: "whatisthis", ...AT_ORIGIN }] }),
+  );
+
+  expect(roster).toEqual([{ def: "whatisthis", count: 1, footprint: null }]);
+});
+
+test("a kind's footprint is the ground it stands on, whichever way it was turned", () => {
+  // Facing is a fact about a placement. Two labs, one of them on its side,
+  // are two of the same unit.
+  const roster = blueprintRoster(
+    payload({
+      buildings: [
+        { def: "armlab", offset: { x: 0, z: 0 }, facing: 0 },
+        { def: "armlab", offset: { x: 160, z: 0 }, facing: 1 },
+      ],
+      footprints: { armlab: { x: 8, z: 5 } },
+    }),
+  );
+
+  expect(roster).toEqual([
+    { def: "armlab", count: 2, footprint: { x: 8, z: 5 } },
+  ]);
+});
+
+test("an empty or unreadable layout has no roster", () => {
+  expect(blueprintRoster(payload({}))).toEqual([]);
+  expect(blueprintRoster({ buildings: [] })).toEqual([]);
+  expect(blueprintRoster(null)).toEqual([]);
+});
+
+test("the build order is read as runs, numbered from one", () => {
+  const runs = blueprintBuildOrder(
+    payload({
+      ordered: true,
+      buildings: [
+        { def: "armsolar", ...AT_ORIGIN },
+        { def: "armsolar", ...AT_ORIGIN },
+        { def: "armmex", ...AT_ORIGIN },
+      ],
+      footprints: { armsolar: { x: 2, z: 2 }, armmex: { x: 2, z: 2 } },
+    }),
+  );
+
+  expect(runs).toEqual([
+    { def: "armsolar", count: 2, from: 1, to: 2, footprint: { x: 2, z: 2 } },
+    { def: "armmex", count: 1, from: 3, to: 3, footprint: { x: 2, z: 2 } },
+  ]);
+});
+
+test("the same kind built twice at different points is two runs", () => {
+  // Four solar, a mex, then four more solar were built in that order. Counting
+  // them as eight solar would erase the order this list exists to say.
+  const runs = blueprintBuildOrder(
+    payload({
+      ordered: true,
+      buildings: [
+        { def: "armsolar", ...AT_ORIGIN },
+        { def: "armmex", ...AT_ORIGIN },
+        { def: "armsolar", ...AT_ORIGIN },
+      ],
+    }),
+  );
+
+  expect(runs).toEqual([
+    { def: "armsolar", count: 1, from: 1, to: 1, footprint: null },
+    { def: "armmex", count: 1, from: 2, to: 2, footprint: null },
+    { def: "armsolar", count: 1, from: 3, to: 3, footprint: null },
+  ]);
+});
+
+test("a run covers every building between its own two ends", () => {
+  const runs = blueprintBuildOrder(
+    payload({
+      ordered: true,
+      buildings: Array.from({ length: 7 }, (_, i) => ({
+        def: i < 4 ? "armsolar" : "armlab",
+        ...AT_ORIGIN,
+      })),
+    }),
+  )!;
+
+  expect(runs.map((run) => [run.from, run.to])).toEqual([
+    [1, 4],
+    [5, 7],
+  ]);
+  expect(runs.every((run) => run.count === run.to - run.from + 1)).toBe(true);
+});
+
+test("a def spelled two ways in a row is one run", () => {
+  const runs = blueprintBuildOrder(
+    payload({
+      ordered: true,
+      buildings: [
+        { def: "ArmSolar", ...AT_ORIGIN },
+        { def: "armsolar", ...AT_ORIGIN },
+      ],
+      footprints: { armsolar: { x: 2, z: 2 } },
+    }),
+  );
+
+  expect(runs).toEqual([
+    { def: "armsolar", count: 2, from: 1, to: 2, footprint: { x: 2, z: 2 } },
+  ]);
+});
+
+test("a layout that never claimed an order has no build order to read", () => {
+  // Without `ordered` the payload's order is how it was stored, not a sequence
+  // anybody chose, and numbering it would invent one.
+  expect(
+    blueprintBuildOrder(
+      payload({ buildings: [{ def: "armsolar", ...AT_ORIGIN }] }),
+    ),
+  ).toBeNull();
+  expect(
+    blueprintBuildOrder(
+      payload({ ordered: false, buildings: [{ def: "armsolar", ...AT_ORIGIN }] }),
+    ),
+  ).toBeNull();
+});
+
+test("an empty or unreadable layout has no build order", () => {
+  expect(blueprintBuildOrder(payload({ ordered: true }))).toBeNull();
+  expect(blueprintBuildOrder(null)).toBeNull();
 });
