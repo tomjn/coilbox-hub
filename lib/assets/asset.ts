@@ -132,6 +132,19 @@ export const UNIT_BUILDPIC_VARIANT = vocabulary.unit.buildpicVariant;
 export const UNIT_RENDER_VARIANT_PREFIX = vocabulary.unit.renderVariantPrefix;
 
 /**
+ * The unit seen from above, which is the one a page asks for by hand, the way
+ * {@link MAP_MINIMAP_VARIANT} is on the map side.
+ *
+ * A blueprint plan is drawn from above, so this is the angle that sits on a
+ * footprint without being a picture of the building from somewhere else. The
+ * angle is spelled out here rather than taken off `renderAngles`, because
+ * which of that list a plan wants is a fact about the plan and not about the
+ * vocabulary. `vocabulary.test.ts` checks the vocabulary still names it, so an
+ * upstream rename is red here rather than a variant nothing ever holds.
+ */
+export const UNIT_TOP_RENDER_VARIANT = `${UNIT_RENDER_VARIANT_PREFIX}top`;
+
+/**
  * The map side of the variant vocabulary, which #105 is the first change to
  * know in full: the minimap texture, and the three extracted overlay layers.
  *

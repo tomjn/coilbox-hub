@@ -100,10 +100,11 @@ function mapRow(overrides: Partial<Row> = {}): Row {
   };
 }
 
-test("a layout asks for one buildpic per distinct def, whatever case it was typed in", () => {
+test("a layout asks for one top render per distinct def, whatever case it was typed in", () => {
+  // A plan is drawn from above, so it asks for the view from above.
   expect(blueprintUnitIdentities(blueprint(["ArmSolar", "armsolar", "armlab"]))).toEqual([
-    { keyedOn: "unit", game: "bar", unitName: "armsolar", variant: "buildpic" },
-    { keyedOn: "unit", game: "bar", unitName: "armlab", variant: "buildpic" },
+    { keyedOn: "unit", game: "bar", unitName: "armsolar", variant: "render:top" },
+    { keyedOn: "unit", game: "bar", unitName: "armlab", variant: "render:top" },
   ]);
 });
 
@@ -150,9 +151,14 @@ test("the map and every unit are asked for together", async () => {
   expect(queries[0]).toContain("armlab");
 });
 
-test("a unit the hub has a picture of is served, and one it does not is absent", async () => {
+test("a unit the hub has a top render of is served it, and one it does not is absent", async () => {
   const { units } = await itemPictures(
-    fakeSupabase([unitRow("armsolar")]),
+    fakeSupabase([
+      unitRow("armsolar", {
+        variant: "render:top",
+        path: "units/bar/render/top/armsolar.webp",
+      }),
+    ]),
     blueprint(["armsolar", "armlab"]),
     null,
   );
@@ -160,8 +166,24 @@ test("a unit the hub has a picture of is served, and one it does not is absent",
   expect([...units.keys()]).toEqual(["armsolar"]);
   expect(units.get("armsolar")).toMatchObject({
     from: "static",
-    url: `${DEFAULT_ASSET_CDN_BASE}units/bar/buildpic/armsolar.webp`,
+    url: `${DEFAULT_ASSET_CDN_BASE}units/bar/render/top/armsolar.webp`,
     substituted: false,
+  });
+});
+
+test("a unit with no top render keeps the buildpic the plan drew before", async () => {
+  // The angle is wrong and the picture is still the best the hub has. Asking
+  // for a render the hub does not hold must not lose a building the picture it
+  // does hold, so this is what stops the change being a regression.
+  const { units } = await itemPictures(
+    fakeSupabase([unitRow("armsolar")]),
+    blueprint(["armsolar"]),
+    null,
+  );
+
+  expect(units.get("armsolar")).toMatchObject({
+    url: `${DEFAULT_ASSET_CDN_BASE}units/bar/buildpic/armsolar.webp`,
+    substituted: true,
   });
 });
 
