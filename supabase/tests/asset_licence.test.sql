@@ -1,8 +1,9 @@
--- public.asset_licence decides whether anything may be published at all
--- (issue #97), and the durable tier is a public git repository whose history is
--- permanent. So the failure this file guards against is not a broken page, it
--- is an unpublishable thing published, and the only cheap moment to catch it is
--- before the insert.
+-- public.asset_licence records what is known about a subject's redistribution
+-- terms (issue #97). It no longer decides whether an upload is accepted, which
+-- is #167: it refused every game nobody had researched, and moderation is what
+-- handles a picture that should not be published. What this file guards is the
+-- quality of the record, since a moderator reading a wrong row is worse off
+-- than one reading no row.
 --
 -- Two properties matter more than the rest and are asserted first: a row grants
 -- nothing by existing, and saying yes has to say what the yes rests on.
@@ -40,8 +41,8 @@ select is(
 );
 
 -- The map default is the row it claims to be. A lookup that finds nothing for a
--- map name reads this instead, so its absence is the difference between the
--- minimap seed publishing and publishing nothing.
+-- map name reads this instead, so it is what the record says about almost every
+-- map in the collection.
 select is(
   (select count(*) from public.asset_licence where all_maps)::int, 1,
   'exactly one row answers for every map without one of its own'

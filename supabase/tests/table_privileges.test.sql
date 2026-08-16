@@ -117,9 +117,9 @@ select table_privs_are('public', 'asset_orphan', 'authenticated', ARRAY[]::name[
 select table_privs_are('public', 'asset_orphan', 'service_role', ARRAY['SELECT'],
   'service_role reads the sweep queue and can neither add to it nor settle a row by hand');
 
--- public.asset_licence: read by the route so it can answer whether the hub may
--- publish a subject's pictures at all, and written only by a migration, where
--- a person reviews the decision before it becomes permanent. Nothing serves it
+-- public.asset_licence: recorded research a moderator can read server side, and
+-- written only by a migration, where a person reviews the finding before it
+-- becomes permanent. No upload consults it any more (#167). Nothing serves it
 -- to a browser, so anon and authenticated hold nothing (issue #102).
 select table_privs_are('public', 'asset_licence', 'anon', ARRAY[]::name[],
   'anon holds no table privilege on asset_licence');

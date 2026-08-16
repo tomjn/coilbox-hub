@@ -3,7 +3,6 @@ import { type AssetIdentity, type AssetOrigin, UNIT_RENDER_VARIANT_PREFIX } from
 import { BLOB_ADVANCED_OPERATIONS_PER_MONTH } from "./blob";
 import { capForVariant, heightOverlayMaxBytes } from "./caps";
 import { identityFilter } from "./have";
-import { type AssetLicenceRow, licenceForMap, mayRedistribute } from "./licence";
 import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
 import { type SourceConflict, sourceConflict } from "./sourceConflict";
 
@@ -36,6 +35,15 @@ import { type SourceConflict, sourceConflict } from "./sourceConflict";
  * so a request that trips two limits always hears about the same one.
  *
  * ## What is not here
+ *
+ * The licence, and its absence is deliberate (#167). `asset_licence` used to
+ * decide whether an upload was allowed, and because a subject with no row reads
+ * as `unknown`, it refused everything nobody had researched. Splinter Faction,
+ * which has one of the most permissive licences in the corpus, was refused with
+ * a 403. Licences are not a gate on upload: moderation and reporting are how a
+ * picture that should not be published is dealt with, and they look at the
+ * picture rather than at a table nobody has filled in. The table stays as
+ * recorded research for a moderator to read, and nothing here consults it.
  *
  * The per class caps (#105) are in `./caps`, and the route applies them between
  * the last pure check and the first database one. They need the bytes and this
@@ -240,41 +248,6 @@ async function countRows(
 }
 
 /**
- * The licence row that decides for this subject, or null when there is none.
- *
- * A game is looked up directly and a map falls back to the blanket row, which
- * is the difference {@link licenceForMap} exists for: almost no map has a row
- * of its own, so a direct lookup alone would refuse nearly every map.
- */
-async function fetchLicence(
-  supabase: SupabaseClient,
-  identity: AssetIdentity,
-): Promise<{ ok: true; licence: AssetLicenceRow | null } | { ok: false }> {
-  if (identity.keyedOn === "unit") {
-    const { data, error } = await supabase
-      .from("asset_licence")
-      .select("*")
-      .eq("game", identity.game)
-      .maybeSingle();
-    return error ? { ok: false } : { ok: true, licence: data as AssetLicenceRow | null };
-  }
-
-  const [perMap, allMaps] = await Promise.all([
-    supabase.from("asset_licence").select("*").eq("map_name", identity.mapName).maybeSingle(),
-    supabase.from("asset_licence").select("*").eq("all_maps", true).maybeSingle(),
-  ]);
-  if (perMap.error || allMaps.error) return { ok: false };
-
-  return {
-    ok: true,
-    licence: licenceForMap(
-      perMap.data as AssetLicenceRow | null,
-      allMaps.data as AssetLicenceRow | null,
-    ),
-  };
-}
-
-/**
  * The staging object already holding these bytes, or null when there is none.
  *
  * The whole of #132's saving. Paths are content addressed on the hash of the
@@ -323,25 +296,6 @@ async function fetchExisting(
   return error ? { ok: false } : { ok: true, row: data as ExistingAsset | null };
 }
 
-/**
- * Whether the hub may publish this class of picture for this subject.
- *
- * `uploaded` is not licence gated, and that is not an oversight. Nobody can
- * tell from the bytes what a supplied image is a picture of or who made it, so
- * no per game or per map decision can answer for one, and `mayRedistribute()`
- * does not accept the origin at all. The moderation queue is what stands in
- * front of that class.
- *
- * Everything else is gated, and the gate is here rather than at approval time
- * because the staging tier is public: `put()` puts the bytes at a reachable URL
- * before any person has looked at them. Accepting an upload the hub may never
- * redistribute would therefore publish it, spend an advanced operation on it,
- * and leave a deletion as the only remedy.
- */
-function licencePermits(licence: AssetLicenceRow | null, origin: AssetOrigin): boolean {
-  return origin === "uploaded" ? true : mayRedistribute(licence, origin);
-}
-
 const QUOTA_UNAVAILABLE = {
   ok: false,
   error: "The upload quotas could not be read just now. Try again shortly.",
@@ -366,7 +320,7 @@ export async function checkAssetUpload(
   declaration: AssetUploadDeclaration,
   hash: string,
 ): Promise<AssetUploadCheck> {
-  const { identity, origin, mime, bytes } = declaration;
+  const { identity, mime, bytes } = declaration;
 
   // Pure checks first. None of these costs a round trip, so the request that
   // was never going to be accepted is refused before the hub does any work.
@@ -428,9 +382,8 @@ export async function checkAssetUpload(
           .not("map_name", "is", null)
           .gte("seen_at", since);
 
-  const [licence, existing, stored, unitRenders, accountBytes, recent, thisMonth] =
+  const [existing, stored, unitRenders, accountBytes, recent, thisMonth] =
     await Promise.all([
-      fetchLicence(supabase, identity),
       fetchExisting(supabase, identity),
       reusableObject(supabase, hash),
       identity.keyedOn === "unit" && identity.variant.startsWith(UNIT_RENDER_VARIANT_PREFIX)
@@ -453,18 +406,6 @@ export async function checkAssetUpload(
           .gte("seen_at", monthStart(new Date())),
       ),
     ]);
-
-  if (!licence.ok) return QUOTA_UNAVAILABLE;
-  if (!licencePermits(licence.licence, origin)) {
-    return {
-      ok: false,
-      error:
-        identity.keyedOn === "unit"
-          ? `The hub has no recorded permission to redistribute ${origin} pictures for "${identity.game}".`
-          : `The hub has no recorded permission to redistribute ${origin} pictures for "${identity.mapName}".`,
-      status: 403,
-    };
-  }
 
   if (!existing.ok) return QUOTA_UNAVAILABLE;
   const replacing = existing.row;
