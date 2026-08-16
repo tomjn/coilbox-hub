@@ -97,7 +97,7 @@ select throws_ok(
   $$select count(*) from public.asset_licence$$,
   '42501',
   null,
-  'the licence decisions are not served to a browser'
+  'the licence research is not served to a browser'
 );
 
 select throws_ok(
@@ -228,14 +228,14 @@ select throws_ok(
 
 select lives_ok(
   $$select count(*) from public.asset_licence$$,
-  'the route reads the licence decision the publishing gate rests on'
+  'the server can read what is recorded about a subject, which moderation is what wants'
 );
 
 select throws_ok(
   $$update public.asset_licence set redistribute_rendered = 'allowed'$$,
   '42501',
   null,
-  'and cannot make one at runtime, since a decision is permanent and belongs in a reviewed migration'
+  'and cannot record a finding at runtime, since one belongs in a reviewed migration'
 );
 
 select throws_ok(

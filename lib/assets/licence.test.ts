@@ -78,11 +78,11 @@ function blanketMapRow(over: Partial<AssetLicenceRow> = {}): AssetLicenceRow {
 }
 
 /**
- * The durable tier is a public git repository, so the cost of these two answers
- * is not symmetric. A wrong no is a missing picture. A wrong yes is a permanent
- * publication somebody has to be asked to remove.
+ * Nobody having looked is not a finding, so it reads as no rather than as yes.
+ * That is a reading of the record and not a refusal of a request: since #167
+ * nothing on a write path asks, and an unresearched subject uploads normally.
  */
-test("a subject nobody has ruled on publishes nothing", () => {
+test("a subject nobody has ruled on answers no", () => {
   expect(mayRedistribute(null, "extracted")).toBe(false);
   expect(mayRedistribute(undefined, "rendered")).toBe(false);
 });
@@ -92,7 +92,7 @@ test("recording a licence is not the same as permitting redistribution", () => {
   expect(mayRedistribute(row(), "rendered")).toBe(false);
 });
 
-test("a refusal blocks the same way an undecided row does", () => {
+test("a refusal reads the same way an undecided row does", () => {
   const refused = row({ redistribute_extracted: "denied", redistribute_rendered: "denied" });
   expect(mayRedistribute(refused, "extracted")).toBe(false);
   expect(mayRedistribute(refused, "rendered")).toBe(false);
@@ -157,9 +157,10 @@ test("a map refused by name stays refused despite the blanket row", () => {
 
 /**
  * The default is data, so it can be absent, and absent has to mean no. A
- * database missing the blanket row publishes nothing rather than everything.
+ * database missing the blanket row records nothing about maps rather than
+ * everything.
  */
-test("without the blanket row a map still publishes nothing", () => {
+test("without the blanket row a map answers no", () => {
   expect(mayRedistribute(licenceForMap(undefined, undefined), "extracted")).toBe(false);
   expect(mayRedistribute(licenceForMap(null, null), "rendered")).toBe(false);
 });

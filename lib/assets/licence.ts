@@ -1,6 +1,6 @@
 /**
- * Whether the hub may publish a given game's or map's pictures at all, and what
- * that answer rests on (issue #97).
+ * What is known about a game's or map's redistribution terms, and what that
+ * knowledge rests on (issue #97).
  *
  * Types only, the same as `./asset`. The migrations are
  * `supabase/migrations/20260814150000_asset_licence.sql` and the
@@ -8,9 +8,12 @@
  * `licence.test.ts` reads the literal list back out of it, because nothing in
  * TypeScript can keep a check constraint in step.
  *
- * Read this before writing an asset, not after. The durable tier is a public
- * git repository, so publishing something the licence did not allow is a
- * rewrite of a published history rather than a delete from a bucket.
+ * This is research, and it is not a gate. It used to refuse uploads, and
+ * because a subject with no row reads as `unknown` it refused every game
+ * nobody had got round to, including the most permissively licensed one in the
+ * corpus. #167 took it off the upload path: moderation and reporting decide
+ * whether a picture stays, and they look at the picture. Nothing on a write
+ * path calls anything in this file, and a row here is for a moderator to read.
  */
 
 /**
@@ -83,13 +86,14 @@ export interface AssetLicenceRow {
 }
 
 /**
- * Whether an asset of this origin may be published for this subject, given the
- * licence row found for it, or `undefined` when no row was found.
+ * Whether the research says this origin may be redistributed for this subject,
+ * given the licence row found for it, or `undefined` when no row was found.
  *
- * Fails closed on every path that is not an explicit `allowed`: no row, an
- * undecided row, a refused row. That is the whole behaviour, and it is a
- * function rather than a comparison at each call site so that no caller can
- * accidentally write the one truthiness test that lets a missing row through.
+ * Reads `allowed` and nothing else as a yes: no row, an undecided row and a
+ * refused row all answer no. That is a reading of the record and no longer a
+ * decision about a request. Nothing calls it on a write path (#167), and
+ * nothing should: an upload of a game nobody has researched is an ordinary
+ * upload for the queue, not a refusal.
  *
  * For a map, resolve the row through {@link licenceForMap} first. Handing this
  * function the per map lookup alone answers no for every map that has no row of
@@ -97,8 +101,7 @@ export interface AssetLicenceRow {
  *
  * `uploaded` is not covered here. Nobody can tell from the bytes what an
  * uploaded image is a picture of or who made it, so a per game or per map
- * decision cannot answer for one. The moderation queue is what stands in front
- * of that class.
+ * decision cannot answer for one.
  */
 export function mayRedistribute(
   licence: AssetLicenceRow | null | undefined,
@@ -123,16 +126,13 @@ export function mayRedistribute(
  *
  * Pass both rows. A caller looks up `map_name = <the canonical name>` and
  * `all_maps = true`, and hands them over in that order. Feed the result to
- * {@link mayRedistribute}, which is unchanged and still fails closed: if the
- * blanket row is missing from the database, a map with no row of its own
- * publishes nothing, exactly as before.
+ * {@link mayRedistribute}, which reads a missing blanket row as no.
  *
  * A per map row wins outright, including a per map `denied`. Taking one map
  * back out is one insert and does not disturb the default.
  *
- * Games have no equivalent and should not get one. There are three of them,
- * each has a repository to read, and a blanket game row would let a fourth game
- * publish on the strength of nobody having looked.
+ * Games have no equivalent. There are three of them and each has a repository
+ * to read, so a blanket game row would record a finding nobody made.
  */
 export function licenceForMap(
   perMap: AssetLicenceRow | null | undefined,
