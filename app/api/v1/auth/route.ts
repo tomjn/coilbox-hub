@@ -12,11 +12,17 @@ import { buildAuthBody } from "@/lib/api/auth";
  * nothing on screen explaining why), a client discovers both values from
  * here.
  *
+ * It also carries the digest of the asset vocabulary a client has to encode to
+ * (#165), for the same reason: a shipped build cannot be corrected, so it needs
+ * somewhere to find out that what it holds is out of date.
+ *
  * These values change close to never, unlike a gallery listing, so this
  * builds its own response rather than going through `apiJson`'s 60 second
  * default: a client hits this on every sign-in, and there is no reason to
  * make it, or a CDN in front of it, re-fetch something this static every
- * minute.
+ * minute. A digest read up to a day stale is still fine, because it only ever
+ * tells a client to update and the refusals that matter come from the upload
+ * route.
  *
  * If a deployment is missing either environment variable, this hands back a
  * 503 rather than a body with an `undefined` field: a client that gets
