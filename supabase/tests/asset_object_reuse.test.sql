@@ -23,11 +23,11 @@ values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-0000000
 -- promotion is about to take away.
 insert into public.asset (id, game, unit_name, variant, source_hash, hash, encode_profile, path, tier, origin, mime, bytes, width, height, source_archive, moderation, approval_source, uploaded_by)
 values
-  ('0f8fad5b-3333-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-a', 'shared', 'buildpic-lossless', 'units/bar/buildpic/shared-Hn4vQ2rT.webp', 'blob', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111'),
-  ('0f8fad5b-3333-4000-8000-00000000000b', 'bar', 'armadvsol', 'buildpic', 'src-b', 'shared', 'buildpic-lossless', 'units/bar/buildpic/shared-Hn4vQ2rT.webp', 'blob', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'pending', null, '11111111-1111-1111-1111-111111111111'),
-  ('0f8fad5b-3333-4000-8000-00000000000c', 'bar', 'armllt', 'buildpic', 'src-c', 'moved', 'buildpic-lossless', 'units/bar/buildpic/moved.webp', 'static', 'uploaded', 'image/webp', 2048, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111'),
-  ('0f8fad5b-3333-4000-8000-00000000000d', 'bar', 'armcom', 'buildpic', 'src-d', 'draining', 'buildpic-lossless', 'units/bar/buildpic/draining-Zx91Kp2w.webp', 'blob', 'uploaded', 'image/webp', 1024, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111'),
-  ('0f8fad5b-3333-4000-8000-00000000000e', 'bar', 'armfus', 'buildpic', 'src-e', 'draining', 'buildpic-lossless', 'units/bar/buildpic/draining-Zx91Kp2w.webp', 'blob', 'uploaded', 'image/webp', 1024, 128, 128, 'bar_1.2.sdz', 'pending', null, '11111111-1111-1111-1111-111111111111');
+  ('0f8fad5b-3333-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-a', 'shared', 'webp-lossless-256', 'units/bar/buildpic/shared-Hn4vQ2rT.webp', 'blob', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111'),
+  ('0f8fad5b-3333-4000-8000-00000000000b', 'bar', 'armadvsol', 'buildpic', 'src-b', 'shared', 'webp-lossless-256', 'units/bar/buildpic/shared-Hn4vQ2rT.webp', 'blob', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'pending', null, '11111111-1111-1111-1111-111111111111'),
+  ('0f8fad5b-3333-4000-8000-00000000000c', 'bar', 'armllt', 'buildpic', 'src-c', 'moved', 'webp-lossless-256', 'units/bar/buildpic/moved.webp', 'static', 'uploaded', 'image/webp', 2048, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111'),
+  ('0f8fad5b-3333-4000-8000-00000000000d', 'bar', 'armcom', 'buildpic', 'src-d', 'draining', 'webp-lossless-256', 'units/bar/buildpic/draining-Zx91Kp2w.webp', 'blob', 'uploaded', 'image/webp', 1024, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111'),
+  ('0f8fad5b-3333-4000-8000-00000000000e', 'bar', 'armfus', 'buildpic', 'src-e', 'draining', 'webp-lossless-256', 'units/bar/buildpic/draining-Zx91Kp2w.webp', 'blob', 'uploaded', 'image/webp', 1024, 128, 128, 'bar_1.2.sdz', 'pending', null, '11111111-1111-1111-1111-111111111111');
 
 -- ## Which objects an upload may take instead of writing its own
 

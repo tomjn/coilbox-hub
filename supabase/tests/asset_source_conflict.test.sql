@@ -21,10 +21,10 @@ values
 
 -- One approved picture out of bar_1.2.sdz, and one rejected on safety grounds.
 insert into public.asset (id, game, unit_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, source_archive, uploaded_by, moderation, approval_source)
-values ('0f8fad5b-0000-4000-8000-0000000000a1', 'bar', 'armsolar', 'buildpic', 'src-one', 'enc-one', 'buildpic-q80', 'unit/bar/armsolar/buildpic/enc-one.webp', 'extracted', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111', 'approved', 'moderator');
+values ('0f8fad5b-0000-4000-8000-0000000000a1', 'bar', 'armsolar', 'buildpic', 'src-one', 'enc-one', 'webp-lossless-256', 'unit/bar/armsolar/buildpic/enc-one.webp', 'extracted', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111', 'approved', 'moderator');
 
 insert into public.asset (id, game, unit_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, source_archive, uploaded_by, moderation, rejection_kind)
-values ('0f8fad5b-0000-4000-8000-0000000000a2', 'bar', 'armllt', 'buildpic', 'src-two', 'enc-two', 'buildpic-q80', 'unit/bar/armllt/buildpic/enc-two.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111', 'rejected', 'safety');
+values ('0f8fad5b-0000-4000-8000-0000000000a2', 'bar', 'armllt', 'buildpic', 'src-two', 'enc-two', 'webp-lossless-256', 'unit/bar/armllt/buildpic/enc-two.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111', 'rejected', 'safety');
 
 -- ## The shape
 

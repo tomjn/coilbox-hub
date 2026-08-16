@@ -41,7 +41,7 @@ function declaration(overrides: Partial<AssetUploadDeclaration> = {}): AssetUplo
   return {
     identity: UNIT,
     sourceHash: "raw-abc",
-    encodeProfile: "buildpic-q80",
+    encodeProfile: "webp-lossless-256",
     origin: "extracted",
     mime: "image/webp",
     bytes: 4096,
