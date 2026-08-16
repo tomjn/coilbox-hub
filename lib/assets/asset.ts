@@ -12,7 +12,13 @@
  * constraints, which no amount of TypeScript can keep in step, so
  * `asset.test.ts` compares the two the same way `container.test.ts` does for
  * `item.kind`.
+ *
+ * The names coilbox also has to know are not literals here at all. They are
+ * read from `./vendor/asset-vocabulary.json`, which is vendored from coilbox so
+ * that `bun run check:vendor` goes red rather than an upload being refused on
+ * somebody else's machine (#165).
  */
+import vocabulary from "./vendor/asset-vocabulary.json";
 
 /**
  * Where the bytes actually live. `blob` is Vercel Blob, the staging tier
@@ -40,9 +46,15 @@ export type AssetModeration = (typeof ASSET_MODERATION_STATES)[number];
  * re-derived and checked against a source archive, and an uploaded one is
  * whatever bytes somebody chose.
  */
-export const ASSET_ORIGINS = ["extracted", "rendered", "uploaded"] as const;
+export const ASSET_ORIGINS = vocabulary.origins;
 
-export type AssetOrigin = (typeof ASSET_ORIGINS)[number];
+/**
+ * Written out rather than derived, because a JSON array widens to `string[]`
+ * and a row whose origin is a typo would then compile. The values are the
+ * file's, and `vocabulary.test.ts` fails if this union stops being what the
+ * file says.
+ */
+export type AssetOrigin = "extracted" | "rendered" | "uploaded";
 
 /**
  * Which authority put the row in front of the public, once something did.
@@ -113,11 +125,11 @@ export const ASSET_EVENT_ACTIONS = [
 export type AssetEventAction = (typeof ASSET_EVENT_ACTIONS)[number];
 
 /** The only variant a unit has besides a render. */
-export const UNIT_BUILDPIC_VARIANT = "buildpic";
+export const UNIT_BUILDPIC_VARIANT = vocabulary.unit.buildpicVariant;
 
 /** A unit's other variants are `render:<angle>`. The angle is part of the key,
  * so two renders of one unit from different angles are two assets. */
-export const UNIT_RENDER_VARIANT_PREFIX = "render:";
+export const UNIT_RENDER_VARIANT_PREFIX = vocabulary.unit.renderVariantPrefix;
 
 /**
  * The map side of the variant vocabulary, which #105 is the first change to
@@ -127,28 +139,28 @@ export const UNIT_RENDER_VARIANT_PREFIX = "render:";
  * way a render angle is. The table left it unconstrained while the issues that
  * name these were unwritten, and the caps in `./caps` name all four, so the
  * check constraint arrives with them.
+ *
+ * The type is taken off the vocabulary's class names rather than its
+ * `mapVariants` array, because a JSON object keeps its keys as literal types
+ * and a JSON array does not. The two unit classes are the exclusion, so a layer
+ * added upstream arrives here without this line being touched.
  */
+export type MapVariant = Exclude<keyof typeof vocabulary.classes, "buildpic" | "render">;
+
+export const MAP_VARIANTS = vocabulary.mapVariants;
+
 /**
  * The one variant that carries a world height range, because it is the one
  * whose samples mean nothing without it.
  */
-export const MAP_HEIGHT_OVERLAY_VARIANT = "overlay:height";
+export const MAP_HEIGHT_OVERLAY_VARIANT: MapVariant = "overlay:height";
 
 /** The picture of the map itself, as opposed to a layer drawn over it. Named
  * because it is the one a page asks for by hand (issue #109). */
-export const MAP_MINIMAP_VARIANT = "minimap";
-
-export const MAP_VARIANTS = [
-  MAP_MINIMAP_VARIANT,
-  "overlay:metal",
-  "overlay:type",
-  MAP_HEIGHT_OVERLAY_VARIANT,
-] as const;
-
-export type MapVariant = (typeof MAP_VARIANTS)[number];
+export const MAP_MINIMAP_VARIANT: MapVariant = "minimap";
 
 export function isMapVariant(value: string): value is MapVariant {
-  return (MAP_VARIANTS as readonly string[]).includes(value);
+  return MAP_VARIANTS.includes(value);
 }
 
 /**

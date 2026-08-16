@@ -5,6 +5,7 @@ import { capForVariant, heightOverlayMaxBytes } from "./caps";
 import { identityFilter } from "./have";
 import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
 import { type SourceConflict, sourceConflict } from "./sourceConflict";
+import vocabulary from "./vendor/asset-vocabulary.json";
 
 /**
  * Everything an upload is refused for, in one place (issue #104).
@@ -76,7 +77,7 @@ import { type SourceConflict, sourceConflict } from "./sourceConflict";
  * are 8 bit and heavily quantised, nothing measured says they come near this,
  * and nothing measured says where their grid is either.
  */
-export const ASSET_MAX_OBJECT_BYTES = 2 * 1024 * 1024;
+export const ASSET_MAX_OBJECT_BYTES = vocabulary.maxObjectBytes;
 
 /**
  * How much of the store one account may hold.

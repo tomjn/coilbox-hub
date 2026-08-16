@@ -52,7 +52,7 @@ function refusal(variant: string, mime: string, bytes: Uint8Array): string {
 }
 
 test("a buildpic is square and small, and the row gets what the bytes measured", () => {
-  expect(checkAssetImage("buildpic", "image/webp", webp(128, 128))).toEqual({
+  expect(checkAssetImage("buildpic", "image/webp", webp(128, 128, true))).toEqual({
     ok: true,
     width: 128,
     height: 128,
@@ -63,6 +63,19 @@ test("a buildpic is square and small, and the row gets what the bytes measured",
   );
   expect(refusal("buildpic", "image/webp", webp(512, 512))).toBe(
     '413 A "buildpic" may be at most 256px on its longest edge, and that one is 512x512.',
+  );
+});
+
+/**
+ * The one value the two vocabularies disagreed on when they were first compared
+ * (#165). Coilbox has always encoded a buildpic as `webp-lossless-256` and the
+ * hub had it as lossy, so the hub was taking a picture no client sends. An icon
+ * at 256px is small enough that lossless costs nothing and the archives hold
+ * them at 128x128, so the agreed profile is the one worth enforcing.
+ */
+test("a buildpic has to be lossless, like the profile coilbox encodes it with", () => {
+  expect(refusal("buildpic", "image/webp", webp(128, 128))).toBe(
+    '400 A "buildpic" must be losslessly encoded, and that one is not.',
   );
 });
 
