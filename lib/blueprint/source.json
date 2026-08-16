@@ -4,5 +4,8 @@
   "dir": "src/blueprint",
   "files": {
     "payload.ts": "fb73c25be03fb47bae789b145b7e4bc945309477"
+  },
+  "sha256": {
+    "payload.ts": "78fe0c5cefadcfe20ab41076a2f6ab7bd891580ce1096c6dc8ab743aaeff9ed4"
   }
 }

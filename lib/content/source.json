@@ -4,5 +4,8 @@
   "dir": "src/content",
   "files": {
     "buildTree.ts": "2fa54dc2272ae6466e4ac09126be82b4a88d264b"
+  },
+  "sha256": {
+    "buildTree.ts": "08ec802f7c9f95291181bb2c1c591502727262b01129610f407d6d780aaa9fbc"
   }
 }
