@@ -19,14 +19,14 @@ values
 
 insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, source_archive, uploaded_by)
 values
-  ('BYAR', 'armsolar', 'buildpic', 'src-1', 'enc-1', 'buildpic-q80', 'units/BYAR/buildpic/enc-1.webp', 'extracted', 'image/webp', 4096, 128, 128, 'byar.sdz', '22222222-2222-2222-2222-222222222222'),
-  ('BYAR', 'armcom', 'buildpic', 'src-2', 'enc-2', 'buildpic-q80', 'units/BYAR/buildpic/enc-2.webp', 'extracted', 'image/webp', 6000, 128, 128, 'byar.sdz', '22222222-2222-2222-2222-222222222222'),
-  ('BYAR', 'armllt', 'buildpic', 'src-3', 'enc-3', 'buildpic-q80', 'units/BYAR/buildpic/enc-3.webp', 'extracted', 'image/webp', 9000, 128, 128, 'byar.sdz', '33333333-3333-3333-3333-333333333333');
+  ('BYAR', 'armsolar', 'buildpic', 'src-1', 'enc-1', 'webp-lossless-256', 'units/BYAR/buildpic/enc-1.webp', 'extracted', 'image/webp', 4096, 128, 128, 'byar.sdz', '22222222-2222-2222-2222-222222222222'),
+  ('BYAR', 'armcom', 'buildpic', 'src-2', 'enc-2', 'webp-lossless-256', 'units/BYAR/buildpic/enc-2.webp', 'extracted', 'image/webp', 6000, 128, 128, 'byar.sdz', '22222222-2222-2222-2222-222222222222'),
+  ('BYAR', 'armllt', 'buildpic', 'src-3', 'enc-3', 'webp-lossless-256', 'units/BYAR/buildpic/enc-3.webp', 'extracted', 'image/webp', 9000, 128, 128, 'byar.sdz', '33333333-3333-3333-3333-333333333333');
 
 -- A seeded row belongs to nobody, so it must not land on anybody's quota.
 insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive, moderation, approval_source)
 values
-  ('Tangerine 1.1', 'minimap', 'src-4', 'enc-4', 'minimap-q80', 'maps/minimap/enc-4.webp', 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'tangerine_1.1.sd7', 'approved', 'seed');
+  ('Tangerine 1.1', 'minimap', 'src-4', 'enc-4', 'webp-q80-512', 'maps/minimap/enc-4.webp', 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'tangerine_1.1.sd7', 'approved', 'seed');
 
 reset role;
 set local role service_role;

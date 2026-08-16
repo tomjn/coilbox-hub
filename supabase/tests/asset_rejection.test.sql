@@ -42,9 +42,9 @@ values ('33333333-3333-3333-3333-333333333333', 'can_moderate');
 -- one that turns out to be the reason this issue exists, and one that is fine.
 insert into public.asset (id, game, unit_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, source_archive, uploaded_by)
 values
-  ('0f8fad5b-0000-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-j', 'enc-junk', 'buildpic-q80', 'unit/bar/armsolar/buildpic/enc-junk.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111'),
-  ('0f8fad5b-0000-4000-8000-00000000000b', 'bar', 'armllt', 'buildpic', 'src-n', 'enc-nasty', 'buildpic-q80', 'unit/bar/armllt/buildpic/enc-nasty.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111'),
-  ('0f8fad5b-0000-4000-8000-00000000000c', 'bar', 'armcom', 'buildpic', 'src-f', 'enc-fine', 'buildpic-q80', 'unit/bar/armcom/buildpic/enc-fine.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111');
+  ('0f8fad5b-0000-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-j', 'enc-junk', 'webp-lossless-256', 'unit/bar/armsolar/buildpic/enc-junk.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111'),
+  ('0f8fad5b-0000-4000-8000-00000000000b', 'bar', 'armllt', 'buildpic', 'src-n', 'enc-nasty', 'webp-lossless-256', 'unit/bar/armllt/buildpic/enc-nasty.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111'),
+  ('0f8fad5b-0000-4000-8000-00000000000c', 'bar', 'armcom', 'buildpic', 'src-f', 'enc-fine', 'webp-lossless-256', 'unit/bar/armcom/buildpic/enc-fine.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111');
 
 -- Where each of them came from, which is the third thing a report needs.
 insert into public.asset_upload_ip (asset_id, ip)
@@ -256,7 +256,7 @@ select is(
 -- either of them is written rather than after somebody remembers.
 insert into public.asset (id, map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive, moderation, approval_source, uploaded_by)
 values
-  ('0f8fad5b-0000-4000-8000-00000000000d', 'Tangerine 1.1', 'minimap', 'src-s', 'enc-seeded', 'minimap-q80', 'map/tangerine/minimap/enc-seeded.webp', 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'tangerine_1.1.sd7', 'approved', 'seed', '33333333-3333-3333-3333-333333333333');
+  ('0f8fad5b-0000-4000-8000-00000000000d', 'Tangerine 1.1', 'minimap', 'src-s', 'enc-seeded', 'webp-q80-512', 'map/tangerine/minimap/enc-seeded.webp', 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'tangerine_1.1.sd7', 'approved', 'seed', '33333333-3333-3333-3333-333333333333');
 
 select is(
   (select action from public.asset_event

@@ -36,15 +36,15 @@ values
 -- One of each moderation state. The pending row is the uploader's own.
 insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, source_archive, moderation, approval_source)
 values
-  ('bar', 'armsolar', 'buildpic', 'src-a', 'enc-approved', 'buildpic-q80', 'unit/bar/armsolar/buildpic/enc-approved.webp', 'extracted', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'seed');
+  ('bar', 'armsolar', 'buildpic', 'src-a', 'enc-approved', 'webp-lossless-256', 'unit/bar/armsolar/buildpic/enc-approved.webp', 'extracted', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'seed');
 
 insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, source_archive, uploaded_by)
 values
-  ('bar', 'armsolar', 'render:front', 'src-p', 'enc-pending', 'render-q80', 'unit/bar/armsolar/render-front/enc-pending.webp', 'rendered', 'image/webp', 8192, 256, 256, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111');
+  ('bar', 'armsolar', 'render:front', 'src-p', 'enc-pending', 'webp-q80-256', 'unit/bar/armsolar/render-front/enc-pending.webp', 'rendered', 'image/webp', 8192, 256, 256, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111');
 
 insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive, moderation, rejection_kind)
 values
-  ('Tangerine 1.1', 'minimap', 'src-r', 'enc-rejected', 'minimap-q80', 'map/tangerine/minimap/enc-rejected.webp', 'uploaded', 'image/webp', 40000, 512, 512, 8192, 8192, 'tangerine_1.1.sd7', 'rejected', 'editorial');
+  ('Tangerine 1.1', 'minimap', 'src-r', 'enc-rejected', 'webp-q80-512', 'map/tangerine/minimap/enc-rejected.webp', 'uploaded', 'image/webp', 40000, 512, 512, 8192, 8192, 'tangerine_1.1.sd7', 'rejected', 'editorial');
 
 -- A visitor with no account at all.
 reset role;
@@ -73,7 +73,7 @@ select is(
 -- looks like success to the caller, and the caller here is somebody probing.
 select throws_ok(
   $$insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, source_archive, moderation, approval_source)
-    values ('bar', 'armcom', 'buildpic', 'src-x', 'enc-x', 'buildpic-q80', 'unit/bar/armcom/buildpic/enc-x.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'nothing.sdz', 'approved', 'seed')$$,
+    values ('bar', 'armcom', 'buildpic', 'src-x', 'enc-x', 'webp-lossless-256', 'unit/bar/armcom/buildpic/enc-x.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'nothing.sdz', 'approved', 'seed')$$,
   '42501',
   null,
   'a visitor cannot write itself an approved asset'
@@ -128,7 +128,7 @@ select throws_ok(
 
 select throws_ok(
   $$insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, source_archive)
-    values ('bar', 'armcom', 'buildpic', 'src-y', 'enc-y', 'buildpic-q80', 'unit/bar/armcom/buildpic/enc-y.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'nothing.sdz')$$,
+    values ('bar', 'armcom', 'buildpic', 'src-y', 'enc-y', 'webp-lossless-256', 'unit/bar/armcom/buildpic/enc-y.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'nothing.sdz')$$,
   '42501',
   null,
   'an upload goes through the route, so the client cannot write the row itself'
@@ -193,7 +193,7 @@ select is(
 
 select lives_ok(
   $$insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, source_archive, uploaded_by)
-    values ('bar', 'armllt', 'buildpic', 'src-n', 'enc-new', 'buildpic-q80', 'unit/bar/armllt/buildpic/enc-new.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111')$$,
+    values ('bar', 'armllt', 'buildpic', 'src-n', 'enc-new', 'webp-lossless-256', 'unit/bar/armllt/buildpic/enc-new.webp', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', '11111111-1111-1111-1111-111111111111')$$,
   'the route writes an upload, which is the only way one is ever written'
 );
 
