@@ -99,6 +99,16 @@ const GROUPS: VendorGroup[] = [
     // so the blob hash already covers it.
   },
   {
+    // The asset vocabulary (#165): the variant names, the per class caps and
+    // the encode profiles. Both sides enforce it, so a disagreement is a 400 or
+    // a 413 on somebody else's machine rather than anything either repo can
+    // see. The only group whose upstream is outside `src/`, because coilbox
+    // keeps it where both its Rust and its TypeScript can read it.
+    dir: "shared",
+    vendor: "lib/assets/vendor",
+    files: ["asset-vocabulary.json"],
+  },
+  {
     // Reached from the warpath generator. It imports nothing but a type, so
     // unlike the rest of `src/content` it vendors cleanly.
     dir: "src/content",
@@ -116,6 +126,7 @@ interface SourceRecord {
   ref: string;
   dir: string;
   files: Record<string, string>; // filename -> blob sha
+  sha256: Record<string, string>; // filename -> sha256 of the bytes
 }
 
 /** Git's blob hash for some content, so a local edit is caught by the same
@@ -127,6 +138,25 @@ async function gitBlobSha(content: string): Promise<string> {
   joined.set(header);
   joined.set(body, header.length);
   const digest = await crypto.subtle.digest("SHA-1", joined);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * The sha256 of some content, lowercase hex.
+ *
+ * Recorded as well as the blob hash because the discovery document serves the
+ * asset vocabulary's digest for a client to compare against its own copy
+ * (#165), and a route cannot read a file's bytes back out of the bundle it was
+ * built into. Every group gets one rather than the one that needs it, so there
+ * is no per group switch to forget.
+ */
+async function sha256(content: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(content),
+  );
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
@@ -248,6 +278,13 @@ for (const group of GROUPS) {
             `Run: bun run sync:vendor`,
         );
       }
+      if (previous.sha256?.[file] !== (await sha256(vendored))) {
+        fail(
+          `${record} records a sha256 for ${file} that is not the sha256 of the file.\n` +
+            `It is served to clients, so a stale one tells them they are behind when they are not.\n` +
+            `Run: bun run sync:vendor`,
+        );
+      }
     }
     checkImports(group, local);
     await checkConstants(group);
@@ -262,14 +299,15 @@ for (const group of GROUPS) {
     ref: REF,
     dir: group.dir,
     files: {},
+    sha256: {},
   };
-  let wroteAny = false;
 
   for (const file of group.files) {
     const path = `${group.vendor}/${file}`;
     const text = upstream.get(file)!;
     const blobSha = await gitBlobSha(text);
     next.files[file] = blobSha;
+    next.sha256[file] = await sha256(text);
 
     // Compare what is on disk, not just what was recorded. A locally edited
     // file is the case `--check` tells you to run this to fix, so skipping the
@@ -286,14 +324,18 @@ for (const group of GROUPS) {
     }
 
     await Bun.write(path, text);
-    wroteAny = true;
     console.log(
       `Wrote ${path} from ${REPO} ${group.dir}/${file}\n  ${previous?.files?.[file] ?? "(new)"} -> ${blobSha}`,
     );
   }
 
-  if (wroteAny) {
-    await Bun.write(record, `${JSON.stringify(next, null, 2)}\n`);
+  // Written whenever it would differ, rather than only when a file changed, so
+  // a record that is missing something the script now keeps catches up on the
+  // next run instead of waiting for upstream to move.
+  const serialised = `${JSON.stringify(next, null, 2)}\n`;
+  const recorded = (await recordFile.exists()) ? await recordFile.text() : null;
+  if (serialised !== recorded) {
+    await Bun.write(record, serialised);
   }
   // Checked after writing too: a file list that has gone stale is worth
   // hearing about while syncing, not one CI run later.

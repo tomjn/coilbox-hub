@@ -1,3 +1,4 @@
+import { ASSET_VOCABULARY_DIGEST } from "@/lib/assets/vocabularyDigest";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 
 /**
@@ -20,6 +21,17 @@ export interface AuthBody {
   version: typeof AUTH_VERSION;
   supabase_url: string;
   publishable_key: string;
+  /**
+   * The asset vocabulary a client has to encode to, as a digest rather than as
+   * its contents (#165). A client compares it against its own copy and reports
+   * that it is out of date, and never follows what it reads: `encode_profile`
+   * names bytes, so a profile that means different settings on different days
+   * would break the identity `source_hash` and the have check rest on.
+   *
+   * Additive, so a client that reads no such field carries on unchanged. That
+   * is why the version above did not move.
+   */
+  asset_vocabulary: string;
 }
 
 export type AuthResult = { ok: true; body: AuthBody } | { ok: false };
@@ -45,6 +57,7 @@ export function buildAuthBody(): AuthResult {
       version: AUTH_VERSION,
       supabase_url: config.config.url,
       publishable_key: config.config.publishableKey,
+      asset_vocabulary: ASSET_VOCABULARY_DIGEST,
     },
   };
 }

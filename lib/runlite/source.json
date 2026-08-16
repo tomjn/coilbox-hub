@@ -4,5 +4,8 @@
   "dir": "src/runlite",
   "files": {
     "generate.ts": "afad597e31c531b24f7970a23f84248e13019bff"
+  },
+  "sha256": {
+    "generate.ts": "6491c8c020dd371df7f756078a8f9ac2fec53de597b574c04bc58220ecf3c0b7"
   }
 }

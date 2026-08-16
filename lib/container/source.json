@@ -6,5 +6,10 @@
     "container.ts": "31d954234658efc4bc95f88e68e6cb650641cbb2",
     "gameIdentity.ts": "d173d55dcd94c31dbb4943ca8b3e31f33113e42b",
     "shortnames.ts": "f7b595c2ebc7f9312d325b99ae346ba00c2e8961"
+  },
+  "sha256": {
+    "container.ts": "52e046778017a495f18a266463fafc90d588904a155a9a97bb231459b5f046b5",
+    "gameIdentity.ts": "7d84f00ff52605b1b11aa9e05869c4a980213aac9bc8f1f48cf81ed04e3b879e",
+    "shortnames.ts": "c24e15b45a2bdb3c60e9c40c671f21618c1c227cda63023427f5f9727c083371"
   }
 }

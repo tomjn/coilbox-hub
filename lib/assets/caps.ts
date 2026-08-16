@@ -1,9 +1,7 @@
-import {
-  MAP_HEIGHT_OVERLAY_VARIANT,
-  UNIT_BUILDPIC_VARIANT,
-  UNIT_RENDER_VARIANT_PREFIX,
-} from "./asset";
+import { MAP_HEIGHT_OVERLAY_VARIANT, UNIT_RENDER_VARIANT_PREFIX } from "./asset";
 import { type ImageHeader, readImageHeader } from "./imageHeader";
+import { type AssetMime, isAssetMime } from "./path";
+import vocabulary from "./vendor/asset-vocabulary.json";
 
 /**
  * What each class of picture is allowed to be, checked against the bytes rather
@@ -60,7 +58,7 @@ import { type ImageHeader, readImageHeader } from "./imageHeader";
 
 export interface AssetCap {
   /** The one type this class may be declared and encoded as. */
-  mime: "image/png" | "image/webp";
+  mime: AssetMime;
   /** The largest either edge may be, or null when the source decides. */
   maxEdge: number | null;
   /**
@@ -93,40 +91,43 @@ function rawBytes(edge: number): number {
   return edge * edge * 4;
 }
 
-const DEFAULTS = {
-  maxEdge: null,
-  maxBytes: null,
-  square: false,
-  lossless: false,
-  minBitDepth: null,
-  grayscale: false,
-} satisfies Omit<AssetCap, "mime">;
-
 /**
- * The caps, keyed on class. `render` covers every `render:<angle>`, since the
- * angle is part of the identity and changes nothing about what the picture may
- * be.
+ * The caps, keyed on class, read from the vocabulary coilbox encodes to
+ * (`./vendor/asset-vocabulary.json`, issue #165). `render` covers every
+ * `render:<angle>`, since the angle is part of the identity and changes nothing
+ * about what the picture may be.
+ *
+ * `maxBytes` is derived here rather than read, because the derivation is the
+ * rule this file states and a number that arrived without it would be one
+ * nobody here could account for. The vocabulary carries the same number and
+ * `vocabulary.test.ts` holds the two together, so the two ways of getting it
+ * cannot part company quietly.
  */
-export const ASSET_CAPS: Record<string, AssetCap> = {
-  [UNIT_BUILDPIC_VARIANT]: {
-    ...DEFAULTS,
-    mime: "image/webp",
-    maxEdge: 256,
-    maxBytes: rawBytes(256),
-    square: true,
-  },
-  render: { ...DEFAULTS, mime: "image/webp", maxEdge: 256, maxBytes: rawBytes(256) },
-  minimap: { ...DEFAULTS, mime: "image/webp", maxEdge: 512, maxBytes: rawBytes(512) },
-  "overlay:metal": { ...DEFAULTS, mime: "image/webp", lossless: true },
-  "overlay:type": { ...DEFAULTS, mime: "image/webp", lossless: true },
-  "overlay:height": {
-    ...DEFAULTS,
-    mime: "image/png",
-    lossless: true,
-    minBitDepth: 16,
-    grayscale: true,
-  },
-};
+export const ASSET_CAPS: Record<string, AssetCap> = Object.fromEntries(
+  Object.entries(vocabulary.classes).map(([variant, agreed]) => {
+    // A type the hub cannot name a file after is one it cannot store, so this
+    // is a refusal to start rather than a path that writes an object called
+    // `<hash>.undefined`.
+    if (!isAssetMime(agreed.mime)) {
+      throw new Error(
+        `The asset vocabulary encodes "${variant}" as ${agreed.mime}, which the hub has no extension for.`,
+      );
+    }
+
+    return [
+      variant,
+      {
+        mime: agreed.mime,
+        maxEdge: agreed.maxEdgePx,
+        maxBytes: agreed.maxEdgePx === null ? null : rawBytes(agreed.maxEdgePx),
+        square: agreed.square,
+        lossless: agreed.lossless,
+        minBitDepth: agreed.minBitDepth,
+        grayscale: agreed.grayscale,
+      },
+    ];
+  }),
+);
 
 /** The cap for one variant, or null when the variant is not one the hub has a
  * class for. Every variant either side of the identity has one, so a null here
@@ -143,10 +144,10 @@ export function capForVariant(variant: string): AssetCap | null {
  * maintainer's collection with no exceptions, so it is a constant of the format
  * rather than a per map field the hub would have to be told.
  */
-export const ELMOS_PER_HEIGHT_SAMPLE = 8;
+export const ELMOS_PER_HEIGHT_SAMPLE = vocabulary.heightOverlay.elmosPerSample;
 
 /** What one 16 bit grayscale sample takes before compression. */
-const HEIGHT_SAMPLE_BYTES = 2;
+const HEIGHT_SAMPLE_BYTES = vocabulary.heightOverlay.bytesPerSample;
 
 /**
  * How many samples a height overlay carries along an edge that many elmos long.

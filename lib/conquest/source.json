@@ -8,5 +8,12 @@
     "rng.ts": "2382fc7e6b9f81e9b7f8a3e835f80ffd3039930c",
     "realstars/index.ts": "cd07ea99075b0d0266e61d4b72e5ba8ded324607",
     "realstars/catalogue.json": "78a4f5a01c4eda940552e706e2526b8c88319b45"
+  },
+  "sha256": {
+    "generate.ts": "cbce81556547f122e04f505d7ffcee10a691bb6f60f4598bb97d2116ee2ef907",
+    "names.ts": "fc358261f1fce4bae1811f9202952e429d2ef3358192d783ce7a68bdeaccf82f",
+    "rng.ts": "5f5f640557cc6637ca3b1dddee440edb01bbb5c909b79f1a333e550715613acc",
+    "realstars/index.ts": "9228720cc7ba0fc5d4a2eb2da43a04fa03e7c9a41fac3f73778ec256f28f0927",
+    "realstars/catalogue.json": "7340477e0a65282e78ac83c6f865854c4230f78552f5459a0c64eed568fc13d1"
   }
 }
