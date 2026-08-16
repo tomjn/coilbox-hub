@@ -18,10 +18,15 @@
  */
 
 import type { ServedAsset } from "@/lib/assets/resolve";
+import type { PayloadFootprint } from "@/lib/blueprint/payload";
 import {
+  blueprintBuildOrder,
+  blueprintRoster,
   blueprintShape,
   type BlueprintShape,
   blueprintSheet,
+  type BuildingKind,
+  type BuildingRun,
   planLabel,
 } from "@/lib/gallery/blueprintPreview";
 import { conquestGalaxy, type GalaxyShape } from "@/lib/gallery/conquestGalaxy";
@@ -395,6 +400,122 @@ function threadOpacity(stops: number): number {
 }
 
 /**
+ * The same picture the plan draws this building as, at the size of a line of
+ * text, or the room it would take when the hub holds no picture of this one.
+ *
+ * The slot is kept either way so the names line up down the column. Not
+ * `next/image`, for the reason the plan gives below: these are already encoded
+ * at the size they are shown. The name beside it is the label, so the picture
+ * is decorative.
+ */
+function UnitPicture({ picture }: { picture: ServedAsset | undefined }) {
+  return (
+    <span className="size-5 shrink-0">
+      {picture ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={picture.url} alt="" className="size-5" />
+      ) : null}
+    </span>
+  );
+}
+
+/** How a building's ground reads in a list, beside its name. */
+function footprintLabel(footprint: PayloadFootprint | null): string {
+  return footprint ? `${footprint.x} by ${footprint.z}` : "size not given";
+}
+
+/**
+ * What the plan is made of, said in words (issue #93).
+ *
+ * The drawing above says twelve buildings and shows twelve squares. It never
+ * says what they are, so this does: how many of each kind, the name the game
+ * knows that kind by, and the ground one of them stands on.
+ *
+ * The names are internal ones. The hub cannot turn `coldfusionpowerplant` into
+ * "Cold Fusion Power Plant" because that takes unitsync and the game installed,
+ * which is the same reason it draws squares rather than unit models. What it
+ * does have is the picture, where somebody has published one, and that picture
+ * beside the name is what makes a kind recognisable to a reader who does not
+ * know the internal names.
+ *
+ * This is the list for a layout with no build order, which is most of them. One
+ * that has an order gets {@link BuildOrder} instead, which says the same things
+ * in the order they are built.
+ */
+function BuildingRoster({
+  kinds,
+  units,
+}: {
+  kinds: BuildingKind[];
+  units: ReadonlyMap<string, ServedAsset>;
+}) {
+  // A picture slot for every kind or for none. A game the hub holds no pictures
+  // for gets no empty column of indent.
+  const pictured = kinds.some((kind) => units.has(kind.def));
+
+  return (
+    <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+      {kinds.map((kind) => (
+        <li key={kind.def} className="flex items-center gap-2 text-xs">
+          {pictured ? <UnitPicture picture={units.get(kind.def)} /> : null}
+          <span className="min-w-0 break-all text-neutral-200">
+            {kind.count} {kind.def}
+          </span>
+          <span className="shrink-0 text-neutral-500">
+            {footprintLabel(kind.footprint)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The order the buildings go up in, for a layout that says it has one.
+ *
+ * The plan draws the order as a thread through the buildings, which says where
+ * the base grows but never what is going up. This is the same order in words:
+ * where in the sequence each stretch falls, what is built there, and the ground
+ * one of them stands on.
+ *
+ * One line per stretch of a single kind rather than one per building, so a
+ * thirty building base is a handful of lines somebody can follow rather than a
+ * wall of repeats. See `blueprintBuildOrder`.
+ *
+ * An `ol` down one column, not the roster's two. The order is the point, and a
+ * two column list is read down one side and then the other, which is not the
+ * order anything is built in.
+ */
+function BuildOrder({
+  runs,
+  units,
+}: {
+  runs: BuildingRun[];
+  units: ReadonlyMap<string, ServedAsset>;
+}) {
+  const pictured = runs.some((run) => units.has(run.def));
+
+  return (
+    <ol className="flex flex-col gap-1.5">
+      {runs.map((run) => (
+        <li key={run.from} className="flex items-center gap-2 text-xs">
+          <span className="w-10 shrink-0 text-right tabular-nums text-neutral-500">
+            {run.from === run.to ? run.from : `${run.from}-${run.to}`}
+          </span>
+          {pictured ? <UnitPicture picture={units.get(run.def)} /> : null}
+          <span className="min-w-0 break-all text-neutral-200">
+            {run.count} {run.def}
+          </span>
+          <span className="shrink-0 text-neutral-500">
+            {footprintLabel(run.footprint)}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/**
  * A layout of buildings, seen from above (see `lib/gallery/blueprintPreview`).
  *
  * One rounded square per building, each as big as the ground that building
@@ -422,9 +543,14 @@ function threadOpacity(stops: number): number {
  */
 function BlueprintLayout({
   shape,
+  kinds,
+  runs,
   units,
 }: {
   shape: BlueprintShape;
+  kinds: BuildingKind[];
+  /** The build order, or null for a layout that never claimed one. */
+  runs: BuildingRun[] | null;
   units: ReadonlyMap<string, ServedAsset>;
 }) {
   const buildings = shape.squares.length;
@@ -547,6 +673,13 @@ function BlueprintLayout({
         {buildings} {buildings === 1 ? "building" : "buildings"}
         {shape.ordered ? ", in build order" : ""}
       </p>
+      {/* The line above says which of these two lists this is: "in build
+          order", or just a count of buildings. */}
+      {runs ? (
+        <BuildOrder runs={runs} units={units} />
+      ) : (
+        <BuildingRoster kinds={kinds} units={units} />
+      )}
     </div>
   );
 }
@@ -664,7 +797,14 @@ export function ItemPreview({
   if (kind === "scenario") return <ScenarioPreview payload={record} />;
   if (kind === "blueprint") {
     const shape = blueprintShape(record);
-    return shape ? <BlueprintLayout shape={shape} units={units} /> : null;
+    return shape ? (
+      <BlueprintLayout
+        shape={shape}
+        kinds={blueprintRoster(record)}
+        runs={blueprintBuildOrder(record)}
+        units={units}
+      />
+    ) : null;
   }
   return null;
 }

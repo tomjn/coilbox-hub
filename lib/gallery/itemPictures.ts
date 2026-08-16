@@ -27,20 +27,29 @@
  * the units the hub actually has a picture of, and a def missing from it means
  * "draw it the way you always did" rather than "draw nothing".
  *
- * ## Nothing here is ever substituted
+ * ## The unit half is asked for from above, and substituted when it has to be
  *
- * `buildpicSubstitute` stands a unit's buildpic in for a missing `render:<angle>`
- * and nothing else. This asks for buildpics and minimaps, neither of which has a
- * substitute, so `substituted` cannot come back true and no caption has to
- * qualify itself. A later caller that asks for a render angle must read
- * `served.variant` before it labels anything, which is what that field is for.
+ * A plan is drawn from above, so it asks for `render:top` rather than the
+ * buildpic. A buildpic is a three quarter icon, which on a footprint is a
+ * picture of the building from somewhere the plan is not.
+ *
+ * Where no top render exists, `resolveAsset` serves the buildpic instead, so
+ * `substituted` does come back true here and the page is no worse off than it
+ * was before it started asking. That costs no extra query: `ladderIdentities`
+ * puts the buildpic behind each render into the same batch.
+ *
+ * Nothing on the page labels a unit picture, so no caption has to qualify
+ * itself. A later caller that captions one must read `served.variant` first,
+ * which is what that field is for. The map half has no substitute at all: a
+ * minimap and an overlay are different pictures of different things, not
+ * different views of one.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   type AssetIdentity,
   MAP_MINIMAP_VARIANT,
-  UNIT_BUILDPIC_VARIANT,
+  UNIT_TOP_RENDER_VARIANT,
 } from "@/lib/assets/asset";
 import type { Footprint } from "@/lib/assets/placeholder";
 import {
@@ -88,8 +97,8 @@ function mapFootprint(map: BarMap | null): Footprint | null {
 }
 
 /**
- * One buildpic identity per distinct def in a blueprint, in the order the layout
- * places them.
+ * One top render identity per distinct def in a blueprint, in the order the
+ * layout places them.
  *
  * Lower cased, the way `declaredFootprint` reads a footprint, because a layout
  * holds whatever its author typed and the hub stores one row per unit. A layout
@@ -108,7 +117,7 @@ export function blueprintUnitIdentities(item: PicturedItem): UnitIdentity[] {
     keyedOn: "unit",
     game,
     unitName,
-    variant: UNIT_BUILDPIC_VARIANT,
+    variant: UNIT_TOP_RENDER_VARIANT,
   }));
 }
 

@@ -7,6 +7,7 @@ import {
   MAP_VARIANTS,
   UNIT_BUILDPIC_VARIANT,
   UNIT_RENDER_VARIANT_PREFIX,
+  UNIT_TOP_RENDER_VARIANT,
 } from "./asset";
 import { ASSET_CAPS, capForVariant, heightOverlayMaxBytes, heightOverlaySamples } from "./caps";
 import vocabulary from "./vendor/asset-vocabulary.json";
@@ -67,7 +68,19 @@ test("every map variant is a class the vocabulary caps", () => {
  */
 test("the unit variants resolve to a cap", () => {
   expect(capForVariant(UNIT_BUILDPIC_VARIANT)).not.toBeNull();
-  expect(capForVariant(`${UNIT_RENDER_VARIANT_PREFIX}top`)).not.toBeNull();
+  expect(capForVariant(UNIT_TOP_RENDER_VARIANT)).not.toBeNull();
+});
+
+/**
+ * A blueprint plan asks for the top render by name (issue #93), so an upstream
+ * rename of that angle has to be red here. Without this the page would ask for
+ * a variant nothing ever holds, and every building would quietly fall back to
+ * its buildpic with no failure to see.
+ */
+test("the top render a plan asks for is an angle the vocabulary names", () => {
+  expect(
+    vocabulary.unit.renderAngles.map((angle) => `${UNIT_RENDER_VARIANT_PREFIX}${angle}`),
+  ).toContain(UNIT_TOP_RENDER_VARIANT);
 });
 
 /**

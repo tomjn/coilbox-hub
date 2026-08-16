@@ -25,6 +25,7 @@ import {
   declaredFootprint,
   ONE_BUILD_SQUARE,
   parseBlueprintPayload,
+  type PayloadFootprint,
 } from "@/lib/blueprint/payload";
 
 /**
@@ -131,6 +132,114 @@ export function planLabel(shape: BlueprintShape): string {
     `${buildings} building${buildings === 1 ? "" : "s"} over ` +
     `${Math.round(shape.width)} by ${Math.round(shape.height)} build squares`
   );
+}
+
+/** One kind of building in a layout. */
+export interface BuildingKind {
+  /** The def name in lower case, which is how the payload keys a footprint and
+   *  how the hub keys a picture. A layout that spells one def two ways is one
+   *  kind here. */
+  def: string;
+  count: number;
+  /** What one of them stands on, or null where the payload never said. Left as
+   *  the unit was defined rather than as any one of them was turned, because a
+   *  facing is a fact about a placement and this counts units. */
+  footprint: PayloadFootprint | null;
+}
+
+/**
+ * What a layout is made of, most numerous kind first (issue #93).
+ *
+ * The plan says a base has twelve buildings and draws twelve squares. Without
+ * this it never says what any of them are, so unless the publisher wrote it in
+ * the title a reader has to guess from the shapes.
+ *
+ * The names are the game's internal ones, `coldfusionpowerplant` rather than
+ * "Cold Fusion Power Plant". Turning one into the other takes unitsync and the
+ * game installed, which is the same thing the hub does not have and the reason
+ * it draws squares rather than unit models. The internal name is what the
+ * payload carries, and a name a reader can search for beats a square with
+ * nothing said about it.
+ *
+ * Ordered by count because what a base is mostly made of is the thing worth
+ * reading first, and ties by name so one layout always lists the same way.
+ */
+export function blueprintRoster(payload: unknown): BuildingKind[] {
+  const blueprint = parseBlueprintPayload(payload);
+  if (!blueprint) return [];
+
+  const counts = new Map<string, number>();
+  for (const building of blueprint.buildings) {
+    const def = building.def.toLowerCase();
+    counts.set(def, (counts.get(def) ?? 0) + 1);
+  }
+
+  return [...counts]
+    .map(([def, count]) => ({
+      def,
+      count,
+      footprint: declaredFootprint(blueprint, def) ?? null,
+    }))
+    .sort((a, b) => b.count - a.count || a.def.localeCompare(b.def));
+}
+
+/** A stretch of the build order spent on one kind of building. */
+export interface BuildingRun {
+  /** Lower cased, the way {@link BuildingKind} and the picture lookup key a
+   *  def. */
+  def: string;
+  count: number;
+  /** Where this run starts and ends in the build order, counting the first
+   *  building as one. A run of one has both ends on the same number. */
+  from: number;
+  to: number;
+  /** What one of them stands on, or null where the payload never said. */
+  footprint: PayloadFootprint | null;
+}
+
+/**
+ * The build order as runs, or null for a layout that has no build order.
+ *
+ * The plan draws the order as a thread through the buildings, which says where
+ * the base grows but never what is being built. This says it in words.
+ *
+ * Consecutive buildings of one kind collapse into a run, because a reader
+ * following an order wants "four solar collectors, then a metal extractor",
+ * not four rows saying the same thing. The same kind built again later is a
+ * separate run rather than being added to the first: a base that lays four
+ * solar, a mex, then four more solar built them in that order, and totalling
+ * them would erase the only thing this list is for. What a layout is made of,
+ * totalled, is {@link blueprintRoster}.
+ *
+ * Null when `ordered` is not set, which is most layouts. The order of
+ * `buildings` is then how the layout was stored rather than a sequence anybody
+ * chose, and numbering it would present a build order the payload never
+ * claimed. The plan drops its thread on the same test.
+ */
+export function blueprintBuildOrder(payload: unknown): BuildingRun[] | null {
+  const blueprint = parseBlueprintPayload(payload);
+  if (!blueprint || blueprint.ordered !== true) return null;
+  if (blueprint.buildings.length === 0) return null;
+
+  const runs: BuildingRun[] = [];
+  for (const [index, building] of blueprint.buildings.entries()) {
+    const def = building.def.toLowerCase();
+    const open = runs.at(-1);
+    if (open?.def === def) {
+      open.count += 1;
+      open.to = index + 1;
+      continue;
+    }
+    runs.push({
+      def,
+      count: 1,
+      from: index + 1,
+      to: index + 1,
+      footprint: declaredFootprint(blueprint, def) ?? null,
+    });
+  }
+
+  return runs;
 }
 
 /**
