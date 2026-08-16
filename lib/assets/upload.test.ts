@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssetIdentity } from "./asset";
 import { ASSET_CAPS, heightOverlayMaxBytes } from "./caps";
-import type { AssetLicenceRow, AssetRedistribution } from "./licence";
 import {
   ACCOUNT_STORAGE_QUOTA_BYTES,
   ASSET_MAX_OBJECT_BYTES,
@@ -55,29 +54,6 @@ function declaration(overrides: Partial<AssetUploadDeclaration> = {}): AssetUplo
   };
 }
 
-function licence(
-  extracted: AssetRedistribution,
-  rendered: AssetRedistribution = extracted,
-): AssetLicenceRow {
-  return {
-    id: "licence",
-    game: "BYAR",
-    map_name: null,
-    all_maps: null,
-    licence: "GPL-2.0-or-later",
-    licence_url: "https://example.test",
-    notes: null,
-    decision: null,
-    decided_at: null,
-    checked_at: "2026-08-14T00:00:00Z",
-    checked_by: "test",
-    redistribute_extracted: extracted,
-    redistribute_rendered: rendered,
-    created_at: "2026-08-14T00:00:00Z",
-    updated_at: "2026-08-14T00:00:00Z",
-  };
-}
-
 interface ExistingRow {
   id: string;
   source_hash: string;
@@ -104,9 +80,6 @@ function held(overrides: Partial<ExistingRow> = {}): ExistingRow {
 }
 
 interface World {
-  gameLicence: AssetLicenceRow | null;
-  perMapLicence: AssetLicenceRow | null;
-  allMapsLicence: AssetLicenceRow | null;
   existing: ExistingRow | null;
   /** What `reusable_staging_object` answers: an object already holding these
    * bytes, or null for the ordinary case where the store has never seen them. */
@@ -115,14 +88,11 @@ interface World {
   accountBytes: number;
   recent: number;
   thisMonth: number;
-  broken?: "licence" | "identity" | "bytes" | "reuse";
+  broken?: "identity" | "bytes" | "reuse";
 }
 
 function world(overrides: Partial<World> = {}): World {
   return {
-    gameLicence: licence("allowed"),
-    perMapLicence: null,
-    allMapsLicence: licence("allowed"),
     existing: null,
     stored: null,
     unitRenders: 0,
@@ -148,15 +118,11 @@ function fakeSupabase(state: World, seen: Query[] = []): SupabaseClient {
   const answer = (query: Query): unknown => {
     seen.push(query);
 
+    // Nothing on this path may read the licence table (#167), so the fake will
+    // not answer for it. A gate put back here fails loudly rather than passing
+    // because the stand in happened to hand it a permissive row.
     if (query.table === "asset_licence") {
-      if (state.broken === "licence") return { data: null, error: { message: "down" } };
-      if (query.filters.includes("eq:all_maps")) {
-        return { data: state.allMapsLicence, error: null };
-      }
-      if (query.filters.includes("eq:map_name")) {
-        return { data: state.perMapLicence, error: null };
-      }
-      return { data: state.gameLicence, error: null };
+      throw new Error("the upload path must not consult asset_licence");
     }
 
     if (query.filters.some((filter) => filter.startsWith("or:"))) {
@@ -380,61 +346,51 @@ test("an identity that cannot be spelled as a path is refused without asking the
 });
 
 /**
- * The staging tier is public, so `put()` publishes. Accepting bytes the hub has
- * no recorded permission to redistribute would spend an advanced operation
- * putting them somewhere reachable, and leave deletion as the only remedy.
+ * #167, and the whole of the policy in one assertion. `asset_licence` used to
+ * decide this, and since a subject with no row reads as `unknown`, it refused
+ * every game nobody had researched. The upload that found it was Splinter
+ * Faction, which has one of the clearest and most permissive licences in the
+ * corpus and was refused with a 403.
+ *
+ * The table is not consulted rather than consulted and ignored. A lookup whose
+ * answer is thrown away leaves the refusal one line from coming back, and puts
+ * a round trip and a 503 on the path for a question nothing asks.
  */
-test("a game with no licence row at all publishes nothing", async () => {
-  const result = await check(world({ gameLicence: null }));
+test("a game with no recorded licence is accepted, and the table is never asked", async () => {
+  const seen: Query[] = [];
+  const result = await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration(), HASH);
 
   expect(result).toEqual({
-    ok: false,
-    error: 'The hub has no recorded permission to redistribute extracted pictures for "BYAR".',
-    status: 403,
+    ok: true,
+    path: "units/BYAR/buildpic/encabc.webp",
+    replacing: null,
   });
+  expect(seen.some((query) => query.table === "asset_licence")).toBe(false);
 });
 
-test("undecided and refused both block, since only one of them is worth looking at again", async () => {
-  expect((await check(world({ gameLicence: licence("unknown") }))).ok).toBe(false);
-  expect((await check(world({ gameLicence: licence("denied") }))).ok).toBe(false);
+/** Extraction was gated separately from rendering and an uploaded image was
+ * gated by nothing, on the reasoning that no per game decision can answer for
+ * bytes somebody supplied. That reasoning holds for all three: the queue is
+ * what looks at the picture. */
+test("no origin is licence gated, every one of them goes to the queue", async () => {
+  for (const origin of ["extracted", "rendered", "uploaded"] as const) {
+    expect((await check(world(), { origin })).ok).toBe(true);
+  }
 });
 
-test("permission to extract is not permission to render", async () => {
-  const permissive = world({ gameLicence: licence("allowed", "denied") });
-
-  expect((await check(permissive, { origin: "extracted" })).ok).toBe(true);
-  expect((await check(permissive, { origin: "rendered" })).ok).toBe(false);
-});
-
-/**
- * Nobody can tell from the bytes what a supplied image is a picture of, so no
- * per game decision can answer for one. `mayRedistribute()` does not take the
- * origin at all, and the moderation queue is what stands in front of the class.
- */
-test("an image somebody supplied is not licence gated, it is queued", async () => {
-  expect((await check(world({ gameLicence: null }), { origin: "uploaded" })).ok).toBe(true);
-});
-
-test("a map with no row of its own falls back to the blanket row", async () => {
-  const mapUpload = { identity: MAP, mapWidth: 8192, mapHeight: 8192 };
-
-  expect(
-    (await check(world({ perMapLicence: null, allMapsLicence: licence("allowed") }), mapUpload)).ok,
-  ).toBe(true);
-  expect(
-    (await check(world({ perMapLicence: null, allMapsLicence: null }), mapUpload)).ok,
-  ).toBe(false);
-});
-
-test("a map's own row wins over the blanket one, including a refusal", async () => {
-  const result = await check(
-    world({ perMapLicence: licence("denied"), allMapsLicence: licence("allowed") }),
-    { identity: MAP, mapWidth: 8192, mapHeight: 8192 },
+/** Maps had two lookups rather than one, a per map row and the blanket row that
+ * covered every map without one. Both are gone from this path with the rest. */
+test("a map upload asks no licence question either", async () => {
+  const seen: Query[] = [];
+  const result = await checkAssetUpload(
+    fakeSupabase(world(), seen),
+    USER,
+    declaration({ identity: MAP, mapWidth: 8192, mapHeight: 8192 }),
+    HASH,
   );
 
-  expect(result.ok).toBe(false);
-  if (result.ok) return;
-  expect(result.status).toBe(403);
+  expect(result.ok).toBe(true);
+  expect(seen.some((query) => query.table === "asset_licence")).toBe(false);
 });
 
 /**
@@ -601,12 +557,20 @@ test("a changed encoded hash on the same source bytes is not a conflict, it is a
   expect(result.error).toContain("/api/v1/assets/have");
 });
 
-/** Every check a first upload faces, a replacement faces. The licence is the
- * one that matters most: permission withdrawn is withdrawn for both. */
-test("a replacement is refused when the subject's permission has been revoked", async () => {
-  expect(
-    (await check(world({ existing: held(), gameLicence: licence("denied") }))).ok,
-  ).toBe(false);
+/** Every check a first upload faces, a replacement faces, and the licence is
+ * now not one of them on either. A newer archive for a subject nobody has
+ * researched refreshes the picture (#167). */
+test("a replacement is not licence gated either", async () => {
+  const seen: Query[] = [];
+  const result = await checkAssetUpload(
+    fakeSupabase(world({ existing: held() }), seen),
+    USER,
+    declaration(),
+    HASH,
+  );
+
+  expect(result).toMatchObject({ ok: true, replacing: "held" });
+  expect(seen.some((query) => query.table === "asset_licence")).toBe(false);
 });
 
 test("a unit at the render ceiling takes no more", async () => {
@@ -720,7 +684,7 @@ test("the budget leaves a margin under the store's advertised allowance", () => 
  * likely to be noticed.
  */
 test("a quota that cannot be read refuses the upload rather than allowing it", async () => {
-  for (const broken of ["licence", "identity", "bytes"] as const) {
+  for (const broken of ["identity", "bytes"] as const) {
     const result = await check(world({ broken }));
     expect(result.ok).toBe(false);
     if (result.ok) return;

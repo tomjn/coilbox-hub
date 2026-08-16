@@ -54,7 +54,7 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * 4. the bytes received are the length the declaration claims
  * 5. `checkAssetImage`: the image header, against the caps for its class
  * 6. `encodedHash`: the hash of the bytes, which is where they will land
- * 7. `checkAssetUpload`: MIME, size, path, licence, identity, four quotas
+ * 7. `checkAssetUpload`: MIME, size, path, identity, four quotas
  *
  * An accepted upload does not always write, either. `checkAssetUpload` asks in
  * the same round trip whether the staging store already holds an object with
