@@ -6,6 +6,10 @@
  * preview renders nothing rather than an empty frame, because a placeholder box
  * reads as broken where an absence reads as unfinished.
  *
+ * A setup pack is not one of them any more. What it installs is worth showing
+ * rather than listing (issue #176), and a picture of a map is a lookup, so it
+ * lives in `components/SetupPackContents.tsx` where fetched data is allowed.
+ *
  * Note on presets: the payload carries no start positions. `Participant` holds a
  * side, a colour, an ally team and a slot, and `startPosType` only says how
  * positions get chosen at launch. So this shows the composition, which is what
@@ -38,7 +42,6 @@ import {
   participantSideLabel,
   presetComposition,
 } from "@/lib/gallery/presetPreview";
-import { setupPackGameNames } from "@/lib/gallery/setupPackPreview";
 
 function PresetPreview({ payload }: { payload: Record<string, unknown> }) {
   const composition = presetComposition(payload);
@@ -84,44 +87,6 @@ function PresetPreview({ payload }: { payload: Record<string, unknown> }) {
         {teams.length === 1 ? "team" : "teams"}
       </p>
     </div>
-  );
-}
-
-function SetupPackPreview({ payload }: { payload: Record<string, unknown> }) {
-  const games = setupPackGameNames(payload);
-  const maps = (Array.isArray(payload.maps) ? payload.maps : []) as string[];
-  const engine =
-    typeof payload.engineVersion === "string" ? payload.engineVersion : null;
-
-  // A pack has no picture in it. What it has is a list of what it will install,
-  // and saying that plainly is more use than a diagram of nothing.
-  return (
-    <dl className="grid gap-3 rounded-md border border-neutral-800 bg-black p-4 sm:grid-cols-3">
-      <div className="flex flex-col gap-1">
-        <dt className="text-xs uppercase tracking-wide text-neutral-400">
-          {games.length === 1 ? "Game" : "Games"}
-        </dt>
-        <dd className="text-sm text-neutral-100">
-          {games.length === 0 ? "None" : games.join(", ")}
-        </dd>
-      </div>
-      <div className="flex flex-col gap-1">
-        <dt className="text-xs uppercase tracking-wide text-neutral-400">
-          Engine
-        </dt>
-        <dd className="text-sm text-neutral-100">
-          {engine && engine !== ".spring" ? engine : "Whatever you have"}
-        </dd>
-      </div>
-      <div className="flex flex-col gap-1">
-        <dt className="text-xs uppercase tracking-wide text-neutral-400">
-          {maps.length === 1 ? "Map" : "Maps"}
-        </dt>
-        <dd className="text-sm text-neutral-100">
-          {maps.length === 0 ? "None" : maps.join(", ")}
-        </dd>
-      </div>
-    </dl>
   );
 }
 
@@ -792,7 +757,6 @@ export function ItemPreview({
   const record = payload as Record<string, unknown>;
 
   if (kind === "preset") return <PresetPreview payload={record} />;
-  if (kind === "setup-pack") return <SetupPackPreview payload={record} />;
   if (kind === "challenge") return <ChallengePreview payload={record} />;
   if (kind === "scenario") return <ScenarioPreview payload={record} />;
   if (kind === "blueprint") {
