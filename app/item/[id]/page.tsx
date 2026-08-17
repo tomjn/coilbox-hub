@@ -7,12 +7,14 @@ import { ItemPreview } from "@/components/ItemPreview";
 import { KindIcon } from "@/components/KindIcon";
 import { MapMinimap } from "@/components/MapMinimap";
 import { ReportButton } from "@/components/ReportButton";
-import { findBarMap } from "@/lib/bar/maps";
+import { type PackMap, SetupPackContents } from "@/components/SetupPackContents";
+import { findBarMaps } from "@/lib/bar/maps";
 import { itemArt } from "@/lib/gallery/itemArt";
 import { itemPictures } from "@/lib/gallery/itemPictures";
 import { mapOverlay } from "@/lib/gallery/mapOverlay";
 import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
+import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
 import { createClient } from "@/lib/supabase/server";
 
 interface ItemDetail {
@@ -116,14 +118,29 @@ export default async function Item({
   const published = new Date(item.created_at).toISOString().slice(0, 10);
   const { drawing, strength } = itemArt(item.kind, item.mode);
 
-  // Null for every kind that names no map, and for a map BAR does not list.
-  const barMap = await findBarMap(item.map_name);
-  // Both pictures in one query: the map, and a buildpic for every distinct unit
-  // in a blueprint (issue #109).
-  const pictures = await itemPictures(supabase, item, barMap);
+  // Every map this page names: the one on the row, and a setup pack's own list
+  // (issue #176). BAR's list is fetched once per render whatever the count, so
+  // a pack of twenty maps is twenty scans of it rather than twenty requests.
+  const packMapNames = setupPackMaps(item.container);
+  const barMaps = await findBarMaps(
+    [item.map_name, ...packMapNames].filter((name): name is string =>
+      Boolean(name),
+    ),
+  );
+  const barMap = item.map_name ? (barMaps.get(item.map_name) ?? null) : null;
+  // Every picture in one query: the row's map, a pack's maps, and a buildpic
+  // for every distinct unit in a blueprint (issue #109).
+  const pictures = await itemPictures(supabase, item, barMaps);
+  const packMaps: PackMap[] = packMapNames.flatMap((name) => {
+    // Present for every name asked for, since a map with nothing stored
+    // resolves to the placeholder rather than to nothing.
+    const picture = pictures.packMaps.get(name);
+    return picture ? [{ name, bar: barMaps.get(name) ?? null, picture }] : [];
+  });
   // An item that names a map always gets the slot now. Which of BAR's
   // thumbnail, the hub's own minimap or a drawing fills it is `MapMinimap`'s to
-  // decide, and one of the three always can.
+  // decide, and one of the three always can. A setup pack is the exception
+  // below: it draws its own maps under a heading, one or twenty.
   const minimap = pictures.map ? (
     <MapMinimap
       map={barMap}
@@ -155,7 +172,9 @@ export default async function Item({
           ) : null}
         </div>
 
-        {minimap ? (
+        {item.kind === "setup-pack" ? (
+          <SetupPackContents container={item.container} maps={packMaps} />
+        ) : minimap ? (
           // Where and who, side by side: the two halves of what a preset is.
           // `empty:hidden` because a kind can render no preview at all, and an
           // empty flex item would still take the row's gap.

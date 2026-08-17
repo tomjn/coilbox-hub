@@ -48,6 +48,8 @@ export function MapMinimap({
   layout,
   allyColors,
   note,
+  detail = null,
+  className,
 }: {
   /** The map as BAR lists it, or null for one it does not. */
   map: BarMap | null;
@@ -63,6 +65,14 @@ export function MapMinimap({
   allyColors: string[];
   /** How start positions get chosen, when the payload says. */
   note: string | null;
+  /** What BAR says about the map itself, from `lib/gallery/mapFacts.ts`. Only a
+   * setup pack's cards ask for it: a preset page is one map and says its size
+   * in the facts below, where a pack is a shelf of them and the caption is the
+   * only place a card can say which is which (issue #176). */
+  detail?: string | null;
+  /** Lands on the figure. `h-full` is what a pack's grid passes, so the
+   * captions in a row line up along the bottom however tall each map is. */
+  className?: string;
 }) {
   const barPreview = map?.images?.preview;
 
@@ -72,10 +82,13 @@ export function MapMinimap({
   // is no image to put.
   if (!barPreview && picture.from === "placeholder") {
     return (
-      <figure className="flex flex-col gap-2">
+      <figure className={`flex flex-col gap-2${className ? ` ${className}` : ""}`}>
         <AssetPlaceholder of={picture} />
-        {note ? (
-          <figcaption className="text-xs text-neutral-400">{note}</figcaption>
+        {note || detail ? (
+          <figcaption className="mt-auto flex flex-col gap-0.5 text-xs text-neutral-400">
+            {detail ? <span>{detail}</span> : null}
+            {note ? <span>{note}</span> : null}
+          </figcaption>
         ) : null}
       </figure>
     );
@@ -92,7 +105,7 @@ export function MapMinimap({
     : { width: stored?.width ?? 1, height: stored?.height ?? 1 };
 
   return (
-    <figure className="flex flex-col gap-2">
+    <figure className={`flex flex-col gap-2${className ? ` ${className}` : ""}`}>
       <div
         className="relative overflow-hidden rounded-md border border-neutral-800 bg-black"
         style={{ aspectRatio: `${shape.width} / ${shape.height}` }}
@@ -151,8 +164,9 @@ export function MapMinimap({
           />
         ))}
       </div>
-      <figcaption className="flex flex-col gap-0.5 text-xs text-neutral-400">
+      <figcaption className="mt-auto flex flex-col gap-0.5 text-xs text-neutral-400">
         <span className="text-neutral-300">{name}</span>
+        {detail ? <span>{detail}</span> : null}
         {note ? <span>{note}</span> : null}
         {boxes.length > 0 ? (
           <span>
