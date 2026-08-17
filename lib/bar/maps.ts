@@ -90,3 +90,19 @@ export async function findBarMap(
   if (!mapName) return null;
   return matchMapName(mapName, await barMaps());
 }
+
+/**
+ * The same lookup for several names at once, keyed by the name asked for
+ * rather than by BAR's own spelling, so a caller can read an entry back with
+ * the name it holds. A name BAR does not list is present and null.
+ *
+ * One page can name a good many maps now that a setup pack lists its own
+ * (issue #176). The list itself is fetched once per render pass whatever the
+ * count, so this is a scan per name over something already in memory.
+ */
+export async function findBarMaps(
+  mapNames: readonly string[],
+): Promise<Map<string, BarMap | null>> {
+  const list = await barMaps();
+  return new Map(mapNames.map((name) => [name, matchMapName(name, list)]));
+}

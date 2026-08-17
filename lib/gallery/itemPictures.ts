@@ -8,9 +8,10 @@
  * ladder works or how many rows one page is worth.
  *
  * One call, not one per card. A blueprint of thirty buildings is thirty
- * identities and a map is one more, and {@link fetchHeldAssets} takes the lot in
- * a single batched query. Resolving per building would be thirty round trips for
- * a picture.
+ * identities and a map is one more, a setup pack's own list of maps is however
+ * many it installs, and {@link fetchHeldAssets} takes the lot in a single
+ * batched query. Resolving per building would be thirty round trips for a
+ * picture.
  *
  * ## Two absences, drawn two different ways
  *
@@ -60,6 +61,7 @@ import {
 } from "@/lib/assets/resolve";
 import type { BarMap } from "@/lib/bar/maps";
 import { parseBlueprintPayload } from "@/lib/blueprint/payload";
+import { setupPackMaps } from "./setupPackPreview";
 
 /** As much of an item as choosing its pictures depends on. */
 export interface PicturedItem {
@@ -79,13 +81,24 @@ export interface ItemPictures {
   /** Def name in lower case to the picture the hub holds of that unit. A def
    *  with no picture is absent. */
   units: ReadonlyMap<string, ServedAsset>;
+  /** Map name to picture, for a setup pack's own list of maps (issue #176).
+   *  Every map the pack names has an entry, since a map with nothing stored
+   *  resolves to the placeholder rather than to nothing. */
+  packMaps: ReadonlyMap<string, ResolvedAsset>;
 }
 
-const NOTHING: ItemPictures = { map: null, units: new Map() };
+const NOTHING: ItemPictures = {
+  map: null,
+  units: new Map(),
+  packMaps: new Map(),
+};
 
 /** The unit half of {@link AssetIdentity}, so a list known to be all units does
  *  not have to be narrowed again to read a unit name off it. */
 type UnitIdentity = Extract<AssetIdentity, { keyedOn: "unit" }>;
+
+/** The map half, for the same reason. */
+type MapIdentity = Extract<AssetIdentity, { keyedOn: "map" }>;
 
 /** How BAR names a map's size, which is the vocabulary
  *  `lib/assets/placeholder.ts` wants for a map footprint: 512 elmo units, so a
@@ -94,6 +107,25 @@ type UnitIdentity = Extract<AssetIdentity, { keyedOn: "unit" }>;
 function mapFootprint(map: BarMap | null): Footprint | null {
   if (!map?.mapWidth || !map?.mapHeight) return null;
   return { width: map.mapWidth, height: map.mapHeight };
+}
+
+/**
+ * One minimap identity per map a setup pack installs, in the order the pack
+ * lists them (issue #176).
+ *
+ * Empty for every other kind. A preset names its map on the row and gets it
+ * through {@link PicturedItem.map_name}, and a pack of four maps has one name
+ * on the row at most (`lib/gallery/publish.ts`), so the payload is the only
+ * place the whole list is.
+ */
+export function packMapIdentities(item: PicturedItem): MapIdentity[] {
+  if (item.kind !== "setup-pack") return [];
+
+  return setupPackMaps(item.container).map((mapName) => ({
+    keyedOn: "map",
+    mapName,
+    variant: MAP_MINIMAP_VARIANT,
+  }));
 }
 
 /**
@@ -131,18 +163,23 @@ export function blueprintUnitIdentities(item: PicturedItem): UnitIdentity[] {
 export async function itemPictures(
   supabase: SupabaseClient,
   item: PicturedItem,
-  /** The item's map as BAR lists it, or null for one it does not. Only the size
-   *  is read, for the placeholder. */
-  barMap: BarMap | null,
+  /** The maps this item names as BAR lists them, keyed by the name the item
+   *  used, from `findBarMaps`. Only the size is read, for the placeholder, and
+   *  a name BAR does not list is drawn without one. */
+  barMaps: ReadonlyMap<string, BarMap | null>,
 ): Promise<ItemPictures> {
-  const mapIdentity: AssetIdentity | null = item.map_name
+  const mapIdentity: MapIdentity | null = item.map_name
     ? { keyedOn: "map", mapName: item.map_name, variant: MAP_MINIMAP_VARIANT }
     : null;
+  const packIdentities = packMapIdentities(item);
   const unitIdentities = blueprintUnitIdentities(item);
-  if (!mapIdentity && unitIdentities.length === 0) return NOTHING;
+  if (!mapIdentity && packIdentities.length === 0 && unitIdentities.length === 0) {
+    return NOTHING;
+  }
 
   const held = await fetchHeldAssets(supabase, [
     ...(mapIdentity ? [mapIdentity] : []),
+    ...packIdentities,
     ...unitIdentities,
   ]);
 
@@ -152,10 +189,24 @@ export async function itemPictures(
     if (picture.from !== "placeholder") units.set(identity.unitName, picture);
   }
 
+  // Unlike a unit, every one of these is shown: a pack's map has a card of its
+  // own, so a map with nothing stored keeps the placeholder rather than
+  // dropping out of the list of what the pack installs.
+  const packMaps = new Map<string, ResolvedAsset>();
+  for (const identity of packIdentities) {
+    const footprint = mapFootprint(barMaps.get(identity.mapName) ?? null);
+    packMaps.set(identity.mapName, resolveAsset(identity, held, footprint));
+  }
+
   return {
     map: mapIdentity
-      ? resolveAsset(mapIdentity, held, mapFootprint(barMap))
+      ? resolveAsset(
+          mapIdentity,
+          held,
+          mapFootprint(barMaps.get(mapIdentity.mapName) ?? null),
+        )
       : null,
     units,
+    packMaps,
   };
 }
