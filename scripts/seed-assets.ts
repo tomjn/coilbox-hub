@@ -63,6 +63,9 @@ import { publishSeedBatches, type SeedPorts } from "@/lib/assets/seedBatch";
 const SERVE_TIMEOUT_MS = 25 * 60 * 1000;
 const POLL_MS = 15_000;
 
+/** How long to leave a path that answered 404 before asking it again. */
+const RETRY_MS = 2_000;
+
 /** How many paths go on one `git add`. Well under any argument limit, and a
  *  batch of this export runs to sixteen hundred files. */
 const ADD_CHUNK = 400;
@@ -148,15 +151,32 @@ async function git(...command: string[]): Promise<string> {
   return out.trim();
 }
 
-/** Whether the published site answers for a path. The query string is a cache
- *  buster: without it a 404 asked for a second too early is the answer a CDN
- *  keeps giving for the rest of the run. */
-async function servedNow(path: string): Promise<boolean> {
-  const response = await fetch(`${staticTierUrl(path)}?at=${Date.now()}`, {
-    method: "HEAD",
-    cache: "no-store",
-  });
-  return response.ok;
+/**
+ * Whether the published site answers for a path.
+ *
+ * The query string is a cache buster: without it a 404 asked for a second too
+ * early is the answer a CDN keeps giving for the rest of the run.
+ *
+ * `attempts` is why this is not `./promote-assets.ts`'s copy. Confirming a
+ * batch asks for every path in it one after another, and over hundreds of
+ * requests Pages answers 404 for a path that is there, twice in this seed's own
+ * runs. Both times the same path answered 200 on the next request and forty
+ * after it. So a single negative is not evidence a file is missing, and taking
+ * it as one ends a run that has nothing wrong with it. Polling for a deploy
+ * passes 1, because there a negative is the expected answer and waiting is what
+ * the loop already does.
+ */
+async function servedNow(path: string, attempts = 3): Promise<boolean> {
+  for (let attempt = 1; ; attempt++) {
+    const response = await fetch(`${staticTierUrl(path)}?at=${Date.now()}`, {
+      method: "HEAD",
+      cache: "no-store",
+    });
+
+    if (response.ok) return true;
+    if (attempt === attempts) return false;
+    await sleep(RETRY_MS);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -401,7 +421,7 @@ const ports: SeedPorts = {
     // Pages swaps the whole site at once, so one path going live means the
     // deploy landed. Wait on one, then confirm every one of them.
     const deadline = Date.now() + SERVE_TIMEOUT_MS;
-    while (!(await servedNow(paths[0])) && Date.now() < deadline) {
+    while (!(await servedNow(paths[0], 1)) && Date.now() < deadline) {
       await sleep(POLL_MS);
     }
 
