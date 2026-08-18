@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssetIdentity } from "./asset";
-import { ASSET_CAPS, heightOverlayMaxBytes } from "./caps";
+import { ASSET_CAPS } from "./caps";
 import {
   ACCOUNT_STORAGE_QUOTA_BYTES,
   ASSET_MAX_OBJECT_BYTES,
@@ -289,45 +289,35 @@ test("a class with no cap of its own takes the backstop", async () => {
 });
 
 /**
- * #142. The height overlay is 16 bit at the map's own resolution, so the
- * backstop was refusing seven of the ninety seven maps in the collection with a
- * 413 naming a number chosen for classes nobody expected to reach it. The cap it
- * takes now moves with the map, which is the same derivation the classes with a
- * fixed edge get.
+ * #142 gave the height overlay a cap per upload, off the declared map size,
+ * because it was 16 bit at the map's own resolution and the backstop was
+ * refusing seven of the ninety seven maps in the collection. tomjn/coilbox#1730
+ * made it a 512px 8 bit picture, so it takes the ordinary class derivation and
+ * the map size no longer enters into it.
  */
-test("a height overlay is capped by the map it is a picture of", async () => {
-  const overlay = { identity: HEIGHT_OVERLAY, mime: "image/png" };
-  // 32x32, the largest size BAR publishes. Its largest measured overlay is
-  // 4,511,410 bytes, which the backstop refused.
-  const largest = { ...overlay, mapWidth: 16384, mapHeight: 16384 };
-  const cap = heightOverlayMaxBytes("overlay:height", 16384, 16384) as number;
+test("a height overlay is capped by its class rather than by the map it shows", async () => {
+  const overlay = {
+    identity: HEIGHT_OVERLAY,
+    mime: "image/webp",
+    mapWidth: 16384,
+    mapHeight: 16384,
+  };
+  const cap = ASSET_CAPS["overlay:height"].maxBytes as number;
+  expect(cap).toBe(512 * 512 * 4);
 
-  expect((await check(world(), { ...largest, bytes: 4_511_410 })).ok).toBe(true);
-  expect((await check(world(), { ...largest, bytes: cap })).ok).toBe(true);
+  expect((await check(world(), { ...overlay, bytes: cap })).ok).toBe(true);
 
-  const over = await check(world(), { ...largest, bytes: cap + 1 });
+  const over = await check(world(), { ...overlay, bytes: cap + 1 });
   expect(over.ok).toBe(false);
   if (over.ok) return;
   expect(over.status).toBe(413);
   expect(over.error).toContain("overlay:height");
-});
 
-/** The other direction, and the reason a number per map beats one number. A
- * small map's overlay has no business weighing what a large one's does, and the
- * old backstop let it. */
-test("a small map's height overlay is held to a much tighter number", async () => {
-  const small = {
-    identity: HEIGHT_OVERLAY,
-    mime: "image/png",
-    // 8x8, the smallest in the collection, whose measured overlay is 2,117
-    // bytes.
-    mapWidth: 4096,
-    mapHeight: 4096,
-  };
-
-  expect(heightOverlayMaxBytes("overlay:height", 4096, 4096)).toBe(513 * 513 * 2);
-  expect((await check(world(), { ...small, bytes: 513 * 513 * 2 })).ok).toBe(true);
-  expect((await check(world(), { ...small, bytes: ASSET_MAX_OBJECT_BYTES })).ok).toBe(false);
+  // The largest map in the collection gets the same number as the smallest,
+  // because both are a 512px picture now.
+  const small = { ...overlay, mapWidth: 4096, mapHeight: 4096 };
+  expect((await check(world(), { ...small, bytes: cap })).ok).toBe(true);
+  expect((await check(world(), { ...small, bytes: cap + 1 })).ok).toBe(false);
 });
 
 test("an identity that cannot be spelled as a path is refused without asking the database", async () => {

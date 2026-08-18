@@ -40,8 +40,8 @@ test("a map path carries no map name at all", () => {
 });
 
 test("an overlay layer splits the same way a render does", () => {
-  expect(assetObjectPath({ ...MAP, variant: "overlay:height" }, "0a1b", "image/png")).toBe(
-    "maps/overlay/height/0a1b.png",
+  expect(assetObjectPath({ ...MAP, variant: "overlay:height" }, "0a1b", "image/webp")).toBe(
+    "maps/overlay/height/0a1b.webp",
   );
 });
 

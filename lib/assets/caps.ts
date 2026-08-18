@@ -1,4 +1,4 @@
-import { MAP_HEIGHT_OVERLAY_VARIANT, UNIT_RENDER_VARIANT_PREFIX } from "./asset";
+import { UNIT_RENDER_VARIANT_PREFIX } from "./asset";
 import { type ImageHeader, readImageHeader } from "./imageHeader";
 import { type AssetMime, isAssetMime } from "./path";
 import vocabulary from "./vendor/asset-vocabulary.json";
@@ -26,22 +26,31 @@ import vocabulary from "./vendor/asset-vocabulary.json";
  * not checkable here, because the hub does not hold footprints. That correctness
  * lives in coilbox, at tomjn/coilbox#1631.
  *
- * The overlays have no pixel cap at all. They are sampled from the map's own
- * grids and have to stay at the resolution they were extracted at, so a cap
- * would silently make them wrong rather than refuse them.
+ * The metal and type overlays have no pixel cap at all. They are sampled from
+ * the map's own grids and have to stay at the resolution they were extracted at,
+ * so a cap would silently make them wrong rather than refuse them.
  *
- * ## Why `overlay:height` is a PNG
+ * ## Why `overlay:height` stopped being a PNG
  *
- * Coilbox extracts height as 16 bit grayscale with a linear mapping, and WebP's
- * lossless mode is 8 bit ARGB. Encoding one as the other halves the precision
- * and nothing looks broken, which is exactly the quiet corruption the lossless
- * rule exists to prevent. PNG carries 16 bits, so height is a PNG and the 8 bit
- * layers stay on lossless WebP.
+ * It was 16 bit grayscale PNG at the map's own resolution, because WebP's
+ * lossless mode is 8 bit and encoding one as the other halves the precision
+ * without looking broken. That reasoning held, and the premise under it did not:
+ * nothing ever read the second byte. A browser flattens a 16 bit image to its
+ * high byte on the way in, so every reader of this layer was already getting
+ * eight bits.
  *
- * The allowlist is per class rather than global for the same reason. Both types
- * exist for the hub as a whole, in `ASSET_MIME_EXTENSIONS`, and a global list
- * that admits PNG everywhere admits a 16 bit PNG as a buildpic. Each class here
- * names the one type it may be.
+ * So coilbox now sends a picture rather than a measurement, at
+ * tomjn/coilbox#1730: 8 bit grey lossless WebP, rescaled into the window the
+ * map's own samples occupy and capped at 512px like a minimap. Rescaling is
+ * strictly better than the truncation a browser was doing, and the layer went
+ * from 63 per cent of the corpus to a twentieth of what it was. Anything that
+ * needs the exact heights reads them out of the map archive locally, which is
+ * where they always were.
+ *
+ * The type allowlist is still per class rather than global. Both types exist for
+ * the hub as a whole, in `ASSET_MIME_EXTENSIONS`, and a global list that admits
+ * PNG everywhere admits a 16 bit PNG as a buildpic. Each class here names the
+ * one type it may be.
  *
  * ## This is validation, not quota
  *
@@ -72,10 +81,9 @@ export interface AssetCap {
    * metadata chunks are unbounded and a decoder never reads them, which is how a
    * 256px buildpic arrives as two megabytes.
    *
-   * The overlays have no number here because they have no `maxEdge` to derive
-   * one from: they are sampled from the map's own grids at whatever resolution
-   * the map has. `overlay:height` gets one per upload instead, out of the
-   * declared map size, which is {@link heightOverlayMaxBytes} and issue #142.
+   * The metal and type overlays have no number here because they have no
+   * `maxEdge` to derive one from: they are sampled from the map's own grids at
+   * whatever resolution the map has.
    */
   maxBytes: number | null;
   square: boolean;
@@ -135,103 +143,6 @@ export const ASSET_CAPS: Record<string, AssetCap> = Object.fromEntries(
 export function capForVariant(variant: string): AssetCap | null {
   if (variant.startsWith(UNIT_RENDER_VARIANT_PREFIX)) return ASSET_CAPS.render;
   return ASSET_CAPS[variant] ?? null;
-}
-
-/**
- * How many elmos one heightmap sample spans.
- *
- * The engine's `squareSize`, and it is 8 in all 98 map archives in the
- * maintainer's collection with no exceptions, so it is a constant of the format
- * rather than a per map field the hub would have to be told.
- */
-export const ELMOS_PER_HEIGHT_SAMPLE = vocabulary.heightOverlay.elmosPerSample;
-
-/** What one 16 bit grayscale sample takes before compression. */
-const HEIGHT_SAMPLE_BYTES = vocabulary.heightOverlay.bytesPerSample;
-
-/**
- * How many samples a height overlay carries along an edge that many elmos long.
- *
- * One per heightmap vertex, so there is a fencepost more than there are squares:
- * a 16384 elmo edge is 2048 squares and 2049 samples. Measured, not assumed. The
- * SMF header gives `mapx` in squares and `squareSize` in elmos, `mapx` is always
- * a multiple of 64 across the collection, and `map_width` on the row is
- * `mapx * squareSize`.
- */
-export function heightOverlaySamples(elmos: number): number {
-  return Math.floor(elmos / ELMOS_PER_HEIGHT_SAMPLE) + 1;
-}
-
-/**
- * The largest a height overlay for a map this size may be, or null for every
- * other class (issue #142).
- *
- * ## Why the overlays could not take the derivation the other classes take
- *
- * `maxBytes` above is the uncompressed size of the largest image `maxEdge`
- * permits. An overlay has no `maxEdge`, because it is the map's own grid at the
- * map's own resolution, so all three fell through to the 2 MB backstop in
- * `./upload`. That made the backstop the operative cap for the one class nobody
- * had measured.
- *
- * ## What the measurement said
- *
- * Every `.sd7` and `.sdz` in the maintainer's `~/.spring/maps` was opened
- * through `bsdtar`, its SMF header read, and its heightmap encoded as the 16 bit
- * grayscale lossless PNG this class is. 97 archives, largest first:
- *
- * - `mediterraneum_v1`, a 32x32 map, 2049 by 2049 samples: 4,511,410 bytes
- * - `special_hotstepper_1.1.1`, also 32x32: 3,549,982 bytes
- * - median across the 97: 1,010,809 bytes
- *
- * Seven of the 97 are over the 2 MB backstop, so it was not a backstop. It was
- * refusing about seven per cent of the real corpus, with a 413 naming a number
- * chosen for classes nobody expected to reach it.
- *
- * 32x32 is the ceiling: BAR's published catalogue carries 225 maps with a size
- * and none is larger in either dimension.
- *
- * ## The number, and the same rule as the rest of the file
- *
- * The uncompressed size of the picture the declared map size implies, which for
- * 16 bit grayscale is two bytes a sample rather than the four a colour image
- * takes. So it is derived exactly the way `maxBytes` is, and it moves with the
- * map instead of being one number for every map.
- *
- * It has room. The worst compression across the 97 was 1.5405 bytes a sample, on
- * a small noisy map, and the two 32x32 maps came in at 1.07 and 0.85. Nothing
- * measured is within a quarter of its cap.
- *
- * ## Two things this does not fix, and one it gives away
- *
- * The largest maps are over the platform's own 4.5 MB limit on a function body
- * once the derivation is done, and 4,511,410 bytes is close enough to that limit
- * to be a problem in itself. That is a real ceiling on the class rather than
- * something a cap here can lift, and it is #162.
- *
- * `overlay:metal` and `overlay:type` keep the backstop. They are 8 bit and
- * heavily quantised, so nothing suggests they are near it, but this measurement
- * says nothing about them and inventing a grid size for a class nobody has
- * measured is how a cap starts refusing valid uploads.
- *
- * And the map size is declared rather than measured, so a client willing to
- * overstate it raises its own ceiling. What that buys is the difference between
- * 2 MB and the 4.5 MB the platform refuses a body at, under an account storage
- * quota and a monthly upload budget that are unaffected. That is the price of
- * keeping this check where every other byte check is, in front of the round trip
- * and off the declaration alone.
- */
-export function heightOverlayMaxBytes(
-  variant: string,
-  mapWidth: number | null,
-  mapHeight: number | null,
-): number | null {
-  if (variant !== MAP_HEIGHT_OVERLAY_VARIANT) return null;
-  if (mapWidth === null || mapHeight === null) return null;
-
-  return (
-    heightOverlaySamples(mapWidth) * heightOverlaySamples(mapHeight) * HEIGHT_SAMPLE_BYTES
-  );
 }
 
 export type AssetImageCheck =
