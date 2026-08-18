@@ -54,11 +54,13 @@ import type { AssetIdentity } from "./asset";
  * somebody trying the hub as a file host, and both are refused before any byte
  * is written.
  *
- * PNG is here for `overlay:height`, which #105 settles: coilbox extracts height
- * as 16 bit grayscale, WebP's lossless mode is 8 bit ARGB, and encoding one as
- * the other halves the precision without anything looking broken. Which variant
- * may use which of the two is #105's to enforce, and this list is only which
- * types exist at all.
+ * PNG was here for `overlay:height`, which was 16 bit grayscale because WebP's
+ * lossless mode is 8 bit. That layer is an 8 bit WebP now
+ * (tomjn/coilbox#1730), so no class uses PNG today. It stays on the list
+ * because the list is which types the hub can name a file after rather than
+ * which ones anything currently sends, and taking it off would mean the hub
+ * could never store one. Which variant may use which of the two is #105's to
+ * enforce, in `./caps`, and every class there names WebP.
  */
 export const ASSET_MIME_EXTENSIONS = {
   "image/webp": "webp",

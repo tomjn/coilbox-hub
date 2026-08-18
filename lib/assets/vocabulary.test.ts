@@ -9,7 +9,7 @@ import {
   UNIT_RENDER_VARIANT_PREFIX,
   UNIT_TOP_RENDER_VARIANT,
 } from "./asset";
-import { ASSET_CAPS, capForVariant, heightOverlayMaxBytes, heightOverlaySamples } from "./caps";
+import { ASSET_CAPS, capForVariant } from "./caps";
 import vocabulary from "./vendor/asset-vocabulary.json";
 
 /**
@@ -95,17 +95,4 @@ test("the origins union is exactly what the vocabulary lists", () => {
   };
 
   expect(Object.keys(declared).sort()).toEqual([...ASSET_ORIGINS].sort());
-});
-
-/**
- * Both of these are derived from the vocabulary rather than read out of it, so
- * the file carrying a number the derivation does not produce is drift that
- * nothing else would catch.
- */
-test("a height overlay is measured on the vocabulary's sample geometry", () => {
-  const samples = heightOverlaySamples(1024);
-  expect(samples).toBe(1024 / vocabulary.heightOverlay.elmosPerSample + 1);
-  expect(heightOverlayMaxBytes(MAP_HEIGHT_OVERLAY_VARIANT, 1024, 1024)).toBe(
-    samples * samples * vocabulary.heightOverlay.bytesPerSample,
-  );
 });

@@ -1,12 +1,6 @@
 import { expect, test } from "bun:test";
 import { MAP_VARIANTS } from "./asset";
-import {
-  ASSET_CAPS,
-  capForVariant,
-  checkAssetImage,
-  heightOverlayMaxBytes,
-  heightOverlaySamples,
-} from "./caps";
+import { ASSET_CAPS, capForVariant, checkAssetImage } from "./caps";
 import { ASSET_MIME_EXTENSIONS } from "./path";
 
 /**
@@ -105,8 +99,8 @@ test("a minimap gets 512px and any aspect", () => {
   );
 });
 
-/** Overlays are sampled from the map's own grids, so a cap would make them
- * wrong rather than refuse them. */
+/** The metal and type overlays are sampled from the map's own grids, so a cap
+ * would make them wrong rather than refuse them. */
 test("an overlay keeps the resolution it was extracted at, and has to be lossless", () => {
   expect(checkAssetImage("overlay:metal", "image/webp", webp(1024, 2048, true)).ok).toBe(true);
 
@@ -116,21 +110,24 @@ test("an overlay keeps the resolution it was extracted at, and has to be lossles
 });
 
 /**
- * The one that the whole issue turns on. A lossless WebP of a 16 bit ramp is 8
- * bit ARGB, so it halves the precision, nothing looks broken and the overlay is
- * wrong.
+ * The height overlay was the one class that was not WebP, because coilbox
+ * extracted it as 16 bit grayscale and WebP's lossless mode is 8 bit. It is a
+ * 512px 8 bit picture now (tomjn/coilbox#1730), so it takes the same rules as a
+ * minimap: capped, lossless, and refused as a PNG.
  */
-test("a height overlay is a 16 bit grayscale PNG and cannot be a WebP", () => {
-  expect(checkAssetImage("overlay:height", "image/png", png(513, 513, 16, 0)).ok).toBe(true);
+test("a height overlay is a capped lossless WebP like the rest of the corpus", () => {
+  expect(checkAssetImage("overlay:height", "image/webp", webp(512, 256, true)).ok).toBe(true);
 
+  expect(refusal("overlay:height", "image/png", png(512, 512, 16, 0))).toBe(
+    '415 A "overlay:height" must be image/webp, and that one declares image/png.',
+  );
+  expect(refusal("overlay:height", "image/webp", webp(512, 512))).toBe(
+    '400 A "overlay:height" must be losslessly encoded, and that one is not.',
+  );
+  // A map's grid is 513 samples a side at its smallest, so a client that
+  // shipped the grid rather than a picture of it is refused by one pixel.
   expect(refusal("overlay:height", "image/webp", webp(513, 513, true))).toBe(
-    '415 A "overlay:height" must be image/png, and that one declares image/webp.',
-  );
-  expect(refusal("overlay:height", "image/png", png(513, 513, 8, 0))).toBe(
-    '400 A "overlay:height" must carry 16 bits a channel, and that one carries 8.',
-  );
-  expect(refusal("overlay:height", "image/png", png(513, 513, 16, 2))).toBe(
-    '400 A "overlay:height" must be grayscale, and that one is not.',
+    '413 A "overlay:height" may be at most 512px on its longest edge, and that one is 513x513.',
   );
 });
 
@@ -170,7 +167,7 @@ test("bytes with no header the hub can measure are refused before anything is wr
  * `./upload` instead. The number itself is the uncompressed size of the largest
  * image the edge permits, so no encoding of that picture can reach it.
  */
-test("a class with a longest edge says what its bytes may be, and the overlays do not", () => {
+test("a class with a longest edge says what its bytes may be, and one with none does not", () => {
   for (const cap of Object.values(ASSET_CAPS)) {
     if (cap.maxEdge === null) {
       expect(cap.maxBytes).toBeNull();
@@ -181,63 +178,19 @@ test("a class with a longest edge says what its bytes may be, and the overlays d
 });
 
 /**
- * #142's numbers, and where they came from.
- *
- * Every archive in the maintainer's `~/.spring/maps` was opened through
- * `bsdtar`, its SMF header read and its heightmap encoded as the lossless 16 bit
- * grayscale PNG this class is. The sizes below are measured files rather than
- * arithmetic, which is what the issue asks for.
+ * The height overlay's own cap now, which is the ordinary derivation: the
+ * uncompressed size of the largest picture its edge cap allows, four bytes a
+ * pixel. #142 gave it a per upload number off the declared map size because it
+ * was 16 bit at the map's own resolution and the 2 MB backstop was refusing
+ * seven of the ninety seven maps in the collection. tomjn/coilbox#1730 made it a
+ * 512px 8 bit picture, so there is nothing special left to derive.
  */
-test("a height overlay's samples are one per heightmap vertex, so one more than the squares", () => {
-  // A 32x32 map, which is the largest size in BAR's published catalogue.
-  expect(heightOverlaySamples(16384)).toBe(2049);
-  // A 24x24, of which the collection holds eleven.
-  expect(heightOverlaySamples(12288)).toBe(1537);
-  // An 8x8, the smallest in the collection.
-  expect(heightOverlaySamples(4096)).toBe(513);
-});
-
-test("the height overlay cap is the uncompressed size the declared map size implies", () => {
-  expect(heightOverlayMaxBytes("overlay:height", 16384, 16384)).toBe(2049 * 2049 * 2);
-  expect(heightOverlayMaxBytes("overlay:height", 15360, 10240)).toBe(1921 * 1281 * 2);
-});
-
-test("every height overlay measured off a real archive fits inside its cap", () => {
-  // The largest of the 97, mediterraneum_v1, a 32x32 map.
-  expect(4_511_410).toBeLessThan(heightOverlayMaxBytes("overlay:height", 16384, 16384) as number);
-  // The worst compression of the 97 at 1.5405 bytes a sample, acidicquarry, a
-  // 12x12 map. The cap is two bytes a sample, so this is the tightest fit in
-  // the whole collection and it still has room.
-  expect(Math.ceil(769 * 769 * 1.5405)).toBeLessThan(
-    heightOverlayMaxBytes("overlay:height", 6144, 6144) as number,
-  );
-});
-
-/** Seven of the 97 are over two megabytes, so the old backstop was refusing
- * about seven per cent of the real corpus rather than backstopping it. */
-test("the largest maps are over the backstop the class used to take", () => {
-  expect(4_511_410).toBeGreaterThan(2 * 1024 * 1024);
-  expect(heightOverlayMaxBytes("overlay:height", 16384, 16384) as number).toBeGreaterThan(
-    2 * 1024 * 1024,
-  );
-});
-
-/** The measurement is of heightmaps, and says nothing about the 8 bit grids the
- * other two overlays are sampled from. A cap invented for a resolution nobody
- * has established is a cap that refuses valid uploads. */
-test("only the height overlay gets a cap off the map size", () => {
-  expect(heightOverlayMaxBytes("overlay:metal", 16384, 16384)).toBeNull();
-  expect(heightOverlayMaxBytes("overlay:type", 16384, 16384)).toBeNull();
-  expect(heightOverlayMaxBytes("minimap", 16384, 16384)).toBeNull();
-  expect(heightOverlayMaxBytes("buildpic", null, null)).toBeNull();
-});
-
-/** A unit row carries no map size, and neither does a map row that somehow
- * arrives without one, so there is nothing to derive from and the backstop
- * answers. */
-test("no declared map size means no derived cap", () => {
-  expect(heightOverlayMaxBytes("overlay:height", null, null)).toBeNull();
-  expect(heightOverlayMaxBytes("overlay:height", 16384, null)).toBeNull();
+test("a height overlay takes the same byte cap every capped class takes", () => {
+  expect(ASSET_CAPS["overlay:height"].maxEdge).toBe(512);
+  expect(ASSET_CAPS["overlay:height"].maxBytes).toBe(512 * 512 * 4);
+  // The measured mean across the 101 map corpus, which is three orders of
+  // magnitude of headroom rather than the quarter the 16 bit layer had.
+  expect(26_634).toBeLessThan(ASSET_CAPS["overlay:height"].maxBytes as number);
 });
 
 test("every variant the hub stores has a cap, and nothing else does", () => {

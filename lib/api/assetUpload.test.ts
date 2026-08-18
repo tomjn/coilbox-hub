@@ -36,8 +36,8 @@ const MAP = {
 const HEIGHT = {
   ...MAP,
   variant: "overlay:height",
-  mime: "image/png",
-  encode_profile: "png16-lossless-source",
+  mime: "image/webp",
+  encode_profile: "webp-lossless-512",
   world_height_min: -40.5,
   world_height_max: 320.25,
 };
