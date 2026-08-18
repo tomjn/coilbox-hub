@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(60);
+select plan(63);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -195,6 +195,19 @@ select table_privs_are('public', 'map_listing', 'authenticated', ARRAY['SELECT']
   'authenticated can only select on map_listing');
 select table_privs_are('public', 'map_listing', 'service_role', ARRAY['SELECT'],
   'service_role can only select on map_listing, since the tags are computed and nothing writes them');
+
+-- public.map_browse: what the listing page filters and sorts on (issue #189).
+-- A second view on top of map_listing rather than six more columns on it, so
+-- the read a lookup makes does not pay for a page it never renders. The same
+-- three select grants: anon and authenticated draw the page, and service_role
+-- holds it for the reason map_listing grants it, though nothing reads it that
+-- way today. map_browse.test.sql is what proves each column.
+select table_privs_are('public', 'map_browse', 'anon', ARRAY['SELECT'],
+  'anon can only select on map_browse');
+select table_privs_are('public', 'map_browse', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on map_browse');
+select table_privs_are('public', 'map_browse', 'service_role', ARRAY['SELECT'],
+  'service_role can only select on map_browse, since every column on it is computed');
 
 -- public.author_display_name: the one spelling a mapper is shown under (issue
 -- #189). The same three select grants and for the same reasons. It publishes

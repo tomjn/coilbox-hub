@@ -1,22 +1,30 @@
 -- What a reader browsing the catalog filters and sorts on (issue #189).
 --
--- 20260818160000_map_browse.sql adds six columns to public.map_listing, and
--- every one of them can be wrong without anything raising. A longer edge read
--- off the width sorts a 4 x 20 map beside a 4 x 4. A start count that includes
--- metal spots calls a small map a hundred player map. An author key taken
--- straight off the column leaves a merged mapper's listing showing half his
--- maps. A search vector missing a field answers nothing for a word that is
--- plainly on the page.
+-- public.map_browse carries six things public.map_listing does not, and every
+-- one of them can be wrong without anything raising. A longer edge read off the
+-- width sorts a 4 x 20 map beside a 4 x 4. A start count that includes metal
+-- spots calls a small map a hundred player map. An author key taken straight off
+-- the column leaves a merged mapper's listing showing half his maps. A search
+-- vector missing a field answers nothing for a word that is plainly on the page.
 --
 -- None of those show up as an error. They show up as a listing that is quietly
 -- wrong, so each one is asserted against real rows here.
 --
--- The tag rules are not retested. They are unchanged, and map_listing.test.sql
--- is where every threshold is proved at its edge. The grants are not tested
--- here either: table_privileges.test.sql asserts them directly.
+-- The tag rules are not retested. public.map_browse inherits them from
+-- public.map_listing rather than restating them, and map_listing.test.sql is
+-- where every threshold is proved at its edge. That file is untouched, which is
+-- the point of the two views: a change to browsing cannot move a tag rule.
+--
+-- What is tested here is the other direction. public.map_listing must not have
+-- gained any of these columns, because public.map_facts joins it on every
+-- lookup and a start count and a tsvector over the whole catalog is not a price
+-- that read should pay.
+--
+-- The grants are not tested here: table_privileges.test.sql asserts them
+-- directly.
 
 begin;
-select plan(30);
+select plan(33);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -109,7 +117,7 @@ join (values
 -- and all, and never throws on punctuation.
 create function pg_temp.found(p_query text) returns text[] language sql as $$
   select coalesce(array_agg(listing.slug order by listing.slug), '{}')
-  from public.map_listing as listing
+  from public.map_browse as listing
   where listing.search @@ websearch_to_tsquery('english', p_query);
 $$;
 
@@ -119,13 +127,13 @@ $$;
 -- from this measure, and a sort that read the width instead would order the
 -- catalog by a number no band uses.
 select is(
-  (select longer_edge_elmos from public.map_listing where slug = 'comet-catcher-remake-1-8'),
+  (select longer_edge_elmos from public.map_browse where slug = 'comet-catcher-remake-1-8'),
   10240,
   'the longer edge of a map taller than it is wide is its height'
 );
 
 select is(
-  (select longer_edge_elmos from public.map_listing where slug = 'long-thin'),
+  (select longer_edge_elmos from public.map_browse where slug = 'long-thin'),
   12288,
   'and the longer edge of a wider map is its width'
 );
@@ -136,7 +144,7 @@ select is(
 -- kind would call this a four player map, and nothing about a four would look
 -- wrong.
 select is(
-  (select start_positions from public.map_listing where slug = 'comet-catcher-remake-1-8'),
+  (select start_positions from public.map_browse where slug = 'comet-catcher-remake-1-8'),
   2,
   'start positions count team spawns and not the metal spots and geo vents beside them'
 );
@@ -144,7 +152,7 @@ select is(
 -- A zero rather than a null, because this is filtered on with a minimum and a
 -- null would drop the map out of every comparison including `at least none`.
 select is(
-  (select start_positions from public.map_listing where slug = 'quiet'),
+  (select start_positions from public.map_browse where slug = 'quiet'),
   0,
   'a map with no points at all has no start positions rather than an unknown number of them'
 );
@@ -152,7 +160,7 @@ select is(
 -- ## Recently added
 
 select is(
-  (select created_at from public.map_listing where slug = 'quiet'),
+  (select created_at from public.map_browse where slug = 'quiet'),
   (select created_at from public.map where slug = 'quiet'),
   'the date a listing sorts on is the date the row was written'
 );
@@ -160,25 +168,25 @@ select is(
 -- ## Authors
 
 select is(
-  (select author_keys from public.map_listing where slug = 'comet-catcher-remake-1-8'),
+  (select author_keys from public.map_browse where slug = 'comet-catcher-remake-1-8'),
   ARRAY['beherith'],
   'a credited map carries the key its mapper counts under'
 );
 
 select is(
-  (select author_names from public.map_listing where slug = 'comet-catcher-remake-1-8'),
+  (select author_names from public.map_browse where slug = 'comet-catcher-remake-1-8'),
   ARRAY['Beherith'],
   'and the spelling a card shows him by'
 );
 
 select is(
-  (select author_keys from public.map_listing where slug = 'quiet'),
+  (select author_keys from public.map_browse where slug = 'quiet'),
   ARRAY[]::text[],
   'a map the archive credited nobody for has an empty list of keys rather than no list'
 );
 
 select is(
-  (select author_names from public.map_listing where slug = 'quiet'),
+  (select author_names from public.map_browse where slug = 'quiet'),
   ARRAY[]::text[],
   'and an empty list of names, so a card drawing them draws nothing'
 );
@@ -186,13 +194,13 @@ select is(
 -- The order is the archive's, which is not alphabetical and is not the hub's to
 -- reorder.
 select is(
-  (select author_keys from public.map_listing where slug = 'foxtrot'),
+  (select author_keys from public.map_browse where slug = 'foxtrot'),
   ARRAY['zeta', 'alpha mapper'],
   'two people come back in the order the archive credited them'
 );
 
 select is(
-  (select author_names from public.map_listing where slug = 'foxtrot'),
+  (select author_names from public.map_browse where slug = 'foxtrot'),
   ARRAY['Zeta', 'Alpha Mapper'],
   'and the names are in step with the keys, so the second name belongs to the second key'
 );
@@ -200,13 +208,13 @@ select is(
 -- ## The alias hop, which is why this is a read time resolution
 
 select is(
-  (select author_keys from public.map_listing where slug = 'charlie'),
+  (select author_keys from public.map_browse where slug = 'charlie'),
   ARRAY['behe'],
   'a key with no alias listed against it answers as itself'
 );
 
 select is(
-  (select author_names from public.map_listing where slug = 'charlie'),
+  (select author_names from public.map_browse where slug = 'charlie'),
   ARRAY['Behe'],
   'under the only spelling that key has'
 );
@@ -219,7 +227,7 @@ values ('behe', 'beherith', 'Same person, said so in the map thread.');
 -- keys for as long as nobody resubmitted, which is forever for an archive
 -- nobody has installed.
 select is(
-  (select author_keys from public.map_listing where slug = 'charlie'),
+  (select author_keys from public.map_browse where slug = 'charlie'),
   ARRAY['beherith'],
   'and the listing files it under the merged key the moment the alias exists, with nothing resubmitted'
 );
@@ -228,7 +236,7 @@ select is(
 -- merged author is shown under the spelling most of his maps credit him by
 -- rather than the one this archive used.
 select is(
-  (select author_names from public.map_listing where slug = 'charlie'),
+  (select author_names from public.map_browse where slug = 'charlie'),
   ARRAY['Beherith'],
   'shown under the spelling most of his maps use, which is the name his own page uses'
 );
@@ -236,13 +244,13 @@ select is(
 -- One map crediting the same person under both keys is one author. Listing him
 -- twice would put the same mapper on one card twice.
 select is(
-  (select author_keys from public.map_listing where slug = 'echo'),
+  (select author_keys from public.map_browse where slug = 'echo'),
   ARRAY['beherith'],
   'two credits on one map that resolve to one person are one author'
 );
 
 select is(
-  (select cardinality(author_names) from public.map_listing where slug = 'echo')::int,
+  (select cardinality(author_names) from public.map_browse where slug = 'echo')::int,
   1,
   'and one name to show, not two'
 );
@@ -292,8 +300,32 @@ select is(
 -- `small`, `medium` and `large` are derived tags, so a size filter is the same
 -- array match a tag filter is. A column repeating the band would be a second
 -- answer to a question the array has already answered.
-select hasnt_column('public', 'map_listing', 'size',
+select hasnt_column('public', 'map_browse', 'size',
   'a size filter reads the tags rather than a column of its own, so a threshold that moves cannot leave the two disagreeing');
+
+-- ## The lookup's view stays cheap
+
+-- public.map_facts joins public.map_listing on every call to /api/v1/maps/lookup
+-- to read a tags array, and that route is what every client calls to draw a
+-- lobby. These two columns are an aggregate over public.map_point and a
+-- to_tsvector over every description in the catalog, and neither belongs on the
+-- read that pays for a page it never renders. Browsing pays for browsing.
+select hasnt_column('public', 'map_listing', 'start_positions',
+  'the view a lookup joins counts no points, so answering what a map is does not cost a scan of every point on every map');
+
+select hasnt_column('public', 'map_listing', 'search',
+  'nor does it build a search vector, which is a column only the browse page has any use for');
+
+select has_view('public', 'map_browse',
+  'browsing has a view of its own, built on the listing rather than beside it, so the tag rules stay in one file');
+
+-- A view runs as its owner by default, and this one's owner bypasses row level
+-- security, which would make it a way round map_read_all.
+select is(
+  (select 'security_invoker=true' = any(pg_class.reloptions)
+    from pg_class where oid = 'public.map_browse'::regclass),
+  true,
+  'and it reads as whoever queries it, the same as the view underneath it');
 
 -- ## The view the name rule moved to
 
@@ -316,15 +348,6 @@ select is(
   'and it reads as whoever queries it, so it cannot see credits that reader could not select directly'
 );
 
--- create or replace view rewrites the whole definition, and dropping the option
--- would restore exactly the privilege escalation map_listing.test.sql tests for.
-select is(
-  (select 'security_invoker=true' = any(pg_class.reloptions)
-    from pg_class where oid = 'public.map_listing'::regclass),
-  true,
-  'and replacing map_listing kept it reading as whoever queries it'
-);
-
 -- ## Read as the role a browser holds
 
 -- The listing is drawn with the publishable key, so every new column has to
@@ -335,13 +358,13 @@ set local role anon;
 set local request.jwt.claims = '{"role":"anon"}';
 
 select is(
-  (select start_positions from public.map_listing where slug = 'comet-catcher-remake-1-8'),
+  (select start_positions from public.map_browse where slug = 'comet-catcher-remake-1-8'),
   2,
   'a visitor reads the start count off the listing'
 );
 
 select is(
-  (select author_names from public.map_listing where slug = 'charlie'),
+  (select author_names from public.map_browse where slug = 'charlie'),
   ARRAY['Beherith'],
   'and the merged author name, which needs public.map_author and public.author_alias both'
 );
