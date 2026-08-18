@@ -54,7 +54,12 @@ test("campaigns are deliberately not carried", () => {
  * the check on `kind`.
  *
  * Anchored on a word boundary, because `asset.rejection_kind` (#115) also ends
- * in `kind` and its list is nothing to do with what the gallery carries. */
+ * in `kind` and its list is nothing to do with what the gallery carries.
+ *
+ * Scoped to migrations that name the table as well, because `map_point.kind`
+ * (#182) is spelled the same and is a list of what a point on a map is. A
+ * migration that widened the item list would have to name `public.item` to do
+ * it, so the filter costs nothing the search was relying on. */
 const KIND_LIST = /\bkind in \(([^)]*)\)/;
 
 function kindsTheDatabaseAccepts(): string[] {
@@ -62,7 +67,7 @@ function kindsTheDatabaseAccepts(): string[] {
   const constraint = readdirSync(dir)
     .sort()
     .map((file) => readFileSync(`${dir}/${file}`, "utf8"))
-    .filter((sql) => KIND_LIST.test(sql))
+    .filter((sql) => sql.includes("public.item") && KIND_LIST.test(sql))
     .at(-1);
   const list = constraint?.match(KIND_LIST)?.[1] ?? "";
   return [...list.matchAll(/'([^']+)'/g)].map((match) => match[1]);
