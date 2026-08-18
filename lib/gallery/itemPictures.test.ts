@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { BarMap } from "@/lib/bar/maps";
 import { BLOB_TIER_BASE } from "@/lib/assets/blob";
 import { DEFAULT_ASSET_CDN_BASE } from "@/lib/assets/cdn";
 import {
@@ -51,15 +50,8 @@ function fakeSupabase(rows: Row[], queries: string[] = []): SupabaseClient {
   return { from } as unknown as SupabaseClient;
 }
 
-const GLITTERS = {
-  springName: "All That Glitters v2.2.3",
-  displayName: "All That Glitters",
-  mapWidth: 16,
-  mapHeight: 12,
-} as BarMap;
-
-/** An item naming no map BAR lists, which is what most of these are about. */
-const NO_MAPS = new Map<string, BarMap | null>();
+/** A map the hub holds no picture of. */
+const GLITTERS = "All That Glitters v2.2.3";
 
 const blueprint = (defs: string[]): PicturedItem => ({
   kind: "blueprint",
@@ -138,7 +130,6 @@ test("an item with nothing to look up makes no query at all", async () => {
   const pictures = await itemPictures(
     fakeSupabase([], queries),
     { kind: "challenge", game_key: "bar", map_name: null, container: {} },
-    NO_MAPS,
   );
 
   expect(queries).toHaveLength(0);
@@ -150,7 +141,6 @@ test("the map and every unit are asked for together", async () => {
   await itemPictures(
     fakeSupabase([], queries),
     { ...blueprint(["armsolar", "armlab"]), map_name: "Some Custom Map 1.0" },
-    NO_MAPS,
   );
 
   expect(queries).toHaveLength(1);
@@ -168,7 +158,6 @@ test("a unit the hub has a top render of is served it, and one it does not is ab
       }),
     ]),
     blueprint(["armsolar", "armlab"]),
-    NO_MAPS,
   );
 
   expect([...units.keys()]).toEqual(["armsolar"]);
@@ -186,7 +175,6 @@ test("a unit with no top render keeps the buildpic the plan drew before", async 
   const { units } = await itemPictures(
     fakeSupabase([unitRow("armsolar")]),
     blueprint(["armsolar"]),
-    NO_MAPS,
   );
 
   expect(units.get("armsolar")).toMatchObject({
@@ -199,13 +187,12 @@ test("a pending buildpic is not a picture, so the building keeps its square", as
   const { units } = await itemPictures(
     fakeSupabase([unitRow("armsolar", { moderation: "pending" })]),
     blueprint(["armsolar"]),
-    NO_MAPS,
   );
 
   expect(units.size).toBe(0);
 });
 
-test("a map BAR does not list falls back to the hub's own minimap", async () => {
+test("a map the hub holds a minimap of is served it", async () => {
   const { map } = await itemPictures(
     fakeSupabase([mapRow()]),
     {
@@ -214,7 +201,6 @@ test("a map BAR does not list falls back to the hub's own minimap", async () => 
       map_name: "Some Custom Map 1.0",
       container: {},
     },
-    NO_MAPS,
   );
 
   expect(map).toEqual({
@@ -227,23 +213,21 @@ test("a map BAR does not list falls back to the hub's own minimap", async () => 
   });
 });
 
-test("a map with no picture anywhere is drawn from the size BAR gives it", async () => {
-  const { map } = await itemPictures(
-    fakeSupabase([]),
-    {
-      kind: "preset",
-      game_key: "bar",
-      map_name: GLITTERS.springName,
-      container: {},
-    },
-    new Map([[GLITTERS.springName, GLITTERS]]),
-  );
+test("a map the hub has no picture of is drawn without a size", async () => {
+  // Nothing left knows how big a map is, so the placeholder draws a square
+  // rather than the map's own proportions.
+  const { map } = await itemPictures(fakeSupabase([]), {
+    kind: "preset",
+    game_key: "bar",
+    map_name: GLITTERS,
+    container: {},
+  });
 
   expect(map).toEqual({
     from: "placeholder",
-    name: GLITTERS.springName,
+    name: GLITTERS,
     keyedOn: "map",
-    footprint: { width: 16, height: 12 },
+    footprint: null,
   });
 });
 
@@ -258,10 +242,10 @@ const pack = (maps: string[]): PicturedItem => ({
 
 test("a pack asks for a minimap of every map it installs, once each", () => {
   expect(
-    packMapIdentities(pack(["Some Custom Map 1.0", GLITTERS.springName, "Some Custom Map 1.0"])),
+    packMapIdentities(pack(["Some Custom Map 1.0", GLITTERS, "Some Custom Map 1.0"])),
   ).toEqual([
     { keyedOn: "map", mapName: "Some Custom Map 1.0", variant: "minimap" },
-    { keyedOn: "map", mapName: GLITTERS.springName, variant: "minimap" },
+    { keyedOn: "map", mapName: GLITTERS, variant: "minimap" },
   ]);
 });
 
@@ -278,8 +262,7 @@ test("a pack's maps come back in one query, pictured or not", async () => {
   const queries: string[] = [];
   const { packMaps } = await itemPictures(
     fakeSupabase([mapRow()], queries),
-    pack(["Some Custom Map 1.0", GLITTERS.springName]),
-    new Map([[GLITTERS.springName, GLITTERS]]),
+    pack(["Some Custom Map 1.0", GLITTERS]),
   );
 
   expect(queries).toHaveLength(1);
@@ -289,25 +272,10 @@ test("a pack's maps come back in one query, pictured or not", async () => {
     from: "blob",
     url: `${BLOB_TIER_BASE}maps/minimap/abc-Xy9.webp`,
   });
-  expect(packMaps.get(GLITTERS.springName)).toEqual({
+  expect(packMaps.get(GLITTERS)).toEqual({
     from: "placeholder",
-    name: GLITTERS.springName,
+    name: GLITTERS,
     keyedOn: "map",
-    footprint: { width: 16, height: 12 },
+    footprint: null,
   });
-});
-
-test("a map BAR does not list and the hub has no picture of still draws something", async () => {
-  const { map } = await itemPictures(
-    fakeSupabase([]),
-    {
-      kind: "preset",
-      game_key: "bar",
-      map_name: "Some Custom Map 1.0",
-      container: {},
-    },
-    NO_MAPS,
-  );
-
-  expect(map).toMatchObject({ from: "placeholder", footprint: null });
 });
