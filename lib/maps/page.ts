@@ -1,12 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MapFacts } from "@/lib/api/mapLookup";
-import { MAP_MINIMAP_VARIANT } from "@/lib/assets/asset";
+import { MAP_HEIGHT_OVERLAY_VARIANT, MAP_MINIMAP_VARIANT } from "@/lib/assets/asset";
 import { fetchHeldAssets, type ResolvedAsset, resolveAsset } from "@/lib/assets/resolve";
 import { ITEM_SUMMARY_COLUMNS, type ItemSummary, PAGE_SIZE } from "@/lib/gallery/query";
 import type { MapPoint } from "./facts";
 import { mapSquares } from "./labels";
 import { fetchMapFacts } from "./lookup";
 import { fetchMirrorHosts, type MapMirrorLink, mirrorLinks } from "./mirrors";
+import { type MapPreview, mapPreview } from "./preview";
 
 /**
  * Everything one map's page shows, in one place a test can reach (#190).
@@ -60,6 +61,10 @@ export interface MapPage {
   facts: MapFacts;
   /** The hub's own minimap, or the drawing standing in for it. */
   picture: ResolvedAsset;
+  /** What the 3D view needs, or null when the hub holds no height overlay for
+   *  this map and there is no terrain to draw. `./preview.ts` says why that is
+   *  no preview at all rather than an empty one. */
+  preview: MapPreview | null;
   /** Gallery items played on this map, newest first. Empty is ordinary and the
    *  page shows no section for it. */
   played: ItemSummary[];
@@ -169,10 +174,14 @@ export async function loadMapPage(
 
   const mapName = row.map_name;
   const identity = { keyedOn: "map", mapName, variant: MAP_MINIMAP_VARIANT } as const;
+  // Asked for in the same lookup as the minimap rather than a second one. Most
+  // maps hold neither, and a page that only asked when it already had a minimap
+  // would make the common answer cost two round trips instead of one.
+  const overlay = { keyedOn: "map", mapName, variant: MAP_HEIGHT_OVERLAY_VARIANT } as const;
 
   const [lookup, held, played, hosts] = await Promise.all([
     fetchMapFacts(admin, [mapName]),
-    fetchHeldAssets(supabase, [identity]),
+    fetchHeldAssets(supabase, [identity, overlay]),
     playedHere(supabase, mapName),
     fetchMirrorHosts(supabase),
   ]);
@@ -180,12 +189,19 @@ export async function loadMapPage(
   const facts = lookup.ok ? lookup.facts.get(mapName) : undefined;
   if (!facts) return null;
 
+  // The footprint is the catalog's own size, so a 12 x 20 map with no picture
+  // is drawn as a 12 x 20 rather than as a square.
+  const picture = resolveAsset(
+    identity,
+    held,
+    mapSquares(facts.width_elmos, facts.height_elmos),
+  );
+
   return {
     mapName,
     facts,
-    // The footprint is the catalog's own size, so a 12 x 20 map with no picture
-    // is drawn as a 12 x 20 rather than as a square.
-    picture: resolveAsset(identity, held, mapSquares(facts.width_elmos, facts.height_elmos)),
+    picture,
+    preview: mapPreview(mapName, facts, held, picture),
     played,
     mirrors: mirrorLinks(hosts, {
       mapName,

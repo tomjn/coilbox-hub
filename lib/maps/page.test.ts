@@ -296,3 +296,72 @@ test("a map with no mirror host to offer still has a page", async () => {
 
   expect(page?.mirrors).toEqual([]);
 });
+
+// The 3D preview (#194).
+
+/** A stored picture of the map, so the figure is a picture rather than a
+ *  drawing. */
+const MINIMAP_ROW: Row = {
+  game: null,
+  unit_name: null,
+  map_name: COMET,
+  variant: "minimap",
+  tier: "static",
+  path: "maps/minimap/def.webp",
+  width: 512,
+  height: 512,
+  moderation: "approved",
+  world_height_min: null,
+  world_height_max: null,
+};
+
+/** #181's layer: rescaled into the window this map's own samples occupy, which
+ *  is why its range is not the catalog's. */
+const OVERLAY_ROW: Row = {
+  ...MINIMAP_ROW,
+  variant: "overlay:height",
+  path: "maps/overlay/height/ghi.webp",
+  world_height_min: -120.5,
+  world_height_max: 890,
+};
+
+/**
+ * Most maps are in this state and will be for a long while. The page renders,
+ * the flat minimap is still the picture, and nothing on the page says a preview
+ * was withheld.
+ */
+test("a map with no height overlay has a page, a picture and no preview", async () => {
+  const page = await load(held({ asset: [MINIMAP_ROW] }));
+
+  expect(page).not.toBeNull();
+  expect(page?.picture.from).toBe("static");
+  expect(page?.preview).toBeNull();
+});
+
+test("a map with no pictures at all has a page and no preview", async () => {
+  const page = await load(held());
+
+  expect(page?.picture.from).toBe("placeholder");
+  expect(page?.preview).toBeNull();
+});
+
+/**
+ * The range is the overlay's own, not the catalog's. `facts()` declares -120.5
+ * to 890 as well, so this fixture deliberately moves the catalog's pair away
+ * from the row's: a page reading the wrong one draws terrain that looks
+ * plausible and is wrong, and only differing numbers show it.
+ */
+test("a map with both pictures previews against the overlay's own range", async () => {
+  const page = await load(
+    held({
+      asset: [MINIMAP_ROW, OVERLAY_ROW],
+      facts: [{ map_name: COMET, facts: facts({ world_height_min: -400, world_height_max: 1200 }) }],
+    }),
+  );
+
+  expect(page?.preview?.range).toEqual({ min: -120.5, max: 890 });
+  expect(page?.preview?.heightUrl).toContain("maps/overlay/height/ghi.webp");
+  // The terrain's surface is the same bytes the flat figure shows, resolved
+  // once rather than twice.
+  expect(page?.preview?.textureUrl).toContain("maps/minimap/def.webp");
+});
