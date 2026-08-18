@@ -82,7 +82,7 @@ export default async function Maps({
   const listing = () =>
     applySort(
       applyFilters(
-        supabase.from("map_listing").select(MAP_SUMMARY_COLUMNS, { count: "exact" }),
+        supabase.from("map_browse").select(MAP_SUMMARY_COLUMNS, { count: "exact" }),
         filters,
         authorKey,
       ),

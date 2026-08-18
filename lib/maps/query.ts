@@ -17,12 +17,16 @@ import { mapSquares } from "./labels";
  * would put the gallery and the catalog a page apart for no reason anybody could
  * name, and the offset-past-the-end handling is the same problem here as there.
  *
- * ## Every filter is a column on public.map_listing
+ * ## Every filter is a column on public.map_browse
  *
- * The view is where a measurement becomes something a reader browses by, and
+ * That view is where a measurement becomes something a reader browses by, and
  * `20260818160000_map_browse.sql` states the rule it follows: anything a listing
  * filters or sorts on gets a column of its own, and only that. So nothing here
  * computes, and there is no second copy of a threshold to drift.
+ *
+ * It is a view of its own rather than more columns on `public.map_listing`,
+ * which the lookup route joins on every request. The migration argues that
+ * split. What matters here is that nothing but this page reads `map_browse`.
  *
  * `size` is the one that looks missing. `small`, `medium` and `large` are
  * derived tags, so a size filter is the same array match a tag filter is, and
@@ -174,7 +178,7 @@ export async function resolveAuthorKey(
 }
 
 /** The subset of a Postgrest query builder that filtering needs. Matches the
- *  chain `supabase.from("map_listing").select(...)` produces without pinning
+ *  chain `supabase.from("map_browse").select(...)` produces without pinning
  *  down its full, heavily generic type. */
 interface FilterableQuery<Query> {
   contains(column: string, value: readonly string[]): Query;
