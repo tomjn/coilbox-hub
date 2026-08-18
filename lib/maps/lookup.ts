@@ -18,6 +18,12 @@ import { nameFilter } from "@/lib/maps/have";
  * by the same names as the facts read, so nothing about the second depends on
  * the first, and running them in series would double the latency of the route
  * for a gate that drops almost nothing.
+ *
+ * The gate itself is {@link publishableMaps}, and it is exported because a map's
+ * own page (#190) asks the same question about the same table. One rule for
+ * "may the hub publish this map" rather than one per surface: a second copy
+ * would keep serving a page for a map the API had stopped answering for, and a
+ * takedown that only half takes effect is worse than no takedown at all.
  */
 
 /**
@@ -125,6 +131,44 @@ function published(
 }
 
 /**
+ * Which of these names the hub may publish anything about, read as
+ * `service_role`.
+ *
+ * The subset rather than a yes or no per name, so a caller asking about one map
+ * tests membership and a caller asking about five hundred does not have to zip
+ * two lists back together. A name the gate refuses is absent, which is the same
+ * shape of answer the facts lookup gives for a map the hub has never heard of.
+ *
+ * `ok: false` when the licence table could not be read. An empty subset would be
+ * a claim - none of these may be published - and a caller acting on it would
+ * take down the whole catalog over one failed request. Both callers fail closed
+ * on it, which is the safe direction: the route answers 503 and the page answers
+ * not found, and neither publishes on the strength of a read that did not
+ * happen.
+ */
+export type PublishableMaps = { ok: true; names: ReadonlySet<string> } | { ok: false };
+
+export async function publishableMaps(
+  supabase: SupabaseClient,
+  mapNames: string[],
+): Promise<PublishableMaps> {
+  const licences = await readLicences(supabase, mapNames);
+  if (!licences.ok) return { ok: false };
+
+  const perMap = new Map<string, AssetLicenceRow>();
+  let blanket: AssetLicenceRow | undefined;
+  for (const row of licences.rows) {
+    if (row.all_maps) blanket = row;
+    else if (row.map_name !== null) perMap.set(row.map_name, row);
+  }
+
+  return {
+    ok: true,
+    names: new Set(mapNames.filter((mapName) => published(mapName, perMap, blanket))),
+  };
+}
+
+/**
  * What the hub holds and may publish for each of these names, keyed on the name
  * exactly as stored. A name the hub has no row for is simply absent from the
  * map, and so is a name it holds a row for and may not publish, which is what
@@ -139,23 +183,16 @@ export async function fetchMapFacts(
   supabase: SupabaseClient,
   mapNames: string[],
 ): Promise<MapFactsLookup> {
-  const [held, licences] = await Promise.all([
+  const [held, publishable] = await Promise.all([
     supabase.rpc("map_facts", { p_names: mapNames }),
-    readLicences(supabase, mapNames),
+    publishableMaps(supabase, mapNames),
   ]);
 
-  if (held.error || !held.data || !licences.ok) return { ok: false };
-
-  const perMap = new Map<string, AssetLicenceRow>();
-  let blanket: AssetLicenceRow | undefined;
-  for (const row of licences.rows) {
-    if (row.all_maps) blanket = row;
-    else if (row.map_name !== null) perMap.set(row.map_name, row);
-  }
+  if (held.error || !held.data || !publishable.ok) return { ok: false };
 
   const facts = new Map<string, MapFacts>();
   for (const row of held.data as MapFactsRow[]) {
-    if (published(row.map_name, perMap, blanket)) {
+    if (publishable.names.has(row.map_name)) {
       facts.set(row.map_name, row.facts);
     }
   }
