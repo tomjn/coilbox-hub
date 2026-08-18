@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(36);
+select plan(54);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -127,6 +127,71 @@ select table_privs_are('public', 'asset_licence', 'authenticated', ARRAY[]::name
   'authenticated holds no table privilege on asset_licence');
 select table_privs_are('public', 'asset_licence', 'service_role', ARRAY['SELECT'],
   'service_role can read asset_licence and cannot change a decision');
+
+-- The map catalog (issue #182). Five tables the whole world may read and only
+-- the routes may write, and one the routes keep to themselves.
+--
+-- The read side is table wide and every row, unlike public.asset, because a
+-- catalog row describes a map that is already published everywhere else and
+-- there is no queue in front of it. The write side is where the layers matter:
+-- the routes compute slug, facts_digest and the author keys, so a client
+-- holding the publishable key writing a row directly would produce one that is
+-- unreachable by URL, reads as unchanged facts forever and is credited to
+-- nobody. map_access.test.sql is what proves the behaviour of both.
+select table_privs_are('public', 'map', 'anon', ARRAY['SELECT'],
+  'anon can only select on map');
+select table_privs_are('public', 'map', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on map, the same as anon');
+select table_privs_are('public', 'map', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE'],
+  'service_role can read and write map, and cannot delete, since a superseded map is still a map that existed');
+
+-- map_point and map_author are the two that hold a set rather than a row, so
+-- the routes hold delete on them as well: a resubmission replaces a map's
+-- points and credits, and one that loses a metal spot or a co-author has to
+-- lose the row too.
+select table_privs_are('public', 'map_point', 'anon', ARRAY['SELECT'],
+  'anon can only select on map_point');
+select table_privs_are('public', 'map_point', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on map_point');
+select table_privs_are('public', 'map_point', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  'service_role rewrites the points on a map, which means taking the old set away');
+
+select table_privs_are('public', 'map_author', 'anon', ARRAY['SELECT'],
+  'anon can only select on map_author');
+select table_privs_are('public', 'map_author', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on map_author');
+select table_privs_are('public', 'map_author', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  'service_role rewrites the credits on a map for the same reason');
+
+select table_privs_are('public', 'author_alias', 'anon', ARRAY['SELECT'],
+  'anon can only select on author_alias, which a listing needs to group maps by author at all');
+select table_privs_are('public', 'author_alias', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on author_alias');
+select table_privs_are('public', 'author_alias', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE'],
+  'service_role records that two keys are one person, and repoints an alias rather than removing it');
+
+select table_privs_are('public', 'map_mirror_host', 'anon', ARRAY['SELECT'],
+  'anon can only select on map_mirror_host, since a download link is the point of the table');
+select table_privs_are('public', 'map_mirror_host', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on map_mirror_host');
+select table_privs_are('public', 'map_mirror_host', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE'],
+  'service_role turns a mirror off rather than deleting it, so the template that worked is still there');
+
+-- public.map_source_conflict: two clients disagreeing about what one archive
+-- contains, and the same line asset_source_conflict draws. The reported hash
+-- names facts nobody has checked and who reported them is not the public's
+-- business, so a browser holds neither.
+select table_privs_are('public', 'map_source_conflict', 'anon', ARRAY[]::name[],
+  'anon holds no table privilege on map_source_conflict');
+select table_privs_are('public', 'map_source_conflict', 'authenticated', ARRAY[]::name[],
+  'authenticated holds no table privilege on map_source_conflict');
+select table_privs_are('public', 'map_source_conflict', 'service_role', ARRAY['SELECT', 'INSERT'],
+  'service_role records a disagreement and reads it back, and can neither change nor erase one');
 
 -- public.user_capability: who holds a capability is not public, and neither
 -- is the fact that anybody does. Nobody gets a table grant, not even
