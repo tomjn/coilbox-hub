@@ -45,7 +45,7 @@ test("a map that declares only one end of the wind range declares none", () => {
 });
 
 test("a map is called what its own mapinfo calls it", () => {
-  expect(mapTitle({ display_name: "Comet Catcher Remake", map_name: "Comet Catcher Remake 1.8" })).toBe(
+  expect(mapTitle("Comet Catcher Remake", "Comet Catcher Remake 1.8")).toBe(
     "Comet Catcher Remake",
   );
 });
@@ -53,10 +53,6 @@ test("a map is called what its own mapinfo calls it", () => {
 /** Plenty of archives fill in no display name, and the canonical name is the
  *  only other thing there is to print. */
 test("a map with no display name is called by its canonical name", () => {
-  expect(mapTitle({ display_name: null, map_name: "Comet Catcher Remake 1.8" })).toBe(
-    "Comet Catcher Remake 1.8",
-  );
-  expect(mapTitle({ display_name: "  ", map_name: "Comet Catcher Remake 1.8" })).toBe(
-    "Comet Catcher Remake 1.8",
-  );
+  expect(mapTitle(null, "Comet Catcher Remake 1.8")).toBe("Comet Catcher Remake 1.8");
+  expect(mapTitle("  ", "Comet Catcher Remake 1.8")).toBe("Comet Catcher Remake 1.8");
 });

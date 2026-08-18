@@ -1,6 +1,8 @@
 import { AssetPlaceholder } from "@/components/AssetPlaceholder";
+import type { MapFacts } from "@/lib/api/mapLookup";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
-import { type MapRow, type MapSpot, markerPosition } from "@/lib/maps/page";
+import type { MapPoint, MapPoints } from "@/lib/maps/facts";
+import { markerPosition } from "@/lib/maps/page";
 
 /**
  * A map's minimap with the points drawn on it (#190).
@@ -64,22 +66,22 @@ const CHIP =
 const DOT = "mr-1.5 inline-block size-2 rounded-full align-middle";
 
 function Layer({
-  spots,
+  points,
   map,
   colour,
   className,
 }: {
-  spots: MapSpot[];
-  map: Pick<MapRow, "width_elmos" | "height_elmos">;
+  points: MapPoint[];
+  map: Pick<MapFacts, "width_elmos" | "height_elmos">;
   colour: string;
   className?: string;
 }) {
-  if (spots.length === 0) return null;
+  if (points.length === 0) return null;
 
   return (
     <ul aria-hidden className={`absolute inset-0${className ? ` ${className}` : ""}`}>
-      {spots.map((spot, index) => {
-        const { left, top } = markerPosition(spot, map);
+      {points.map((point, index) => {
+        const { left, top } = markerPosition(point, map);
         return (
           <li
             // The index is the stored ordinal, which is the team index on a
@@ -95,13 +97,17 @@ function Layer({
 }
 
 export function MapFigure({
+  name,
   map,
-  spots,
+  points,
   picture,
   className,
 }: {
-  map: Pick<MapRow, "map_name" | "width_elmos" | "height_elmos">;
-  spots: { start: MapSpot[]; metal: MapSpot[]; geo: MapSpot[] };
+  /** The canonical name, which is what the picture is captioned by. It sits
+   *  beside the facts rather than in them, so it is passed in beside them. */
+  name: string;
+  map: Pick<MapFacts, "width_elmos" | "height_elmos">;
+  points: MapPoints;
   picture: ResolvedAsset;
   className?: string;
 }) {
@@ -136,18 +142,18 @@ export function MapFigure({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={picture.url}
-          alt={`Minimap of ${map.map_name}`}
+          alt={`Minimap of ${name}`}
           className="absolute inset-0 size-full object-fill"
         />
 
         <Layer
-          spots={spots.metal}
+          points={points.metal}
           map={map}
           colour="bg-amber-300"
           className="hidden peer-checked/metal:block"
         />
         <Layer
-          spots={spots.geo}
+          points={points.geo}
           map={map}
           colour="bg-rose-400"
           className="hidden peer-checked/geo:block"
@@ -155,9 +161,9 @@ export function MapFigure({
         {/* Last, so a start position is never hidden under a metal spot sitting
             on top of it. Always drawn: it is the fact the picture is here to
             carry. */}
-        <Layer spots={spots.start} map={map} colour="bg-neutral-100" />
+        <Layer points={points.start} map={map} colour="bg-neutral-100" />
 
-        {spots.metal.length > 0 ? (
+        {points.metal.length > 0 ? (
           <label
             htmlFor={METAL}
             className={`${CHIP} peer-checked/metal:border-neutral-300 peer-checked/metal:bg-neutral-100 peer-checked/metal:text-neutral-900 peer-focus-visible/metal:outline-2 peer-focus-visible/metal:outline-offset-2 peer-focus-visible/metal:outline-neutral-300`}
@@ -166,7 +172,7 @@ export function MapFigure({
             Metal spots
           </label>
         ) : null}
-        {spots.geo.length > 0 ? (
+        {points.geo.length > 0 ? (
           <label
             htmlFor={GEO}
             className={`${CHIP} peer-checked/geo:border-neutral-300 peer-checked/geo:bg-neutral-100 peer-checked/geo:text-neutral-900 peer-focus-visible/geo:outline-2 peer-focus-visible/geo:outline-offset-2 peer-focus-visible/geo:outline-neutral-300`}
@@ -177,7 +183,7 @@ export function MapFigure({
         ) : null}
       </div>
 
-      {spots.start.length > 0 ? (
+      {points.start.length > 0 ? (
         <figcaption className="text-xs text-neutral-400">
           <span className={`${DOT} bg-neutral-100`} />
           Start positions, as the map declares them. How a lobby uses them is the

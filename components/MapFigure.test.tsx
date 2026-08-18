@@ -3,8 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MapFigure } from "@/components/MapFigure";
 import { MAP_MINIMAP_VARIANT } from "@/lib/assets/asset";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
+import type { MapPoint } from "@/lib/maps/facts";
 import { mapSquares } from "@/lib/maps/labels";
-import type { MapSpot } from "@/lib/maps/page";
 
 /**
  * The figure is markup rather than data, so it is proved by rendering it. What
@@ -12,14 +12,22 @@ import type { MapSpot } from "@/lib/maps/page";
  * map that is not, and a marker placed by dividing by the wrong edge.
  */
 
-/** A 12 x 20, which is the shape a square hides every mistake on. */
-const MAP = { map_name: "Comet Catcher Remake 1.8", width_elmos: 6144, height_elmos: 10240 };
+const COMET = "Comet Catcher Remake 1.8";
 
-const NO_SPOTS = { start: [], metal: [], geo: [] };
+/** A 12 x 20, which is the shape a square hides every mistake on. */
+const MAP = { width_elmos: 6144, height_elmos: 10240 };
+
+const NO_POINTS = { start: [], metal: [], geo: [] };
+
+/** A point as `public.map_point` stores one. `y` is null on almost every start
+ *  position, since the engine resolves a spawn height from the terrain. */
+function point(x: number, z: number): MapPoint {
+  return { x, z, y: null, meta: null };
+}
 
 const placeholder: ResolvedAsset = {
   from: "placeholder",
-  name: MAP.map_name,
+  name: COMET,
   keyedOn: "map",
   footprint: mapSquares(MAP.width_elmos, MAP.height_elmos),
 };
@@ -27,7 +35,7 @@ const placeholder: ResolvedAsset = {
 const stored: ResolvedAsset = {
   from: "static",
   url: "https://example.test/maps/minimap/comet.webp",
-  served: { keyedOn: "map", mapName: MAP.map_name, variant: MAP_MINIMAP_VARIANT },
+  served: { keyedOn: "map", mapName: COMET, variant: MAP_MINIMAP_VARIANT },
   substituted: false,
   width: 512,
   height: 512,
@@ -43,7 +51,7 @@ function positions(html: string): { left: number; top: number }[] {
 
 test("a map with no stored minimap is drawn at the catalog's shape rather than a square", () => {
   const html = renderToStaticMarkup(
-    <MapFigure map={MAP} spots={NO_SPOTS} picture={placeholder} />,
+    <MapFigure name={COMET} map={MAP} points={NO_POINTS} picture={placeholder} />,
   );
 
   // 100 by 100 is the box `placeholderBox` draws when it is told nothing, and
@@ -60,12 +68,9 @@ test("a map with no stored minimap is drawn at the catalog's shape rather than a
  * way past the bottom.
  */
 test("start markers land inside the figure on a map that is not square", () => {
-  const start: MapSpot[] = [
-    { x: 512, z: 512 },
-    { x: 5632, z: 9728 },
-  ];
+  const start = [point(512, 512), point(5632, 9728)];
   const html = renderToStaticMarkup(
-    <MapFigure map={MAP} spots={{ ...NO_SPOTS, start }} picture={stored} />,
+    <MapFigure name={COMET} map={MAP} points={{ ...NO_POINTS, start }} picture={stored} />,
   );
 
   const placed = positions(html);
@@ -82,7 +87,9 @@ test("start markers land inside the figure on a map that is not square", () => {
 });
 
 test("the picture fills the frame the catalog's size sets", () => {
-  const html = renderToStaticMarkup(<MapFigure map={MAP} spots={NO_SPOTS} picture={stored} />);
+  const html = renderToStaticMarkup(
+    <MapFigure name={COMET} map={MAP} points={NO_POINTS} picture={stored} />,
+  );
 
   expect(html).toContain("aspect-ratio:6144 / 10240");
   expect(html).toContain("object-fill");
@@ -93,8 +100,9 @@ test("the picture fills the frame the catalog's size sets", () => {
 test("the layers are toggled by labelled checkboxes", () => {
   const html = renderToStaticMarkup(
     <MapFigure
+      name={COMET}
       map={MAP}
-      spots={{ start: [], metal: [{ x: 1024, z: 2048 }], geo: [{ x: 2048, z: 4096 }] }}
+      points={{ start: [], metal: [point(1024, 2048)], geo: [point(2048, 4096)] }}
       picture={stored}
     />,
   );
@@ -110,8 +118,9 @@ test("the layers are toggled by labelled checkboxes", () => {
 test("a map with no geo vents offers no geo toggle", () => {
   const html = renderToStaticMarkup(
     <MapFigure
+      name={COMET}
       map={MAP}
-      spots={{ start: [], metal: [{ x: 1024, z: 2048 }], geo: [] }}
+      points={{ start: [], metal: [point(1024, 2048)], geo: [] }}
       picture={stored}
     />,
   );
@@ -124,7 +133,12 @@ test("a map with no geo vents offers no geo toggle", () => {
  *  already say how many players the map is for. */
 test("the marker layers are hidden from a screen reader", () => {
   const html = renderToStaticMarkup(
-    <MapFigure map={MAP} spots={{ ...NO_SPOTS, start: [{ x: 512, z: 512 }] }} picture={stored} />,
+    <MapFigure
+      name={COMET}
+      map={MAP}
+      points={{ ...NO_POINTS, start: [point(512, 512)] }}
+      picture={stored}
+    />,
   );
 
   expect(html).toContain('<ul aria-hidden="true"');

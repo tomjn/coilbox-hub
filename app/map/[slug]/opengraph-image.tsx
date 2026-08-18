@@ -32,16 +32,16 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const { slug } = await params;
   const page = await loadMapPage(await createClient(), createAdminClient(), slug);
 
-  const title = page ? mapTitle(page.map) : "Coilbox Hub";
-  const facts = page
+  const title = page ? mapTitle(page.facts.display_name, page.mapName) : "Coilbox Hub";
+  const measures = page
     ? [
-        mapSizeLabel(page.map.width_elmos, page.map.height_elmos),
-        playerCountLabel(page.spots.start.length),
+        mapSizeLabel(page.facts.width_elmos, page.facts.height_elmos),
+        playerCountLabel(page.facts.points.start.length),
       ]
         .filter(Boolean)
         .join("  ·  ")
     : "";
-  const credit = page?.authors.map((author) => author.name).join(", ");
+  const credit = page?.facts.authors.map((author) => author.name).join(", ");
 
   const TITLE_LIMIT = 80;
   const shown = title.length > TITLE_LIMIT ? `${title.slice(0, TITLE_LIMIT)}…` : title;
@@ -85,7 +85,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
 
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ fontSize: 68, fontWeight: 600, lineHeight: 1.1 }}>{shown}</div>
-            {facts ? <div style={{ fontSize: 30, color: "#a3a3a3" }}>{facts}</div> : null}
+            {measures ? <div style={{ fontSize: 30, color: "#a3a3a3" }}>{measures}</div> : null}
           </div>
 
           <div style={{ display: "flex", fontSize: 26, color: "#6b6b6b" }}>

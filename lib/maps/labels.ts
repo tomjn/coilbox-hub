@@ -98,6 +98,6 @@ export function windLabel(minWind: number | null, maxWind: number | null): strin
  * neither, so a page that only ever printed one of the two would either show a
  * heading with a version number in it or no heading at all.
  */
-export function mapTitle(map: { display_name: string | null; map_name: string }): string {
-  return map.display_name?.trim() || map.map_name;
+export function mapTitle(displayName: string | null, mapName: string): string {
+  return displayName?.trim() || mapName;
 }
