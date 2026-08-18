@@ -1,6 +1,4 @@
 import { ImageResponse } from "next/og";
-import { findBarMap } from "@/lib/bar/maps";
-import { previewAsJpeg } from "@/lib/bar/previewUrl";
 import { itemLabel } from "@/lib/gallery/label";
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,44 +8,16 @@ import { createClient } from "@/lib/supabase/server";
  * rather than a static bundle: a generic image on every item wastes the only
  * chance the link has to say what it is.
  *
- * An item on a map BAR lists gets that map down the right hand side, so the
- * card is recognisable before a word of it is read. No start boxes here: the
- * panel is a thumbnail in a feed, not something anybody studies.
+ * The card used to carry the map down the right hand side, fetched from BAR's
+ * validated map list at generation time. The card is now the item's own words:
+ * its kind, its title, its game and map names, and who published it. The hub
+ * holds minimaps of its own and a later change could draw one here, which would
+ * be the hub's own picture rather than a request to somebody else's server in
+ * the middle of rendering an image.
  */
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "An item on Coilbox Hub";
-
-/** Wide enough for the panel at retina, small enough to keep card generation
- * quick. */
-const PANEL_SIZE = 512;
-const PANEL_WIDTH = 420;
-
-const ONE_DAY = 86400;
-
-/**
- * The map's thumbnail as bytes Satori can read, or nothing.
- *
- * Inlined rather than left as a URL for Satori to fetch, because a fetch that
- * fails inside image generation takes the whole card down with it, and a card
- * with no picture is far better than a link with no card. Jpeg because Satori
- * decodes png and jpeg only, and BAR serves webp by default.
- */
-async function panelImage(preview: string): Promise<string | null> {
-  const url = previewAsJpeg(preview, PANEL_SIZE);
-  if (!url) return null;
-  try {
-    const res = await fetch(url, {
-      next: { revalidate: ONE_DAY },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return null;
-    const bytes = Buffer.from(await res.arrayBuffer());
-    return `data:image/jpeg;base64,${bytes.toString("base64")}`;
-  } catch {
-    return null;
-  }
-}
 
 export default async function Image({
   params,
@@ -67,17 +37,12 @@ export default async function Image({
   const label = data ? itemLabel(data.kind, data.mode) : "";
   const facts = [data?.game_name, data?.map_name].filter(Boolean).join("  ·  ");
 
-  const barMap = await findBarMap(data?.map_name ?? null);
-  const panel = barMap?.images?.preview
-    ? await panelImage(barMap.images.preview)
-    : null;
-
-  // The panel takes a third of the width, so the title gets less room and has
-  // to be set smaller and cut sooner to stay inside the card.
-  const titleSize = panel ? 56 : 68;
-  const titleLimit = panel ? 60 : 80;
+  // The whole card is the title's now, so it gets the larger setting and the
+  // longer cut that used to apply only when there was no panel beside it.
+  const TITLE_LIMIT = 80;
   const raw = data?.title ?? "Coilbox Hub";
-  const title = raw.length > titleLimit ? `${raw.slice(0, titleLimit)}…` : raw;
+  const title =
+    raw.length > TITLE_LIMIT ? `${raw.slice(0, TITLE_LIMIT)}…` : raw;
 
   return new ImageResponse(
     (
@@ -117,7 +82,7 @@ export default async function Image({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div style={{ fontSize: titleSize, fontWeight: 600, lineHeight: 1.1 }}>
+            <div style={{ fontSize: 68, fontWeight: 600, lineHeight: 1.1 }}>
               {title}
             </div>
             {facts ? (
@@ -128,30 +93,7 @@ export default async function Image({
           <div style={{ display: "flex", fontSize: 26, color: "#6b6b6b" }}>
             {data?.author_name ? `by ${data.author_name}` : "Coilbox Hub"}
           </div>
-          </div>
-        {panel ? (
-          <div
-            style={{
-              display: "flex",
-              width: PANEL_WIDTH,
-              height: "100%",
-              padding: 48,
-              paddingLeft: 0,
-              alignItems: "center",
-            }}
-          >
-            {/* Fitted, not cropped. A card this shape crops a wide map down to
-                its middle, and the outline of a map is most of what makes it
-                recognisable at a glance in a feed. */}
-            <img
-              src={panel}
-              alt=""
-              width={PANEL_WIDTH - 48}
-              height={size.height - 96}
-              style={{ objectFit: "contain" }}
-            />
-          </div>
-        ) : null}
+        </div>
       </div>
     ),
     size,

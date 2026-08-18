@@ -8,12 +8,11 @@ import { KindIcon } from "@/components/KindIcon";
 import { MapMinimap } from "@/components/MapMinimap";
 import { ReportButton } from "@/components/ReportButton";
 import { type PackMap, SetupPackContents } from "@/components/SetupPackContents";
-import { findBarMaps } from "@/lib/bar/maps";
 import { itemArt } from "@/lib/gallery/itemArt";
 import { itemPictures } from "@/lib/gallery/itemPictures";
-import { mapOverlay } from "@/lib/gallery/mapOverlay";
 import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
+import { startPosNote } from "@/lib/gallery/presetPreview";
 import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
 import { createClient } from "@/lib/supabase/server";
 
@@ -119,34 +118,26 @@ export default async function Item({
   const { drawing, strength } = itemArt(item.kind, item.mode);
 
   // Every map this page names: the one on the row, and a setup pack's own list
-  // (issue #176). BAR's list is fetched once per render whatever the count, so
-  // a pack of twenty maps is twenty scans of it rather than twenty requests.
+  // (issue #176).
   const packMapNames = setupPackMaps(item.container);
-  const barMaps = await findBarMaps(
-    [item.map_name, ...packMapNames].filter((name): name is string =>
-      Boolean(name),
-    ),
-  );
-  const barMap = item.map_name ? (barMaps.get(item.map_name) ?? null) : null;
   // Every picture in one query: the row's map, a pack's maps, and a buildpic
   // for every distinct unit in a blueprint (issue #109).
-  const pictures = await itemPictures(supabase, item, barMaps);
+  const pictures = await itemPictures(supabase, item);
   const packMaps: PackMap[] = packMapNames.flatMap((name) => {
     // Present for every name asked for, since a map with nothing stored
     // resolves to the placeholder rather than to nothing.
     const picture = pictures.packMaps.get(name);
-    return picture ? [{ name, bar: barMaps.get(name) ?? null, picture }] : [];
+    return picture ? [{ name, picture }] : [];
   });
-  // An item that names a map always gets the slot now. Which of BAR's
-  // thumbnail, the hub's own minimap or a drawing fills it is `MapMinimap`'s to
-  // decide, and one of the three always can. A setup pack is the exception
-  // below: it draws its own maps under a heading, one or twenty.
+  // An item that names a map always gets the slot. Whether the hub's own
+  // minimap or a drawing fills it is `MapMinimap`'s to decide, and one of the
+  // two always can. A setup pack is the exception below: it draws its own maps
+  // under a heading, one or twenty.
   const minimap = pictures.map ? (
     <MapMinimap
-      map={barMap}
-      name={barMap?.displayName ?? item.map_name ?? ""}
+      name={item.map_name ?? ""}
       picture={pictures.map}
-      {...mapOverlay(item.kind, item.container, barMap)}
+      note={startPosNote(item.kind, item.container)}
     />
   ) : null;
 

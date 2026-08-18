@@ -8,29 +8,24 @@
  * the page, and a sort the pack says nothing about gets neither.
  *
  * The maps are shown rather than named. `components/MapMinimap.tsx` draws each
- * one the way the item page draws a preset's map, and the caption carries what
- * BAR's list says about it (`lib/gallery/mapFacts.ts`). Nothing here is drawn
- * from the payload alone, which is why this is not part of
+ * one the way the item page draws a preset's map. Nothing here is drawn from
+ * the payload alone, which is why this is not part of
  * `components/ItemPreview.tsx`: the pictures are looked up by the page and
  * handed down, and that component's whole premise is that it fetches nothing.
  */
 
 import { MapMinimap } from "@/components/MapMinimap";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
-import type { BarMap } from "@/lib/bar/maps";
-import { mapFactsLabel } from "@/lib/gallery/mapFacts";
-import { mapOverlay } from "@/lib/gallery/mapOverlay";
 import {
   setupPackEngine,
   setupPackGameNames,
 } from "@/lib/gallery/setupPackPreview";
 
 /** One map a pack installs, with everything needed to draw it: the name the
- *  pack lists, BAR's entry for it where it has one, and the hub's picture or
- *  the placeholder standing in for it. Assembled by `app/item/[id]/page.tsx`. */
+ *  pack lists, and the hub's picture or the placeholder standing in for it.
+ *  Assembled by `app/item/[id]/page.tsx`. */
 export interface PackMap {
   name: string;
-  bar: BarMap | null;
   picture: ResolvedAsset;
 }
 
@@ -98,14 +93,10 @@ export function SetupPackContents({
               <li key={map.name} className="flex">
                 <MapMinimap
                   className="h-full w-full"
-                  map={map.bar}
-                  // BAR's own spelling where it lists the map, since that is
-                  // the name a player sees in a lobby. The pack's own name
-                  // otherwise, which is all anything knows it by.
-                  name={map.bar?.displayName ?? map.name}
+                  name={map.name}
                   picture={map.picture}
-                  detail={mapFactsLabel(map.bar)}
-                  {...mapOverlay("setup-pack", container, map.bar)}
+                  // A pack says nothing about how any of its maps get played.
+                  note={null}
                 />
               </li>
             ))}

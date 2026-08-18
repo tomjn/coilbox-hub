@@ -84,3 +84,27 @@ export function presetComposition(
 
   return { teams, playingCount: playing.length };
 }
+
+/** How the engine will choose start positions, in the same words coilbox's own
+ * setup screen uses (`START_POS_OPTIONS` in its `GameOptionsPanel`). */
+function startPosLabel(startPosType: unknown): string | null {
+  if (startPosType === 0) return "Fixed map start positions";
+  if (startPosType === 1) return "Random start positions";
+  if (startPosType === 2) return "Players choose in game";
+  return null;
+}
+
+/**
+ * What the minimap's caption says about start positions, or null when the item
+ * does not say.
+ *
+ * Only a preset has this. A setup pack names a map and nothing about how it
+ * gets played.
+ */
+export function startPosNote(kind: string, container: unknown): string | null {
+  const payload = (container as { payload?: unknown } | null)?.payload;
+  if (kind !== "preset" || typeof payload !== "object" || payload === null) {
+    return null;
+  }
+  return startPosLabel((payload as Record<string, unknown>).startPosType);
+}

@@ -52,14 +52,12 @@ import {
   MAP_MINIMAP_VARIANT,
   UNIT_TOP_RENDER_VARIANT,
 } from "@/lib/assets/asset";
-import type { Footprint } from "@/lib/assets/placeholder";
 import {
   fetchHeldAssets,
   type ResolvedAsset,
   resolveAsset,
   type ServedAsset,
 } from "@/lib/assets/resolve";
-import type { BarMap } from "@/lib/bar/maps";
 import { parseBlueprintPayload } from "@/lib/blueprint/payload";
 import { setupPackMaps } from "./setupPackPreview";
 
@@ -99,15 +97,6 @@ type UnitIdentity = Extract<AssetIdentity, { keyedOn: "unit" }>;
 
 /** The map half, for the same reason. */
 type MapIdentity = Extract<AssetIdentity, { keyedOn: "map" }>;
-
-/** How BAR names a map's size, which is the vocabulary
- *  `lib/assets/placeholder.ts` wants for a map footprint: 512 elmo units, so a
- *  6144 elmo map is 12. Null for a map BAR does not list, which draws a square
- *  rather than refusing to draw. */
-function mapFootprint(map: BarMap | null): Footprint | null {
-  if (!map?.mapWidth || !map?.mapHeight) return null;
-  return { width: map.mapWidth, height: map.mapHeight };
-}
 
 /**
  * One minimap identity per map a setup pack installs, in the order the pack
@@ -163,10 +152,6 @@ export function blueprintUnitIdentities(item: PicturedItem): UnitIdentity[] {
 export async function itemPictures(
   supabase: SupabaseClient,
   item: PicturedItem,
-  /** The maps this item names as BAR lists them, keyed by the name the item
-   *  used, from `findBarMaps`. Only the size is read, for the placeholder, and
-   *  a name BAR does not list is drawn without one. */
-  barMaps: ReadonlyMap<string, BarMap | null>,
 ): Promise<ItemPictures> {
   const mapIdentity: MapIdentity | null = item.map_name
     ? { keyedOn: "map", mapName: item.map_name, variant: MAP_MINIMAP_VARIANT }
@@ -194,18 +179,11 @@ export async function itemPictures(
   // dropping out of the list of what the pack installs.
   const packMaps = new Map<string, ResolvedAsset>();
   for (const identity of packIdentities) {
-    const footprint = mapFootprint(barMaps.get(identity.mapName) ?? null);
-    packMaps.set(identity.mapName, resolveAsset(identity, held, footprint));
+    packMaps.set(identity.mapName, resolveAsset(identity, held));
   }
 
   return {
-    map: mapIdentity
-      ? resolveAsset(
-          mapIdentity,
-          held,
-          mapFootprint(barMaps.get(mapIdentity.mapName) ?? null),
-        )
-      : null,
+    map: mapIdentity ? resolveAsset(mapIdentity, held) : null,
     units,
     packMaps,
   };
