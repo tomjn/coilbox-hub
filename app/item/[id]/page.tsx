@@ -14,6 +14,7 @@ import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { startPosNote } from "@/lib/gallery/presetPreview";
 import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 interface ItemDetail {
@@ -121,8 +122,10 @@ export default async function Item({
   // (issue #176).
   const packMapNames = setupPackMaps(item.container);
   // Every picture in one query: the row's map, a pack's maps, and a buildpic
-  // for every distinct unit in a blueprint (issue #109).
-  const pictures = await itemPictures(supabase, item);
+  // for every distinct unit in a blueprint (issue #109). The secret key is the
+  // second client because the map facts come through the licence gate over
+  // `public.asset_licence`, which nothing else may read (issue #191).
+  const pictures = await itemPictures(supabase, createAdminClient(), item);
   const packMaps: PackMap[] = packMapNames.flatMap((name) => {
     // Present for every name asked for, since a map with nothing stored
     // resolves to the placeholder rather than to nothing.
