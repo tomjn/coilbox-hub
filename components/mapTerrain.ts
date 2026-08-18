@@ -309,7 +309,7 @@ export async function drawTerrain(
   controls.addEventListener("change", render);
 
   /**
-   * The whole map in the frame, once.
+   * The whole map in the frame, once, from any angle.
    *
    * Worked out rather than picked, because a fixed distance frames a square map
    * and cuts the ends off a 12 x 20. Every corner of the terrain is pushed
@@ -322,6 +322,11 @@ export async function drawTerrain(
    * shaped thing is mostly air, and fitting the sphere leaves the map a third of
    * the size it could be.
    *
+   * Every angle rather than the one it opens at, because the view drifts. A
+   * distance that frames a wide map end on lets the same map's diagonal swing
+   * out of the bottom of the frame a few seconds later, which is worse than
+   * starting a little further back.
+   *
    * Once only. After the first fit the distance is the visitor's, and a resize
    * that re-framed would undo their zoom every time a phone was turned.
    */
@@ -333,17 +338,18 @@ export async function drawTerrain(
     }
   }
 
-  let framed = false;
-  const fitToFrame = () => {
+  /** How far back the camera has to sit to hold the whole map, looking from
+   *  `direction`. */
+  const distanceFrom = (direction: THREE.Vector3) => {
     const vertical = THREE.MathUtils.degToRad(camera.fov);
     const horizontal = 2 * Math.atan(Math.tan(vertical / 2) * camera.aspect);
     const tanVertical = Math.tan(vertical / 2);
     const tanHorizontal = Math.tan(horizontal / 2);
 
-    // The camera's own axes at the angle it is about to look from, so a corner
-    // can be measured across the frame and up it rather than in world terms.
-    const across = new THREE.Vector3().crossVectors(WORLD_UP, viewpoint).normalize();
-    const up = new THREE.Vector3().crossVectors(viewpoint, across).normalize();
+    // The camera's own axes at the angle it would look from, so a corner can be
+    // measured across the frame and up it rather than in world terms.
+    const across = new THREE.Vector3().crossVectors(WORLD_UP, direction).normalize();
+    const up = new THREE.Vector3().crossVectors(direction, across).normalize();
 
     let distance = 0;
     const offset = new THREE.Vector3();
@@ -351,12 +357,28 @@ export async function drawTerrain(
       offset.copy(corner).sub(controls.target);
       // How far the corner already is towards the camera. A near corner has to
       // be backed away from further than a far one.
-      const towards = offset.dot(viewpoint);
+      const towards = offset.dot(direction);
       distance = Math.max(
         distance,
         towards + Math.abs(offset.dot(across)) / tanHorizontal,
         towards + Math.abs(offset.dot(up)) / tanVertical,
       );
+    }
+
+    return distance;
+  };
+
+  /** How many angles the fit is checked at as the view turns right round. Every
+   *  four degrees, which is finer than the difference a corner makes. */
+  const AZIMUTHS = 90;
+
+  let framed = false;
+  const fitToFrame = () => {
+    const turned = new THREE.Vector3();
+    let distance = 0;
+    for (let step = 0; step < AZIMUTHS; step++) {
+      turned.copy(viewpoint).applyAxisAngle(WORLD_UP, (step / AZIMUTHS) * Math.PI * 2);
+      distance = Math.max(distance, distanceFrom(turned));
     }
     // A little air, so the map is not wedged against the sides of its frame.
     distance *= 1.08;
