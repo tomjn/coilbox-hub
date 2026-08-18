@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { ASSET_VOCABULARY_DIGEST } from "@/lib/assets/vocabularyDigest";
+import { MAP_CATALOG_DIGEST } from "@/lib/maps/catalogDigest";
 import { AUTH_FORMAT, AUTH_VERSION, buildAuthBody } from "./auth";
 
 // Both are typed read-only by Next.js, since only the toolchain is expected
@@ -47,6 +48,27 @@ test("the body carries the asset vocabulary digest, without a version bump", () 
     // Adding a field is additive and an old client ignores it. The version is
     // for a shape that changed under somebody, and coilbox refuses a document
     // whose version it does not know.
+    expect(result.body.version).toBe(1);
+  }
+});
+
+/**
+ * The catalog digest, for the same reason and on the same document (#185). Both
+ * are here, and they are different values, because a client acts differently on
+ * each: one mismatch means it cannot encode a picture correctly, the other that
+ * it cannot describe a map correctly.
+ */
+test("the body carries the map catalog digest, without a version bump", () => {
+  env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_example";
+
+  const result = buildAuthBody();
+
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(result.body.map_catalog).toBe(MAP_CATALOG_DIGEST);
+    expect(result.body.map_catalog).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(result.body.map_catalog).not.toBe(result.body.asset_vocabulary);
     expect(result.body.version).toBe(1);
   }
 });
