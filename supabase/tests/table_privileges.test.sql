@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(57);
+select plan(60);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -195,6 +195,19 @@ select table_privs_are('public', 'map_listing', 'authenticated', ARRAY['SELECT']
   'authenticated can only select on map_listing');
 select table_privs_are('public', 'map_listing', 'service_role', ARRAY['SELECT'],
   'service_role can only select on map_listing, since the tags are computed and nothing writes them');
+
+-- public.author_display_name: the one spelling a mapper is shown under (issue
+-- #189). The same three select grants and for the same reasons. It publishes
+-- nothing public.map_author does not, it is security invoker so the read all
+-- policy on that table applies to whoever queries it, and service_role reads it
+-- because public.map_facts joins it. map_browse.test.sql is what proves the
+-- name it answers with.
+select table_privs_are('public', 'author_display_name', 'anon', ARRAY['SELECT'],
+  'anon can only select on author_display_name');
+select table_privs_are('public', 'author_display_name', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on author_display_name');
+select table_privs_are('public', 'author_display_name', 'service_role', ARRAY['SELECT'],
+  'service_role can only select on author_display_name, since the name is computed and nothing writes it');
 
 -- public.map_source_conflict: two clients disagreeing about what one archive
 -- contains, and the same line asset_source_conflict draws. The reported hash
