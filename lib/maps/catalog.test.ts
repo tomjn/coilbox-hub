@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { MAP_CATALOG_CAPS } from "./catalog";
 import catalog from "./vendor/map-catalog.json";
 
 /**
@@ -10,9 +11,9 @@ import catalog from "./vendor/map-catalog.json";
  * arriving with the next sync.
  *
  * Held against the issue rather than against hub code, unlike
- * `lib/assets/vocabulary.test.ts`, because nothing here reads the catalog's
- * contents yet - only its digest. There is no accessor to check the file
- * against, so the agreement itself is what is written down.
+ * `lib/assets/vocabulary.test.ts`, because the caps are the only part of the file
+ * hub code reads. Everything else has no accessor to be checked against, so the
+ * agreement itself is what is written down.
  */
 
 test("the catalog parses and carries an integer version", () => {
@@ -89,4 +90,10 @@ test("the request caps are 500 have keys, 50 submitted maps and 500 looked up na
   expect(catalog.caps.haveKeys).toBe(500);
   expect(catalog.caps.submitMaps).toBe(50);
   expect(catalog.caps.lookupNames).toBe(500);
+});
+
+/** The accessor hands the file's own numbers back rather than a copy of them, so
+ * a cap moving upstream moves what the routes enforce. */
+test("the caps accessor is the vendored caps", () => {
+  expect(MAP_CATALOG_CAPS).toEqual(catalog.caps);
 });
