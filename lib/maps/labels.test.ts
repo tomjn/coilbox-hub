@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mapSizeLabel, mapSquares, playerCountLabel } from "./labels";
+import { mapSizeLabel, mapSquares, mapTitle, playerCountLabel, windLabel } from "./labels";
 
 test("a map is named in squares rather than in elmos", () => {
   expect(mapSizeLabel(6144, 10240)).toBe("12 x 20");
@@ -29,4 +29,34 @@ test("a player count reads as people rather than as points", () => {
  *  nothing rather than saying nobody. */
 test("a map with no start positions has no player count to give", () => {
   expect(playerCountLabel(0)).toBeNull();
+});
+
+test("a declared wind range reads as a range", () => {
+  expect(windLabel(5, 25)).toBe("5 to 25");
+  expect(windLabel(12, 12)).toBe("12");
+});
+
+/** Half a range is an archive that said nothing, and the listing view reads it
+ *  that way too. */
+test("a map that declares only one end of the wind range declares none", () => {
+  expect(windLabel(null, 25)).toBeNull();
+  expect(windLabel(5, null)).toBeNull();
+  expect(windLabel(null, null)).toBeNull();
+});
+
+test("a map is called what its own mapinfo calls it", () => {
+  expect(mapTitle({ display_name: "Comet Catcher Remake", map_name: "Comet Catcher Remake 1.8" })).toBe(
+    "Comet Catcher Remake",
+  );
+});
+
+/** Plenty of archives fill in no display name, and the canonical name is the
+ *  only other thing there is to print. */
+test("a map with no display name is called by its canonical name", () => {
+  expect(mapTitle({ display_name: null, map_name: "Comet Catcher Remake 1.8" })).toBe(
+    "Comet Catcher Remake 1.8",
+  );
+  expect(mapTitle({ display_name: "  ", map_name: "Comet Catcher Remake 1.8" })).toBe(
+    "Comet Catcher Remake 1.8",
+  );
 });
