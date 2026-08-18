@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { MapFacts } from "@/lib/api/mapLookup";
 import { MAP_MINIMAP_VARIANT } from "@/lib/assets/asset";
 import { fetchHeldAssets, type ResolvedAsset, resolveAsset } from "@/lib/assets/resolve";
 import { ITEM_SUMMARY_COLUMNS, type ItemSummary, PAGE_SIZE } from "@/lib/gallery/query";
-import { type MapAuthor, mapAuthors } from "./authors";
+import type { MapPoint } from "./facts";
 import { mapSquares } from "./labels";
-import { publishableMaps } from "./lookup";
+import { fetchMapFacts } from "./lookup";
 
 /**
  * Everything one map's page shows, in one place a test can reach (#190).
@@ -16,69 +17,46 @@ import { publishableMaps } from "./lookup";
  * sure of - the placeholder's shape, the markers' positions, an empty section
  * and a takedown - are three parts data and one part markup.
  *
- * ## Two clients, and only one of them is the secret one
+ * ## The facts come from `public.map_facts`, the same as the lookup route
  *
- * The catalog itself is public. `anon` holds select on `public.map`,
- * `public.map_listing`, `public.map_point` and `public.map_author`, so the facts
- * are read with whatever client the visitor already has, and row level security
- * stays underneath the answer.
+ * A page could read the four catalog tables itself. `anon` holds select on all
+ * of them, so the measurements, the tags and the points would all come back. Two
+ * things would not.
  *
- * `public.asset_licence` is the exception, readable by `service_role` alone, and
- * it decides whether the page exists at all. So the admin client is passed in
- * for that one read and is used for nothing else. Reading the whole page through
- * it would put every other query outside the policies for no gain.
+ * The first is the alias hop. `public.map_author.key` is resolved when a
+ * submission is written, so a merge a maintainer records afterwards is not in
+ * the column, and a page trusting it would split one mapper across two links
+ * until every map they made was submitted again.
  *
- * ## Why not `public.map_facts`
+ * The second is the name a merged author is shown under, which is the most
+ * common spelling of that name across the whole catalog. Both are argued at
+ * length in `20260818140000_map_lookup.sql`, which says outright that neither
+ * can be done outside the database and that a copy of the hop in a caller is the
+ * drift it exists to prevent. Rebuilding either here would be that copy, and the
+ * way it would show is a mapper named one thing in a client and another on the
+ * hub.
  *
- * It is the same facts and it would be one call. It is granted to `service_role`
- * alone, deliberately, because the lookup route holds the secret key for the
- * licence gate anyway and the function must not be reachable by a browser. A
- * page that called it would have to read everything as `service_role` to save
- * three requests against tables the visitor may read for themselves.
+ * ## Which is why a public page reads as `service_role`
+ *
+ * The licence gate settled that before the facts did. `public.asset_licence` is
+ * readable by `service_role` alone and it decides whether this page exists at
+ * all, so the page holds the secret key whatever else it does. Once it does,
+ * `public.map_facts` costs nothing extra: it is one call in place of four
+ * requests, it applies the gate on the way, and it answers the two questions
+ * above with the schema's own rules rather than a second copy of them.
+ *
+ * Everything outside those facts stays on the visitor's own client. The minimap
+ * and the gallery items are read with the session or anonymous client, so row
+ * level security is underneath both, and nothing here widens what a visitor may
+ * learn beyond what `/api/v1/maps/lookup` already answers for the same map.
  */
 
-/** The columns a map's page shows, and no more. The provenance columns say how
- *  the hub decided to store the row and mean nothing to a reader. */
-const MAP_COLUMNS =
-  "id, map_name, slug, display_name, description, width_elmos, height_elmos, min_wind, max_wind, tidal_strength, void_water";
-
-export interface MapRow {
-  id: string;
-  map_name: string;
-  slug: string;
-  display_name: string | null;
-  description: string | null;
-  width_elmos: number;
-  height_elmos: number;
-  min_wind: number | null;
-  max_wind: number | null;
-  tidal_strength: number | null;
-  void_water: boolean | null;
-}
-
-/** One point in the map's own coordinates: x across, z along, exactly as
- *  `public.map_point` stores them. */
-export interface MapSpot {
-  x: number;
-  z: number;
-}
-
-/** The three kinds `map_point.kind` accepts, each in its own list and each in
- *  stored order. A kind with no points is an empty list rather than a missing
- *  key, so the page never asks whether the map has any. */
-export interface MapSpots {
-  start: MapSpot[];
-  metal: MapSpot[];
-  geo: MapSpot[];
-}
-
 export interface MapPage {
-  map: MapRow;
-  /** Merged, sorted and deduplicated by `public.map_listing`, so the page never
-   *  has to know which tags were derived and which a maintainer wrote. */
-  tags: string[];
-  spots: MapSpots;
-  authors: MapAuthor[];
+  /** The canonical name, which is identity and is what the facts were found
+   *  under. Beside the facts rather than in them, the same way
+   *  `MapLookupResult` carries it. */
+  mapName: string;
+  facts: MapFacts;
   /** The hub's own minimap, or the drawing standing in for it. */
   picture: ResolvedAsset;
   /** Gallery items played on this map, newest first. Empty is ordinary and the
@@ -99,59 +77,33 @@ export interface MapPage {
  * page is read at.
  */
 export function markerPosition(
-  spot: MapSpot,
-  map: Pick<MapRow, "width_elmos" | "height_elmos">,
+  point: Pick<MapPoint, "x" | "z">,
+  map: Pick<MapFacts, "width_elmos" | "height_elmos">,
 ): { left: number; top: number } {
   return {
-    left: (spot.x / map.width_elmos) * 100,
-    top: (spot.z / map.height_elmos) * 100,
+    left: (point.x / map.width_elmos) * 100,
+    top: (point.z / map.height_elmos) * 100,
   };
 }
 
-/** The map behind a slug, or null when nothing has that slug. `map_slug_idx` is
- *  unique, so a slug names one map or none. */
-async function mapBySlug(supabase: SupabaseClient, slug: string): Promise<MapRow | null> {
+/**
+ * The canonical name behind a slug, or null when nothing has that slug.
+ *
+ * The one thing the wire shape does not carry, and the one thing everything else
+ * is keyed on. `map_slug_idx` is unique, so a slug names one map or none.
+ *
+ * Read with the visitor's own client. The slug is in the URL they typed and the
+ * name comes straight back out of `public.map`, which `anon` may read, so there
+ * is nothing here the secret key would answer differently.
+ */
+async function mapNameBySlug(supabase: SupabaseClient, slug: string): Promise<string | null> {
   const { data } = await supabase
     .from("map")
-    .select(MAP_COLUMNS)
+    .select("map_name")
     .eq("slug", slug)
     .maybeSingle();
 
-  return (data as MapRow | null) ?? null;
-}
-
-/** The tags off the view, never recomputed. `20260818120000_map_listing.sql` is
- *  where a measurement becomes a word a reader browses by, and a second copy of
- *  those thresholds here would disagree with the listing the first time one
- *  moved. */
-async function mapTags(supabase: SupabaseClient, id: string): Promise<string[]> {
-  const { data } = await supabase.from("map_listing").select("tags").eq("id", id).maybeSingle();
-  return (data as { tags: string[] } | null)?.tags ?? [];
-}
-
-/**
- * The points, split by kind and left in stored order.
- *
- * The order is `map_point.ordinal`, which is the team index on a start position
- * and carries meaning, so it is never sorted on anything else.
- *
- * A large map runs to a few hundred metal spots, which is well inside
- * PostgREST's row ceiling. A map that somehow exceeded it would draw fewer metal
- * spots than it has, which is a thinner picture rather than a wrong page.
- */
-async function mapPoints(supabase: SupabaseClient, id: string): Promise<MapSpots> {
-  const { data } = await supabase
-    .from("map_point")
-    .select("kind, x, z")
-    .eq("map_id", id)
-    .order("ordinal", { ascending: true });
-
-  const spots: MapSpots = { start: [], metal: [], geo: [] };
-  for (const row of (data ?? []) as { kind: keyof MapSpots; x: number; z: number }[]) {
-    spots[row.kind]?.push({ x: row.x, z: row.z });
-  }
-
-  return spots;
+  return (data as { map_name: string } | null)?.map_name ?? null;
 }
 
 /**
@@ -173,56 +125,47 @@ async function playedHere(supabase: SupabaseClient, mapName: string): Promise<It
   return (data ?? []) as unknown as ItemSummary[];
 }
 
-/** The hub's own minimap of this map, or the drawing that stands in for it. The
- *  footprint is the catalog's own size, so a 12 x 20 map with no picture is
- *  drawn as a 12 x 20 rather than as a square. */
-async function mapPicture(supabase: SupabaseClient, map: MapRow): Promise<ResolvedAsset> {
-  const identity = {
-    keyedOn: "map",
-    mapName: map.map_name,
-    variant: MAP_MINIMAP_VARIANT,
-  } as const;
-
-  const held = await fetchHeldAssets(supabase, [identity]);
-  return resolveAsset(identity, held, mapSquares(map.width_elmos, map.height_elmos));
-}
-
 /**
  * Everything the page shows, or null when there is no page to show.
  *
- * Null covers two cases and tells them apart nowhere, which is the point. A slug
- * nothing is stored under and a map the hub may not publish both answer not
- * found, so a takedown looks exactly like a map the hub has never heard of.
- * `lib/maps/lookup.ts` gives the same answer to the same question for the API.
+ * Null covers four cases and tells them apart nowhere, which is the point. A
+ * slug nothing is stored under, a slug whose map the hub holds no facts for, a
+ * map the hub may not publish, and a licence table that could not be read all
+ * answer not found. So a takedown looks exactly like a map the hub has never
+ * heard of, which is what `/api/v1/maps/lookup` tells a client about the same
+ * map, and an unreadable gate withholds the page rather than publishing on the
+ * strength of a read that did not happen.
  *
- * A licence read that fails is also null. It fails closed on purpose: the hub
- * publishes a map because a row says it may, never because a read did not
- * happen.
- *
- * The row is read first because everything else needs its id, and the rest go
- * together. That includes the gate, so a takedown costs a few requests whose
- * answers are thrown away, which is the right way round: almost every map is
- * publishable and paying a round trip on every one of them to save four requests
- * on the rare one is a bad trade.
+ * The name is read first because everything else is keyed on it. The rest go
+ * together, including the picture: `fetchHeldAssets` asks what the hub holds and
+ * `resolveAsset` decides what to draw, and only the second half needs the size
+ * off the facts, which is the whole reason those are two functions.
  */
 export async function loadMapPage(
   supabase: SupabaseClient,
   admin: SupabaseClient,
   slug: string,
 ): Promise<MapPage | null> {
-  const map = await mapBySlug(supabase, slug);
-  if (!map) return null;
+  const mapName = await mapNameBySlug(supabase, slug);
+  if (!mapName) return null;
 
-  const [publishable, tags, spots, authors, picture, played] = await Promise.all([
-    publishableMaps(admin, [map.map_name]),
-    mapTags(supabase, map.id),
-    mapPoints(supabase, map.id),
-    mapAuthors(supabase, map.id),
-    mapPicture(supabase, map),
-    playedHere(supabase, map.map_name),
+  const identity = { keyedOn: "map", mapName, variant: MAP_MINIMAP_VARIANT } as const;
+
+  const [lookup, held, played] = await Promise.all([
+    fetchMapFacts(admin, [mapName]),
+    fetchHeldAssets(supabase, [identity]),
+    playedHere(supabase, mapName),
   ]);
 
-  if (!publishable.ok || !publishable.names.has(map.map_name)) return null;
+  const facts = lookup.ok ? lookup.facts.get(mapName) : undefined;
+  if (!facts) return null;
 
-  return { map, tags, spots, authors, picture, played };
+  return {
+    mapName,
+    facts,
+    // The footprint is the catalog's own size, so a 12 x 20 map with no picture
+    // is drawn as a 12 x 20 rather than as a square.
+    picture: resolveAsset(identity, held, mapSquares(facts.width_elmos, facts.height_elmos)),
+    played,
+  };
 }

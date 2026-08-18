@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MapFacts } from "@/lib/api/mapLookup";
 import type { AssetLicenceRow } from "@/lib/assets/licence";
-import { fetchMapFacts, publishableMaps } from "./lookup";
+import { fetchMapFacts } from "./lookup";
 
 const COMET = "Comet Catcher Remake 1.8";
 const TAKEN_DOWN = "Taken Down 1.0";
@@ -215,26 +215,6 @@ test("a read that fails says so rather than answering that the hub holds nothing
       [COMET],
     ),
   ).toEqual({ ok: false });
-});
-
-/**
- * The gate on its own, which is what a map's own page asks (#190). The page
- * holds no facts to filter, so it needs the answer rather than the side effect
- * of the answer.
- */
-test("the gate answers with the names it may publish and nothing else", async () => {
-  const gate = await publishableMaps(fakeSupabase({ licences: [BLANKET, takenDown(TAKEN_DOWN)] }), [
-    COMET,
-    TAKEN_DOWN,
-  ]);
-
-  expect(gate).toEqual({ ok: true, names: new Set([COMET]) });
-});
-
-test("a gate that could not read the table says so rather than refusing everything", async () => {
-  expect(await publishableMaps(fakeSupabase({ licenceError: true }), [COMET])).toEqual({
-    ok: false,
-  });
 });
 
 /** The names go to the function in the body of one call, and to the licence

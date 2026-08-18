@@ -1,27 +1,33 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { MapFacts } from "@/lib/api/mapLookup";
 import type { AssetLicenceRow } from "@/lib/assets/licence";
 import { placeholderBox } from "@/lib/assets/placeholder";
-import { loadMapPage, type MapRow, markerPosition } from "./page";
+import { loadMapPage, markerPosition } from "./page";
 
-const ID = "00000000-0000-0000-0000-0000000000aa";
 const COMET = "Comet Catcher Remake 1.8";
+const SLUG = "comet-catcher-remake-1-8";
 
-/** A 12 x 20 map, which is the shape every mistake in this file shows up on and
- *  the one a square never would. */
-function mapRow(overrides: Partial<MapRow> = {}): MapRow {
+/** A 12 x 20, which is the shape every mistake in this file shows up on and the
+ *  one a square would hide. */
+function facts(overrides: Partial<MapFacts> = {}): MapFacts {
   return {
-    id: ID,
-    map_name: COMET,
-    slug: "comet-catcher-remake-1-8",
+    slug: SLUG,
     display_name: "Comet Catcher Remake",
     description: null,
+    authors: [{ key: "beherith", name: "Beherith" }],
     width_elmos: 6144,
     height_elmos: 10240,
+    world_height_min: -120.5,
+    world_height_max: 890,
     min_wind: 5,
     max_wind: 25,
     tidal_strength: 18,
     void_water: null,
+    water_coverage: null,
+    tags: ["large", "windy"],
+    points: { start: [], metal: [], geo: [] },
+    appearance: {},
     ...overrides,
   };
 }
@@ -59,13 +65,11 @@ type Row = Record<string, unknown>;
 
 interface Catalog {
   map?: Row[];
-  map_listing?: Row[];
-  map_point?: Row[];
-  map_author?: Row[];
-  author_alias?: Row[];
   item?: Row[];
   asset?: Row[];
   asset_licence?: Row[];
+  /** What `public.map_facts` answers, keyed on the name it was found under. */
+  facts?: { map_name: string; facts: MapFacts }[];
   /** A licence read the hub could not make, which must not read as a licence
    *  that said no. */
   licenceError?: boolean;
@@ -74,7 +78,9 @@ interface Catalog {
 /**
  * Answers from a list of rows and matches on the columns rather than
  * re-implementing PostgREST's grammar, the same as `itemPictures.test.ts`. The
- * `or` filters belong to `have.test.ts` and `lookup.test.ts` to prove.
+ * `or` filters belong to `have.test.ts` and `lookup.test.ts` to prove, and the
+ * facts themselves are proved against real rows in
+ * `supabase/tests/map_lookup.test.sql`.
  */
 function fakeSupabase(catalog: Catalog): SupabaseClient {
   const build = (table: keyof Catalog) => {
@@ -107,44 +113,54 @@ function fakeSupabase(catalog: Catalog): SupabaseClient {
   };
 
   return {
-    rpc: (_name: string, args: { credit_key: string }) =>
-      Promise.resolve({ data: args.credit_key, error: null }),
+    rpc: (_name: string, args: { p_names: string[] }) =>
+      Promise.resolve({
+        data: (catalog.facts ?? []).filter((one) => args.p_names.includes(one.map_name)),
+        error: null,
+      }),
     from: (table: keyof Catalog) => ({ select: () => build(table) }),
   } as unknown as SupabaseClient;
 }
 
 /** The two clients the page is handed. Both are the same fake here, because
- *  which key reads which table is the migrations' business and not this
+ *  which key may read which table is the migrations' business and not this
  *  function's. */
 function load(catalog: Catalog) {
   const supabase = fakeSupabase(catalog);
-  return loadMapPage(supabase, supabase, "comet-catcher-remake-1-8");
+  return loadMapPage(supabase, supabase, SLUG);
 }
 
 /** The whole catalog answering yes, which is the ordinary state. */
 function held(extra: Catalog = {}): Catalog {
   return {
-    map: [mapRow() as unknown as Row],
+    map: [{ map_name: COMET, slug: SLUG }],
+    facts: [{ map_name: COMET, facts: facts() }],
     asset_licence: [BLANKET as unknown as Row],
     ...extra,
   };
 }
 
 test("a slug nothing is stored under has no page", async () => {
-  expect(await load({ asset_licence: [BLANKET as unknown as Row] })).toBeNull();
+  expect(await load({ ...held(), map: [] })).toBeNull();
+});
+
+/** The row carries a slug and the catalog answers nothing under its name, which
+ *  is a map whose facts have gone rather than a page with a hole in it. */
+test("a slug whose map the hub holds no facts for has no page", async () => {
+  expect(await load({ ...held(), facts: [] })).toBeNull();
 });
 
 /**
- * The takedown, and the reason the page asks the gate at all. The row is there,
- * the facts assemble, and the visitor is told the hub has never heard of the
- * map, which is what the lookup route tells a client.
+ * The takedown, and the reason the page reads through the gate at all. The row
+ * is there, the facts assemble, and the visitor is told the hub has never heard
+ * of the map, which is what a client is told by the lookup route.
  */
 test("a map denied in asset_licence has no page even though the hub holds the row", async () => {
-  expect(
-    await load(
-      held({ asset_licence: [BLANKET as unknown as Row, licence({ map_name: COMET }) as unknown as Row] }),
-    ),
-  ).toBeNull();
+  const denied = held({
+    asset_licence: [BLANKET as unknown as Row, licence({ map_name: COMET }) as unknown as Row],
+  });
+
+  expect(await load(denied)).toBeNull();
 });
 
 test("a licence read that fails withholds the page rather than publishing anyway", async () => {
@@ -152,13 +168,13 @@ test("a licence read that fails withholds the page rather than publishing anyway
 });
 
 test("a map with no licence row at all has no page", async () => {
-  expect(await load({ map: [mapRow() as unknown as Row], asset_licence: [] })).toBeNull();
+  expect(await load(held({ asset_licence: [] }))).toBeNull();
 });
 
 /**
- * The placeholder's shape, which is the whole reason the footprint is passed
- * down. A 12 x 20 map with no stored minimap is drawn as a 12 x 20 box, and a
- * page that passed nothing would draw a square and claim the map is one.
+ * The placeholder's shape, which is the whole reason the size is passed down. A
+ * 12 x 20 map with no stored minimap is drawn as a 12 x 20 box, and a page that
+ * passed nothing would draw a square and claim the map is one.
  */
 test("a map with no stored minimap gets a placeholder at the catalog's own shape", async () => {
   const page = await load(held());
@@ -171,25 +187,35 @@ test("a map with no stored minimap gets a placeholder at the catalog's own shape
   expect(placeholderBox(page.picture.footprint)).toEqual({ width: 60, height: 100 });
 });
 
-test("the points are split by kind and left in the order they were stored", async () => {
+/** The tags, points and credits are the function's answer, passed on rather than
+ *  worked out again. `20260818140000_map_lookup.sql` says why the two of them
+ *  that cannot be worked out here are the reason the page reads through it. */
+test("the facts the page shows are the ones the catalog answered with", async () => {
   const page = await load(
     held({
-      map_point: [
-        { map_id: ID, kind: "start", ordinal: 0, x: 512, z: 512 },
-        { map_id: ID, kind: "start", ordinal: 1, x: 5632, z: 9728 },
-        { map_id: ID, kind: "metal", ordinal: 0, x: 1024, z: 2048 },
+      facts: [
+        {
+          map_name: COMET,
+          facts: facts({
+            points: {
+              start: [
+                { x: 512, z: 512, y: null, meta: null },
+                { x: 5632, z: 9728, y: null, meta: null },
+              ],
+              metal: [{ x: 1024, z: 2048, y: null, meta: { amount: 2 } }],
+              geo: [],
+            },
+          }),
+        },
       ],
     }),
   );
 
-  expect(page?.spots).toEqual({
-    start: [
-      { x: 512, z: 512 },
-      { x: 5632, z: 9728 },
-    ],
-    metal: [{ x: 1024, z: 2048 }],
-    geo: [],
-  });
+  expect(page?.mapName).toBe(COMET);
+  expect(page?.facts.tags).toEqual(["large", "windy"]);
+  expect(page?.facts.authors).toEqual([{ key: "beherith", name: "Beherith" }]);
+  expect(page?.facts.points.start).toHaveLength(2);
+  expect(page?.facts.points.metal).toHaveLength(1);
 });
 
 /**
@@ -215,7 +241,7 @@ test("x reads across and z reads down", () => {
   expect(markerPosition({ x: 3072, z: 1024 }, map)).toEqual({ left: 50, top: 10 });
 });
 
-test("gallery items played on the map come back newest first", async () => {
+test("gallery items played on the map come back and others do not", async () => {
   const page = await load(
     held({
       item: [
@@ -234,10 +260,4 @@ test("a map nothing has been published for has an empty list rather than no answ
   const page = await load(held());
 
   expect(page?.played).toEqual([]);
-});
-
-test("the tags come off the listing view rather than being worked out again", async () => {
-  const page = await load(held({ map_listing: [{ id: ID, tags: ["large", "windy"] }] }));
-
-  expect(page?.tags).toEqual(["large", "windy"]);
 });
