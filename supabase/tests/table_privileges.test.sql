@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(54);
+select plan(57);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -181,6 +181,20 @@ select table_privs_are('public', 'map_mirror_host', 'authenticated', ARRAY['SELE
 select table_privs_are('public', 'map_mirror_host', 'service_role',
   ARRAY['SELECT', 'INSERT', 'UPDATE'],
   'service_role turns a mirror off rather than deleting it, so the template that worked is still there');
+
+-- public.map_listing: the kind of map each row is, worked out from what was
+-- measured (issue #184). Select for all three, and nothing else for anybody. It
+-- publishes no column public.map does not already hand every reader, and it is
+-- security invoker, so the row level security on the table behind it applies to
+-- whoever queries the view rather than to its owner. The routes read it too,
+-- because #188 answers a lookup from it server side. map_listing.test.sql is
+-- what proves each role really gets rows out of it.
+select table_privs_are('public', 'map_listing', 'anon', ARRAY['SELECT'],
+  'anon can only select on map_listing');
+select table_privs_are('public', 'map_listing', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on map_listing');
+select table_privs_are('public', 'map_listing', 'service_role', ARRAY['SELECT'],
+  'service_role can only select on map_listing, since the tags are computed and nothing writes them');
 
 -- public.map_source_conflict: two clients disagreeing about what one archive
 -- contains, and the same line asset_source_conflict draws. The reported hash
