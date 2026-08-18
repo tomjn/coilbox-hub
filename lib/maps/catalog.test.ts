@@ -18,7 +18,7 @@ import catalog from "./vendor/map-catalog.json";
 
 test("the catalog parses and carries an integer version", () => {
   expect(Number.isInteger(catalog.catalogVersion)).toBe(true);
-  expect(catalog.catalogVersion).toBe(1);
+  expect(catalog.catalogVersion).toBe(3);
 });
 
 /**
@@ -76,6 +76,10 @@ test("the facts that identify an entry are required", () => {
 test("the metal clustering parameters are the ones agreed", () => {
   expect(catalog.metalClustering).toEqual({
     minDensityShare: 0.02,
+    // Added at catalogVersion 3, when coilbox started finding spots in the
+    // density map rather than reading them off a list. A share of the local
+    // peak, so a broad shallow rise is not a spot however much metal it holds.
+    minProminenceShare: 0.2,
     minSeparationElmos: 96,
     minSpotMetal: 0.5,
   });
