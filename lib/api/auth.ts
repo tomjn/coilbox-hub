@@ -1,4 +1,5 @@
 import { ASSET_VOCABULARY_DIGEST } from "@/lib/assets/vocabularyDigest";
+import { MAP_CATALOG_DIGEST } from "@/lib/maps/catalogDigest";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 
 /**
@@ -32,6 +33,29 @@ export interface AuthBody {
    * is why the version above did not move.
    */
   asset_vocabulary: string;
+  /**
+   * The map catalog both sides agree on, as a digest rather than as its
+   * contents (#185). A client compares it against its own copy before it sends
+   * anything, and reports that it is out of date. It never follows what it
+   * reads: the catalog decides what a fact is and what a metal spot is, so a
+   * client that took its definitions from here would change what it reports
+   * without its `catalogVersion` moving, and honest clients would then look
+   * like they disagreed about the same archive.
+   *
+   * A mismatch is worth acting on but is not a refusal. The client keeps using
+   * the catalog it shipped with and tells its user to update, because a copy it
+   * can read is better than none, and the caps and the fact list it holds are
+   * still the ones its own extraction was written against.
+   *
+   * Separate from `asset_vocabulary` above rather than folded into it, because
+   * a client's response to each is different. One says it cannot encode a
+   * picture correctly, the other says it cannot describe a map correctly, and
+   * sharing a digest would make a clustering parameter stop every upload.
+   *
+   * Additive, so a client that reads no such field carries on unchanged. That
+   * is why the version above did not move.
+   */
+  map_catalog: string;
 }
 
 export type AuthResult = { ok: true; body: AuthBody } | { ok: false };
@@ -58,6 +82,7 @@ export function buildAuthBody(): AuthResult {
       supabase_url: config.config.url,
       publishable_key: config.config.publishableKey,
       asset_vocabulary: ASSET_VOCABULARY_DIGEST,
+      map_catalog: MAP_CATALOG_DIGEST,
     },
   };
 }

@@ -13,8 +13,11 @@ import { buildAuthBody } from "@/lib/api/auth";
  * here.
  *
  * It also carries the digest of the asset vocabulary a client has to encode to
- * (#165), for the same reason: a shipped build cannot be corrected, so it needs
- * somewhere to find out that what it holds is out of date.
+ * (#165) and the digest of the map catalog it has to describe maps by (#185),
+ * for the same reason: a shipped build cannot be corrected, so it needs
+ * somewhere to find out that what it holds is out of date. They are two digests
+ * rather than one because a client acts differently on each, and a change to
+ * one is not a reason to stop doing what the other governs.
  *
  * These values change close to never, unlike a gallery listing, so this
  * builds its own response rather than going through `apiJson`'s 60 second

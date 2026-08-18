@@ -109,6 +109,33 @@ const GROUPS: VendorGroup[] = [
     files: ["asset-vocabulary.json"],
   },
   {
+    // The map catalog (#185): the catalog version, the fact field list with its
+    // units, the metal clustering parameters and the request caps. Both sides
+    // have to agree what a catalog entry is, and a disagreement shows up as
+    // facts that look wrong rather than as an error either repo can see.
+    //
+    // A second group reading the same upstream directory, rather than a second
+    // file in the group above, because the two files answer different questions
+    // and must not be read as one thing. Nothing in this one is about bytes,
+    // and every entry in the asset vocabulary is read by the upload validator.
+    //
+    // A record holds a digest per file either way, so this is not what keeps
+    // the two digests apart. What it keeps apart is where each file lives: this
+    // one sits with the map code that reads it, and a reader looking for what a
+    // catalog entry is does not have to know the asset vocabulary was vendored
+    // first. Folding them into one record would put the two digests one field
+    // apart in a file called `source.json`, which is the shape somebody
+    // eventually serves as a single version.
+    //
+    // They serve as two fields on `/api/v1/auth` for the reason that matters:
+    // a client's response to each is different, and telling it the asset
+    // vocabulary moved when a clustering parameter changed would stop it
+    // uploading pictures over something that has nothing to do with them.
+    dir: "shared",
+    vendor: "lib/maps/vendor",
+    files: ["map-catalog.json"],
+  },
+  {
     // Reached from the warpath generator. It imports nothing but a type, so
     // unlike the rest of `src/content` it vendors cleanly.
     dir: "src/content",
