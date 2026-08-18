@@ -57,8 +57,14 @@ export function identityKey(identity: AssetIdentity): string {
  * Quoting everything and escaping the two characters that matter inside the
  * quotes is one rule that holds for every value rather than a test that has to
  * keep pace with the grammar.
+ *
+ * Exported for `lib/maps/have.ts`, which filters `public.map` on the same free
+ * text map name and therefore needs the same rule. A second copy of an escaping
+ * rule is the kind of thing that parts company without anybody noticing, and the
+ * way it shows is a filter that ends early and answers "the hub has nothing
+ * under that name".
  */
-function operand(value: string): string {
+export function operand(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
