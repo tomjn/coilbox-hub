@@ -1,12 +1,14 @@
 import type { MapFacts } from "@/lib/api/mapLookup";
 import { MAP_HEIGHT_OVERLAY_VARIANT } from "@/lib/assets/asset";
 import { assetTierUrl, type HeldAssets, type ResolvedAsset, servable } from "@/lib/assets/resolve";
+import type { MapPoint } from "./facts";
 import type { HeightRange } from "./heights";
 
 /**
  * What the map page hands the 3D preview, worked out on the server (#194).
  *
- * The browser gets two URLs, six numbers and some colours. Everything that
+ * The browser gets two URLs, six numbers, some colours and the points to mark.
+ * Everything that
  * decides whether there is a preview at all happens here, where the row level
  * security and the resolver's own approved test are, rather than in a component
  * that has already been sent to somebody.
@@ -44,11 +46,32 @@ export interface PreviewAppearance {
    *  blue. */
   water: [number, number, number] | null;
   waterAlpha: number | null;
-  sky: [number, number, number] | null;
-  fog: [number, number, number] | null;
   /** Where the light comes from. Not a colour, so it is not clamped. */
   sunDirection: [number, number, number] | null;
   sunColour: [number, number, number] | null;
+}
+
+/**
+ * A marker's place on the map, in the map's own coordinates.
+ *
+ * Two numbers rather than the stored point. `y` is null on almost every start
+ * position, and the terrain has just decoded the relief that answers it far more
+ * accurately than the archive would have, so the height is read off the ground
+ * rather than carried here. `meta` is an amount of metal, which is a fact the
+ * flat figure does not show either.
+ */
+export interface PreviewPoint {
+  x: number;
+  z: number;
+}
+
+/** The three layers the flat figure draws, so the terrain draws the same three.
+ *  `components/MapFigure.tsx` and the 3D view are two pictures of one map and
+ *  must not disagree about where its metal is. */
+export interface PreviewPoints {
+  start: PreviewPoint[];
+  metal: PreviewPoint[];
+  geo: PreviewPoint[];
 }
 
 export interface MapPreview {
@@ -68,6 +91,7 @@ export interface MapPreview {
    *  the appearance blob. */
   voidWater: boolean;
   appearance: PreviewAppearance;
+  points: PreviewPoints;
 }
 
 /** Everything in `appearance` is somebody else's jsonb. It can be `{}`, any key
@@ -125,11 +149,16 @@ export function readAppearance(blob: unknown): PreviewAppearance {
   return {
     water: rgb(record.waterColor),
     waterAlpha: alpha === null ? null : Math.min(1, Math.max(0, alpha)),
-    sky: rgb(record.skyColor),
-    fog: rgb(record.fogColor),
     sunDirection: triple(record.sunDir),
     sunColour: rgb(record.sunColor),
   };
+}
+
+/** The stored point as the terrain needs it. A function rather than a spread,
+ *  so a column added to `map_point` does not silently start travelling to the
+ *  browser. */
+function place(point: MapPoint): PreviewPoint {
+  return { x: point.x, z: point.z };
 }
 
 /**
@@ -175,5 +204,10 @@ export function mapPreview(
     heightElmos: facts.height_elmos,
     voidWater: facts.void_water === true,
     appearance: readAppearance(facts.appearance),
+    points: {
+      start: facts.points.start.map(place),
+      metal: facts.points.metal.map(place),
+      geo: facts.points.geo.map(place),
+    },
   };
 }

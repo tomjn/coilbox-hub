@@ -12,10 +12,10 @@ import { mapSquares } from "./labels";
  * chat, so every filter is in the URL and nothing about the listing lives in a
  * component's state.
  *
- * The paging is that file's own. {@link PAGE_SIZE}, `fetchPage` and
- * `fetchAllPages` are imported rather than restated, because a second page size
- * would put the gallery and the catalog a page apart for no reason anybody could
- * name, and the offset-past-the-end handling is the same problem here as there.
+ * The paging machinery is that file's own. `fetchPage`, `fetchAllPages` and
+ * `pageNumbers` are imported rather than restated, since the offset-past-the-end
+ * handling and the shape of a numbered pager are the same problem here as there.
+ * Only the page size parts company, and {@link MAP_PAGE_SIZE} says why.
  *
  * ## Every filter is a column on public.map_browse
  *
@@ -41,6 +41,18 @@ import { mapSquares } from "./labels";
  * status code that would turn a stale bookmark or a tracking parameter somebody
  * else appended into an error page.
  */
+
+/**
+ * Ten rows of four, rather than the gallery's twenty four.
+ *
+ * The catalog used to import `PAGE_SIZE` on the reading that two listings a page
+ * apart would be a difference nobody could name. The grids have since parted
+ * company. A gallery card is a thing somebody wrote and is read three to a row,
+ * while a map card is a picture somebody scans and is read four to a row. A
+ * reader counts rows, so the page size follows the columns rather than the other
+ * way round, and 24 in a four column grid is six rows and a stub.
+ */
+export const MAP_PAGE_SIZE = 40;
 
 /** A row as a card needs it. Narrow on purpose: `search` is a tsvector nothing
  *  renders, and `created_at` and `longer_edge_elmos` are sorted on rather than

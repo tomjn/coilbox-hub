@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { decodeHeights, smoothHeights } from "@/lib/maps/heights";
-import type { MapPreview, PreviewAppearance } from "@/lib/maps/preview";
+import type { MapPreview, PreviewAppearance, PreviewPoint } from "@/lib/maps/preview";
 
 /**
  * The map drawn as terrain, in three.js (#194).
@@ -27,6 +27,20 @@ import type { MapPreview, PreviewAppearance } from "@/lib/maps/preview";
  * argues that at length: quantisation is what terraces, and interpolating
  * between two equal samples cannot undo it, so the field is low passed before it
  * ever becomes geometry.
+ *
+ * ## It carries the same three layers the flat figure does
+ *
+ * Start positions, metal spots and geothermal vents, from the same stored points
+ * `components/MapFigure.tsx` draws over the minimap. The 3D view replaces that
+ * figure once it has drawn, so anything only the figure showed would be a fact
+ * the reader loses by having a better browser.
+ *
+ * Two of the three are dots and the third is not. A vent is what a player scans
+ * the map for, and `ventLayer` says why that makes it a plume.
+ *
+ * The heights come off the relief rather than off the points. `map_point.y` is
+ * null on almost every start position, and this module has the ground in front
+ * of it.
  *
  * ## Both pictures are read pixel by pixel, so both need CORS
  *
@@ -62,11 +76,27 @@ const DEFAULT_SUN: [number, number, number] = [-0.6, 0.9, 0.4];
 const DEFAULT_WATER = 0x2f6f9f;
 const DEFAULT_WATER_ALPHA = 0.55;
 
-/** The sky behind an ordinary map, and behind one whose water is void. A void
- *  map is played in space, and the engine shows the skybox through the sea
- *  plane, so the honest backdrop for one is nearly black. */
-const DEFAULT_SKY = 0x0a1018;
-const VOID_SKY = 0x02030a;
+/** The two dotted layers, in `components/MapFigure.tsx`'s own colours, so a
+ *  metal spot is the same amber in both pictures of the same map. */
+const START_COLOUR = 0xf5f5f5;
+const METAL_COLOUR = 0xfcd34d;
+
+/** A dot's radius, and how far it is lifted clear of the ground so it is not
+ *  half buried in the slope it sits on. Shares of {@link BASE}, so a marker is
+ *  the same size on a small map and a large one. */
+const MARKER_RADIUS = BASE * 0.011;
+const MARKER_LIFT = BASE * 0.006;
+
+/** The plume over a geothermal vent: its colour, how far it rises and how wide
+ *  it is. Tall enough to find from across the map, which is the whole reason it
+ *  is a plume rather than a dot. */
+const GEO_COLOUR = 0xffd93b;
+const VENT_HEIGHT = BASE * 0.18;
+const VENT_RADIUS = BASE * 0.011;
+
+/** Sea level, which is elmo height zero and scene height zero. What a void map
+ *  keeps and everything below it is what a void map does not have. */
+const SEA_LEVEL = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
 /** How fast the view drifts when nobody has taken hold of it. Slow enough to
  *  read the relief from, and off entirely under reduced motion. */
@@ -76,8 +106,19 @@ const DRIFT_SPEED = 0.5;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 export interface Terrain {
+  /** Show or hide the two layers the flat figure also puts behind a toggle.
+   *  Start positions are not among them: they are the fact the picture is there
+   *  to carry, in this view as in that one. */
+  setLayers: (layers: { metal: boolean; geo: boolean }) => void;
   /** Free the GL context, the geometry and the textures. Nothing here survives
    *  the component that made it. */
+  dispose: () => void;
+}
+
+/** Everything one layer of markers owns, so the caller can hide it and then
+ *  throw it away without knowing what it is made of. */
+interface Layer {
+  mesh: THREE.Object3D;
   dispose: () => void;
 }
 
@@ -86,8 +127,8 @@ export interface Terrain {
  *
  * The triple is read as sRGB and not as three's linear working space, which is
  * what the constructor would assume from three numbers. `mapinfo.lua` writes the
- * colour the engine displays, so a sky declared as 0.03, 0.06, 0.12 is a nearly
- * black sky. Handing those to the linear path renders it as a mid slate, which
+ * colour the engine displays, so a sea declared as 0.03, 0.06, 0.12 is a nearly
+ * black sea. Handing those to the linear path renders it as a mid slate, which
  * is the same three numbers meaning something four times brighter. The hex
  * fallbacks need no such care: `setHex` already reads sRGB.
  */
@@ -202,9 +243,158 @@ function terrainMesh(
     map: texture,
     roughness: 1,
     metalness: 0,
+    // A void map is played over nothing, and the engine draws neither the sea
+    // nor the ground beneath where the sea would have been. Clipping at sea
+    // level is that, exactly: the terrain is one surface rather than a solid, so
+    // cutting it at zero removes the sea bed and leaves the coastline where the
+    // archive put it. Nothing else in the scene is clipped, so a marker on the
+    // shore keeps its dot.
+    clippingPlanes: preview.voidWater ? [SEA_LEVEL] : null,
   });
 
   return { geometry, material, mesh: new THREE.Mesh(geometry, material) };
+}
+
+/**
+ * Where a point sits in the scene, with its height read off the relief.
+ *
+ * The two divisions are `markerPosition`'s, moved to the middle-origin the mesh
+ * is built around: the plane runs from minus half the map to plus half of it on
+ * both axes, and the picture's top row is the far edge on both.
+ *
+ * The height is the ground's rather than the point's. `map_point.y` is null on
+ * almost every start position because the engine resolves a spawn height from
+ * the terrain, and the terrain is the thing this function has just decoded.
+ */
+function scenePosition(
+  point: PreviewPoint,
+  grid: { width: number; height: number; elmos: Float32Array },
+  preview: MapPreview,
+  scale: number,
+): THREE.Vector3 {
+  const u = Math.min(1, Math.max(0, point.x / preview.widthElmos));
+  const v = Math.min(1, Math.max(0, point.z / preview.heightElmos));
+
+  return new THREE.Vector3(
+    (point.x - preview.widthElmos / 2) * scale,
+    sampleGrid(grid, u, v) * scale,
+    (point.z - preview.heightElmos / 2) * scale,
+  );
+}
+
+/**
+ * One dotted layer, as instances of a single sphere.
+ *
+ * Unlit, so a metal spot on a slope facing away from the sun is as findable as
+ * one facing it. The marker is a fact about the map rather than a thing standing
+ * on it, and the flat figure draws it in flat colour for the same reason.
+ *
+ * One draw call however many spots there are. A busy map carries a few hundred
+ * between the two layers, which is a mesh each if they are built the obvious
+ * way.
+ */
+function markerLayer(
+  points: PreviewPoint[],
+  colour: number,
+  grid: { width: number; height: number; elmos: Float32Array },
+  preview: MapPreview,
+  scale: number,
+): Layer | null {
+  if (points.length === 0) return null;
+
+  const geometry = new THREE.SphereGeometry(MARKER_RADIUS, 12, 8);
+  const material = new THREE.MeshBasicMaterial({ color: colour });
+  const mesh = new THREE.InstancedMesh(geometry, material, points.length);
+  const matrix = new THREE.Matrix4();
+
+  points.forEach((point, index) => {
+    const at = scenePosition(point, grid, preview, scale);
+    mesh.setMatrixAt(index, matrix.makeTranslation(at.x, at.y + MARKER_LIFT, at.z));
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+
+  return {
+    mesh,
+    dispose: () => {
+      geometry.dispose();
+      material.dispose();
+      mesh.dispose();
+    },
+  };
+}
+
+/**
+ * The geothermal vents, as plumes rather than as dots.
+ *
+ * A vent is a thing a player looks for from across the map, and a dot the size
+ * of a metal spot is not findable on ground seen at an angle. Every game that
+ * shows one draws a column of light standing on it, so this does: a yellow tube
+ * rising out of the vent, solid where it meets the ground and gone by the top.
+ *
+ * The fade is written into the geometry as vertex alpha rather than into a
+ * texture. There is then no picture to load, no second request to wait on, and
+ * no argument about which way up a texture's v axis runs. three reads a four
+ * component colour attribute as RGBA, which `transparent` blends by.
+ *
+ * Additive, and it does not write depth. Two vents close together read as
+ * brighter rather than as one cutting a hole through the other, and neither
+ * paints over the ground behind it. It still tests depth, so a vent over the far
+ * side of a ridge is hidden by the ridge, which is what tells a player it is
+ * over there rather than here.
+ */
+function ventLayer(
+  points: PreviewPoint[],
+  grid: { width: number; height: number; elmos: Float32Array },
+  preview: MapPreview,
+  scale: number,
+): Layer | null {
+  if (points.length === 0) return null;
+
+  const geometry = new THREE.CylinderGeometry(VENT_RADIUS, VENT_RADIUS, VENT_HEIGHT, 10, 12, true);
+  // Standing on the ground rather than half sunk into it: a cylinder is built
+  // around its own middle.
+  geometry.translate(0, VENT_HEIGHT / 2, 0);
+
+  const position = geometry.attributes.position;
+  const colours = new Float32Array(position.count * 4);
+  // Read as sRGB by the constructor and handed on in three's working space,
+  // which is what a vertex colour attribute is taken to be in.
+  const tint = new THREE.Color(GEO_COLOUR);
+  for (let vertex = 0; vertex < position.count; vertex++) {
+    const up = position.getY(vertex) / VENT_HEIGHT;
+    colours[vertex * 4] = tint.r;
+    colours[vertex * 4 + 1] = tint.g;
+    colours[vertex * 4 + 2] = tint.b;
+    // Squared, so the plume is bright at the vent and most of its length is a
+    // hint rather than a bar drawn across the view.
+    colours[vertex * 4 + 3] = (1 - up) ** 2;
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colours, 4));
+
+  const material = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+  });
+
+  const mesh = new THREE.InstancedMesh(geometry, material, points.length);
+  const matrix = new THREE.Matrix4();
+  points.forEach((point, index) => {
+    const at = scenePosition(point, grid, preview, scale);
+    mesh.setMatrixAt(index, matrix.makeTranslation(at.x, at.y, at.z));
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+
+  return {
+    mesh,
+    dispose: () => {
+      geometry.dispose();
+      material.dispose();
+      mesh.dispose();
+    },
+  };
 }
 
 /** The sea, at elmo height zero, which is scene height zero. */
@@ -248,8 +438,15 @@ export async function drawTerrain(
   const scale = BASE / Math.max(preview.widthElmos, preview.heightElmos);
   const { appearance } = preview;
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  // Transparent, so the map sits on the page rather than in a window cut into
+  // it. A skybox is what a game needs and this is a figure in an article: the
+  // scene has no horizon, no distance and nothing else in it, so a backdrop
+  // could only be a rectangle of colour the terrain does not fill.
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearAlpha(0);
+  // Off unless a material asks for it, which on a void map the ground does.
+  renderer.localClippingEnabled = true;
   renderer.domElement.style.display = "block";
   renderer.domElement.style.width = "100%";
   renderer.domElement.style.height = "100%";
@@ -259,20 +456,33 @@ export async function drawTerrain(
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.needsUpdate = true;
 
+  // No background and no fog. Both would have to be drawn as opaque colour over
+  // the page behind the canvas, which is the sky this view is meant not to have.
   const scene = new THREE.Scene();
-  scene.background = colour(appearance.sky, preview.voidWater ? VOID_SKY : DEFAULT_SKY);
-  if (appearance.fog) {
-    scene.fog = new THREE.Fog(colour(appearance.fog, DEFAULT_SKY), BASE * 0.8, BASE * 3);
-  }
 
   const ground = terrainMesh(grid, preview, scale, texture);
   scene.add(ground.mesh);
 
-  // A void water map has no sea at all: the engine shows the sky through it,
+  // A void water map has no sea at all: the engine shows the void through it,
   // and drawing a translucent sheet over an asteroid would be the hub inventing
-  // an ocean the archive says is not there.
+  // an ocean the archive says is not there. The ground under it is gone too, in
+  // `terrainMesh`.
   const sea = preview.voidWater ? null : waterMesh(preview, scale, appearance);
   if (sea) scene.add(sea.mesh);
+
+  // The same three layers the flat figure draws, from the same stored points.
+  const layers = {
+    start: markerLayer(preview.points.start, START_COLOUR, grid, preview, scale),
+    metal: markerLayer(preview.points.metal, METAL_COLOUR, grid, preview, scale),
+    geo: ventLayer(preview.points.geo, grid, preview, scale),
+  };
+  for (const layer of [layers.start, layers.metal, layers.geo]) {
+    if (layer) scene.add(layer.mesh);
+  }
+  // Shut to begin with, the same as the checkboxes over the flat figure. Start
+  // positions are not a layer somebody turns on.
+  if (layers.metal) layers.metal.mesh.visible = false;
+  if (layers.geo) layers.geo.mesh.visible = false;
 
   const [sx, sy, sz] = appearance.sunDirection ?? DEFAULT_SUN;
   const sun = new THREE.DirectionalLight(colour(appearance.sunColour, 0xffffff), 1.7);
@@ -331,6 +541,10 @@ export async function drawTerrain(
    * that re-framed would undo their zoom every time a phone was turned.
    */
   const bounds = new THREE.Box3().setFromObject(ground.mesh);
+  // A void map's sea bed is clipped away, and the geometry it was cut out of is
+  // still the geometry the box was measured from. Fitting to that would frame a
+  // few hundred elmos of nothing under the map and draw the map small to do it.
+  if (preview.voidWater) bounds.min.y = Math.max(bounds.min.y, 0);
   const corners: THREE.Vector3[] = [];
   for (const x of [bounds.min.x, bounds.max.x]) {
     for (const y of [bounds.min.y, bounds.max.y]) {
@@ -434,6 +648,11 @@ export async function drawTerrain(
   }
 
   return {
+    setLayers: ({ metal, geo }) => {
+      if (layers.metal) layers.metal.mesh.visible = metal;
+      if (layers.geo) layers.geo.mesh.visible = geo;
+      render();
+    },
     dispose: () => {
       if (frame !== undefined) cancelAnimationFrame(frame);
       observer.disconnect();
@@ -444,6 +663,9 @@ export async function drawTerrain(
       ground.material.dispose();
       sea?.geometry.dispose();
       sea?.material.dispose();
+      layers.start?.dispose();
+      layers.metal?.dispose();
+      layers.geo?.dispose();
       texture.dispose();
       renderer.dispose();
       renderer.domElement.remove();

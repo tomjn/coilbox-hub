@@ -25,6 +25,16 @@ import { type Filters, filterHref, type MapSummary } from "@/lib/maps/query";
  * as a square. That is the last rung of the ladder in `lib/assets/resolve.ts`
  * and it cannot fail, which is why this component has no third case.
  *
+ * ## The frame is capped, and the cap narrows it rather than squashing it
+ *
+ * A grid row is as tall as the tallest card in it, so one 12 x 20 at a card's
+ * full width used to set the height of the three maps beside it and leave them
+ * sitting in a column of empty space. {@link MAX_PICTURE_HEIGHT} stops that. It
+ * is a maximum width worked out from the map's own proportions rather than a
+ * maximum height, because a box with an aspect ratio takes its width from the
+ * column and its height from the width, so capping the height alone would
+ * stretch the picture instead of shrinking the frame.
+ *
  * ## The words are `lib/maps/labels.ts`
  *
  * `12 x 20` and `8 players` are the same sentences a map's own page prints, from
@@ -36,6 +46,11 @@ import { type Filters, filterHref, type MapSummary } from "@/lib/maps/query";
  *  like the same thing. */
 const CHIP =
   "inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200";
+
+/** How tall a card's minimap may get, in pixels. Around a card's own width at
+ *  four columns, so a square map fills the card and only a map taller than it is
+ *  wide is narrowed. */
+const MAX_PICTURE_HEIGHT = 200;
 
 export function MapCard({
   map,
@@ -60,8 +75,11 @@ export function MapCard({
           <AssetPlaceholder of={picture} />
         ) : (
           <div
-            className="overflow-hidden rounded-md border border-neutral-800 bg-black"
-            style={{ aspectRatio: `${map.width_elmos} / ${map.height_elmos}` }}
+            className="mx-auto overflow-hidden rounded-md border border-neutral-800 bg-black"
+            style={{
+              aspectRatio: `${map.width_elmos} / ${map.height_elmos}`,
+              maxWidth: `${(MAX_PICTURE_HEIGHT * map.width_elmos) / map.height_elmos}px`,
+            }}
           >
             {/* A plain img and not next/image, the same as
                 components/MapFigure.tsx: the Hobby allowance is around 5,000

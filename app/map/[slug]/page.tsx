@@ -88,6 +88,11 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
   const title = mapTitle(facts.display_name, mapName);
   const players = playerCountLabel(facts.points.start.length);
   const wind = windLabel(facts.min_wind, facts.max_wind);
+  // One element, rendered in one of two places. It is server markup either way,
+  // and passing it as a child of a client component keeps it that way.
+  const figure = (
+    <MapFigure name={mapName} map={facts} points={facts.points} picture={picture} />
+  );
 
   return (
     <main className="relative flex-1">
@@ -107,13 +112,20 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
           ) : null}
         </div>
 
-        <div className="mx-auto flex w-full max-w-sm flex-col gap-3">
-          <MapFigure name={mapName} map={facts} points={facts.points} picture={picture} />
-          {/* Absent rather than disabled when the hub holds no height overlay,
-              which is most maps for now. There is nothing to offer, and a greyed
-              out button offering it anyway would be a promise the catalog cannot
-              keep. */}
-          {preview ? <MapPreview name={mapName} preview={preview} /> : null}
+        {/* The figure is the page, so it gets the page's whole width and stands
+            as tall as `MapFigure` allows. Where the hub holds a height overlay,
+            `MapPreview` draws the same map as terrain and takes the figure's
+            place once it has, which is why the figure is its child rather than
+            its sibling. Most maps have no overlay and stay flat, and nothing on
+            the page says a view was withheld. */}
+        <div className="flex w-full flex-col gap-3">
+          {preview ? (
+            <MapPreview name={mapName} preview={preview}>
+              {figure}
+            </MapPreview>
+          ) : (
+            figure
+          )}
         </div>
 
         <dl className="grid grid-cols-2 gap-6 border-t border-neutral-900 pt-6 sm:grid-cols-4">
