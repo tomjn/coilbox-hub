@@ -7,6 +7,7 @@ import {
   AccountIcon,
   DownloadIcon,
   GalleryIcon,
+  MapsIcon,
   ModerationIcon,
   PublishIcon,
   SignOutIcon,
@@ -84,6 +85,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/gallery" className={navItem}>
               <GalleryIcon className="w-4" />
               <span className="sr-only sm:not-sr-only">Gallery</span>
+            </Link>
+            <Link href="/maps" className={navItem}>
+              <MapsIcon className="w-4" />
+              <span className="sr-only sm:not-sr-only">Maps</span>
             </Link>
             <Link href="/publish" className={navItem}>
               <PublishIcon className="w-4" />

@@ -39,6 +39,19 @@ export function GalleryIcon({ className }: { className?: string }) {
   );
 }
 
+/** A folded paper map, which is the one shape nothing else in the nav uses. The
+ *  gallery's four panes are the closest thing to it and read as a grid rather
+ *  than as terrain. */
+export function MapsIcon({ className }: { className?: string }) {
+  return (
+    <Icon className={className}>
+      <path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z" />
+      <path d="M9 3v15" />
+      <path d="M15 6v15" />
+    </Icon>
+  );
+}
+
 export function PublishIcon({ className }: { className?: string }) {
   return (
     <Icon className={className}>
