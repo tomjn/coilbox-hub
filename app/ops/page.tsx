@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
+import { ModerationNav } from "@/components/ModerationNav";
 import {
   formatBytes,
   headroom,
@@ -81,16 +81,9 @@ export default async function Ops() {
   return (
     <main className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
+      <ModerationNav current="allowances" />
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-12">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">Allowances</h1>
-          <Link
-            href="/moderation"
-            className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-          >
-            Moderation
-          </Link>
-        </div>
+        <h1 className="text-3xl font-semibold tracking-tight">Allowances</h1>
 
         <p className="text-sm text-neutral-400">
           Read {new Date(report.at).toISOString().replace("T", " ").slice(0, 16)} UTC. Going

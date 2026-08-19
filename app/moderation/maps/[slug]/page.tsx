@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
+import { ModerationCrumb, ModerationNav } from "@/components/ModerationNav";
 import {
   CURATED_TAG_LIMIT,
   curatedTagsField,
@@ -53,23 +54,23 @@ export default async function MapCuratedTags({
   return (
     <main className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
+      <ModerationNav current="maps" />
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">
+        <div className="flex flex-col gap-1">
+          <ModerationCrumb parent="maps">
             {map.displayName ?? map.mapName}
-          </h1>
-          <div className="flex gap-4">
+          </ModerationCrumb>
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {map.displayName ?? map.mapName}
+            </h1>
+            {/* The public page for the same map, which is the only link here
+                that leaves moderation. */}
             <Link
               href={`/map/${map.slug}`}
               className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
             >
               The map
-            </Link>
-            <Link
-              href="/moderation/maps"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Maps
             </Link>
           </div>
         </div>

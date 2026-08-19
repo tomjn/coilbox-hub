@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
+import { ModerationCrumb, ModerationNav } from "@/components/ModerationNav";
 import { isUuid } from "@/lib/assets/queue";
 import {
   type AccountTrail,
@@ -189,23 +190,11 @@ export default async function Trail({ searchParams }: PageProps<"/moderation/tra
   return (
     <main className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
+      <ModerationNav current="pictures" />
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <ModerationCrumb parent="pictures">Trail</ModerationCrumb>
           <h1 className="text-3xl font-semibold tracking-tight">Trail</h1>
-          <div className="flex gap-4">
-            <Link
-              href="/moderation/assets"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Pictures
-            </Link>
-            <Link
-              href="/moderation"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Reports
-            </Link>
-          </div>
         </div>
 
         {trail && focus ? (
