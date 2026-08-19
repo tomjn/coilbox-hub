@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(63);
+select plan(66);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -138,6 +138,12 @@ select table_privs_are('public', 'asset_licence', 'service_role', ARRAY['SELECT'
 -- holding the publishable key writing a row directly would produce one that is
 -- unreachable by URL, reads as unchanged facts forever and is credited to
 -- nobody. map_access.test.sql is what proves the behaviour of both.
+--
+-- No role holds delete on public.map, and #193 did not change that. Clearing a
+-- map whose held facts are the wrong ones goes through
+-- public.clear_map_facts, which is security definer and refuses a map nobody has
+-- recorded a disagreement about, so the ability to remove a row exists inside
+-- that one function and nowhere else. map_moderation.test.sql proves both halves.
 select table_privs_are('public', 'map', 'anon', ARRAY['SELECT'],
   'anon can only select on map');
 select table_privs_are('public', 'map', 'authenticated', ARRAY['SELECT'],
@@ -170,9 +176,13 @@ select table_privs_are('public', 'author_alias', 'anon', ARRAY['SELECT'],
   'anon can only select on author_alias, which a listing needs to group maps by author at all');
 select table_privs_are('public', 'author_alias', 'authenticated', ARRAY['SELECT'],
   'authenticated can only select on author_alias');
+-- Delete since #193, which is the one grant that issue needed. Unmerging two
+-- keys is what the moderation page does when a merge turns out to be wrong, and
+-- repointing is not a substitute: there is no key meaning "this person is
+-- themselves", and author_alias_not_self_check refuses the row that would say so.
 select table_privs_are('public', 'author_alias', 'service_role',
-  ARRAY['SELECT', 'INSERT', 'UPDATE'],
-  'service_role records that two keys are one person, and repoints an alias rather than removing it');
+  ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  'service_role records that two keys are one person, and can withdraw the merge again');
 
 select table_privs_are('public', 'map_mirror_host', 'anon', ARRAY['SELECT'],
   'anon can only select on map_mirror_host, since a download link is the point of the table');
@@ -221,6 +231,18 @@ select table_privs_are('public', 'author_display_name', 'authenticated', ARRAY['
   'authenticated can only select on author_display_name');
 select table_privs_are('public', 'author_display_name', 'service_role', ARRAY['SELECT'],
   'service_role can only select on author_display_name, since the name is computed and nothing writes it');
+
+-- public.author_map_count: how many maps each author counts for (issue #193).
+-- The merge list is ordered by it, so the useful merges surface first. The same
+-- three select grants as the view beside it and for the same reason: it publishes
+-- nothing public.map_author does not, and a count is something any reader could
+-- arrive at themselves one page of credits at a time.
+select table_privs_are('public', 'author_map_count', 'anon', ARRAY['SELECT'],
+  'anon can only select on author_map_count');
+select table_privs_are('public', 'author_map_count', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on author_map_count');
+select table_privs_are('public', 'author_map_count', 'service_role', ARRAY['SELECT'],
+  'service_role can only select on author_map_count, since the count is computed and nothing writes it');
 
 -- public.map_source_conflict: two clients disagreeing about what one archive
 -- contains, and the same line asset_source_conflict draws. The reported hash
