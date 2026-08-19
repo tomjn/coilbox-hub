@@ -39,6 +39,8 @@ function row(overrides: Partial<HeldRow> = {}): HeldRow {
     width: 256,
     height: 256,
     moderation: "approved",
+    world_height_min: null,
+    world_height_max: null,
     ...overrides,
   };
 }

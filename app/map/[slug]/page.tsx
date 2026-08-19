@@ -5,6 +5,7 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { skirmish } from "@/components/art/drawings";
 import { MapFigure } from "@/components/MapFigure";
 import { MapMirrors } from "@/components/MapMirrors";
+import { MapPreview } from "@/components/MapPreview";
 import { MapPlayedOn } from "@/components/MapPlayedOn";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { mapSizeLabel, mapTitle, playerCountLabel, windLabel } from "@/lib/maps/labels";
@@ -82,7 +83,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
   const page = await load(slug);
   if (!page) notFound();
 
-  const { mapName, facts, picture, played, mirrors } = page;
+  const { mapName, facts, picture, preview, played, mirrors } = page;
   const origin = await requestOrigin();
   const title = mapTitle(facts.display_name, mapName);
   const players = playerCountLabel(facts.points.start.length);
@@ -106,13 +107,14 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
           ) : null}
         </div>
 
-        <MapFigure
-          name={mapName}
-          map={facts}
-          points={facts.points}
-          picture={picture}
-          className="mx-auto w-full max-w-sm"
-        />
+        <div className="mx-auto flex w-full max-w-sm flex-col gap-3">
+          <MapFigure name={mapName} map={facts} points={facts.points} picture={picture} />
+          {/* Absent rather than disabled when the hub holds no height overlay,
+              which is most maps for now. There is nothing to offer, and a greyed
+              out button offering it anyway would be a promise the catalog cannot
+              keep. */}
+          {preview ? <MapPreview name={mapName} preview={preview} /> : null}
+        </div>
 
         <dl className="grid grid-cols-2 gap-6 border-t border-neutral-900 pt-6 sm:grid-cols-4">
           <Fact term="Size">{mapSizeLabel(facts.width_elmos, facts.height_elmos)}</Fact>

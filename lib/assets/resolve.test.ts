@@ -13,6 +13,7 @@ import {
   type HeldRow,
   ladderIdentities,
   resolveAsset,
+  servable,
 } from "./resolve";
 
 const BUILDPIC: AssetIdentity = {
@@ -40,6 +41,8 @@ interface Row {
   width: number;
   height: number;
   moderation: string;
+  world_height_min?: number | null;
+  world_height_max?: number | null;
 }
 
 function unitRow(overrides: Partial<Row> = {}): Row {
@@ -115,8 +118,18 @@ function fakeSupabase(
   return { from } as unknown as SupabaseClient;
 }
 
-function heldOf(...rows: [AssetIdentity, HeldRow][]): HeldAssets {
-  return new Map(rows.map(([identity, row]) => [identityKey(identity), row]));
+/** A held row as the tests below write one. The world height pair is null on
+ *  every row but a height overlay, so it is filled in rather than repeated. */
+type TestRow = Omit<HeldRow, "world_height_min" | "world_height_max"> &
+  Partial<Pick<HeldRow, "world_height_min" | "world_height_max">>;
+
+function heldOf(...rows: [AssetIdentity, TestRow][]): HeldAssets {
+  return new Map(
+    rows.map(([identity, row]) => [
+      identityKey(identity),
+      { world_height_min: null, world_height_max: null, ...row },
+    ]),
+  );
 }
 
 test("a blob row resolves to the staging store and a static row to the durable tier", () => {
@@ -315,6 +328,8 @@ test("the query asks for approved rows and keys the answer by identity", async (
     width: 256,
     height: 256,
     moderation: "approved",
+    world_height_min: null,
+    world_height_max: null,
   });
   expect(held.get(identityKey(MINIMAP))?.tier).toBe("blob");
 });
@@ -337,7 +352,43 @@ test("the query reads only the columns serving needs", async () => {
     "unit_name",
     "variant",
     "width",
+    "world_height_max",
+    "world_height_min",
   ]);
+});
+
+/** The one variant the two columns are set on, and the reason they are on the
+ *  select list at all. Nothing can decode a height overlay without them. */
+test("a height overlay's world range comes back on the row that carries it", async () => {
+  const overlay = { keyedOn: "map", mapName: MINIMAP.mapName, variant: "overlay:height" } as const;
+  const held = await fetchHeldAssets(
+    fakeSupabase([
+      mapRow({
+        variant: "overlay:height",
+        path: "maps/overlay/height/def.webp",
+        world_height_min: -120.5,
+        world_height_max: 890,
+      }),
+    ]),
+    [overlay],
+  );
+
+  expect(servable(held, overlay)).toMatchObject({
+    world_height_min: -120.5,
+    world_height_max: 890,
+  });
+});
+
+/** Null on everything else, which is what the table's own check constraint
+ *  says, so a caller reading them off a minimap gets nothing rather than a
+ *  number that means something about another picture. */
+test("a minimap carries no world range", async () => {
+  const held = await fetchHeldAssets(fakeSupabase([mapRow()]), [MINIMAP]);
+
+  expect(servable(held, MINIMAP)).toMatchObject({
+    world_height_min: null,
+    world_height_max: null,
+  });
 });
 
 test("a pending row never comes back from the query at all", async () => {

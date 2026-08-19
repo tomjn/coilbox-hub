@@ -119,9 +119,19 @@ export type ResolvedAsset = ServedAsset | PlaceholderAsset;
 /**
  * The columns serving needs. Narrow on purpose: this is the public path, and
  * every column named here is one a page may end up disclosing.
+ *
+ * The two height columns are here rather than read separately by the one caller
+ * that wants them (#194), so that everything reaching a picture's bytes goes
+ * through the approved only filter below and through {@link assetTierUrl}. A
+ * second read path for two columns would be a second place to get that wrong,
+ * and the way it would show is unreviewed bytes on a public page.
+ *
+ * They disclose nothing new. They are null on every row but an `overlay:height`
+ * one, and on that row they are heights of a map whose own span `public.map`
+ * already publishes to everybody through `/api/v1/maps/lookup`.
  */
 const SERVE_COLUMNS =
-  "game, unit_name, map_name, variant, tier, path, width, height, moderation";
+  "game, unit_name, map_name, variant, tier, path, width, height, moderation, world_height_min, world_height_max";
 
 /** A row as far as serving is concerned. */
 export interface HeldRow {
@@ -131,6 +141,19 @@ export interface HeldRow {
   width: number;
   height: number;
   moderation: AssetModeration;
+  /**
+   * What this picture's darkest and brightest samples mean, in elmos.
+   *
+   * Set on an `overlay:height` row and null on every other, which
+   * `asset_height_range_check` enforces both ways. These belong to the image and
+   * not to the map: #181 rescales the stored picture into the window that map's
+   * own samples occupy, so this pair is what decodes this particular file.
+   * `public.map.world_height_min` and `world_height_max` are the terrain's own
+   * span and are different numbers. Decoding with those gives terrain that looks
+   * plausible and is wrong.
+   */
+  world_height_min: number | null;
+  world_height_max: number | null;
 }
 
 /** What the hub holds for a set of identities, keyed by {@link identityKey}. An
@@ -221,6 +244,8 @@ export async function fetchHeldAssets(
         width: row.width,
         height: row.height,
         moderation: row.moderation,
+        world_height_min: row.world_height_min ?? null,
+        world_height_max: row.world_height_max ?? null,
       });
     }
   }
@@ -228,8 +253,16 @@ export async function fetchHeldAssets(
   return held;
 }
 
-/** The row for an identity, only if it is one the public may be shown. */
-function servable(held: HeldAssets, identity: AssetIdentity): HeldRow | null {
+/**
+ * The row for an identity, only if it is one the public may be shown.
+ *
+ * Exported for the caller that needs a column {@link ServedAsset} does not
+ * carry, which today is the map preview reading a height overlay's world range.
+ * That caller could reach into {@link HeldAssets} itself, and going through this
+ * is what keeps the approved test in one place rather than copied into whoever
+ * wants a column next.
+ */
+export function servable(held: HeldAssets, identity: AssetIdentity): HeldRow | null {
   const row = held.get(identityKey(identity));
   return row && row.moderation === "approved" ? row : null;
 }
