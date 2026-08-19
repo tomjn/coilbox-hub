@@ -68,6 +68,7 @@ interface Catalog {
   item?: Row[];
   asset?: Row[];
   asset_licence?: Row[];
+  map_mirror_host?: Row[];
   /** What `public.map_facts` answers, keyed on the name it was found under. */
   facts?: { map_name: string; facts: MapFacts }[];
   /** A licence read the hub could not make, which must not read as a licence
@@ -260,4 +261,38 @@ test("a map nothing has been published for has an empty list rather than no answ
   const page = await load(held());
 
   expect(page?.played).toEqual([]);
+});
+
+/**
+ * The filename is read off `public.map` rather than out of the facts, because it
+ * is a fact about a file a mirror serves and not about the map. A page reading
+ * the wrong column would offer every map the same link or no link at all.
+ */
+test("the mirror links are built from the row's own archive filename", async () => {
+  const page = await load(
+    held({
+      map: [{ map_name: COMET, slug: SLUG, archive_filename: "comet_catcher_remake_1.8.sd7" }],
+      map_mirror_host: [
+        {
+          name: "hakora",
+          url_template: "http://hakora.xyz/files/springrts/maps/{filename}",
+          enabled: true,
+        },
+      ],
+    }),
+  );
+
+  expect(page?.mirrors).toEqual([
+    {
+      name: "hakora",
+      url: "http://hakora.xyz/files/springrts/maps/comet_catcher_remake_1.8.sd7",
+    },
+  ]);
+});
+
+/** No host enabled is an ordinary state, and the page is still a page. */
+test("a map with no mirror host to offer still has a page", async () => {
+  const page = await load(held());
+
+  expect(page?.mirrors).toEqual([]);
 });

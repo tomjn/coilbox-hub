@@ -6,6 +6,7 @@ import { ITEM_SUMMARY_COLUMNS, type ItemSummary, PAGE_SIZE } from "@/lib/gallery
 import type { MapPoint } from "./facts";
 import { mapSquares } from "./labels";
 import { fetchMapFacts } from "./lookup";
+import { fetchMirrorHosts, type MapMirrorLink, mirrorLinks } from "./mirrors";
 
 /**
  * Everything one map's page shows, in one place a test can reach (#190).
@@ -62,6 +63,10 @@ export interface MapPage {
   /** Gallery items played on this map, newest first. Empty is ordinary and the
    *  page shows no section for it. */
   played: ItemSummary[];
+  /** Where to look for the archive. Empty when no host is enabled or none of
+   *  their templates can be filled in for this map, and the page shows no
+   *  section for it. */
+  mirrors: MapMirrorLink[];
 }
 
 /**
@@ -86,24 +91,37 @@ export function markerPosition(
   };
 }
 
+/** What only `public.map` has: the canonical name everything else is keyed on,
+ *  and the filename a mirror template needs. */
+interface MapRow {
+  map_name: string;
+  archive_filename: string | null;
+}
+
 /**
- * The canonical name behind a slug, or null when nothing has that slug.
+ * The row behind a slug, or null when nothing has that slug.
  *
- * The one thing the wire shape does not carry, and the one thing everything else
- * is keyed on. `map_slug_idx` is unique, so a slug names one map or none.
+ * Two columns the wire shape does not carry. `map_slug_idx` is unique, so a slug
+ * names one map or none.
  *
- * Read with the visitor's own client. The slug is in the URL they typed and the
- * name comes straight back out of `public.map`, which `anon` may read, so there
- * is nothing here the secret key would answer differently.
+ * `archive_filename` is here rather than on `MapFacts` because it is not a fact
+ * about the map, it is a fact about a file one mirror serves, which is the
+ * distinction `20260818100000_map_catalog.sql` draws against `source_archive`.
+ * It comes off this read rather than a second one, since this read already has
+ * the row open.
+ *
+ * Read with the visitor's own client. The slug is in the URL they typed and both
+ * columns come straight back out of `public.map`, which `anon` may read, so
+ * there is nothing here the secret key would answer differently.
  */
-async function mapNameBySlug(supabase: SupabaseClient, slug: string): Promise<string | null> {
+async function mapBySlug(supabase: SupabaseClient, slug: string): Promise<MapRow | null> {
   const { data } = await supabase
     .from("map")
-    .select("map_name")
+    .select("map_name, archive_filename")
     .eq("slug", slug)
     .maybeSingle();
 
-  return (data as { map_name: string } | null)?.map_name ?? null;
+  return (data as MapRow | null) ?? null;
 }
 
 /**
@@ -146,15 +164,17 @@ export async function loadMapPage(
   admin: SupabaseClient,
   slug: string,
 ): Promise<MapPage | null> {
-  const mapName = await mapNameBySlug(supabase, slug);
-  if (!mapName) return null;
+  const row = await mapBySlug(supabase, slug);
+  if (!row) return null;
 
+  const mapName = row.map_name;
   const identity = { keyedOn: "map", mapName, variant: MAP_MINIMAP_VARIANT } as const;
 
-  const [lookup, held, played] = await Promise.all([
+  const [lookup, held, played, hosts] = await Promise.all([
     fetchMapFacts(admin, [mapName]),
     fetchHeldAssets(supabase, [identity]),
     playedHere(supabase, mapName),
+    fetchMirrorHosts(supabase),
   ]);
 
   const facts = lookup.ok ? lookup.facts.get(mapName) : undefined;
@@ -167,5 +187,9 @@ export async function loadMapPage(
     // is drawn as a 12 x 20 rather than as a square.
     picture: resolveAsset(identity, held, mapSquares(facts.width_elmos, facts.height_elmos)),
     played,
+    mirrors: mirrorLinks(hosts, {
+      mapName,
+      archiveFilename: row.archive_filename ?? null,
+    }),
   };
 }

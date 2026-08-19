@@ -14,6 +14,7 @@ import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { startPosNote } from "@/lib/gallery/presetPreview";
 import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 interface ItemDetail {
@@ -121,13 +122,17 @@ export default async function Item({
   // (issue #176).
   const packMapNames = setupPackMaps(item.container);
   // Every picture in one query: the row's map, a pack's maps, and a buildpic
-  // for every distinct unit in a blueprint (issue #109).
-  const pictures = await itemPictures(supabase, item);
+  // for every distinct unit in a blueprint (issue #109). The secret key is the
+  // second client because the map facts come through the licence gate over
+  // `public.asset_licence`, which nothing else may read (issue #191).
+  const pictures = await itemPictures(supabase, createAdminClient(), item);
   const packMaps: PackMap[] = packMapNames.flatMap((name) => {
     // Present for every name asked for, since a map with nothing stored
-    // resolves to the placeholder rather than to nothing.
+    // resolves to the placeholder rather than to nothing. The catalog row is
+    // the other way round: most maps have none, and a card without one is the
+    // card the pack has always shown.
     const picture = pictures.packMaps.get(name);
-    return picture ? [{ name, picture }] : [];
+    return picture ? [{ name, picture, catalog: pictures.catalog.get(name) ?? null }] : [];
   });
   // An item that names a map always gets the slot. Whether the hub's own
   // minimap or a drawing fills it is `MapMinimap`'s to decide, and one of the
@@ -138,6 +143,7 @@ export default async function Item({
       name={item.map_name ?? ""}
       picture={pictures.map}
       note={startPosNote(item.kind, item.container)}
+      catalog={item.map_name ? (pictures.catalog.get(item.map_name) ?? null) : null}
     />
   ) : null;
 

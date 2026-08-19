@@ -43,11 +43,14 @@ import type { AssetIdentity } from "./asset";
  * would only move the confusion.
  *
  * For a unit it is build squares, which is what `declaredFootprint` in
- * `lib/blueprint/payload.ts` returns. For a map it is the size the way BAR names
- * a map, which is `mapWidth` and `mapHeight` on `BarMap`, in 512 elmo units, so
- * a 6144 elmo map is 12. Not elmos, and not `public.asset.map_width`, which is
- * in elmos: "12 by 12" is how a person recognises a map and "6144 by 6144" is
- * not.
+ * `lib/blueprint/payload.ts` returns. For a map it is 512 elmo squares, which is
+ * what `mapSquares` in `lib/maps/labels.ts` turns a catalog row into, so a 6144
+ * elmo map is 12. Not elmos, and neither `public.map.width_elmos` nor
+ * `public.asset.map_width`, both of which are: "12 by 12" is how a person
+ * recognises a map and "6144 by 6144" is not.
+ *
+ * This used to name `mapWidth` on `BarMap`, which went with the map list #180
+ * removed and the type that carried it.
  */
 export interface Footprint {
   width: number;

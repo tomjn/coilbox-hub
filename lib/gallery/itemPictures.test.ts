@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { MapFacts } from "@/lib/api/mapLookup";
 import { BLOB_TIER_BASE } from "@/lib/assets/blob";
 import { DEFAULT_ASSET_CDN_BASE } from "@/lib/assets/cdn";
+import type { AssetLicenceRow } from "@/lib/assets/licence";
 import {
   blueprintUnitIdentities,
   itemPictures,
@@ -49,6 +51,81 @@ function fakeSupabase(rows: Row[], queries: string[] = []): SupabaseClient {
 
   return { from } as unknown as SupabaseClient;
 }
+
+/** The row 20260814170100 inserts: every map, allowed, unless a row of its own
+ *  says otherwise. `page.test.ts` builds the same one for the same gate. */
+const BLANKET = {
+  id: "00000000-0000-0000-0000-000000000001",
+  game: null,
+  map_name: null,
+  all_maps: true,
+  licence: null,
+  licence_url: null,
+  notes: null,
+  decision: "Maintainer decision",
+  decided_at: "2026-08-14T00:00:00Z",
+  checked_at: "2026-08-14T00:00:00Z",
+  checked_by: "a test",
+  redistribute_extracted: "allowed",
+  redistribute_rendered: "allowed",
+  created_at: "2026-08-14T00:00:00Z",
+  updated_at: "2026-08-14T00:00:00Z",
+} satisfies AssetLicenceRow;
+
+/** The takedown shape: a row of the map's own permitting nothing at all. */
+const DENIED = {
+  ...BLANKET,
+  id: "00000000-0000-0000-0000-000000000002",
+  all_maps: null,
+  redistribute_extracted: "denied",
+  redistribute_rendered: "denied",
+} satisfies AssetLicenceRow;
+
+/** A 12 x 20, which is the shape a square hides every mistake on. */
+function facts(overrides: Partial<MapFacts> = {}): MapFacts {
+  return {
+    slug: "some-custom-map-1-0",
+    display_name: null,
+    description: null,
+    authors: [],
+    width_elmos: 6144,
+    height_elmos: 10240,
+    world_height_min: -100,
+    world_height_max: 800,
+    min_wind: null,
+    max_wind: null,
+    tidal_strength: null,
+    void_water: null,
+    water_coverage: null,
+    tags: [],
+    points: { start: [], metal: [], geo: [] },
+    appearance: {},
+    ...overrides,
+  };
+}
+
+/**
+ * The catalog half, which is `public.map_facts` behind `fetchMapFacts` and the
+ * licence gate over it. The same fake shape `lib/maps/page.test.ts` uses, since
+ * the gate is the same one and this only has to answer for the names asked.
+ */
+function fakeAdmin(
+  held: { map_name: string; facts: MapFacts }[],
+  licences: AssetLicenceRow[] = [BLANKET],
+): SupabaseClient {
+  return {
+    rpc: (_name: string, args: { p_names: string[] }) =>
+      Promise.resolve({
+        data: held.filter((one) => args.p_names.includes(one.map_name)),
+        error: null,
+      }),
+    from: () => ({ select: () => ({ or: () => Promise.resolve({ data: licences, error: null }) }) }),
+  } as unknown as SupabaseClient;
+}
+
+/** The hub holds no catalog row for anything, which is every item page until
+ *  clients start submitting. */
+const NO_CATALOG = fakeAdmin([]);
 
 /** A map the hub holds no picture of. */
 const GLITTERS = "All That Glitters v2.2.3";
@@ -129,17 +206,24 @@ test("an item with nothing to look up makes no query at all", async () => {
   const queries: string[] = [];
   const pictures = await itemPictures(
     fakeSupabase([], queries),
+    NO_CATALOG,
     { kind: "challenge", game_key: "bar", map_name: null, container: {} },
   );
 
   expect(queries).toHaveLength(0);
-  expect(pictures).toEqual({ map: null, units: new Map(), packMaps: new Map() });
+  expect(pictures).toEqual({
+    map: null,
+    units: new Map(),
+    packMaps: new Map(),
+    catalog: new Map(),
+  });
 });
 
 test("the map and every unit are asked for together", async () => {
   const queries: string[] = [];
   await itemPictures(
     fakeSupabase([], queries),
+    NO_CATALOG,
     { ...blueprint(["armsolar", "armlab"]), map_name: "Some Custom Map 1.0" },
   );
 
@@ -157,6 +241,7 @@ test("a unit the hub has a top render of is served it, and one it does not is ab
         path: "units/bar/render/top/armsolar.webp",
       }),
     ]),
+    NO_CATALOG,
     blueprint(["armsolar", "armlab"]),
   );
 
@@ -174,6 +259,7 @@ test("a unit with no top render keeps the buildpic the plan drew before", async 
   // does hold, so this is what stops the change being a regression.
   const { units } = await itemPictures(
     fakeSupabase([unitRow("armsolar")]),
+    NO_CATALOG,
     blueprint(["armsolar"]),
   );
 
@@ -186,6 +272,7 @@ test("a unit with no top render keeps the buildpic the plan drew before", async 
 test("a pending buildpic is not a picture, so the building keeps its square", async () => {
   const { units } = await itemPictures(
     fakeSupabase([unitRow("armsolar", { moderation: "pending" })]),
+    NO_CATALOG,
     blueprint(["armsolar"]),
   );
 
@@ -195,6 +282,7 @@ test("a pending buildpic is not a picture, so the building keeps its square", as
 test("a map the hub holds a minimap of is served it", async () => {
   const { map } = await itemPictures(
     fakeSupabase([mapRow()]),
+    NO_CATALOG,
     {
       kind: "preset",
       game_key: "bar",
@@ -214,9 +302,10 @@ test("a map the hub holds a minimap of is served it", async () => {
 });
 
 test("a map the hub has no picture of is drawn without a size", async () => {
-  // Nothing left knows how big a map is, so the placeholder draws a square
-  // rather than the map's own proportions.
-  const { map } = await itemPictures(fakeSupabase([]), {
+  // No catalog row, so nothing knows how big the map is and the placeholder
+  // draws a square. This is what an item page has done for every map since #180
+  // and what it still does for a map the catalog has never been told about.
+  const { map } = await itemPictures(fakeSupabase([]), NO_CATALOG, {
     kind: "preset",
     game_key: "bar",
     map_name: GLITTERS,
@@ -262,6 +351,7 @@ test("a pack's maps come back in one query, pictured or not", async () => {
   const queries: string[] = [];
   const { packMaps } = await itemPictures(
     fakeSupabase([mapRow()], queries),
+    NO_CATALOG,
     pack(["Some Custom Map 1.0", GLITTERS]),
   );
 
@@ -278,4 +368,102 @@ test("a pack's maps come back in one query, pictured or not", async () => {
     keyedOn: "map",
     footprint: null,
   });
+});
+
+const CUSTOM = "Some Custom Map 1.0";
+
+const preset: PicturedItem = {
+  kind: "preset",
+  game_key: "bar",
+  map_name: CUSTOM,
+  container: {},
+};
+
+/**
+ * The placeholder's shape, which is half of what the catalog read is for. A
+ * 12 x 20 map with no stored minimap is drawn as a 12 x 20 box, and an item page
+ * that passed the size on wrongly or not at all would draw a square and claim
+ * the map is one.
+ */
+test("a map the catalog knows is drawn at its own shape rather than a square", async () => {
+  const { map } = await itemPictures(
+    fakeSupabase([]),
+    fakeAdmin([{ map_name: CUSTOM, facts: facts() }]),
+    preset,
+  );
+
+  expect(map).toEqual({
+    from: "placeholder",
+    name: CUSTOM,
+    keyedOn: "map",
+    // Squares rather than elmos, which is the unit a footprint is in.
+    footprint: { width: 12, height: 20 },
+  });
+});
+
+/** The facts the caption and the link are made of, keyed on the name the item
+ *  spells the map with. */
+test("the catalog answers for the item's own map", async () => {
+  const { catalog } = await itemPictures(
+    fakeSupabase([]),
+    fakeAdmin([{ map_name: CUSTOM, facts: facts({ slug: "some-custom-map-1-0" }) }]),
+    preset,
+  );
+
+  expect(catalog.get(CUSTOM)?.slug).toBe("some-custom-map-1-0");
+  expect(catalog.get(CUSTOM)?.width_elmos).toBe(6144);
+});
+
+/**
+ * The takedown, and the reason the read goes through `fetchMapFacts` rather than
+ * straight at `public.map`. #190 settled that a denied map publishes nothing at
+ * all, so an item page captioning one off the catalog would publish the same
+ * facts through a second door. It comes back looking like a map the hub has
+ * never heard of, which is the state the page already renders.
+ */
+test("a map denied in asset_licence is absent, the same as one the hub never heard of", async () => {
+  const { map, catalog } = await itemPictures(
+    fakeSupabase([]),
+    fakeAdmin([{ map_name: CUSTOM, facts: facts() }], [BLANKET, { ...DENIED, map_name: CUSTOM }]),
+    preset,
+  );
+
+  expect(catalog.size).toBe(0);
+  expect(map).toEqual({
+    from: "placeholder",
+    name: CUSTOM,
+    keyedOn: "map",
+    footprint: null,
+  });
+});
+
+/** A pack's maps go through the same placeholder, so they get the same size. */
+test("a pack's maps are sized off the catalog, one call for the lot", async () => {
+  const { packMaps, catalog } = await itemPictures(
+    fakeSupabase([]),
+    fakeAdmin([{ map_name: CUSTOM, facts: facts() }]),
+    pack([CUSTOM, GLITTERS]),
+  );
+
+  expect(packMaps.get(CUSTOM)).toMatchObject({ footprint: { width: 12, height: 20 } });
+  // The one the catalog says nothing about is unchanged: a square, and no facts
+  // to caption it with.
+  expect(packMaps.get(GLITTERS)).toMatchObject({ footprint: null });
+  expect([...catalog.keys()]).toEqual([CUSTOM]);
+});
+
+/** A catalog the hub could not read is an item page without a caption, not an
+ *  item page that fails. */
+test("a catalog read that fails draws the map the way it drew every map before", async () => {
+  const broken = {
+    rpc: () => Promise.resolve({ data: null, error: { message: "down" } }),
+    from: () => ({
+      select: () => ({ or: () => Promise.resolve({ data: [BLANKET], error: null }) }),
+    }),
+  } as unknown as SupabaseClient;
+
+  const { map, catalog } = await itemPictures(fakeSupabase([]), broken, preset);
+
+  expect(catalog.size).toBe(0);
+  expect(map).toMatchObject({ from: "placeholder", footprint: null });
 });

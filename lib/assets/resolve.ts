@@ -250,9 +250,13 @@ function serve(asked: AssetIdentity, served: AssetIdentity, row: HeldRow): Serve
  *
  * `footprint` is what the placeholder is drawn from when there is nothing
  * stored, and the caller is the only thing that has it: a unit's footprint comes
- * from the blueprint payload and a map's size from BAR's map list, and neither
- * is in `public.asset` for a row that does not exist. Read `./placeholder` for
- * the units each one is in.
+ * from the blueprint payload, and a map's size from the hub's own catalog,
+ * `public.map` read through `fetchMapFacts` in `lib/maps/lookup.ts`. Neither is
+ * in `public.asset` for a row that does not exist. Read `./placeholder` for the
+ * units each one is in.
+ *
+ * BAR's map list used to be where a map's size came from. #180 took it out and
+ * left every map drawn as a square, and #191 is what put a size back.
  */
 export function resolveAsset(
   identity: AssetIdentity,

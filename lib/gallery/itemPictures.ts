@@ -44,14 +44,40 @@
  * which is what that field is for. The map half has no substitute at all: a
  * minimap and an overlay are different pictures of different things, not
  * different views of one.
+ *
+ * ## Every map comes with its facts, through the licence gate
+ *
+ * A map's size draws the placeholder at the right shape, its size and player
+ * count caption the picture, and its slug links to `/map/[slug]` (#191). All
+ * three come from {@link fetchMapFacts} rather than from a read of `public.map`
+ * here.
+ *
+ * That is the point of going through it. #190 settled that a map denied in
+ * `public.asset_licence` publishes nothing at all, no page and no facts, so an
+ * item page captioning that map off the catalog would publish the same facts
+ * through a second door. A denied map and a map the hub has never heard of both
+ * come back absent, and an item naming either is drawn exactly as every map was
+ * drawn before this.
+ *
+ * The gate is why this wants an admin client alongside the visitor's own:
+ * `public.asset_licence` is readable by `service_role` and nobody else, which is
+ * the same reason `lib/maps/page.ts` takes both.
+ *
+ * It costs more than the two numbers it reads. `public.map_facts` assembles a
+ * map's whole payload, so a pack that installs twenty maps pulls a few hundred
+ * metal spots per map in order to count start positions and read a size. It is
+ * one call rather than a second gated read path, and a narrower one is a follow
+ * up if it ever matters.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { MapFacts } from "@/lib/api/mapLookup";
 import {
   type AssetIdentity,
   MAP_MINIMAP_VARIANT,
   UNIT_TOP_RENDER_VARIANT,
 } from "@/lib/assets/asset";
+import type { Footprint } from "@/lib/assets/placeholder";
 import {
   fetchHeldAssets,
   type ResolvedAsset,
@@ -59,6 +85,8 @@ import {
   type ServedAsset,
 } from "@/lib/assets/resolve";
 import { parseBlueprintPayload } from "@/lib/blueprint/payload";
+import { mapSquares } from "@/lib/maps/labels";
+import { fetchMapFacts } from "@/lib/maps/lookup";
 import { setupPackMaps } from "./setupPackPreview";
 
 /** As much of an item as choosing its pictures depends on. */
@@ -83,12 +111,17 @@ export interface ItemPictures {
    *  Every map the pack names has an entry, since a map with nothing stored
    *  resolves to the placeholder rather than to nothing. */
   packMaps: ReadonlyMap<string, ResolvedAsset>;
+  /** What the catalog holds for each map this item names, keyed on the name the
+   *  item spells it with (issue #191). A map the hub has no row for is absent,
+   *  and so is one it holds a row for and may not publish. */
+  catalog: ReadonlyMap<string, MapFacts>;
 }
 
 const NOTHING: ItemPictures = {
   map: null,
   units: new Map(),
   packMaps: new Map(),
+  catalog: new Map(),
 };
 
 /** The unit half of {@link AssetIdentity}, so a list known to be all units does
@@ -143,14 +176,38 @@ export function blueprintUnitIdentities(item: PicturedItem): UnitIdentity[] {
 }
 
 /**
+ * What the catalog holds for these maps, or nothing at all when it could not be
+ * asked.
+ *
+ * A read that failed is read as an empty catalog rather than propagated, which
+ * is `fetchHeldAssets`'s reading of the same failure and for the same reason. An
+ * item page is a page about an item. So when the hub cannot say how big the map
+ * is, the honest render is the one it gave for every map until now: the picture,
+ * and no claim about it. Turning it into a 500 would take down an item page over
+ * a caption.
+ */
+async function catalogFacts(
+  admin: SupabaseClient,
+  mapNames: string[],
+): Promise<ReadonlyMap<string, MapFacts>> {
+  if (mapNames.length === 0) return new Map();
+
+  const lookup = await fetchMapFacts(admin, mapNames);
+  return lookup.ok ? lookup.facts : new Map();
+}
+
+/**
  * What to draw for this item.
  *
- * Wants a session or anonymous client, so row level security is underneath the
- * answer as well as the two checks {@link fetchHeldAssets} and
- * {@link resolveAsset} make themselves.
+ * `supabase` is a session or anonymous client, so row level security is
+ * underneath the pictures as well as the two checks {@link fetchHeldAssets} and
+ * {@link resolveAsset} make themselves. `admin` reads the catalog and the
+ * licence gate over it, which no other key may, and the note at the top of this
+ * file says why that gate is the way in.
  */
 export async function itemPictures(
   supabase: SupabaseClient,
+  admin: SupabaseClient,
   item: PicturedItem,
 ): Promise<ItemPictures> {
   const mapIdentity: MapIdentity | null = item.map_name
@@ -162,11 +219,25 @@ export async function itemPictures(
     return NOTHING;
   }
 
-  const held = await fetchHeldAssets(supabase, [
-    ...(mapIdentity ? [mapIdentity] : []),
-    ...packIdentities,
-    ...unitIdentities,
+  const mapIdentities = [...(mapIdentity ? [mapIdentity] : []), ...packIdentities];
+  // A pack may install a map the row also names, and the item's own map is one
+  // of a pack's list often enough to be worth deduplicating.
+  const mapNames = [...new Set(mapIdentities.map((identity) => identity.mapName))];
+
+  // Both batches at once. Neither depends on the other, and running them in
+  // series would double what the page waits on for two reads of the same names.
+  const [held, catalog] = await Promise.all([
+    fetchHeldAssets(supabase, [...mapIdentities, ...unitIdentities]),
+    catalogFacts(admin, mapNames),
   ]);
+
+  // The catalog's own size, so a 12 x 20 map with no stored minimap is drawn as
+  // a 12 x 20 rather than as a square. In squares rather than elmos, which is
+  // the unit `lib/assets/placeholder.ts` says a map's footprint is in.
+  const footprint = (mapName: string): Footprint | null => {
+    const facts = catalog.get(mapName);
+    return facts ? mapSquares(facts.width_elmos, facts.height_elmos) : null;
+  };
 
   const units = new Map<string, ServedAsset>();
   for (const identity of unitIdentities) {
@@ -179,12 +250,15 @@ export async function itemPictures(
   // dropping out of the list of what the pack installs.
   const packMaps = new Map<string, ResolvedAsset>();
   for (const identity of packIdentities) {
-    packMaps.set(identity.mapName, resolveAsset(identity, held));
+    packMaps.set(identity.mapName, resolveAsset(identity, held, footprint(identity.mapName)));
   }
 
   return {
-    map: mapIdentity ? resolveAsset(mapIdentity, held) : null,
+    map: mapIdentity
+      ? resolveAsset(mapIdentity, held, footprint(mapIdentity.mapName))
+      : null,
     units,
     packMaps,
+    catalog,
   };
 }

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { skirmish } from "@/components/art/drawings";
 import { MapFigure } from "@/components/MapFigure";
+import { MapMirrors } from "@/components/MapMirrors";
 import { MapPlayedOn } from "@/components/MapPlayedOn";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { mapSizeLabel, mapTitle, playerCountLabel, windLabel } from "@/lib/maps/labels";
@@ -81,7 +82,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
   const page = await load(slug);
   if (!page) notFound();
 
-  const { mapName, facts, picture, played } = page;
+  const { mapName, facts, picture, played, mirrors } = page;
   const origin = await requestOrigin();
   const title = mapTitle(facts.display_name, mapName);
   const players = playerCountLabel(facts.points.start.length);
@@ -161,6 +162,8 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
             ))}
           </ul>
         ) : null}
+
+        <MapMirrors links={mirrors} />
 
         <MapPlayedOn mapName={mapName} items={played} origin={origin} />
       </div>

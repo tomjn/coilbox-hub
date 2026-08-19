@@ -14,7 +14,7 @@
  * handed down, and that component's whole premise is that it fetches nothing.
  */
 
-import { MapMinimap } from "@/components/MapMinimap";
+import { MapMinimap, type MinimapFacts } from "@/components/MapMinimap";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import {
   setupPackEngine,
@@ -22,11 +22,13 @@ import {
 } from "@/lib/gallery/setupPackPreview";
 
 /** One map a pack installs, with everything needed to draw it: the name the
- *  pack lists, and the hub's picture or the placeholder standing in for it.
+ *  pack lists, the hub's picture or the placeholder standing in for it, and what
+ *  the catalog holds for it where the hub holds anything it may publish.
  *  Assembled by `app/item/[id]/page.tsx`. */
 export interface PackMap {
   name: string;
   picture: ResolvedAsset;
+  catalog: MinimapFacts | null;
 }
 
 function Section({
@@ -95,6 +97,7 @@ export function SetupPackContents({
                   className="h-full w-full"
                   name={map.name}
                   picture={map.picture}
+                  catalog={map.catalog}
                   // A pack says nothing about how any of its maps get played.
                   note={null}
                 />
