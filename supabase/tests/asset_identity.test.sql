@@ -143,13 +143,13 @@ select throws_ok(
 -- archive has them. A row without them stores a picture of a heightmap.
 select lives_ok(
   $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, world_height_min, world_height_max, source_archive)
-    values ('Comet Catcher Remake 1.8', 'overlay:height', 'src-l3', 'enc-l3', 'png16-lossless-source', 'maps/overlay/height/enc-l3.png', 'extracted', 'image/png', 90000, 513, 513, 8192, 8192, -40.5, 320.25, 'comet_catcher_remake_1.8.sd7')$$,
+    values ('Comet Catcher Remake 1.8', 'overlay:height', 'src-l3', 'enc-l3', 'webp-lossless-512', 'maps/overlay/height/enc-l3.webp', 'extracted', 'image/webp', 90000, 513, 513, 8192, 8192, -40.5, 320.25, 'comet_catcher_remake_1.8.sd7')$$,
   'a height overlay records the elmo range its ramp spans'
 );
 
 select throws_ok(
   $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive)
-    values ('Tangerine 1.1', 'overlay:height', 'src-l4', 'enc-l4', 'png16-lossless-source', 'p', 'extracted', 'image/png', 90000, 513, 513, 8192, 8192, 'a.sd7')$$,
+    values ('Tangerine 1.1', 'overlay:height', 'src-l4', 'enc-l4', 'webp-lossless-512', 'maps/overlay/height/enc-l4.webp', 'extracted', 'image/webp', 90000, 513, 513, 8192, 8192, 'a.sd7')$$,
   '23514',
   null,
   'a height overlay without its world range is refused'
@@ -175,13 +175,13 @@ select throws_ok(
 -- sample upside down and nothing about the result looks wrong.
 select lives_ok(
   $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, world_height_min, world_height_max, source_archive)
-    values ('Flatland 1.0', 'overlay:height', 'src-l7', 'enc-l7', 'png16-lossless-source', 'maps/overlay/height/enc-l7.png', 'extracted', 'image/png', 9000, 129, 129, 1024, 1024, 100, 100, 'flatland_1.0.sd7')$$,
+    values ('Flatland 1.0', 'overlay:height', 'src-l7', 'enc-l7', 'webp-lossless-512', 'maps/overlay/height/enc-l7.webp', 'extracted', 'image/webp', 9000, 129, 129, 1024, 1024, 100, 100, 'flatland_1.0.sd7')$$,
   'a flat map may have a range of no width'
 );
 
 select throws_ok(
   $$insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, world_height_min, world_height_max, source_archive)
-    values ('Tangerine 1.1', 'overlay:height', 'src-l8', 'enc-l8', 'png16-lossless-source', 'p', 'extracted', 'image/png', 9000, 129, 129, 1024, 1024, 320, 0, 'a.sd7')$$,
+    values ('Tangerine 1.1', 'overlay:height', 'src-l8', 'enc-l8', 'webp-lossless-512', 'maps/overlay/height/enc-l8.webp', 'extracted', 'image/webp', 9000, 129, 129, 1024, 1024, 320, 0, 'a.sd7')$$,
   '23514',
   null,
   'a reversed world range is refused'
