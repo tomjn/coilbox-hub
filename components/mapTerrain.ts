@@ -35,7 +35,7 @@ import type { MapPreview, PreviewAppearance, PreviewPoint } from "@/lib/maps/pre
  * figure once it has drawn, so anything only the figure showed would be a fact
  * the reader loses by having a better browser.
  *
- * Two of the three are dots and the third is not. A vent is what a player scans
+ * Two of the three are pucks and the third is not. A vent is what a player scans
  * the map for, and `ventLayer` says why that makes it a plume.
  *
  * The heights come off the relief rather than off the points. `map_point.y` is
@@ -76,23 +76,35 @@ const DEFAULT_SUN: [number, number, number] = [-0.6, 0.9, 0.4];
 const DEFAULT_WATER = 0x2f6f9f;
 const DEFAULT_WATER_ALPHA = 0.55;
 
-/** The two dotted layers, in `components/MapFigure.tsx`'s own colours, so a
- *  metal spot is the same amber in both pictures of the same map. */
+/** The two puck layers. A start position keeps the flat figure's white. A metal
+ *  spot does not keep its amber: the vents beside it are yellow here and amber
+ *  and yellow are the same colour at this size, where the flat figure draws its
+ *  vents in rose and has no such problem. */
 const START_COLOUR = 0xf5f5f5;
-const METAL_COLOUR = 0xfcd34d;
+const METAL_COLOUR = 0xa3e635;
 
-/** A dot's radius, and how far it is lifted clear of the ground so it is not
- *  half buried in the slope it sits on. Shares of {@link BASE}, so a marker is
- *  the same size on a small map and a large one. */
+/** How see-through a metal spot is. Enough ground shows through to read what
+ *  the spot is standing on, which on a map with a hundred of them is the
+ *  difference between a picture of terrain and a picture of dots. */
+const METAL_ALPHA = 0.6;
+
+/** A puck's radius, how thick it is and how far it is lifted clear of the
+ *  ground so it is not half buried in the slope it sits on. Shares of
+ *  {@link BASE}, so a marker is the same size on a small map and a large one.
+ *  Metal spots are half the width of a start position: there are ten times as
+ *  many of them and they are the layer that crowds. */
 const MARKER_RADIUS = BASE * 0.011;
+const METAL_RADIUS = MARKER_RADIUS * 0.5;
+const MARKER_THICKNESS = BASE * 0.003;
 const MARKER_LIFT = BASE * 0.006;
 
 /** The plume over a geothermal vent: its colour, how far it rises and how wide
  *  it is. Tall enough to find from across the map, which is the whole reason it
- *  is a plume rather than a dot. */
+ *  is a plume rather than a dot, and thin enough that it marks the vent rather
+ *  than covering the ground around it. */
 const GEO_COLOUR = 0xffd93b;
 const VENT_HEIGHT = BASE * 0.18;
-const VENT_RADIUS = BASE * 0.011;
+const VENT_RADIUS = BASE * 0.00275;
 
 /** Sea level, which is elmo height zero and scene height zero. What a void map
  *  keeps and everything below it is what a void map does not have. */
@@ -106,9 +118,9 @@ const DRIFT_SPEED = 0.5;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 export interface Terrain {
-  /** Show or hide the two layers the flat figure also puts behind a toggle.
-   *  Start positions are not among them: they are the fact the picture is there
-   *  to carry, in this view as in that one. */
+  /** Show or hide the two layers the flat figure also puts behind a toggle,
+   *  both of which start shown here. Start positions are not among them: they
+   *  are the fact the picture is there to carry, in this view as in that one. */
   setLayers: (layers: { metal: boolean; geo: boolean }) => void;
   /** Free the GL context, the geometry and the textures. Nothing here survives
    *  the component that made it. */
@@ -283,11 +295,16 @@ function scenePosition(
 }
 
 /**
- * One dotted layer, as instances of a single sphere.
+ * One layer of markers, as instances of a single puck.
+ *
+ * A puck rather than a sphere. A sphere is a ball sitting on the map, and the
+ * marker is not a thing on the ground, it is a place on it. Lying flat also
+ * keeps a hundred metal spots out of each other's way at a low angle, where the
+ * same hundred balls stack into a wall.
  *
  * Unlit, so a metal spot on a slope facing away from the sun is as findable as
- * one facing it. The marker is a fact about the map rather than a thing standing
- * on it, and the flat figure draws it in flat colour for the same reason.
+ * one facing it. The flat figure draws its dots in flat colour for the same
+ * reason.
  *
  * One draw call however many spots there are. A busy map carries a few hundred
  * between the two layers, which is a mesh each if they are built the obvious
@@ -296,14 +313,20 @@ function scenePosition(
 function markerLayer(
   points: PreviewPoint[],
   colour: number,
+  radius: number,
+  opacity: number,
   grid: { width: number; height: number; elmos: Float32Array },
   preview: MapPreview,
   scale: number,
 ): Layer | null {
   if (points.length === 0) return null;
 
-  const geometry = new THREE.SphereGeometry(MARKER_RADIUS, 12, 8);
-  const material = new THREE.MeshBasicMaterial({ color: colour });
+  const geometry = new THREE.CylinderGeometry(radius, radius, MARKER_THICKNESS, 16);
+  const material = new THREE.MeshBasicMaterial({
+    color: colour,
+    transparent: opacity < 1,
+    opacity,
+  });
   const mesh = new THREE.InstancedMesh(geometry, material, points.length);
   const matrix = new THREE.Matrix4();
 
@@ -472,17 +495,26 @@ export async function drawTerrain(
 
   // The same three layers the flat figure draws, from the same stored points.
   const layers = {
-    start: markerLayer(preview.points.start, START_COLOUR, grid, preview, scale),
-    metal: markerLayer(preview.points.metal, METAL_COLOUR, grid, preview, scale),
+    start: markerLayer(preview.points.start, START_COLOUR, MARKER_RADIUS, 1, grid, preview, scale),
+    metal: markerLayer(
+      preview.points.metal,
+      METAL_COLOUR,
+      METAL_RADIUS,
+      METAL_ALPHA,
+      grid,
+      preview,
+      scale,
+    ),
     geo: ventLayer(preview.points.geo, grid, preview, scale),
   };
   for (const layer of [layers.start, layers.metal, layers.geo]) {
     if (layer) scene.add(layer.mesh);
   }
-  // Shut to begin with, the same as the checkboxes over the flat figure. Start
-  // positions are not a layer somebody turns on.
-  if (layers.metal) layers.metal.mesh.visible = false;
-  if (layers.geo) layers.geo.mesh.visible = false;
+  // All three showing to begin with, unlike the checkboxes over the flat figure.
+  // Where the resources are is most of what somebody opens a map page to see,
+  // and a layer that has to be found and pressed for is a layer most readers
+  // never see at all. The chips are then a way to clear the view rather than a
+  // way to discover it.
 
   const [sx, sy, sz] = appearance.sunDirection ?? DEFAULT_SUN;
   const sun = new THREE.DirectionalLight(colour(appearance.sunColour, 0xffffff), 1.7);
@@ -582,20 +614,92 @@ export async function drawTerrain(
     return distance;
   };
 
+  /**
+   * Where the map's corners land up and down the frame, as fractions of half
+   * its height, seen from `direction` at `distance`. Minus one is the bottom
+   * edge and one is the top.
+   */
+  const verticalSpan = (direction: THREE.Vector3, distance: number) => {
+    const tanVertical = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const across = new THREE.Vector3().crossVectors(WORLD_UP, direction).normalize();
+    const up = new THREE.Vector3().crossVectors(direction, across).normalize();
+
+    let low = Infinity;
+    let high = -Infinity;
+    const offset = new THREE.Vector3();
+    for (const corner of corners) {
+      offset.copy(corner).sub(controls.target);
+      const depth = distance - offset.dot(direction);
+      const at = offset.dot(up) / (depth * tanVertical);
+      low = Math.min(low, at);
+      high = Math.max(high, at);
+    }
+
+    return { low, high };
+  };
+
   /** How many angles the fit is checked at as the view turns right round. Every
    *  four degrees, which is finer than the difference a corner makes. */
   const AZIMUTHS = 90;
+
+  /** How many times the fit and the aim are worked out in turn. The aim moves
+   *  the corners, which moves the distance they need, and three passes is well
+   *  past where either stops changing on any map in the catalog. */
+  const PASSES = 3;
 
   let framed = false;
   const fitToFrame = () => {
     const turned = new THREE.Vector3();
     let distance = 0;
-    for (let step = 0; step < AZIMUTHS; step++) {
-      turned.copy(viewpoint).applyAxisAngle(WORLD_UP, (step / AZIMUTHS) * Math.PI * 2);
-      distance = Math.max(distance, distanceFrom(turned));
+
+    /**
+     * Fit, then aim, then fit again.
+     *
+     * Fitting alone frames the map low and small. Perspective is why: the near
+     * corner of a plate seen from above is much closer than the far one, so it
+     * runs out of frame at the bottom while the far edge is still two thirds of
+     * the way up, and the distance that holds it wastes the top third of the
+     * view. Aiming the camera at the middle of what it can actually see, rather
+     * than at the middle of the map, hands that third back.
+     *
+     * The aim moves along world Y, and that is enough for every angle at once:
+     * the frame's own up axis has the same Y component whatever way round the
+     * map is turned, so one height suits the whole rotation. Sideways needs no
+     * such correction, because a turning map is symmetric across the frame even
+     * when it is not up and down it.
+     */
+    for (let pass = 0; pass < PASSES; pass++) {
+      distance = 0;
+      for (let step = 0; step < AZIMUTHS; step++) {
+        turned.copy(viewpoint).applyAxisAngle(WORLD_UP, (step / AZIMUTHS) * Math.PI * 2);
+        distance = Math.max(distance, distanceFrom(turned));
+      }
+      // A little air, so the map is not wedged against the sides of its frame.
+      // Little is the word: this is the whole subject of the picture, and every
+      // percent here is a percent of the frame it does not get.
+      distance *= 1.02;
+
+      if (pass === PASSES - 1) break;
+
+      let low = Infinity;
+      let high = -Infinity;
+      for (let step = 0; step < AZIMUTHS; step++) {
+        turned.copy(viewpoint).applyAxisAngle(WORLD_UP, (step / AZIMUTHS) * Math.PI * 2);
+        const span = verticalSpan(turned, distance);
+        low = Math.min(low, span.low);
+        high = Math.max(high, span.high);
+      }
+
+      // Half a frame of screen is half a frame of world height at that
+      // distance, shared out over how much of the frame's up axis is world up.
+      // The camera looks down, so its up axis is tilted forwards by exactly as
+      // much, and what is left pointing up is what a raised target moves the
+      // picture by.
+      const off = (low + high) / 2;
+      const tanVertical = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+      const upwards = Math.sqrt(1 - viewpoint.y ** 2);
+      controls.target.y += (off * distance * tanVertical) / upwards;
     }
-    // A little air, so the map is not wedged against the sides of its frame.
-    distance *= 1.08;
 
     camera.position.copy(controls.target).addScaledVector(viewpoint, distance);
     controls.maxDistance = distance * 2.5;

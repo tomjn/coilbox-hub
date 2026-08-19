@@ -48,9 +48,12 @@ const PREVIEW: MapPreviewData = {
  *  server and hands in as a child. */
 const FIGURE = <p>the flat minimap</p>;
 
+/** The map page's own column, which everything but the scene is held to. */
+const COLUMN = "mx-auto w-full max-w-3xl px-6";
+
 test("the served markup is the flat figure and no scene", () => {
   const html = renderToStaticMarkup(
-    <MapPreview name={COMET} preview={PREVIEW}>
+    <MapPreview name={COMET} preview={PREVIEW} column={COLUMN}>
       {FIGURE}
     </MapPreview>,
   );
@@ -65,13 +68,13 @@ test("the served markup is the flat figure and no scene", () => {
  *  be mounted with no size at all. */
 test("the scene's frame is in the markup, shut", () => {
   const html = renderToStaticMarkup(
-    <MapPreview name={COMET} preview={PREVIEW}>
+    <MapPreview name={COMET} preview={PREVIEW} column={COLUMN}>
       {FIGURE}
     </MapPreview>,
   );
 
   expect(html).toContain('<figure class="hidden"');
-  expect(html).toContain("h-[512px]");
+  expect(html).toContain("aspect-[3/2]");
 });
 
 /** The same layers the flat figure puts behind a checkbox, and only the layers
@@ -80,6 +83,7 @@ test("a layer with no points has no chip", () => {
   const html = renderToStaticMarkup(
     <MapPreview
       name={COMET}
+      column={COLUMN}
       preview={{ ...PREVIEW, points: { start: [], metal: [], geo: [] } }}
     >
       {FIGURE}
@@ -93,7 +97,7 @@ test("a layer with no points has no chip", () => {
 
 test("the layers this map does have are offered", () => {
   const html = renderToStaticMarkup(
-    <MapPreview name={COMET} preview={PREVIEW}>
+    <MapPreview name={COMET} preview={PREVIEW} column={COLUMN}>
       {FIGURE}
     </MapPreview>,
   );
