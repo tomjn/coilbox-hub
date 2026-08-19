@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
+import { ModerationNav } from "@/components/ModerationNav";
 import { fetchPictureQueue } from "@/lib/assets/queue";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -99,23 +100,20 @@ export default async function PictureQueue() {
   return (
     <main className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
+      <ModerationNav current="pictures" />
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-12">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
+        {/* The trail is this queue's own page rather than a section of its own,
+            so it hangs off the heading here and names Pictures on the way back.
+            Beside the heading rather than opposite it, because this page is
+            wide enough that the far edge is a different part of the screen. */}
+        <div className="flex flex-wrap items-baseline gap-4">
           <h1 className="text-3xl font-semibold tracking-tight">Pictures</h1>
-          <div className="flex gap-4">
-            <Link
-              href="/moderation/trail"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Trail
-            </Link>
-            <Link
-              href="/moderation"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Reports
-            </Link>
-          </div>
+          <Link
+            href="/moderation/trail"
+            className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+          >
+            Trail
+          </Link>
         </div>
 
         {waiting.length === 0 ? (

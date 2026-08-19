@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
+import { ModerationNav } from "@/components/ModerationNav";
 import { createClient } from "@/lib/supabase/server";
 import { actOnReport } from "./actions";
 
@@ -33,43 +34,12 @@ export default async function Moderation() {
   return (
     <main className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
+      {/* The site header has one moderation entry, so every page behind that
+          check has to offer the rest: the contact sheet (issue #114), the
+          catalog (issue #193) and the meters (issue #113). */}
+      <ModerationNav current="reports" />
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">Reports</h1>
-          <div className="flex gap-4">
-            {/* The other queue. One nav entry covers both, so this is how a
-                moderator reaches the contact sheet (issue #114). */}
-            <Link
-              href="/moderation/assets"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Pictures
-            </Link>
-            {/* The catalog (issue #193), which is two more pages behind the
-                same check: the maps two clients disagree about, and the author
-                keys that are one person. */}
-            <Link
-              href="/moderation/maps"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Maps
-            </Link>
-            <Link
-              href="/moderation/authors"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Authors
-            </Link>
-            {/* And the meters (issue #113), which are behind the same check and
-                would otherwise be a URL somebody has to remember. */}
-            <Link
-              href="/ops"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Allowances
-            </Link>
-          </div>
-        </div>
+        <h1 className="text-3xl font-semibold tracking-tight">Reports</h1>
 
         {open.length === 0 ? (
           <p className="rounded-md border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-400">

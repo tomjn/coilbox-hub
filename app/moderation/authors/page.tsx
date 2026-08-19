@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
+import { ModerationNav } from "@/components/ModerationNav";
 import {
   type AuthorAlias,
   type AuthorCount,
@@ -143,24 +144,9 @@ export default async function AuthorMerges({ searchParams }: PageProps<"/moderat
   return (
     <main className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
+      <ModerationNav current="authors" />
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">Authors</h1>
-          <div className="flex gap-4">
-            <Link
-              href="/moderation/maps"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Maps
-            </Link>
-            <Link
-              href="/moderation"
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-            >
-              Reports
-            </Link>
-          </div>
-        </div>
+        <h1 className="text-3xl font-semibold tracking-tight">Authors</h1>
 
         <form action={mergeAuthors} className="flex flex-col gap-3">
           <p className="text-sm text-neutral-400">
