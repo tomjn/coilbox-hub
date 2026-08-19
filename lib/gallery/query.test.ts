@@ -1,5 +1,13 @@
 import { expect, test } from "bun:test";
-import { applyFilters, fetchAllPages, fetchPage, filterHref, parseFilters } from "./query";
+import {
+  applyFilters,
+  fetchAllPages,
+  fetchPage,
+  filterHref,
+  PAGE_GAP,
+  pageNumbers,
+  parseFilters,
+} from "./query";
 
 test("filters come out of the query string", () => {
   const filters = parseFilters({
@@ -229,4 +237,45 @@ test("an error that is not the offset-past-end code is passed straight through",
   expect(error).toBe("connection refused");
   expect(data).toEqual([]);
   expect(countCalls).toBe(0);
+});
+
+// The numbers a pager offers. Arithmetic rather than markup, because what goes
+// wrong here is a page that cannot be reached from any other page.
+
+test("a short listing offers every page and no gap", () => {
+  expect(pageNumbers(1, 1)).toEqual([1]);
+  expect(pageNumbers(3, 6)).toEqual([1, 2, 3, 4, 5, 6]);
+});
+
+/** The two questions a next link cannot answer: where the start is, and how far
+ *  this goes. */
+test("the first and the last page are always offered", () => {
+  const steps = pageNumbers(40, 90);
+
+  expect(steps[0]).toBe(1);
+  expect(steps.at(-1)).toBe(90);
+  expect(steps).toContain(PAGE_GAP);
+});
+
+test("the run around the current page is five wide", () => {
+  expect(pageNumbers(40, 90)).toEqual([1, PAGE_GAP, 38, 39, 40, 41, 42, PAGE_GAP, 90]);
+});
+
+/** A gap where nothing is missing would claim pages that are not there. Page 3
+ *  of 90 runs 1 2 3 4 5 with no break before it. */
+test("a gap is only drawn where a page is actually missing", () => {
+  expect(pageNumbers(3, 90)).toEqual([1, 2, 3, 4, 5, PAGE_GAP, 90]);
+  expect(pageNumbers(88, 90)).toEqual([1, PAGE_GAP, 86, 87, 88, 89, 90]);
+});
+
+/**
+ * The page can be past the end. `fetchPage` turns an offset past the last row
+ * into an empty page against the real total, so a reader who bookmarked page 40
+ * of a listing that has since shrunk lands here, and the pager still has to give
+ * them a way back.
+ */
+test("a page outside the listing still gets a usable pager", () => {
+  expect(pageNumbers(40, 3)).toEqual([1, 2, 3]);
+  expect(pageNumbers(0, 5)).toEqual([1, 2, 3, PAGE_GAP, 5]);
+  expect(pageNumbers(-2, 1)).toEqual([1]);
 });

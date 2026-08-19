@@ -3,13 +3,14 @@ import Link from "next/link";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { skirmish } from "@/components/art/drawings";
 import { MapCard } from "@/components/MapCard";
-import { fetchPage, PAGE_SIZE } from "@/lib/gallery/query";
+import { fetchPage, PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
 import {
   applyFilters,
   applySort,
   type Filters,
   filterHref,
   isFiltered,
+  MAP_PAGE_SIZE,
   MAP_SIZES,
   MAP_SORTS,
   MAP_SUMMARY_COLUMNS,
@@ -90,14 +91,14 @@ export default async function Maps({
     );
 
   const { data, count, error } = await fetchPage(
-    () => listing().range((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE - 1),
+    () => listing().range((filters.page - 1) * MAP_PAGE_SIZE, filters.page * MAP_PAGE_SIZE - 1),
     async () => {
       const { count, error } = await listing().range(0, 0);
       return { count, error };
     },
   );
   const maps = data as unknown as MapSummary[];
-  const lastPage = Math.max(1, Math.ceil(count / PAGE_SIZE));
+  const lastPage = Math.max(1, Math.ceil(count / MAP_PAGE_SIZE));
 
   // One batched lookup for the whole page rather than one per card.
   const pictures = await mapPictures(supabase, maps);
@@ -213,7 +214,7 @@ export default async function Maps({
           <Empty filtered={isFiltered(filters)} filters={filters} total={count} />
         ) : (
           <>
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {maps.map((map) => {
                 const picture = pictures.get(map.map_name);
                 return picture ? (
@@ -224,32 +225,11 @@ export default async function Maps({
               })}
             </ul>
 
-            <nav
-              aria-label="Pages"
-              className="flex items-center justify-between text-sm text-neutral-500"
-            >
-              {filters.page > 1 ? (
-                <Link
-                  href={filterHref(filters, { page: filters.page - 1 })}
-                  className="hover:text-neutral-200"
-                >
-                  Previous
-                </Link>
-              ) : (
-                <span />
-              )}
-              <span>{pageLabel(filters.page, lastPage, count)}</span>
-              {filters.page < lastPage ? (
-                <Link
-                  href={filterHref(filters, { page: filters.page + 1 })}
-                  className="hover:text-neutral-200"
-                >
-                  Next
-                </Link>
-              ) : (
-                <span />
-              )}
-            </nav>
+            <Pager
+              filters={filters}
+              lastPage={lastPage}
+              label={pageLabel(filters.page, lastPage, count)}
+            />
           </>
         )}
       </div>
@@ -259,6 +239,84 @@ export default async function Maps({
 
 const CONTROL =
   "w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+
+/** Every step in the pager is the same box, so a number, a previous and a next
+ *  are one row of equal targets rather than two words with digits between them.
+ *  36px square at its smallest, which clears the 24px a pointer target has to
+ *  be. */
+const STEP =
+  "flex min-h-9 min-w-9 items-center justify-center rounded-md border border-neutral-800 px-2 transition-colors hover:border-neutral-600 hover:text-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+
+/**
+ * Which page to read next, as numbers rather than as two words.
+ *
+ * A previous and a next alone say how to step and nothing else. They cannot say
+ * where the reader is in a catalog of thousands, cannot get them back to the
+ * start, and cannot get them to the end without a click per page. The numbers
+ * `pageNumbers` picks answer all three, and the sentence underneath still says
+ * how much there is, which no run of digits does.
+ *
+ * Every step is an ordinary link. The listing works with scripting off and the
+ * pager is the last part of it that would have needed a script.
+ */
+function Pager({
+  filters,
+  lastPage,
+  label,
+}: {
+  filters: Filters;
+  lastPage: number;
+  label: string;
+}) {
+  return (
+    <nav aria-label="Pages" className="flex flex-col items-center gap-3 text-sm text-neutral-500">
+      <ul className="flex flex-wrap items-center justify-center gap-1.5">
+        {filters.page > 1 ? (
+          <li>
+            <Link href={filterHref(filters, { page: filters.page - 1 })} className={STEP}>
+              Previous
+            </Link>
+          </li>
+        ) : null}
+
+        {pageNumbers(filters.page, lastPage).map((step, index) =>
+          step === PAGE_GAP ? (
+            // The gap is not a control, so it is not in the tab order and is not
+            // read out. The numbers either side of it already say a stretch was
+            // left out.
+            <li key={`gap-${index}`} aria-hidden className="px-1">
+              &hellip;
+            </li>
+          ) : step === filters.page ? (
+            <li key={step}>
+              <span
+                aria-current="page"
+                className={`${STEP} border-neutral-600 bg-neutral-900 text-neutral-100`}
+              >
+                {step}
+              </span>
+            </li>
+          ) : (
+            <li key={step}>
+              <Link href={filterHref(filters, { page: step })} className={STEP}>
+                {step}
+              </Link>
+            </li>
+          ),
+        )}
+
+        {filters.page < lastPage ? (
+          <li>
+            <Link href={filterHref(filters, { page: filters.page + 1 })} className={STEP}>
+              Next
+            </Link>
+          </li>
+        ) : null}
+      </ul>
+      <p>{label}</p>
+    </nav>
+  );
+}
 
 /** What each band means in the words a player uses, since `small` on its own
  *  says nothing about where the line is. The numbers are

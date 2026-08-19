@@ -4,6 +4,51 @@ import { GALLERY_KINDS, type GalleryKind } from "@/lib/container";
  * story early on, large enough not to page constantly later. */
 export const PAGE_SIZE = 24;
 
+/** A break in the run of page numbers, which a pager draws as an ellipsis
+ *  rather than as a link. */
+export const PAGE_GAP = "gap";
+
+/** One entry in a numbered pager: a page to link to, or the break between two
+ *  stretches of them. */
+export type PageStep = number | typeof PAGE_GAP;
+
+/** How many pages either side of the current one are always offered. Two, so
+ *  the run is five wide in the middle of a listing, which is enough to step
+ *  back a page or jump a few without a scroll bar's worth of numbers. */
+const AROUND = 2;
+
+/**
+ * The pages a numbered pager offers, which is not all of them.
+ *
+ * The first and the last are always there, because "back to the start" and "how
+ * far does this go" are the two questions a reader has that a next link cannot
+ * answer. Around the current page there is a short run, so stepping is one
+ * click. Everything else collapses into a gap.
+ *
+ * A gap is only emitted where a page is genuinely missing, so a listing of six
+ * pages shows all six rather than 1 ... 3 4 5 ... 6, which lists every page and
+ * still looks like it is hiding some.
+ */
+export function pageNumbers(current: number, lastPage: number): PageStep[] {
+  const last = Math.max(1, lastPage);
+  const page = Math.min(last, Math.max(1, current));
+
+  const wanted = new Set<number>([1, last]);
+  for (let near = page - AROUND; near <= page + AROUND; near++) {
+    if (near >= 1 && near <= last) wanted.add(near);
+  }
+
+  const steps: PageStep[] = [];
+  let previous = 0;
+  for (const number of [...wanted].sort((left, right) => left - right)) {
+    if (previous && number - previous > 1) steps.push(PAGE_GAP);
+    steps.push(number);
+    previous = number;
+  }
+
+  return steps;
+}
+
 export interface FetchPageResult<T> {
   data: T[] | null;
   /** The true size of the table, not how many rows this page returned. */
