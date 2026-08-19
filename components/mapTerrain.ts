@@ -42,6 +42,14 @@ import type { MapPreview, PreviewAppearance, PreviewPoint } from "@/lib/maps/pre
  * null on almost every start position, and this module has the ground in front
  * of it.
  *
+ * ## The wheel belongs to the page until the pointer is over the map
+ *
+ * The canvas is a band across the whole article and the map inside it is a
+ * plate seen at an angle, so a good deal of the canvas is the page showing
+ * through. A wheel turn there scrolls, and one over the map zooms. `groundPicker`
+ * is how the difference is told, and the comment on the listener is how the flag
+ * it sets gets in front of `OrbitControls`.
+ *
  * ## Both pictures are read pixel by pixel, so both need CORS
  *
  * The durable tier is GitHub Pages and the staging tier is Vercel Blob. Both
@@ -67,6 +75,14 @@ const BASE = 100;
 /** Vertices a side, at most. The overlay is capped at 512 pixels on its long
  *  edge, and a mesh finer than the picture draws detail that is not there. */
 const MAX_SEGMENTS = 256;
+
+/** Vertices a side of the copy the pointer is tested against, which is a
+ *  sixteenth of the drawn mesh's faces. three has no acceleration structure, so
+ *  a ray walks every triangle it is given: the drawn surface is about 130,000 of
+ *  them and a trackpad delivers wheel events faster than that can be swept. A
+ *  pick a few pixels out at the silhouette is a pick nobody can notice, and
+ *  detail and accuracy are different requirements. */
+const PICK_SEGMENTS = 64;
 
 /** Where the light comes from when the archive does not say. Off to one side and
  *  well up, which is the angle that shows a ridge without flattening a valley. */
@@ -213,21 +229,26 @@ function sampleGrid(
 }
 
 /**
- * The ground, at the map's own proportions and with its own relief.
+ * A plate at the map's own proportions with the map's own relief written into
+ * it, as coarse or as fine as the caller asks for.
  *
  * The picture's top row is the far edge, which is the same reading
  * `components/MapFigure.tsx` takes when it stretches the whole minimap over the
  * whole frame. The two have to agree, because the same picture is the flat
  * figure and this surface.
+ *
+ * Two of these are built. The one that is drawn is as fine as the overlay, and
+ * the one the pointer is tested against is much coarser. They share this
+ * function so that they cannot come to disagree about where the map is.
  */
-function terrainMesh(
+function displacedPlane(
   grid: { width: number; height: number; elmos: Float32Array },
   preview: MapPreview,
   scale: number,
-  texture: THREE.Texture,
+  segments: number,
 ) {
-  const across = Math.min(MAX_SEGMENTS, grid.width - 1);
-  const down = Math.min(MAX_SEGMENTS, grid.height - 1);
+  const across = Math.min(segments, grid.width - 1);
+  const down = Math.min(segments, grid.height - 1);
 
   const geometry = new THREE.PlaneGeometry(
     preview.widthElmos * scale,
@@ -247,6 +268,17 @@ function terrainMesh(
     }
   }
   position.needsUpdate = true;
+
+  return geometry;
+}
+
+function terrainMesh(
+  grid: { width: number; height: number; elmos: Float32Array },
+  preview: MapPreview,
+  scale: number,
+  texture: THREE.Texture,
+) {
+  const geometry = displacedPlane(grid, preview, scale, MAX_SEGMENTS);
   // The whole reason the displacement happens here. Without this every face
   // keeps the flat plane's normal and the terrain lights as if it had none.
   geometry.computeVertexNormals();
@@ -440,6 +472,52 @@ function waterMesh(preview: MapPreview, scale: number, appearance: PreviewAppear
 }
 
 /**
+ * Whether the ground is drawn under a pointer.
+ *
+ * Which is what decides whether a wheel turn zooms the map or scrolls the page.
+ * The canvas fills a frame three to two that runs the width of the article, and
+ * what is in it is a plate seen at an angle, so most of what a pointer can be
+ * over is the page showing through. Taking the wheel there stops the article
+ * dead under a reader who was only passing.
+ *
+ * A ray rather than the alpha of the pixel under the cursor. Reading one pixel
+ * back off the framebuffer means keeping the drawing buffer alive between
+ * frames and stalling the processor on the card to get it, and it would count a
+ * vent's plume standing in empty sky as ground.
+ *
+ * The returned function keeps its raycaster, because a wheel turn on a trackpad
+ * arrives dozens of times a second and none of them need a new one.
+ */
+export function groundPicker(
+  camera: THREE.Camera,
+  ground: THREE.Object3D,
+  /** A void map's sea bed is clipped away and the reader is looking through
+   *  where it would be. Clipping happens as the scene is drawn and a ray knows
+   *  nothing about it, so what it finds down there is discarded here. */
+  voidWater: boolean,
+) {
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+
+  return (
+    point: { clientX: number; clientY: number },
+    frame: { left: number; top: number; width: number; height: number },
+  ) => {
+    // The frame is in the markup from the start and is measured only once it is
+    // shown, so there is a moment when it has no size to divide by.
+    if (frame.width === 0 || frame.height === 0) return false;
+
+    pointer.x = ((point.clientX - frame.left) / frame.width) * 2 - 1;
+    pointer.y = -((point.clientY - frame.top) / frame.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+
+    const hits = raycaster.intersectObject(ground, false);
+
+    return voidWater ? hits.some((hit) => hit.point.y >= 0) : hits.length > 0;
+  };
+}
+
+/**
  * Draw `preview` inside `host`, and hand back the way to take it down again.
  *
  * Throws when the browser has no WebGL, when either picture will not load, or
@@ -538,6 +616,45 @@ export async function drawTerrain(
   // scrolls, and OrbitControls takes the touch either way, so the gesture worth
   // giving the single finger is the one somebody opened the view for.
   controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE };
+
+  // What the pointer is tested against. Never added to the scene and given no
+  // material: it is the same plate as the drawn ground, coarse enough to sweep
+  // between wheel events, and it sits at the origin as the drawn one does, so an
+  // untouched matrix is the right one.
+  const pickGeometry = displacedPlane(grid, preview, scale, PICK_SEGMENTS);
+  const overGround = groundPicker(camera, new THREE.Mesh(pickGeometry), preview.voidWater);
+
+  /**
+   * The wheel only zooms where there is map under the pointer.
+   *
+   * `OrbitControls` binds its own wheel listener to the canvas and calls
+   * `preventDefault` on everything it acts on, so with the canvas spanning the
+   * article a reader scrolling past has the page taken out from under them by a
+   * view they never touched. It reads `enableZoom` before it does any of that
+   * and returns if it is off, so the whole fix is to set the flag correctly
+   * before three sees the event.
+   *
+   * On `host` and in the capture phase, which is the only placement that runs
+   * first. A listener added to the canvas itself would go second whatever the
+   * capture flag said, because at the target element the DOM runs listeners in
+   * the order they were registered and three registered first.
+   *
+   * Passive, since nothing here calls `preventDefault`: that is three's to call
+   * or to skip, and the point is to let it skip.
+   */
+  const decideZoom = (event: WheelEvent) => {
+    controls.enableZoom = overGround(event, renderer.domElement.getBoundingClientRect());
+  };
+  host.addEventListener("wheel", decideZoom, { capture: true, passive: true });
+
+  // `enableZoom` is one flag and the wheel is not the only thing that reads it:
+  // two fingers dolly, and on a laptop with both a trackpad and a touchscreen a
+  // wheel turn over empty sky would otherwise leave the pinch dead. So every
+  // gesture that is not a wheel turn starts from the flag on again.
+  const allowPinch = () => {
+    controls.enableZoom = true;
+  };
+  host.addEventListener("pointerdown", allowPinch, { capture: true, passive: true });
 
   // The camera never goes below the highest ground, which is what stops a zoom
   // ending up inside a mountain. OrbitControls clamps distance from a target
@@ -760,11 +877,14 @@ export async function drawTerrain(
     dispose: () => {
       if (frame !== undefined) cancelAnimationFrame(frame);
       observer.disconnect();
+      host.removeEventListener("wheel", decideZoom, { capture: true });
+      host.removeEventListener("pointerdown", allowPinch, { capture: true });
       controls.removeEventListener("change", render);
       controls.removeEventListener("start", stopDrift);
       controls.dispose();
       ground.geometry.dispose();
       ground.material.dispose();
+      pickGeometry.dispose();
       sea?.geometry.dispose();
       sea?.material.dispose();
       layers.start?.dispose();
