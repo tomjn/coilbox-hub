@@ -45,6 +45,23 @@ import { markerPosition } from "@/lib/maps/page";
  * words, so announcing a list of dots would add noise rather than information.
  */
 
+/**
+ * How tall the figure aims to be, in pixels.
+ *
+ * A fixed height rather than a fixed width, so every map gets the same amount of
+ * the page whatever shape it is: a 12 x 20 and a 32 x 16 are then equally
+ * readable, where a fixed width leaves the tall one enormous and the wide one a
+ * strip. `components/MapPreview.tsx` draws its scene at the same height, so
+ * nothing on the page moves when the terrain takes the figure's place.
+ *
+ * Applied as a maximum width worked out from the map's own proportions. A box
+ * with an aspect ratio takes its width from the column it is in and its height
+ * from that width, so a maximum height alone would leave the width where it was
+ * and stretch the picture. A map wide enough to want more than the column has is
+ * shorter than this rather than cropped.
+ */
+const FIGURE_HEIGHT = 512;
+
 /** The two inputs a label has to name. Ids rather than a wrapping label, since
  *  the input has to stay a sibling of the layer it shows. One map's page holds
  *  one figure, so a fixed pair is enough. */
@@ -126,8 +143,11 @@ export function MapFigure({
   return (
     <figure className={`flex flex-col gap-2${className ? ` ${className}` : ""}`}>
       <div
-        className="relative flex flex-wrap items-end gap-1.5 overflow-hidden rounded-md border border-neutral-800 bg-black p-2"
-        style={{ aspectRatio: `${map.width_elmos} / ${map.height_elmos}` }}
+        className="relative mx-auto flex w-full flex-wrap items-end gap-1.5 overflow-hidden rounded-md border border-neutral-800 bg-black p-2"
+        style={{
+          aspectRatio: `${map.width_elmos} / ${map.height_elmos}`,
+          maxWidth: `${(FIGURE_HEIGHT * map.width_elmos) / map.height_elmos}px`,
+        }}
       >
         {/* Before the layers, because a sibling selector only reaches forwards.
             Absolutely positioned by `sr-only`, so neither one takes a place in
