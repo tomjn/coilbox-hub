@@ -180,6 +180,30 @@ test("a void water map says so", () => {
   expect(mapPreview(COMET, facts({ void_water: null }), held, SERVED)?.voidWater).toBe(false);
 });
 
+/**
+ * The terrain replaces the flat figure rather than sitting under it, so anything
+ * the figure marks and the terrain does not is a fact a reader loses by having a
+ * browser that can draw the ground.
+ *
+ * Two numbers a point, and no more. `y` is null on almost every start position
+ * and the terrain reads a far better height off the relief it has just decoded,
+ * and `meta` is an amount of metal that neither view shows.
+ */
+test("the points the flat figure marks travel to the terrain", () => {
+  const held = heldOf([MINIMAP, row()], [OVERLAY, overlayRow()]);
+  const points = {
+    start: [{ x: 512, z: 9728, y: null, meta: null }],
+    metal: [{ x: 1024, z: 2048, y: 45.5, meta: { metal: 2 } }],
+    geo: [{ x: 3072, z: 5120, y: null, meta: null }],
+  };
+
+  expect(mapPreview(COMET, facts({ points }), held, SERVED)?.points).toEqual({
+    start: [{ x: 512, z: 9728 }],
+    metal: [{ x: 1024, z: 2048 }],
+    geo: [{ x: 3072, z: 5120 }],
+  });
+});
+
 // The appearance blob, which has no schema and which nothing validates on the
 // way in.
 
@@ -187,8 +211,6 @@ test("an empty appearance reads as nothing declared rather than as black", () =>
   expect(readAppearance({})).toEqual({
     water: null,
     waterAlpha: null,
-    sky: null,
-    fog: null,
     sunDirection: null,
     sunColour: null,
   });
@@ -198,14 +220,28 @@ test("the colours a map does declare come through", () => {
   const read = readAppearance({
     waterColor: [0.1, 0.35, 0.5],
     waterAlpha: 0.4,
-    skyColor: [0, 0, 0.05],
+    sunColor: [0.9, 0.85, 0.7],
     sunDir: [0.4, 0.8, -0.2],
   });
 
   expect(read.water).toEqual([0.1, 0.35, 0.5]);
   expect(read.waterAlpha).toBe(0.4);
-  expect(read.sky).toEqual([0, 0, 0.05]);
+  expect(read.sunColour).toEqual([0.9, 0.85, 0.7]);
   expect(read.sunDirection).toEqual([0.4, 0.8, -0.2]);
+});
+
+/** The scene is drawn on a transparent background, so a sky and a fog would be
+ *  opaque colour painted over the page behind the canvas. They are read out of
+ *  the blob nowhere rather than read and ignored. */
+test("the sky and the fog a map declares are not carried to the browser", () => {
+  const read = readAppearance({ skyColor: [0, 0, 0.05], fogColor: [0.2, 0.2, 0.2] });
+
+  expect(Object.keys(read).sort()).toEqual([
+    "sunColour",
+    "sunDirection",
+    "water",
+    "waterAlpha",
+  ]);
 });
 
 /** Every one of these is a shape somebody's jsonb can be, and every one of them
@@ -218,7 +254,7 @@ test("a malformed appearance is ignored rather than fatal", () => {
   expect(readAppearance({ waterColor: [0.1, 0.2] }).water).toBeNull();
   expect(readAppearance({ waterColor: [0.1, 0.2, "0.3"] }).water).toBeNull();
   expect(readAppearance({ waterColor: "rgb(0,0,255)" }).water).toBeNull();
-  expect(readAppearance({ skyColor: [0, 0, Number.NaN] }).sky).toBeNull();
+  expect(readAppearance({ sunColor: [0, 0, Number.NaN] }).sunColour).toBeNull();
   expect(readAppearance({ sunDir: [0, Number.POSITIVE_INFINITY, 0] }).sunDirection).toBeNull();
   expect(readAppearance({ waterAlpha: Number.NaN }).waterAlpha).toBeNull();
 });
