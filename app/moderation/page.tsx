@@ -45,6 +45,21 @@ export default async function Moderation() {
             >
               Pictures
             </Link>
+            {/* The catalog (issue #193), which is two more pages behind the
+                same check: the maps two clients disagree about, and the author
+                keys that are one person. */}
+            <Link
+              href="/moderation/maps"
+              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+            >
+              Maps
+            </Link>
+            <Link
+              href="/moderation/authors"
+              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+            >
+              Authors
+            </Link>
             {/* And the meters (issue #113), which are behind the same check and
                 would otherwise be a URL somebody has to remember. */}
             <Link
