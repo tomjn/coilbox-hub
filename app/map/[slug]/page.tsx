@@ -43,6 +43,12 @@ async function load(slug: string): Promise<MapPage | null> {
  *  makes the terrain harder to read. */
 const BACKDROP_STRENGTH = 0.05;
 
+/** The column the page's words are set in. It is applied to each block rather
+ *  than to one wrapper because the terrain is not in it: a scene runs to both
+ *  edges of the window, and it can only do that if nothing above it is holding
+ *  the whole page to 48 rem. */
+const COLUMN = "mx-auto w-full max-w-3xl px-6";
+
 export async function generateMetadata({
   params,
 }: {
@@ -97,8 +103,8 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
   return (
     <main className="relative flex-1">
       <ArtBackdrop drawing={skirmish} strength={BACKDROP_STRENGTH} />
-      <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-12">
-        <div className="flex flex-col gap-3">
+      <div className="relative z-10 flex w-full flex-col gap-8 py-12">
+        <div className={`${COLUMN} flex flex-col gap-3`}>
           <h1 className="break-words text-3xl font-semibold tracking-tight">{title}</h1>
           {title === mapName ? null : (
             // The canonical name, which is what a lobby shows and what somebody
@@ -112,74 +118,80 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
           ) : null}
         </div>
 
-        {/* The figure is the page, so it gets the page's whole width and stands
-            as tall as `MapFigure` allows. Where the hub holds a height overlay,
-            `MapPreview` draws the same map as terrain and takes the figure's
-            place once it has, which is why the figure is its child rather than
-            its sibling. Most maps have no overlay and stay flat, and nothing on
-            the page says a view was withheld. */}
-        <div className="flex w-full flex-col gap-3">
-          {preview ? (
-            <MapPreview name={mapName} preview={preview}>
-              {figure}
-            </MapPreview>
-          ) : (
-            figure
-          )}
+        {/* The figure is the page, so it gets the whole width of the window
+            rather than the width of the column the words are set in. Where the
+            hub holds a height overlay, `MapPreview` draws the same map as
+            terrain and takes the figure's place once it has, which is why the
+            figure is its child rather than its sibling. Most maps have no
+            overlay and stay flat, and nothing on the page says a view was
+            withheld.
+
+            Only the terrain spans the page. The flat figure is a picture at the
+            map's own proportions and blowing it up to 1,600 pixels would be
+            showing somebody a 512 pixel minimap enlarged, so it keeps the
+            column. */}
+        {preview ? (
+          <MapPreview name={mapName} preview={preview} column={COLUMN}>
+            {figure}
+          </MapPreview>
+        ) : (
+          <div className={COLUMN}>{figure}</div>
+        )}
+
+        <div className={`${COLUMN} flex flex-col gap-8`}>
+          <dl className="grid grid-cols-2 gap-6 border-t border-neutral-900 pt-6 sm:grid-cols-4">
+            <Fact term="Size">{mapSizeLabel(facts.width_elmos, facts.height_elmos)}</Fact>
+            {players ? <Fact term="Players">{players}</Fact> : null}
+            {wind ? <Fact term="Wind">{wind}</Fact> : null}
+            {facts.tidal_strength === null ? null : (
+              <Fact term="Tidal">{facts.tidal_strength}</Fact>
+            )}
+            {facts.void_water ? (
+              // Only when the archive says so outright. A map that declares
+              // nothing about water is not a map with water, and saying "some"
+              // would be the hub making the measurement up.
+              <Fact term="Water">None</Fact>
+            ) : null}
+            {facts.authors.length > 0 ? (
+              <Fact term="Made by">
+                <ul className="flex flex-col gap-0.5">
+                  {facts.authors.map((author) => (
+                    <li key={author.key}>
+                      {/* The listing in #189, which is where a key becomes
+                          everything that person made. The link is written now
+                          because the key is what it will be. */}
+                      <Link
+                        href={`/maps?author=${encodeURIComponent(author.key)}`}
+                        className="hover:text-white"
+                      >
+                        {author.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </Fact>
+            ) : null}
+          </dl>
+
+          {facts.tags.length > 0 ? (
+            <ul className="flex flex-wrap gap-1.5">
+              {facts.tags.map((tag) => (
+                <li key={tag}>
+                  <Link
+                    href={`/maps?tag=${encodeURIComponent(tag)}`}
+                    className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
+                  >
+                    {tag}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <MapMirrors links={mirrors} />
+
+          <MapPlayedOn mapName={mapName} items={played} origin={origin} />
         </div>
-
-        <dl className="grid grid-cols-2 gap-6 border-t border-neutral-900 pt-6 sm:grid-cols-4">
-          <Fact term="Size">{mapSizeLabel(facts.width_elmos, facts.height_elmos)}</Fact>
-          {players ? <Fact term="Players">{players}</Fact> : null}
-          {wind ? <Fact term="Wind">{wind}</Fact> : null}
-          {facts.tidal_strength === null ? null : (
-            <Fact term="Tidal">{facts.tidal_strength}</Fact>
-          )}
-          {facts.void_water ? (
-            // Only when the archive says so outright. A map that declares
-            // nothing about water is not a map with water, and saying "some"
-            // would be the hub making the measurement up.
-            <Fact term="Water">None</Fact>
-          ) : null}
-          {facts.authors.length > 0 ? (
-            <Fact term="Made by">
-              <ul className="flex flex-col gap-0.5">
-                {facts.authors.map((author) => (
-                  <li key={author.key}>
-                    {/* The listing in #189, which is where a key becomes
-                        everything that person made. The link is written now
-                        because the key is what it will be. */}
-                    <Link
-                      href={`/maps?author=${encodeURIComponent(author.key)}`}
-                      className="hover:text-white"
-                    >
-                      {author.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Fact>
-          ) : null}
-        </dl>
-
-        {facts.tags.length > 0 ? (
-          <ul className="flex flex-wrap gap-1.5">
-            {facts.tags.map((tag) => (
-              <li key={tag}>
-                <Link
-                  href={`/maps?tag=${encodeURIComponent(tag)}`}
-                  className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
-                >
-                  {tag}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        <MapMirrors links={mirrors} />
-
-        <MapPlayedOn mapName={mapName} items={played} origin={origin} />
       </div>
     </main>
   );

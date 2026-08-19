@@ -53,9 +53,21 @@ import type { Terrain } from "./mapTerrain";
  * scene under somebody who changed a system setting mid session.
  */
 
-/** How tall the scene is drawn, matching the figure it replaces so that the
- *  page does not resettle when one takes over from the other. */
-const HEIGHT = "h-[512px]";
+/**
+ * The shape of the frame the scene is drawn in.
+ *
+ * Three to two, and not the figure's fixed 512 pixels. The frame now runs to
+ * both edges of the page, and what fills it is a map seen from above and to one
+ * side, which lands on the glass about half again as wide as it is tall
+ * whichever way round the map is turned. A frame much wider than that is a band
+ * of terrain with sky above and below it, and a frame much taller is the same
+ * band with margins down the sides. Either way the camera has to back off, and
+ * the map is drawn smaller for it.
+ *
+ * Capped, because two thirds of a wide window is a great deal of height and the
+ * caption belongs on the screen with the picture it captions.
+ */
+const FRAME = "aspect-[3/2] max-h-[min(70vh,640px)]";
 
 /** The flat figure's own chip, so the controls over the terrain and the
  *  controls over the minimap are recognisably one pair. A button rather than a
@@ -66,9 +78,8 @@ const CHIP =
 
 const DOT = "mr-1.5 inline-block size-2 rounded-full align-middle";
 
-/** The vent's swatch is the shape the vent is drawn as rather than a dot, which
- *  is also what keeps it apart from the metal spots. The two are close in colour
- *  and nothing else about them is alike. */
+/** The vent's swatch is the shape the vent is drawn as rather than a dot. The
+ *  scene draws a plume and a puck, so the chips do too. */
 const PLUME = "mr-1.5 inline-block h-3 w-1 rounded-full align-middle";
 
 /** How the scene got on. `building` is the ordinary state of the whole page for
@@ -78,17 +89,25 @@ type Progress = "building" | "drawn" | "failed";
 export function MapPreview({
   preview,
   name,
+  column,
   children,
 }: {
   preview: MapPreviewData;
   /** The canonical name, for the caption under the scene. */
   name: string;
+  /** The classes the page's own column is laid out with. The scene spans the
+   *  whole page and everything else here does not, so the chips, the caption and
+   *  the flat figure line up with the text above them rather than with the
+   *  window. The page owns the width, so the page passes it in. */
+  column: string;
   /** The flat figure, rendered on the server. Shown until the terrain is, and
    *  shown for good if it never is. */
   children: React.ReactNode;
 }) {
   const [progress, setProgress] = useState<Progress>("building");
-  const [layers, setLayers] = useState({ metal: false, geo: false });
+  // Both showing from the start, which `mapTerrain.ts` builds the scene to
+  // match. The chips clear the view rather than reveal it.
+  const [layers, setLayers] = useState({ metal: true, geo: true });
   const hostRef = useRef<HTMLDivElement | null>(null);
   const terrainRef = useRef<Terrain | null>(null);
 
@@ -138,12 +157,12 @@ export function MapPreview({
 
   return (
     <>
-      <div className={drawn ? "hidden" : undefined}>{children}</div>
+      <div className={drawn ? "hidden" : column}>{children}</div>
 
       <figure className={drawn ? "flex flex-col gap-2" : "hidden"}>
-        <div className={`relative w-full ${HEIGHT}`}>
+        <div className={`relative w-full ${FRAME}`}>
           <div ref={hostRef} className="absolute inset-0" />
-          <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end gap-1.5">
+          <div className={`absolute inset-x-0 bottom-0 flex flex-wrap items-end gap-1.5 ${column}`}>
             {preview.points.metal.length > 0 ? (
               <button
                 type="button"
@@ -151,7 +170,7 @@ export function MapPreview({
                 onClick={() => setLayers((shown) => ({ ...shown, metal: !shown.metal }))}
                 className={CHIP}
               >
-                <span className={`${DOT} bg-amber-300`} />
+                <span className={`${DOT} bg-lime-400`} />
                 Metal spots
               </button>
             ) : null}
@@ -169,7 +188,7 @@ export function MapPreview({
           </div>
         </div>
 
-        <figcaption className="flex flex-col gap-1 text-xs text-neutral-400">
+        <figcaption className={`flex flex-col gap-1 text-xs text-neutral-400 ${column}`}>
           {preview.points.start.length > 0 ? (
             <span>
               <span className={`${DOT} bg-neutral-100`} />
