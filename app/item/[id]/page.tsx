@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { ImportLink } from "@/components/ImportLink";
 import { ItemPreview } from "@/components/ItemPreview";
@@ -16,6 +17,7 @@ import { startPosNote } from "@/lib/gallery/presetPreview";
 import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/supabase/user";
 
 interface ItemDetail {
   id: string;
@@ -45,8 +47,11 @@ const DETAIL_COLUMNS =
   "id,kind,mode,container,title,description,game_name,game_key,map_name,tags,author_name,created_at,updated_at,import_count";
 
 /** A withdrawn item is invisible to the read policy, so it arrives here as
- * nothing found without this page knowing about moderation. */
-async function load(id: string): Promise<ItemDetail | null> {
+ * nothing found without this page knowing about moderation.
+ *
+ * Once per request: `generateMetadata` and the page both ask, and `cache`
+ * makes the second ask a lookup rather than a second read. */
+const load = cache(async (id: string): Promise<ItemDetail | null> => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("item")
@@ -54,7 +59,7 @@ async function load(id: string): Promise<ItemDetail | null> {
     .eq("id", id)
     .maybeSingle();
   return (data as ItemDetail | null) ?? null;
-}
+});
 
 export async function generateMetadata({
   params,
@@ -99,9 +104,7 @@ export default async function Item({
   if (!item) notFound();
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   const { data: owned } = user
     ? await supabase
         .from("item")

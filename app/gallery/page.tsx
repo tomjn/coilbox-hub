@@ -56,21 +56,22 @@ export default async function Gallery({
     );
     return { count, error };
   };
-  const { data, count, error } = await fetchPage(() => query, countQuery);
-  const items = data as unknown as ItemSummary[];
-  const total = count;
-  const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
   // Filter options come from the rows themselves. At this size that is one small
   // query, and it is honest: an option only appears when something is behind it.
   // It will need a view or a materialised list long before it needs paging.
   // The game facet is built from game_key, not game_name: game_name can hold
   // a version-carrying archive name unique to one row (issue #50), and a
   // chip built from that would offer a filter that matches nothing else.
-  const { data: facetRows } = await supabase
-    .from("item")
-    .select("game_key,map_name")
-    .limit(1000);
+  // Asked for alongside the page rather than after it: neither read depends on
+  // the other, and in series the page waited two round trips instead of one.
+  const [{ data, count, error }, { data: facetRows }] = await Promise.all([
+    fetchPage(() => query, countQuery),
+    supabase.from("item").select("game_key,map_name").limit(1000),
+  ]);
+  const items = data as unknown as ItemSummary[];
+  const total = count;
+  const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   const games = distinct(facetRows?.map((row) => row.game_key));
   const maps = distinct(facetRows?.map((row) => row.map_name));
 

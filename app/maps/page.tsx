@@ -217,11 +217,14 @@ export default async function Maps({
         ) : (
           <>
             <ul className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {maps.map((map) => {
+              {maps.map((map, index) => {
                 const picture = pictures.get(map.map_name);
                 return picture ? (
                   <li key={map.id}>
-                    <MapCard map={map} picture={picture} filters={filters} />
+                    {/* Two rows of four fill a desktop's first screen and more
+                        than a phone's, so those load with the page and the rest
+                        wait until they are scrolled towards. */}
+                    <MapCard map={map} picture={picture} filters={filters} eager={index < 8} />
                   </li>
                 ) : null;
               })}
