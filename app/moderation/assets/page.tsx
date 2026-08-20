@@ -45,23 +45,23 @@ import { approveSelected, rejectOne } from "./actions";
 const BACKDROP_STRENGTH = 0.05;
 
 const BUTTON =
-  "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 hover:text-white";
+  "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white";
 
 /** Unticked reads as grey and faint, ticked as full colour and framed, so what
  * is about to be approved is legible across a whole sheet at a glance rather
  * than one caption at a time. Colour is the strongest signal available here and
  * these are colour pictures of terrain, so removing it is unmissable. */
 const TILE =
-  "flex cursor-pointer flex-col gap-2 rounded-md border border-neutral-800 bg-neutral-950 p-2 opacity-40 grayscale transition-all hover:border-neutral-600 has-checked:border-neutral-400 has-checked:opacity-100 has-checked:grayscale-0 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-neutral-300";
+  "flex cursor-pointer flex-col gap-2 rounded-md border border-neutral-800 bg-neutral-950 p-2 opacity-40 grayscale transition-all hover:border-neutral-600 active:border-neutral-500 has-checked:border-neutral-400 has-checked:opacity-100 has-checked:grayscale-0 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-neutral-300";
 
 /** The two rejections a tile offers (issue #115). Quiet for the everyday one
  * and red for the one that cannot be undone, so the two are told apart before
  * the label is read rather than after. */
 const REJECT =
-  "rounded-sm bg-black/70 px-2 py-1.5 text-xs text-neutral-400 transition-colors hover:bg-black hover:text-neutral-100 focus-visible:text-neutral-100";
+  "rounded-sm bg-black/70 px-2 py-1.5 text-xs text-neutral-400 transition-colors hover:bg-black active:bg-black hover:text-neutral-100 active:text-neutral-100 focus-visible:text-neutral-100";
 
 const REJECT_UNSAFE =
-  "rounded-sm bg-black/70 px-2 py-1.5 text-xs text-red-500 transition-colors hover:bg-black hover:text-red-300 focus-visible:text-red-300";
+  "rounded-sm bg-black/70 px-2 py-1.5 text-xs text-red-500 transition-colors hover:bg-black active:bg-black hover:text-red-300 active:text-red-300 focus-visible:text-red-300";
 
 /**
  * How a picture somebody has reported different source bytes for is marked
@@ -110,7 +110,7 @@ export default async function PictureQueue() {
           <h1 className="text-3xl font-semibold tracking-tight">Pictures</h1>
           <Link
             href="/moderation/trail"
-            className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+            className="text-sm text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
           >
             Trail
           </Link>

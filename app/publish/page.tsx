@@ -49,14 +49,14 @@ export default async function Publish() {
               </span>
               <Link
                 href="/account"
-                className="mr-4 transition-colors hover:text-neutral-300"
+                className="mr-4 transition-colors hover:text-neutral-300 active:text-neutral-300"
               >
                 Your account
               </Link>
               <form action="/auth/signout" method="post">
                 <button
                   type="submit"
-                  className="transition-colors hover:text-neutral-300"
+                  className="transition-colors hover:text-neutral-300 active:text-neutral-300"
                 >
                   Sign out
                 </button>

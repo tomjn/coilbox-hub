@@ -55,8 +55,6 @@ import { createClient } from "@/lib/supabase/server";
  * anyway. It is only safe because nothing may hold the answer, which is what the
  * header above is for.
  */
-export const dynamic = "force-dynamic";
-
 export const OPTIONS = corsPreflight;
 
 export async function POST(request: Request) {

@@ -2,20 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { hub } from "@/components/art/drawings";
+import { BusyForm } from "@/components/BusyForm";
 import { ItemCard } from "@/components/ItemCard";
+import { LinkPending } from "@/components/LinkPending";
+import { galleryPage } from "@/lib/gallery/cached";
 import { GALLERY_KINDS } from "@/lib/container";
 import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
-import {
-  applyFilters,
-  fetchPage,
-  filterHref,
-  ITEM_SUMMARY_COLUMNS,
-  type ItemSummary,
-  PAGE_SIZE,
-  parseFilters,
-} from "@/lib/gallery/query";
-import { createClient } from "@/lib/supabase/server";
+import { filterHref, PAGE_SIZE, parseFilters } from "@/lib/gallery/query";
 
 export const metadata: Metadata = {
   title: "Gallery - Coilbox Hub",
@@ -36,41 +30,11 @@ export default async function Gallery({
 }) {
   const filters = parseFilters(await searchParams);
   const origin = await requestOrigin();
-  const supabase = await createClient();
-
-  const query = applyFilters(
-    supabase
-      .from("item")
-      .select(ITEM_SUMMARY_COLUMNS, { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE - 1),
-    filters,
-  );
-
-  const countQuery = async () => {
-    const { count, error } = await applyFilters(
-      supabase.from("item").select(ITEM_SUMMARY_COLUMNS, { count: "exact" }).range(0, 0),
-      filters,
-    );
-    return { count, error };
-  };
-  const { data, count, error } = await fetchPage(() => query, countQuery);
-  const items = data as unknown as ItemSummary[];
-  const total = count;
-  const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  // Filter options come from the rows themselves. At this size that is one small
-  // query, and it is honest: an option only appears when something is behind it.
-  // It will need a view or a materialised list long before it needs paging.
-  // The game facet is built from game_key, not game_name: game_name can hold
-  // a version-carrying archive name unique to one row (issue #50), and a
-  // chip built from that would offer a filter that matches nothing else.
-  const { data: facetRows } = await supabase
-    .from("item")
-    .select("game_key,map_name")
-    .limit(1000);
-  const games = distinct(facetRows?.map((row) => row.game_key));
-  const maps = distinct(facetRows?.map((row) => row.map_name));
+  // The rows, the count and the chips, all held between requests. The filters
+  // are the cache key, so a filtered view is held separately from a bare one.
+  // `lib/gallery/cached.ts` says why the reads moved out of the page.
+  const { items, count, error, games, maps } = await galleryPage(filters);
+  const lastPage = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
   return (
     <main className="relative flex-1">
@@ -83,7 +47,7 @@ export default async function Gallery({
           </p>
         </div>
 
-        <form className="flex gap-2" action="/gallery">
+        <BusyForm className="flex gap-2" action="/gallery">
           {filters.kind ? <input type="hidden" name="kind" value={filters.kind} /> : null}
           {filters.game ? <input type="hidden" name="game" value={filters.game} /> : null}
           {filters.map ? <input type="hidden" name="map" value={filters.map} /> : null}
@@ -98,11 +62,11 @@ export default async function Gallery({
           />
           <button
             type="submit"
-            className="shrink-0 rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+            className="shrink-0 rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white group-aria-busy:cursor-progress group-aria-busy:opacity-60"
           >
             Search
           </button>
-        </form>
+        </BusyForm>
 
         <nav className="flex flex-col gap-3 border-b border-neutral-900 pb-6">
           <FilterRow label="Kind">
@@ -189,9 +153,9 @@ export default async function Gallery({
                 {filters.page > 1 ? (
                   <Link
                     href={filterHref(filters, { page: filters.page - 1 })}
-                    className="hover:text-neutral-200"
+                    className="hover:text-neutral-200 active:text-neutral-200"
                   >
-                    Newer
+                    <LinkPending>Newer</LinkPending>
                   </Link>
                 ) : (
                   <span />
@@ -202,9 +166,9 @@ export default async function Gallery({
                 {filters.page < lastPage ? (
                   <Link
                     href={filterHref(filters, { page: filters.page + 1 })}
-                    className="hover:text-neutral-200"
+                    className="hover:text-neutral-200 active:text-neutral-200"
                   >
-                    Older
+                    <LinkPending>Older</LinkPending>
                   </Link>
                 ) : (
                   <span />
@@ -216,12 +180,6 @@ export default async function Gallery({
       </div>
     </main>
   );
-}
-
-function distinct(values: (string | null)[] | undefined): string[] {
-  return [...new Set((values ?? []).filter((v): v is string => Boolean(v)))]
-    .sort()
-    .slice(0, 20);
 }
 
 function FilterRow({
@@ -256,7 +214,7 @@ function Chip({
       className={
         active
           ? "rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-900"
-          : "rounded-full border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 hover:text-neutral-200"
+          : "rounded-full border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
       }
     >
       {children}
@@ -274,7 +232,7 @@ function Empty({ filtered }: { filtered: boolean }) {
       </p>
       <Link
         href={filtered ? "/gallery" : "/publish"}
-        className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline"
+        className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
       >
         {filtered ? "Clear the filters" : "Publish the first thing"}
       </Link>

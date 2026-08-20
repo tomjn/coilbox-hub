@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { pictureIds, returnPicture } from "@/lib/assets/queue";
+import { TAGS } from "@/lib/cache/tags";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -29,4 +30,6 @@ export async function returnToQueue(form: FormData): Promise<void> {
 
   revalidatePath("/moderation/trail");
   revalidatePath("/moderation/assets");
+  // Back in the queue means not approved, so anything drawing it must stop.
+  updateTag(TAGS.assets);
 }

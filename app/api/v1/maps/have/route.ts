@@ -40,8 +40,6 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * hub cannot know whether a request it is answering was consented to, so there is
  * nothing here to check and nothing to add.
  */
-export const dynamic = "force-dynamic";
-
 export const OPTIONS = corsPreflight;
 
 export async function POST(request: Request) {

@@ -15,7 +15,7 @@ export function SignInWithDiscord({ next = "/publish" }: { next?: string }) {
       <input type="hidden" name="next" value={next} />
       <button
         type="submit"
-        className="rounded-md bg-[#5865F2] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#4752c4]"
+        className="rounded-md bg-[#5865F2] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#4752c4] active:bg-[#3b45a3]"
       >
         {isDevSignInEnabled() ? "Sign in (dev)" : "Sign in with Discord"}
       </button>

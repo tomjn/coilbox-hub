@@ -55,7 +55,7 @@ const ORDER: readonly ModerationSection[] = [
 // stylesheet order and not by the order they are written here.
 const LINK = "-mb-px block border-b-2 px-2 py-2 text-sm transition-colors";
 const CURRENT = "border-neutral-500 text-neutral-100";
-const OTHER = "border-transparent text-neutral-500 hover:text-neutral-300";
+const OTHER = "border-transparent text-neutral-500 hover:text-neutral-300 active:text-neutral-300";
 
 export function ModerationNav({ current }: { current: ModerationSection }) {
   return (
@@ -101,7 +101,7 @@ export function ModerationCrumb({
     <p className="text-sm text-neutral-500">
       <Link
         href={SECTIONS[parent].href}
-        className="transition-colors hover:text-neutral-300"
+        className="transition-colors hover:text-neutral-300 active:text-neutral-300"
       >
         {SECTIONS[parent].label}
       </Link>{" "}

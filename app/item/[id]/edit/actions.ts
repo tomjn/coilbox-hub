@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
+import { TAGS } from "@/lib/cache/tags";
 import { createClient } from "@/lib/supabase/server";
 
 export interface EditState {
@@ -38,8 +39,11 @@ export async function saveItem(
 
   if (error) return { error: `Could not save it: ${error.message}` };
 
-  revalidatePath(`/item/${id}`);
-  revalidatePath("/gallery");
+  // The page this redirects to and every listing the item is on. `updateTag`
+  // rather than `revalidateTag` because the author lands on the item a moment
+  // later and has to see what they just wrote.
+  updateTag(TAGS.item(id));
+  updateTag(TAGS.items);
   redirect(`/item/${id}`);
 }
 
@@ -56,7 +60,7 @@ export async function setWithdrawn(form: FormData): Promise<void> {
     .update({ deleted_at: withdrawn ? new Date().toISOString() : null })
     .eq("id", id);
 
-  revalidatePath(`/item/${id}`);
-  revalidatePath("/gallery");
+  updateTag(TAGS.item(id));
+  updateTag(TAGS.items);
   redirect(`/item/${id}`);
 }
