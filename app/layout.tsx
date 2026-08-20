@@ -54,7 +54,7 @@ export const metadata: Metadata = {
 /* Icons carry the meaning on a narrow screen, where the labels collapse to
    screen reader only text rather than wrapping the header onto two lines. */
 const navItem =
-  "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:text-white";
+  "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:text-white active:bg-neutral-900 active:text-white";
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const supabase = await createClient();
@@ -76,7 +76,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <header className="flex items-center justify-between px-6 py-4">
           <Link
             href="/"
-            className="flex items-center gap-2 text-sm font-medium text-neutral-300 transition-colors hover:text-white"
+            className="flex items-center gap-2 text-sm font-medium text-neutral-300 transition-colors hover:text-white active:text-white"
           >
             <CoilLogo className="w-5" />
             Coilbox Hub

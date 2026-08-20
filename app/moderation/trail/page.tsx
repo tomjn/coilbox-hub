@@ -59,7 +59,7 @@ function AccountLink({ id, label }: { id: string; label: string }) {
     <Link
       href={`/moderation/trail?account=${id}`}
       title={`${label} ${id}`}
-      className="text-neutral-400 underline decoration-neutral-700 underline-offset-2 transition-colors hover:text-neutral-200"
+      className="text-neutral-400 underline decoration-neutral-700 underline-offset-2 transition-colors hover:text-neutral-200 active:text-neutral-200"
     >
       {label} {shortId(id)}
     </Link>
@@ -71,7 +71,7 @@ function PictureLink({ event }: { event: Pick<TrailEvent, "assetId" | "name" | "
   return (
     <Link
       href={`/moderation/assets/${event.assetId}`}
-      className="font-medium text-neutral-200 hover:underline"
+      className="font-medium text-neutral-200 hover:underline active:underline"
     >
       {event.name}
       {event.detail ? <span className="text-neutral-500"> {event.detail}</span> : null}
@@ -144,7 +144,7 @@ function AssetRow({ asset }: { asset: TrailAsset }) {
               type="submit"
               name="asset"
               value={asset.id}
-              className="rounded-md border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+              className="rounded-md border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
             >
               Return to the queue
               <span className="sr-only"> {asset.name}</span>
@@ -206,7 +206,7 @@ export default async function Trail({ searchParams }: PageProps<"/moderation/tra
               </p>
               <Link
                 href="/moderation/trail"
-                className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+                className="text-sm text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
               >
                 Everything instead
               </Link>

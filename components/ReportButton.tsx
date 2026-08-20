@@ -16,7 +16,7 @@ export function ReportButton({ itemId }: { itemId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="self-start text-xs text-neutral-600 transition-colors hover:text-neutral-400"
+        className="self-start text-xs text-neutral-600 transition-colors hover:text-neutral-400 active:text-neutral-400"
       >
         Report this
       </button>
@@ -46,14 +46,14 @@ export function ReportButton({ itemId }: { itemId: string }) {
       <div className="flex gap-2">
         <button
           type="submit"
-          className="rounded border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-600 hover:text-white"
+          className="rounded border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
         >
           Send
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="px-3 py-1.5 text-xs text-neutral-600 hover:text-neutral-400"
+          className="px-3 py-1.5 text-xs text-neutral-600 hover:text-neutral-400 active:text-neutral-400"
         >
           Cancel
         </button>

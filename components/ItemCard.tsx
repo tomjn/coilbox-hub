@@ -33,13 +33,13 @@ export function ItemCard({
         {/* A title is one field of free text and nothing stops it being a single
             120 character word, which without this drags the whole grid sideways. */}
         <h2 className="min-w-0 break-words text-base font-medium leading-snug">
-          <Link href={`/item/${item.id}`} className="hover:underline">
+          <Link href={`/item/${item.id}`} className="hover:underline active:underline">
             {item.title}
           </Link>
         </h2>
         <Link
           href={filterHref(filters, { kind: item.kind })}
-          className="flex shrink-0 items-center gap-1.5 rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+          className="flex shrink-0 items-center gap-1.5 rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
         >
           <KindIcon kind={item.kind} mode={item.mode} className="w-3.5" />
           {itemLabel(item.kind, item.mode)}
@@ -71,7 +71,7 @@ export function ItemCard({
             by{" "}
             <Link
               href={filterHref(filters, { author: item.author_name })}
-              className="transition-colors hover:text-neutral-200"
+              className="transition-colors hover:text-neutral-200 active:text-neutral-200"
             >
               {item.author_name}
             </Link>
@@ -95,7 +95,7 @@ export function ItemCard({
             <li key={tag}>
               <Link
                 href={filterHref(filters, { tag })}
-                className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
+                className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200"
               >
                 {tag}
               </Link>

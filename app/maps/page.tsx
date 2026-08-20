@@ -194,12 +194,12 @@ export default async function Maps({
           <div className="flex items-end gap-3">
             <button
               type="submit"
-              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
             >
               Filter
             </button>
             {isFiltered(filters) ? (
-              <Link href="/maps" className="text-sm text-neutral-400 hover:text-neutral-200">
+              <Link href="/maps" className="text-sm text-neutral-400 hover:text-neutral-200 active:text-neutral-200">
                 Clear
               </Link>
             ) : null}
@@ -245,7 +245,7 @@ const CONTROL =
  *  36px square at its smallest, which clears the 24px a pointer target has to
  *  be. */
 const STEP =
-  "flex min-h-9 min-w-9 items-center justify-center rounded-md border border-neutral-800 px-2 transition-colors hover:border-neutral-600 hover:text-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "flex min-h-9 min-w-9 items-center justify-center rounded-md border border-neutral-800 px-2 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 /**
  * Which page to read next, as numbers rather than as two words.
@@ -380,7 +380,7 @@ function Empty({
         <p className="text-sm text-neutral-400">That page is past the last map.</p>
         <Link
           href={filterHref(filters, { page: 1 })}
-          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline"
+          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
         >
           Back to the first page
         </Link>
@@ -396,7 +396,7 @@ function Empty({
       {filtered ? (
         <Link
           href="/maps"
-          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline"
+          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
         >
           Clear the filters
         </Link>
