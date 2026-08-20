@@ -7,11 +7,16 @@ const env = process.env as Record<string, string | undefined>;
 const original = env.NEXT_PUBLIC_ASSET_CDN_BASE;
 
 afterEach(() => {
-  env.NEXT_PUBLIC_ASSET_CDN_BASE = original;
+  // Deleted rather than assigned when it was unset to begin with. Assigning
+  // undefined to process.env stores the string "undefined", which is what Node
+  // has always done and what bun started doing in 1.4.0, and a variable holding
+  // that word is set as far as every reader is concerned.
+  if (original === undefined) delete env.NEXT_PUBLIC_ASSET_CDN_BASE;
+  else env.NEXT_PUBLIC_ASSET_CDN_BASE = original;
 });
 
 test("unset falls back to the assets repo on Pages rather than throwing", () => {
-  env.NEXT_PUBLIC_ASSET_CDN_BASE = undefined;
+  delete env.NEXT_PUBLIC_ASSET_CDN_BASE;
 
   expect(assetCdnBase()).toBe(DEFAULT_ASSET_CDN_BASE);
 });
@@ -54,7 +59,7 @@ test("joining does not produce a double slash, whichever side carries it", () =>
 });
 
 test("joining does not eat the subpath segment the Pages base depends on", () => {
-  env.NEXT_PUBLIC_ASSET_CDN_BASE = undefined;
+  delete env.NEXT_PUBLIC_ASSET_CDN_BASE;
 
   // `new URL("/maps/abc.webp", base)` would resolve against the origin and drop
   // `/coilbox-assets`, which is where every file actually lives.
@@ -67,7 +72,7 @@ test("joining does not eat the subpath segment the Pages base depends on", () =>
 });
 
 test("nested tier relative paths survive intact", () => {
-  env.NEXT_PUBLIC_ASSET_CDN_BASE = undefined;
+  delete env.NEXT_PUBLIC_ASSET_CDN_BASE;
 
   expect(staticTierUrl("units/bar/render/270/0a1b2c3d.webp")).toBe(
     "https://tomjn.github.io/coilbox-assets/units/bar/render/270/0a1b2c3d.webp",
