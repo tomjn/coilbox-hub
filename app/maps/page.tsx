@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { skirmish } from "@/components/art/drawings";
+import { BusyForm } from "@/components/BusyForm";
+import { LinkPending } from "@/components/LinkPending";
 import { MapCard } from "@/components/MapCard";
 import { fetchPage, PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
 import {
@@ -119,7 +121,7 @@ export default async function Maps({
             filters describe and the back button works. The page is deliberately
             not in the form: changing a filter and staying on page 7 is almost
             never where anybody wanted to be. */}
-        <form
+        <BusyForm
           action="/maps"
           className="grid gap-4 border-b border-neutral-900 pb-6 sm:grid-cols-2 lg:grid-cols-3"
         >
@@ -194,7 +196,7 @@ export default async function Maps({
           <div className="flex items-end gap-3">
             <button
               type="submit"
-              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white group-aria-busy:cursor-progress group-aria-busy:opacity-60"
             >
               Filter
             </button>
@@ -204,7 +206,7 @@ export default async function Maps({
               </Link>
             ) : null}
           </div>
-        </form>
+        </BusyForm>
 
         {error ? (
           <p className="text-sm text-red-400">
@@ -274,7 +276,7 @@ function Pager({
         {filters.page > 1 ? (
           <li>
             <Link href={filterHref(filters, { page: filters.page - 1 })} className={STEP}>
-              Previous
+              <LinkPending>Previous</LinkPending>
             </Link>
           </li>
         ) : null}
@@ -299,7 +301,7 @@ function Pager({
           ) : (
             <li key={step}>
               <Link href={filterHref(filters, { page: step })} className={STEP}>
-                {step}
+                <LinkPending>{step}</LinkPending>
               </Link>
             </li>
           ),
@@ -308,7 +310,7 @@ function Pager({
         {filters.page < lastPage ? (
           <li>
             <Link href={filterHref(filters, { page: filters.page + 1 })} className={STEP}>
-              Next
+              <LinkPending>Next</LinkPending>
             </Link>
           </li>
         ) : null}
