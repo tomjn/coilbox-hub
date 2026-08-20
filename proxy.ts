@@ -48,8 +48,12 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // Calling getUser is what performs the refresh. Do not remove it.
-  await supabase.auth.getUser();
+  // Reading the session is what performs the refresh. Do not remove it.
+  // `getClaims` rather than `getUser`: both go through the cookie adapter above
+  // and rotate an expired session, but `getClaims` verifies the token against
+  // the project's signing keys, which it caches, and only asks the auth server
+  // when it cannot. `getUser` asked on every request.
+  await supabase.auth.getClaims();
 
   return response;
 }

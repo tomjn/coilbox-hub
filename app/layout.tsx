@@ -17,6 +17,7 @@ import { displayName } from "@/lib/author";
 import { COILBOX_URL } from "@/lib/coilbox";
 import { kindsPluralLower } from "@/lib/gallery/label";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/supabase/user";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -57,14 +58,11 @@ const navItem =
   "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:text-white";
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const author = user ? displayName(user.user_metadata ?? {}) : null;
+  const user = await currentUser();
+  const author = user ? displayName(user.metadata) : null;
   // Only signed in visitors can be moderators, so nobody else pays for the call.
   const { data: moderator } = user
-    ? await supabase.rpc("is_moderator")
+    ? await (await createClient()).rpc("is_moderator")
     : { data: false };
 
   return (
