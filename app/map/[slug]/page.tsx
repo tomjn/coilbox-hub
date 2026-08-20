@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { skirmish } from "@/components/art/drawings";
 import { MapFigure } from "@/components/MapFigure";
@@ -31,12 +32,16 @@ import { createClient } from "@/lib/supabase/server";
  * `lib/maps/page.ts` holds that decision and the reading behind it.
  */
 
-async function load(slug: string): Promise<MapPage | null> {
+/** Once per request. `generateMetadata` and the page both ask, and the
+ *  `map_facts` read is a POST, which the router does not deduplicate the way
+ *  it does the GET selects, so without `cache` the heaviest read on the page
+ *  ran twice. */
+const load = cache(async (slug: string): Promise<MapPage | null> => {
   // The secret key for the facts and the gate they come through, and the
   // visitor's own client for everything else. `lib/maps/page.ts` sets out why a
   // public page reads anything as `service_role` at all.
   return loadMapPage(await createClient(), createAdminClient(), slug);
-}
+});
 
 /** Fainter than an item page's, which sits at 0.16 for this drawing. The
  *  minimap is the page, and a backdrop competing with a picture of terrain
