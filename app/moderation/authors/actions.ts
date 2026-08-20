@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
+import { TAGS } from "@/lib/cache/tags";
 import { mergeAuthorKeys, unmergeAuthorKey } from "@/lib/maps/authorMerge";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -54,7 +55,9 @@ export async function mergeAuthors(form: FormData): Promise<void> {
   );
 
   revalidatePath("/moderation/authors");
-  revalidatePath("/maps");
+  // A merge changes the credits on every map that person made, so the whole
+  // catalog and every map page go with it.
+  updateTag(TAGS.maps);
   redirect(`/moderation/authors?outcome=${outcome}`);
 }
 
@@ -73,5 +76,7 @@ export async function unmergeAuthors(form: FormData): Promise<void> {
   await unmergeAuthorKey(createAdminClient(), fromKey);
 
   revalidatePath("/moderation/authors");
-  revalidatePath("/maps");
+  // A merge changes the credits on every map that person made, so the whole
+  // catalog and every map page go with it.
+  updateTag(TAGS.maps);
 }

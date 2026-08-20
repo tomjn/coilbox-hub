@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { corsPreflight, withCors } from "@/lib/api/cors";
 import {
@@ -8,6 +9,7 @@ import {
   type SubmittedEntry,
 } from "@/lib/api/mapSubmit";
 import { apiError } from "@/lib/api/response";
+import { TAGS } from "@/lib/cache/tags";
 import { buildSubmission, type MapOutcome, submitMapFacts } from "@/lib/maps/submit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticateBearer } from "@/lib/supabase/bearer";
@@ -58,8 +60,6 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * gives: the hub cannot know whether a request was consented to, so the gate is
  * the client's to hold.
  */
-export const dynamic = "force-dynamic";
-
 export const OPTIONS = corsPreflight;
 
 export async function POST(request: Request) {
@@ -138,6 +138,12 @@ export async function POST(request: Request) {
       ? apiError("Too many maps submitted in the last hour. Try again later.", 429)
       : apiError("The map catalog could not be written just now.", 503);
   }
+
+  // A batch can add maps to the catalog and change the facts on maps already in
+  // it, so the whole catalog and every map page are marked stale. Naming each
+  // slug instead would be a list of up to fifty, and the catalog listing would
+  // still need the broad tag anyway.
+  revalidateTag(TAGS.maps, "max");
 
   return answer(parsed.entries, written.outcomes);
 }
