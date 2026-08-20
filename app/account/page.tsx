@@ -43,14 +43,14 @@ export default async function Account() {
         <div className="flex flex-col gap-3">
           <Link
             href={`/gallery?author=${encodeURIComponent(name)}`}
-            className="text-sm text-neutral-300 underline-offset-4 hover:underline"
+            className="text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
           >
             Everything you have published
           </Link>
           <form action="/auth/signout" method="post">
             <button
               type="submit"
-              className="text-sm text-neutral-400 transition-colors hover:text-white"
+              className="text-sm text-neutral-400 transition-colors hover:text-white active:text-white"
             >
               Sign out
             </button>
@@ -74,7 +74,7 @@ export default async function Account() {
           <form action={deleteAccount}>
             <button
               type="submit"
-              className="rounded-md border border-red-900 px-4 py-2 text-sm text-red-300 transition-colors hover:border-red-700 hover:text-red-200"
+              className="rounded-md border border-red-900 px-4 py-2 text-sm text-red-300 transition-colors hover:border-red-700 active:border-red-600 hover:text-red-200 active:text-red-200"
             >
               Delete everything
             </button>

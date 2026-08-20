@@ -40,7 +40,7 @@ export function MapMirrors({ links }: { links: MapMirrorLink[] }) {
               href={link.url}
               target="_blank"
               rel="noreferrer"
-              className="inline-block rounded bg-neutral-900 px-3 py-2 text-sm text-neutral-300 transition-colors hover:text-white"
+              className="inline-block rounded bg-neutral-900 px-3 py-2 text-sm text-neutral-300 transition-colors hover:text-white active:text-white"
             >
               Look for it on {link.name}
             </a>

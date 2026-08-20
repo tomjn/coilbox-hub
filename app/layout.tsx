@@ -12,6 +12,7 @@ import {
   PublishIcon,
   SignOutIcon,
 } from "@/components/icons";
+import { LinkPending } from "@/components/LinkPending";
 import { NavSignIn } from "@/components/NavSignIn";
 import { displayName } from "@/lib/author";
 import { COILBOX_URL } from "@/lib/coilbox";
@@ -55,7 +56,12 @@ export const metadata: Metadata = {
 /* Icons carry the meaning on a narrow screen, where the labels collapse to
    screen reader only text rather than wrapping the header onto two lines. */
 const navItem =
-  "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:text-white";
+  "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:text-white active:bg-neutral-900 active:text-white";
+
+/* The inside of a nav link, which `LinkPending` dims while the page it leads
+   to is still on its way. The same row layout as the link itself, so the icon
+   and label sit exactly where they did. */
+const navBody = "flex items-center gap-2";
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const user = await currentUser();
@@ -74,23 +80,29 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <header className="flex items-center justify-between px-6 py-4">
           <Link
             href="/"
-            className="flex items-center gap-2 text-sm font-medium text-neutral-300 transition-colors hover:text-white"
+            className="flex items-center gap-2 text-sm font-medium text-neutral-300 transition-colors hover:text-white active:text-white"
           >
             <CoilLogo className="w-5" />
             Coilbox Hub
           </Link>
           <nav className="-mr-2 flex items-center gap-1 text-sm text-neutral-400 sm:gap-3">
             <Link href="/gallery" className={navItem}>
-              <GalleryIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">Gallery</span>
+              <LinkPending className={navBody}>
+                <GalleryIcon className="w-4" />
+                <span className="sr-only sm:not-sr-only">Gallery</span>
+              </LinkPending>
             </Link>
             <Link href="/maps" className={navItem}>
-              <MapsIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">Maps</span>
+              <LinkPending className={navBody}>
+                <MapsIcon className="w-4" />
+                <span className="sr-only sm:not-sr-only">Maps</span>
+              </LinkPending>
             </Link>
             <Link href="/publish" className={navItem}>
-              <PublishIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">Publish</span>
+              <LinkPending className={navBody}>
+                <PublishIcon className="w-4" />
+                <span className="sr-only sm:not-sr-only">Publish</span>
+              </LinkPending>
             </Link>
             {/* The only outbound link in the nav, and it opens in a new tab so
                 that following it from an item page does not lose the item the
@@ -106,17 +118,21 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </a>
             {moderator ? (
               <Link href="/moderation" className={navItem}>
-                <ModerationIcon className="w-4" />
-                <span className="sr-only sm:not-sr-only">Moderation</span>
+                <LinkPending className={navBody}>
+                  <ModerationIcon className="w-4" />
+                  <span className="sr-only sm:not-sr-only">Moderation</span>
+                </LinkPending>
               </Link>
             ) : null}
             {author ? (
               <>
                 <Link href="/account" className={navItem}>
-                  <AccountIcon className="w-4" />
-                  <span className="sr-only sm:not-sr-only">
-                    <span className="block max-w-32 truncate">{author}</span>
-                  </span>
+                  <LinkPending className={navBody}>
+                    <AccountIcon className="w-4" />
+                    <span className="sr-only sm:not-sr-only">
+                      <span className="block max-w-32 truncate">{author}</span>
+                    </span>
+                  </LinkPending>
                 </Link>
                 <form action="/auth/signout" method="post">
                   <button type="submit" className={navItem}>

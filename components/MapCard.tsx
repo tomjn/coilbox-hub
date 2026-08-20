@@ -45,7 +45,7 @@ import { type Filters, filterHref, type MapSummary } from "@/lib/maps/query";
 /** A row of chips, so the tags on a card and the tags on a map's own page look
  *  like the same thing. */
 const CHIP =
-  "inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200";
+  "inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200";
 
 /** How tall a card's minimap may get, in pixels. Around a card's own width at
  *  four columns, so a square map fills the card and only a map taller than it is
@@ -104,7 +104,7 @@ export function MapCard({
 
       <div className="flex flex-col gap-1">
         <h2 className="min-w-0 break-words text-base font-medium leading-snug">
-          <Link href={`/map/${map.slug}`} className="hover:underline">
+          <Link href={`/map/${map.slug}`} className="hover:underline active:underline">
             {title}
           </Link>
         </h2>
@@ -143,7 +143,7 @@ export function MapCard({
                       under a clan tag or an older handle. */}
                   <Link
                     href={filterHref(filters, { author: key })}
-                    className="transition-colors hover:text-neutral-200"
+                    className="transition-colors hover:text-neutral-200 active:text-neutral-200"
                   >
                     {map.author_names[index] ?? key}
                   </Link>

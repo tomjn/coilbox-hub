@@ -157,7 +157,7 @@ export default async function Item({
         <div className="flex flex-col gap-3">
           <Link
             href={`/gallery?kind=${item.kind}`}
-            className="flex items-center gap-1.5 self-start rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+            className="flex items-center gap-1.5 self-start rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
           >
             <KindIcon kind={item.kind} mode={item.mode} className="w-3.5" />
             {itemLabel(item.kind, item.mode)}
@@ -215,7 +215,7 @@ export default async function Item({
             </span>
             <Link
               href={`/item/${item.id}/edit`}
-              className="text-neutral-300 underline-offset-4 hover:underline"
+              className="text-neutral-300 underline-offset-4 hover:underline active:underline"
             >
               Edit or withdraw
             </Link>
@@ -226,7 +226,7 @@ export default async function Item({
           <Fact term="Published by">
             <Link
               href={`/gallery?author=${encodeURIComponent(item.author_name)}`}
-              className="hover:text-white"
+              className="hover:text-white active:text-white"
             >
               {item.author_name}
             </Link>
@@ -244,7 +244,7 @@ export default async function Item({
               {item.game_key ? (
                 <Link
                   href={`/gallery?game=${encodeURIComponent(item.game_key)}`}
-                  className="hover:text-white"
+                  className="hover:text-white active:text-white"
                 >
                   {item.game_name}
                 </Link>
@@ -260,7 +260,7 @@ export default async function Item({
             <Fact term="Map">
               <Link
                 href={`/gallery?map=${encodeURIComponent(item.map_name)}`}
-                className="hover:text-white"
+                className="hover:text-white active:text-white"
               >
                 {item.map_name}
               </Link>
@@ -274,7 +274,7 @@ export default async function Item({
               <li key={tag}>
                 <Link
                   href={`/gallery?tag=${encodeURIComponent(tag)}`}
-                  className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
+                  className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200"
                 >
                   {tag}
                 </Link>

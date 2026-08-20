@@ -20,3 +20,14 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/* Preflight clears the tap highlight. On a phone none of the hover styles
+   apply either, so without this a tap changes nothing until the next page
+   arrives. The active: styles on each control cover a held press. This covers
+   the quick tap that ends before :active has a chance to show. */
+a,
+button,
+label,
+summary {
+  -webkit-tap-highlight-color: rgb(255 255 255 / 0.1);
+}

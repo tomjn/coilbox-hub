@@ -167,7 +167,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
                           because the key is what it will be. */}
                       <Link
                         href={`/maps?author=${encodeURIComponent(author.key)}`}
-                        className="hover:text-white"
+                        className="hover:text-white active:text-white"
                       >
                         {author.name}
                       </Link>
@@ -184,7 +184,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
                 <li key={tag}>
                   <Link
                     href={`/maps?tag=${encodeURIComponent(tag)}`}
-                    className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
+                    className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200"
                   >
                     {tag}
                   </Link>

@@ -33,7 +33,10 @@ const env = process.env as Record<string, string | undefined>;
 const original = env.BLOB_READ_WRITE_TOKEN;
 
 afterEach(() => {
-  env.BLOB_READ_WRITE_TOKEN = original;
+  // See lib/assets/cdn.test.ts: assigning undefined stores the word rather than
+  // removing the variable.
+  if (original === undefined) delete env.BLOB_READ_WRITE_TOKEN;
+  else env.BLOB_READ_WRITE_TOKEN = original;
   calls.put = [];
   calls.del = [];
 });
@@ -109,7 +112,7 @@ test("a put normalises the path the same way the URL does", async () => {
 });
 
 test("a missing token throws by name and spends no advanced operation", async () => {
-  env.BLOB_READ_WRITE_TOKEN = undefined;
+  delete env.BLOB_READ_WRITE_TOKEN;
 
   await expect(putBlobAsset("units/bar/abc.webp", "bytes", "image/webp")).rejects.toThrow(
     BLOB_TOKEN_ERROR,
