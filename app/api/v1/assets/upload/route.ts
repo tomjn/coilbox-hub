@@ -83,8 +83,6 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * well behaved caller costs nothing: it already has the bytes it just sent, and
  * an approved row resolves through #108 like any other.
  */
-export const dynamic = "force-dynamic";
-
 export const OPTIONS = corsPreflight;
 
 export async function POST(request: Request) {

@@ -38,8 +38,6 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * mean the same thing to a caller deciding whether to upload, so naming them
  * would disclose the moderation queue for no decision it changes.
  */
-export const dynamic = "force-dynamic";
-
 export const OPTIONS = corsPreflight;
 
 export async function POST(request: Request) {
