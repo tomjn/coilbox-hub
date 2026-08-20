@@ -2,7 +2,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, ViewTransition } from "react";
 import { CoilLogo } from "@/components/CoilLogo";
 import { DownloadIcon, GalleryIcon, MapsIcon, PublishIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
@@ -115,7 +115,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </Suspense>
           </nav>
         </header>
-        {children}
+        {/* One page fading into the next rather than being replaced by it. Only
+            the page: the header is outside this and stays put, which is what it
+            already did. A browser without the View Transitions API renders the
+            children exactly as before. */}
+        <ViewTransition>{children}</ViewTransition>
         {/* Reports Core Web Vitals from real visits (issue 94). It renders no
             markup, and in development it only logs to the console. */}
         <SpeedInsights />
