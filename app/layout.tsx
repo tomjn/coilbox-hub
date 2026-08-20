@@ -2,23 +2,13 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { Suspense } from "react";
 import { CoilLogo } from "@/components/CoilLogo";
-import {
-  AccountIcon,
-  DownloadIcon,
-  GalleryIcon,
-  MapsIcon,
-  ModerationIcon,
-  PublishIcon,
-  SignOutIcon,
-} from "@/components/icons";
+import { DownloadIcon, GalleryIcon, MapsIcon, PublishIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
-import { NavSignIn } from "@/components/NavSignIn";
-import { displayName } from "@/lib/author";
+import { NavAccount, NavAccountFallback } from "@/components/NavAccount";
 import { COILBOX_URL } from "@/lib/coilbox";
 import { kindsPluralLower } from "@/lib/gallery/label";
-import { createClient } from "@/lib/supabase/server";
-import { currentUser } from "@/lib/supabase/user";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -63,14 +53,15 @@ const navItem =
    and label sit exactly where they did. */
 const navBody = "flex items-center gap-2";
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const user = await currentUser();
-  const author = user ? displayName(user.metadata) : null;
-  // Only signed in visitors can be moderators, so nobody else pays for the call.
-  const { data: moderator } = user
-    ? await (await createClient()).rpc("is_moderator")
-    : { data: false };
-
+/**
+ * Nothing here reads the request.
+ *
+ * That is the point: everything but the account controls is the same for every
+ * visitor, so it is built once and held, and `NavAccount` is the one piece
+ * rendered per request. A single session read out here used to make every route
+ * on the site dynamic.
+ */
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
@@ -116,34 +107,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               <DownloadIcon className="w-4" />
               <span className="sr-only sm:not-sr-only">Get Coilbox</span>
             </a>
-            {moderator ? (
-              <Link href="/moderation" className={navItem}>
-                <LinkPending className={navBody}>
-                  <ModerationIcon className="w-4" />
-                  <span className="sr-only sm:not-sr-only">Moderation</span>
-                </LinkPending>
-              </Link>
-            ) : null}
-            {author ? (
-              <>
-                <Link href="/account" className={navItem}>
-                  <LinkPending className={navBody}>
-                    <AccountIcon className="w-4" />
-                    <span className="sr-only sm:not-sr-only">
-                      <span className="block max-w-32 truncate">{author}</span>
-                    </span>
-                  </LinkPending>
-                </Link>
-                <form action="/auth/signout" method="post">
-                  <button type="submit" className={navItem}>
-                    <SignOutIcon className="w-4" />
-                    <span className="sr-only sm:not-sr-only">Sign out</span>
-                  </button>
-                </form>
-              </>
-            ) : (
-              <NavSignIn className={navItem} />
-            )}
+            {/* The one part of the page that differs per visitor, so it is the
+                one part rendered per request. The rest of the header is served
+                from the held shell while this is read. */}
+            <Suspense fallback={<NavAccountFallback />}>
+              <NavAccount className={navItem} />
+            </Suspense>
           </nav>
         </header>
         {children}
