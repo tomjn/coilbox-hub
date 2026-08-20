@@ -56,6 +56,7 @@ export function MapCard({
   map,
   picture,
   filters,
+  eager = false,
 }: {
   map: MapSummary;
   /** The hub's own minimap, or the drawing standing in for it, from
@@ -64,6 +65,10 @@ export function MapCard({
   /** What the reader is already filtering by, so a chip on this card adds to it
    *  rather than replacing it. */
   filters: Filters;
+  /** Whether the minimap is fetched with the page or once the card nears the
+   *  viewport. A page of forty is a megabyte and a half of pictures, most of
+   *  them below the fold, so the page says which rows are the first screen. */
+  eager?: boolean;
 }) {
   const title = mapTitle(map.display_name, map.map_name);
   const players = playerCountLabel(map.start_positions);
@@ -89,6 +94,8 @@ export function MapCard({
             <img
               src={picture.url}
               alt={`Minimap of ${map.map_name}`}
+              loading={eager ? undefined : "lazy"}
+              decoding="async"
               className="size-full object-fill"
             />
           </div>
