@@ -10,6 +10,12 @@ import { MapMinimap } from "@/components/MapMinimap";
 import { ReportButton } from "@/components/ReportButton";
 import { type PackMap, SetupPackContents } from "@/components/SetupPackContents";
 import { itemArt } from "@/lib/gallery/itemArt";
+import {
+  DETAIL_COLUMNS,
+  type ItemDetail,
+  itemPicturesFromEntries,
+  itemPublic,
+} from "@/lib/gallery/itemCached";
 import { itemPictures } from "@/lib/gallery/itemPictures";
 import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
@@ -19,46 +25,49 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/supabase/user";
 
-interface ItemDetail {
-  id: string;
-  kind: string;
-  mode: string | null;
-  container: unknown;
-  title: string;
-  description: string;
-  game_name: string | null;
-  /** The grouping key `/gallery?game=` filters on (issue #50). Absent when
-   * `game_name` is only the exact archive name, since that is not shared by
-   * anything else to filter to. */
-  game_key: string | null;
-  map_name: string | null;
-  tags: string[];
-  author_name: string;
-  created_at: string;
-  updated_at: string;
-  /** Imports coilbox has pinged back for (issue #51): only ones that started
-   * from this page's link, and only since the coilbox release that sends the
-   * ping. Nothing before that, and nothing outside a hub link, was ever
-   * countable. */
-  import_count: number;
+/**
+ * Everything the page draws, and where it came from.
+ *
+ * Two readings of one item. `itemPublic` is what anybody sees and is held
+ * between requests. `own` is the read that only the visitor's own session can
+ * make, and it answers for the two people the public reading returns nothing
+ * to: the author of a withdrawn item, and a moderator.
+ */
+interface ItemView {
+  item: ItemDetail;
+  pictures: ReturnType<typeof itemPicturesFromEntries>;
 }
 
-const DETAIL_COLUMNS =
-  "id,kind,mode,container,title,description,game_name,game_key,map_name,tags,author_name,created_at,updated_at,import_count";
-
-/** A withdrawn item is invisible to the read policy, so it arrives here as
- * nothing found without this page knowing about moderation.
+/**
+ * The item, from the cache when the public may see it and from the visitor's
+ * own session when they may not.
  *
- * Once per request: `generateMetadata` and the page both ask, and `cache`
- * makes the second ask a lookup rather than a second read. */
-const load = cache(async (id: string): Promise<ItemDetail | null> => {
+ * A withdrawn item is invisible to the read policy, so it arrives from the
+ * cached read as nothing found without this page knowing about moderation. Only
+ * then does it cost a request-time read, which is the case that cannot be held:
+ * the answer depends on who is asking.
+ *
+ * Memoised because `generateMetadata` and the page both ask, and without it the
+ * second ask walks back into the cached function rather than reusing what the
+ * first already has.
+ */
+const load = cache(async (id: string): Promise<ItemView | null> => {
+  const shared = await itemPublic(id);
+  if (shared) {
+    return { item: shared.item, pictures: itemPicturesFromEntries(shared.pictures) };
+  }
+
   const supabase = await createClient();
   const { data } = await supabase
     .from("item")
     .select(DETAIL_COLUMNS)
     .eq("id", id)
     .maybeSingle();
-  return (data as ItemDetail | null) ?? null;
+
+  const item = (data as ItemDetail | null) ?? null;
+  if (!item) return null;
+
+  return { item, pictures: await itemPictures(supabase, createAdminClient(), item) };
 });
 
 export async function generateMetadata({
@@ -66,8 +75,9 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const item = await load((await params).id);
-  if (!item) return { title: "Not found - Coilbox Hub" };
+  const view = await load((await params).id);
+  if (!view) return { title: "Not found - Coilbox Hub" };
+  const { item } = view;
 
   // Per item, because a link into a Discord channel is how most people will meet
   // this page and a generic preview wastes the only chance to say what it is.
@@ -100,8 +110,9 @@ export default async function Item({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const item = await load(id);
-  if (!item) notFound();
+  const view = await load(id);
+  if (!view) notFound();
+  const { item, pictures } = view;
 
   const supabase = await createClient();
   const user = await currentUser();
@@ -124,11 +135,9 @@ export default async function Item({
   // Every map this page names: the one on the row, and a setup pack's own list
   // (issue #176).
   const packMapNames = setupPackMaps(item.container);
-  // Every picture in one query: the row's map, a pack's maps, and a buildpic
-  // for every distinct unit in a blueprint (issue #109). The secret key is the
-  // second client because the map facts come through the licence gate over
-  // `public.asset_licence`, which nothing else may read (issue #191).
-  const pictures = await itemPictures(supabase, createAdminClient(), item);
+  // The pictures came with the row, from whichever of the two readings `load`
+  // made: the row's map, a pack's maps, and a buildpic for every distinct unit
+  // in a blueprint (issue #109), all in one lookup.
   const packMaps: PackMap[] = packMapNames.flatMap((name) => {
     // Present for every name asked for, since a map with nothing stored
     // resolves to the placeholder rather than to nothing. The catalog row is

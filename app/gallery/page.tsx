@@ -5,19 +5,11 @@ import { hub } from "@/components/art/drawings";
 import { BusyForm } from "@/components/BusyForm";
 import { ItemCard } from "@/components/ItemCard";
 import { LinkPending } from "@/components/LinkPending";
+import { galleryPage } from "@/lib/gallery/cached";
 import { GALLERY_KINDS } from "@/lib/container";
 import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
-import {
-  applyFilters,
-  fetchPage,
-  filterHref,
-  ITEM_SUMMARY_COLUMNS,
-  type ItemSummary,
-  PAGE_SIZE,
-  parseFilters,
-} from "@/lib/gallery/query";
-import { createClient } from "@/lib/supabase/server";
+import { filterHref, PAGE_SIZE, parseFilters } from "@/lib/gallery/query";
 
 export const metadata: Metadata = {
   title: "Gallery - Coilbox Hub",
@@ -38,42 +30,11 @@ export default async function Gallery({
 }) {
   const filters = parseFilters(await searchParams);
   const origin = await requestOrigin();
-  const supabase = await createClient();
-
-  const query = applyFilters(
-    supabase
-      .from("item")
-      .select(ITEM_SUMMARY_COLUMNS, { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE - 1),
-    filters,
-  );
-
-  const countQuery = async () => {
-    const { count, error } = await applyFilters(
-      supabase.from("item").select(ITEM_SUMMARY_COLUMNS, { count: "exact" }).range(0, 0),
-      filters,
-    );
-    return { count, error };
-  };
-  // Filter options come from the rows themselves. At this size that is one small
-  // query, and it is honest: an option only appears when something is behind it.
-  // It will need a view or a materialised list long before it needs paging.
-  // The game facet is built from game_key, not game_name: game_name can hold
-  // a version-carrying archive name unique to one row (issue #50), and a
-  // chip built from that would offer a filter that matches nothing else.
-  // Asked for alongside the page rather than after it: neither read depends on
-  // the other, and in series the page waited two round trips instead of one.
-  const [{ data, count, error }, { data: facetRows }] = await Promise.all([
-    fetchPage(() => query, countQuery),
-    supabase.from("item").select("game_key,map_name").limit(1000),
-  ]);
-  const items = data as unknown as ItemSummary[];
-  const total = count;
-  const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  const games = distinct(facetRows?.map((row) => row.game_key));
-  const maps = distinct(facetRows?.map((row) => row.map_name));
+  // The rows, the count and the chips, all held between requests. The filters
+  // are the cache key, so a filtered view is held separately from a bare one.
+  // `lib/gallery/cached.ts` says why the reads moved out of the page.
+  const { items, count, error, games, maps } = await galleryPage(filters);
+  const lastPage = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
   return (
     <main className="relative flex-1">
@@ -219,12 +180,6 @@ export default async function Gallery({
       </div>
     </main>
   );
-}
-
-function distinct(values: (string | null)[] | undefined): string[] {
-  return [...new Set((values ?? []).filter((v): v is string => Boolean(v)))]
-    .sort()
-    .slice(0, 20);
 }
 
 function FilterRow({
