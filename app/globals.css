@@ -20,3 +20,15 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/* Somebody who has asked their system for less motion gets the change without
+   the movement: the new page is simply there. The transitions are the only
+   thing on the site that moves a whole page, so this is where that request is
+   honoured. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
