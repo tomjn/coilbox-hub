@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { updateTag } from "next/cache";
 import { headers } from "next/headers";
+import { TAGS } from "@/lib/cache/tags";
 import { publishItem } from "@/lib/gallery/publish";
 import { createClient } from "@/lib/supabase/server";
 
@@ -57,7 +58,9 @@ export async function publish(
   const host = incoming.get("host");
   const proto = incoming.get("x-forwarded-proto") ?? "https";
 
-  revalidatePath("/");
+  // The landing page and the gallery both list items, and both are held, so
+  // without this somebody would publish and not find it for an hour.
+  updateTag(TAGS.items);
   return {
     publishedId: outcome.item.id,
     shareUrl: host ? `${proto}://${host}/i/${outcome.item.id}` : undefined,

@@ -5,23 +5,17 @@ import { skirmish } from "@/components/art/drawings";
 import { BusyForm } from "@/components/BusyForm";
 import { LinkPending } from "@/components/LinkPending";
 import { MapCard } from "@/components/MapCard";
-import { fetchPage, PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
+import { PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
+import { mapsPage, picturesFromEntries } from "@/lib/maps/cached";
 import {
-  applyFilters,
-  applySort,
   type Filters,
   filterHref,
   isFiltered,
   MAP_PAGE_SIZE,
   MAP_SIZES,
   MAP_SORTS,
-  MAP_SUMMARY_COLUMNS,
-  type MapSummary,
-  mapPictures,
   parseFilters,
-  resolveAuthorKey,
 } from "@/lib/maps/query";
-import { createClient } from "@/lib/supabase/server";
 
 /**
  * Every map the hub knows about (issue #189).
@@ -74,36 +68,12 @@ export default async function Maps({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const filters = parseFilters(await searchParams);
-  const supabase = await createClient();
-
-  // The one thing that cannot be worked out here. A reader arrives with a
-  // spelling and the catalog files a key, and the rules turning one into the
-  // other live in the database so there is only ever one copy of them.
-  // `lib/maps/query.ts` sets out what a second copy would cost.
-  const authorKey = await resolveAuthorKey(supabase, filters.author);
-
-  const listing = () =>
-    applySort(
-      applyFilters(
-        supabase.from("map_browse").select(MAP_SUMMARY_COLUMNS, { count: "exact" }),
-        filters,
-        authorKey,
-      ),
-      filters.sort,
-    );
-
-  const { data, count, error } = await fetchPage(
-    () => listing().range((filters.page - 1) * MAP_PAGE_SIZE, filters.page * MAP_PAGE_SIZE - 1),
-    async () => {
-      const { count, error } = await listing().range(0, 0);
-      return { count, error };
-    },
-  );
-  const maps = data as unknown as MapSummary[];
+  // The listing, its count and a minimap per card, all held between requests.
+  // `lib/maps/cached.ts` says why the reads moved out of the page and why the
+  // pictures travel as entries.
+  const { maps, count, error, pictures: entries } = await mapsPage(filters);
+  const pictures = picturesFromEntries(entries);
   const lastPage = Math.max(1, Math.ceil(count / MAP_PAGE_SIZE));
-
-  // One batched lookup for the whole page rather than one per card.
-  const pictures = await mapPictures(supabase, maps);
 
   return (
     <main className="relative flex-1">

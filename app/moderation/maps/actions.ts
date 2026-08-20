@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { isUuid } from "@/lib/assets/queue";
+import { TAGS } from "@/lib/cache/tags";
 import { clearMapFacts, parseCuratedTags, setCuratedTags } from "@/lib/maps/moderation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -50,7 +51,9 @@ export async function clearHeldFacts(form: FormData): Promise<void> {
   await clearMapFacts(createAdminClient(), id);
 
   revalidatePath("/moderation/maps");
-  revalidatePath("/maps");
+  // Every map page and the catalog: a map whose facts are gone is a map with no
+  // page, and it drops out of the listing at the same moment.
+  updateTag(TAGS.maps);
 }
 
 /**
@@ -72,6 +75,7 @@ export async function saveCuratedTags(form: FormData): Promise<void> {
   await setCuratedTags(createAdminClient(), id, tags);
 
   revalidatePath(`/moderation/maps/${slug}`);
-  revalidatePath(`/map/${slug}`);
-  revalidatePath("/maps");
+  // The map's own page and the catalog, where its chips are drawn.
+  updateTag(TAGS.map(slug));
+  updateTag(TAGS.maps);
 }

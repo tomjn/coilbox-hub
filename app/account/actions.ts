@@ -1,7 +1,9 @@
 "use server";
 
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
+import { TAGS } from "@/lib/cache/tags";
 import { createClient } from "@/lib/supabase/server";
 import { requireSupabaseConfig, requireSupabaseServiceRoleKey } from "@/lib/supabase/config";
 
@@ -33,6 +35,10 @@ export async function deleteAccount(): Promise<void> {
 
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) throw new Error(`Could not delete the account: ${error.message}`);
+
+  // The item table cascades from auth.users, so everything this person
+  // published has just gone from every listing that was holding it.
+  updateTag(TAGS.items);
 
   await supabase.auth.signOut();
   redirect("/?deleted=1");

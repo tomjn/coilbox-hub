@@ -3,14 +3,10 @@ import { CoilLogo } from "@/components/CoilLogo";
 import { HubArt } from "@/components/HubArt";
 import { ItemCard } from "@/components/ItemCard";
 import { COILBOX_URL } from "@/lib/coilbox";
+import { newestItems } from "@/lib/gallery/cached";
 import { kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
-import {
-  ITEM_SUMMARY_COLUMNS,
-  type ItemSummary,
-  parseFilters,
-} from "@/lib/gallery/query";
-import { createClient } from "@/lib/supabase/server";
+import { parseFilters } from "@/lib/gallery/query";
 
 // Scales the shape opacities in `HubArt` down from their PR #61 panel
 // tuning: sitting behind the hero text at full viewport size, that tuning
@@ -24,15 +20,7 @@ const outlineButton =
 
 export default async function Home() {
   const origin = await requestOrigin();
-  const supabase = await createClient();
-
-  const { data } = await supabase
-    .from("item")
-    .select(ITEM_SUMMARY_COLUMNS)
-    .order("created_at", { ascending: false })
-    .limit(4);
-
-  const items = (data ?? []) as unknown as ItemSummary[];
+  const items = await newestItems();
   const filters = parseFilters({});
 
   return (

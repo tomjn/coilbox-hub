@@ -1,6 +1,8 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { corsPreflight, withCors } from "@/lib/api/cors";
 import { apiError } from "@/lib/api/response";
+import { TAGS } from "@/lib/cache/tags";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -33,6 +35,10 @@ export async function POST(
   if (error || !data) {
     return apiError("No such item.", 404);
   }
+
+  // The count is printed on the item's page, so the held copy is now behind by
+  // one. Only that page: no listing shows it.
+  revalidateTag(TAGS.item(id), "max");
 
   return withCors(new NextResponse(null, { status: 204 }));
 }

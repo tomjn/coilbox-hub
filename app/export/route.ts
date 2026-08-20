@@ -42,8 +42,6 @@ const EXPORT_PAGE_SIZE = 1000;
  * Requesting it also counts as traffic, which is what stops a free tier project
  * pausing after a quiet week.
  */
-export const dynamic = "force-dynamic";
-
 export const OPTIONS = corsPreflight;
 
 export async function GET() {
