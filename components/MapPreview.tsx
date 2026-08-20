@@ -74,7 +74,7 @@ const FRAME = "aspect-[3/2] max-h-[min(70vh,640px)]";
  *  checkbox: there is no script-free version of turning a layer of a WebGL scene
  *  on, and this whole component only exists once a script is running. */
 const CHIP =
-  "cursor-pointer rounded-full border border-neutral-700 bg-black/70 px-3 py-1 text-xs text-neutral-300 backdrop-blur-sm transition-colors hover:border-neutral-500 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-300 aria-pressed:border-neutral-300 aria-pressed:bg-neutral-100 aria-pressed:text-neutral-900";
+  "cursor-pointer rounded-full border border-neutral-700 bg-black/70 px-3 py-1 text-xs text-neutral-300 backdrop-blur-sm transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-300 aria-pressed:border-neutral-300 aria-pressed:bg-neutral-100 aria-pressed:text-neutral-900";
 
 const DOT = "mr-1.5 inline-block size-2 rounded-full align-middle";
 

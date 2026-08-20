@@ -78,7 +78,7 @@ const MARKER = `absolute size-2 rounded-full ring-1 ring-black/70 ${CENTRED}`;
  *  hand placed offset, and relative so they paint over the layers rather than
  *  under them. */
 const CHIP =
-  "relative cursor-pointer rounded-full border border-neutral-700 bg-black/70 px-3 py-1 text-xs text-neutral-300 backdrop-blur-sm transition-colors hover:border-neutral-500 hover:text-white";
+  "relative cursor-pointer rounded-full border border-neutral-700 bg-black/70 px-3 py-1 text-xs text-neutral-300 backdrop-blur-sm transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white";
 
 const DOT = "mr-1.5 inline-block size-2 rounded-full align-middle";
 

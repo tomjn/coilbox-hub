@@ -18,7 +18,7 @@ import { COILBOX_URL } from "@/lib/coilbox";
  */
 // The small bordered controls inside the fallback, in both variants.
 const fallbackAction =
-  "rounded border border-neutral-800 px-2 py-1 text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white";
+  "rounded border border-neutral-800 px-2 py-1 text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white";
 
 export function ImportLink({
   shareUrl,
@@ -44,8 +44,8 @@ export function ImportLink({
 
   const className =
     variant === "solid"
-      ? "inline-flex items-center gap-2 self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white"
-      : "-my-1 inline-flex items-center gap-1.5 self-start py-1 text-sm text-neutral-300 underline-offset-4 hover:underline";
+      ? "inline-flex items-center gap-2 self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300"
+      : "-my-1 inline-flex items-center gap-1.5 self-start py-1 text-sm text-neutral-300 underline-offset-4 hover:underline active:underline";
 
   return (
     <div className="flex flex-col gap-2">
@@ -124,7 +124,7 @@ export function ImportLink({
               href={COILBOX_URL}
               target="_blank"
               rel="noreferrer"
-              className="text-neutral-300 underline underline-offset-4 transition-colors hover:text-white"
+              className="text-neutral-300 underline underline-offset-4 transition-colors hover:text-white active:text-white"
             >
               Get it for your platform
             </a>

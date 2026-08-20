@@ -49,12 +49,12 @@ const INPUT =
   "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-none";
 
 const BUTTON =
-  "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 hover:text-white";
+  "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white";
 
 /** Red, because a cleared map leaves the catalog until a client reports it
  *  again, and because nothing puts its curated tags back. */
 const CLEAR =
-  "rounded-md border border-red-900 px-3 py-1.5 text-xs text-red-400 transition-colors hover:border-red-700 hover:text-red-300";
+  "rounded-md border border-red-900 px-3 py-1.5 text-xs text-red-400 transition-colors hover:border-red-700 active:border-red-600 hover:text-red-300 active:text-red-300";
 
 /** A source hash is 64 characters and there are two on every line. The first
  *  stretch tells two apart while reading, and the whole of it is on the title
@@ -87,7 +87,7 @@ function Report({ report }: { report: ReportedSource }) {
         <Link
           href={`/moderation/trail?account=${report.reportedBy}`}
           title={report.reportedBy}
-          className="underline decoration-neutral-700 underline-offset-2 transition-colors hover:text-neutral-300"
+          className="underline decoration-neutral-700 underline-offset-2 transition-colors hover:text-neutral-300 active:text-neutral-300"
         >
           by {report.reportedBy.slice(0, 8)}
         </Link>
@@ -103,7 +103,7 @@ function Conflicted({ map }: { map: ConflictedMap }) {
   return (
     <li className={CARD}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <Link href={`/moderation/maps/${map.slug}`} className="text-base font-medium hover:underline">
+        <Link href={`/moderation/maps/${map.slug}`} className="text-base font-medium hover:underline active:underline">
           {map.mapName}
         </Link>
         <span className="text-xs text-neutral-600">{reportedLine(map.reports.length)}</span>
@@ -118,7 +118,7 @@ function Conflicted({ map }: { map: ConflictedMap }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href={`/map/${map.slug}`}
-          className="text-xs text-neutral-500 transition-colors hover:text-neutral-300"
+          className="text-xs text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
         >
           What the hub says about it
         </Link>
@@ -188,7 +188,7 @@ export default async function MapConflicts({ searchParams }: PageProps<"/moderat
               <li key={match.slug}>
                 <Link
                   href={`/moderation/maps/${match.slug}`}
-                  className="text-sm text-neutral-300 hover:underline"
+                  className="text-sm text-neutral-300 hover:underline active:underline"
                 >
                   {match.mapName}
                 </Link>

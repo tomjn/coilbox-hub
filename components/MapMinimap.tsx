@@ -142,7 +142,7 @@ export function MapMinimap({
       <figcaption className="mt-auto flex flex-col gap-0.5 text-xs text-neutral-400">
         <span className="text-neutral-300">
           {slug ? (
-            <Link href={`/map/${slug}`} className="hover:underline">
+            <Link href={`/map/${slug}`} className="hover:underline active:underline">
               {name}
             </Link>
           ) : (

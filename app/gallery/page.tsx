@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { hub } from "@/components/art/drawings";
+import { BusyForm } from "@/components/BusyForm";
 import { ItemCard } from "@/components/ItemCard";
+import { LinkPending } from "@/components/LinkPending";
 import { GALLERY_KINDS } from "@/lib/container";
 import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
@@ -83,7 +85,7 @@ export default async function Gallery({
           </p>
         </div>
 
-        <form className="flex gap-2" action="/gallery">
+        <BusyForm className="flex gap-2" action="/gallery">
           {filters.kind ? <input type="hidden" name="kind" value={filters.kind} /> : null}
           {filters.game ? <input type="hidden" name="game" value={filters.game} /> : null}
           {filters.map ? <input type="hidden" name="map" value={filters.map} /> : null}
@@ -98,11 +100,11 @@ export default async function Gallery({
           />
           <button
             type="submit"
-            className="shrink-0 rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+            className="shrink-0 rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white group-aria-busy:cursor-progress group-aria-busy:opacity-60"
           >
             Search
           </button>
-        </form>
+        </BusyForm>
 
         <nav className="flex flex-col gap-3 border-b border-neutral-900 pb-6">
           <FilterRow label="Kind">
@@ -189,9 +191,9 @@ export default async function Gallery({
                 {filters.page > 1 ? (
                   <Link
                     href={filterHref(filters, { page: filters.page - 1 })}
-                    className="hover:text-neutral-200"
+                    className="hover:text-neutral-200 active:text-neutral-200"
                   >
-                    Newer
+                    <LinkPending>Newer</LinkPending>
                   </Link>
                 ) : (
                   <span />
@@ -202,9 +204,9 @@ export default async function Gallery({
                 {filters.page < lastPage ? (
                   <Link
                     href={filterHref(filters, { page: filters.page + 1 })}
-                    className="hover:text-neutral-200"
+                    className="hover:text-neutral-200 active:text-neutral-200"
                   >
-                    Older
+                    <LinkPending>Older</LinkPending>
                   </Link>
                 ) : (
                   <span />
@@ -256,7 +258,7 @@ function Chip({
       className={
         active
           ? "rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-900"
-          : "rounded-full border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 hover:text-neutral-200"
+          : "rounded-full border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
       }
     >
       {children}
@@ -274,7 +276,7 @@ function Empty({ filtered }: { filtered: boolean }) {
       </p>
       <Link
         href={filtered ? "/gallery" : "/publish"}
-        className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline"
+        className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
       >
         {filtered ? "Clear the filters" : "Publish the first thing"}
       </Link>

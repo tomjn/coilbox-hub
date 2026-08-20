@@ -1,7 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import { report } from "@/app/moderation/actions";
+
+/** Dimmed and labelled while the report is on its way, so a second press is
+ *  not a second report. A child of the form, which is where `useFormStatus`
+ *  reads from. */
+function SendButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+    >
+      {pending ? "Sending…" : "Send"}
+    </button>
+  );
+}
 
 export function ReportButton({ itemId }: { itemId: string }) {
   const [open, setOpen] = useState(false);
@@ -16,7 +33,7 @@ export function ReportButton({ itemId }: { itemId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="self-start text-xs text-neutral-600 transition-colors hover:text-neutral-400"
+        className="self-start text-xs text-neutral-600 transition-colors hover:text-neutral-400 active:text-neutral-400"
       >
         Report this
       </button>
@@ -44,16 +61,11 @@ export function ReportButton({ itemId }: { itemId: string }) {
         className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none"
       />
       <div className="flex gap-2">
-        <button
-          type="submit"
-          className="rounded border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-600 hover:text-white"
-        >
-          Send
-        </button>
+        <SendButton />
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="px-3 py-1.5 text-xs text-neutral-600 hover:text-neutral-400"
+          className="px-3 py-1.5 text-xs text-neutral-600 hover:text-neutral-400 active:text-neutral-400"
         >
           Cancel
         </button>

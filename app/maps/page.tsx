@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { skirmish } from "@/components/art/drawings";
+import { BusyForm } from "@/components/BusyForm";
+import { LinkPending } from "@/components/LinkPending";
 import { MapCard } from "@/components/MapCard";
 import { fetchPage, PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
 import {
@@ -119,7 +121,7 @@ export default async function Maps({
             filters describe and the back button works. The page is deliberately
             not in the form: changing a filter and staying on page 7 is almost
             never where anybody wanted to be. */}
-        <form
+        <BusyForm
           action="/maps"
           className="grid gap-4 border-b border-neutral-900 pb-6 sm:grid-cols-2 lg:grid-cols-3"
         >
@@ -194,17 +196,17 @@ export default async function Maps({
           <div className="flex items-end gap-3">
             <button
               type="submit"
-              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white group-aria-busy:cursor-progress group-aria-busy:opacity-60"
             >
               Filter
             </button>
             {isFiltered(filters) ? (
-              <Link href="/maps" className="text-sm text-neutral-400 hover:text-neutral-200">
+              <Link href="/maps" className="text-sm text-neutral-400 hover:text-neutral-200 active:text-neutral-200">
                 Clear
               </Link>
             ) : null}
           </div>
-        </form>
+        </BusyForm>
 
         {error ? (
           <p className="text-sm text-red-400">
@@ -245,7 +247,7 @@ const CONTROL =
  *  36px square at its smallest, which clears the 24px a pointer target has to
  *  be. */
 const STEP =
-  "flex min-h-9 min-w-9 items-center justify-center rounded-md border border-neutral-800 px-2 transition-colors hover:border-neutral-600 hover:text-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "flex min-h-9 min-w-9 items-center justify-center rounded-md border border-neutral-800 px-2 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 /**
  * Which page to read next, as numbers rather than as two words.
@@ -274,7 +276,7 @@ function Pager({
         {filters.page > 1 ? (
           <li>
             <Link href={filterHref(filters, { page: filters.page - 1 })} className={STEP}>
-              Previous
+              <LinkPending>Previous</LinkPending>
             </Link>
           </li>
         ) : null}
@@ -299,7 +301,7 @@ function Pager({
           ) : (
             <li key={step}>
               <Link href={filterHref(filters, { page: step })} className={STEP}>
-                {step}
+                <LinkPending>{step}</LinkPending>
               </Link>
             </li>
           ),
@@ -308,7 +310,7 @@ function Pager({
         {filters.page < lastPage ? (
           <li>
             <Link href={filterHref(filters, { page: filters.page + 1 })} className={STEP}>
-              Next
+              <LinkPending>Next</LinkPending>
             </Link>
           </li>
         ) : null}
@@ -380,7 +382,7 @@ function Empty({
         <p className="text-sm text-neutral-400">That page is past the last map.</p>
         <Link
           href={filterHref(filters, { page: 1 })}
-          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline"
+          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
         >
           Back to the first page
         </Link>
@@ -396,7 +398,7 @@ function Empty({
       {filtered ? (
         <Link
           href="/maps"
-          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline"
+          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
         >
           Clear the filters
         </Link>

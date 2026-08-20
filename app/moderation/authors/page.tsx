@@ -46,7 +46,7 @@ const INPUT =
   "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-none";
 
 const BUTTON =
-  "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 hover:text-white";
+  "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white";
 
 const ROW = "flex flex-col gap-1 rounded-md border border-neutral-800 bg-neutral-950 p-4 text-sm";
 
@@ -86,7 +86,7 @@ function Alias({ alias }: { alias: AuthorAlias }) {
             type="submit"
             name="from"
             value={alias.fromKey}
-            className="rounded-md border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+            className="rounded-md border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
           >
             Unmerge
             <span className="sr-only">
@@ -116,7 +116,7 @@ function Author({ author }: { author: AuthorCount }) {
     <li className="flex items-baseline justify-between gap-3 text-sm">
       <Link
         href={`/maps?author=${encodeURIComponent(author.key)}`}
-        className="text-neutral-300 hover:underline"
+        className="text-neutral-300 hover:underline active:underline"
       >
         {author.name}
       </Link>

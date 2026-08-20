@@ -44,7 +44,7 @@ export function MapPlayedOn({
         <h2 className="text-xl font-semibold tracking-tight">Played on this map</h2>
         <Link
           href={`/gallery?map=${encodeURIComponent(mapName)}`}
-          className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+          className="text-sm text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
         >
           See these in the gallery
         </Link>

@@ -67,7 +67,7 @@ export function EditForm({
       <button
         type="submit"
         disabled={pending}
-        className="self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white disabled:opacity-60"
+        className="self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300 disabled:opacity-60"
       >
         {pending ? "Saving…" : "Save"}
       </button>
