@@ -1,38 +1,24 @@
-"use client";
-
-import { usePathname } from "next/navigation";
-import { useState } from "react";
 import { SignInIcon } from "@/components/icons";
-import { signInWithDiscord } from "@/lib/supabase/discord";
 import { isDevSignInEnabled } from "@/lib/supabase/loopback";
 
 /**
- * Sign in from the header. It sends you back to the page you were reading,
- * because signing in from the nav is rarely the start of publishing something.
+ * Sign in from the header.
+ *
+ * A form post to `app/auth/signin/route.ts`, the same shape as the sign out form
+ * beside it, so it works with scripting off and no page ships supabase-js for
+ * one button. The route sends you back to the page you were reading, which it
+ * learns from the post's referer, because signing in from the nav is rarely the
+ * start of publishing something.
  */
 export function NavSignIn({ className }: { className?: string }) {
-  const pathname = usePathname();
-  const [busy, setBusy] = useState(false);
-  const dev = isDevSignInEnabled();
-
-  async function signIn() {
-    setBusy(true);
-    const { error } = await signInWithDiscord(pathname);
-    // A failure leaves the page as it was, so the button has to come back.
-    if (error) setBusy(false);
-  }
-
   return (
-    <button
-      type="button"
-      onClick={signIn}
-      disabled={busy}
-      className={className}
-    >
-      <SignInIcon className="w-4" />
-      <span className="sr-only sm:not-sr-only">
-        {dev ? "Sign in (dev)" : "Sign in"}
-      </span>
-    </button>
+    <form action="/auth/signin" method="post">
+      <button type="submit" className={className}>
+        <SignInIcon className="w-4" />
+        <span className="sr-only sm:not-sr-only">
+          {isDevSignInEnabled() ? "Sign in (dev)" : "Sign in"}
+        </span>
+      </button>
+    </form>
   );
 }
