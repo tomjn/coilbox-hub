@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { skirmish } from "@/components/art/drawings";
 import { MapFigure } from "@/components/MapFigure";
@@ -8,10 +9,9 @@ import { MapMirrors } from "@/components/MapMirrors";
 import { MapPreview } from "@/components/MapPreview";
 import { MapPlayedOn } from "@/components/MapPlayedOn";
 import { requestOrigin } from "@/lib/gallery/origin";
+import { mapPageCached } from "@/lib/maps/cached";
 import { mapSizeLabel, mapTitle, playerCountLabel, windLabel } from "@/lib/maps/labels";
-import { loadMapPage, type MapPage } from "@/lib/maps/page";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import type { MapPage } from "@/lib/maps/page";
 
 /**
  * Everything the catalog holds about one map (#190).
@@ -31,12 +31,15 @@ import { createClient } from "@/lib/supabase/server";
  * `lib/maps/page.ts` holds that decision and the reading behind it.
  */
 
-async function load(slug: string): Promise<MapPage | null> {
-  // The secret key for the facts and the gate they come through, and the
-  // visitor's own client for everything else. `lib/maps/page.ts` sets out why a
-  // public page reads anything as `service_role` at all.
-  return loadMapPage(await createClient(), createAdminClient(), slug);
-}
+/** Once per request, and held between them.
+ *
+ *  `mapPageCached` is what does the holding. `cache` on top of it is for the
+ *  two calls inside one request: `generateMetadata` and the page both ask, and
+ *  without it the second ask walks back into the cached function rather than
+ *  reusing the answer the first already has. */
+const load = cache(
+  async (slug: string): Promise<MapPage | null> => mapPageCached(slug),
+);
 
 /** Fainter than an item page's, which sits at 0.16 for this drawing. The
  *  minimap is the page, and a backdrop competing with a picture of terrain
@@ -162,7 +165,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
                           because the key is what it will be. */}
                       <Link
                         href={`/maps?author=${encodeURIComponent(author.key)}`}
-                        className="hover:text-white"
+                        className="hover:text-white active:text-white"
                       >
                         {author.name}
                       </Link>
@@ -179,7 +182,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
                 <li key={tag}>
                   <Link
                     href={`/maps?tag=${encodeURIComponent(tag)}`}
-                    className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
+                    className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200"
                   >
                     {tag}
                   </Link>

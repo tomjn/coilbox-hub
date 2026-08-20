@@ -33,8 +33,6 @@ import { buildAuthBody } from "@/lib/api/auth";
  * screen to explain why, whereas a 503 is a shape every HTTP client already
  * knows how to surface as "try again later".
  */
-export const dynamic = "force-dynamic";
-
 export const OPTIONS = corsPreflight;
 
 export async function GET() {

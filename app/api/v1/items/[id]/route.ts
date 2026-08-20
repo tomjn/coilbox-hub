@@ -17,8 +17,6 @@ import { createClient } from "@/lib/supabase/server";
  * "not found" without this route knowing about moderation at all, the same
  * as `/i/<id>` and the item page.
  */
-export const dynamic = "force-dynamic";
-
 export const OPTIONS = corsPreflight;
 
 export async function GET(

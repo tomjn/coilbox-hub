@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
+import { TAGS } from "@/lib/cache/tags";
 import { createClient } from "@/lib/supabase/server";
 
 /** Reporting needs no account, because the person best placed to notice
@@ -20,7 +21,7 @@ export async function report(form: FormData): Promise<void> {
     reporter_id: user?.id ?? null,
   });
 
-  revalidatePath(`/item/${form.get("item_id")}`);
+  updateTag(TAGS.item(String(form.get("item_id") ?? "")));
 }
 
 /** Withdrawing and marking handled are one action. Leaving a report open after
@@ -47,6 +48,9 @@ export async function actOnReport(form: FormData): Promise<void> {
     .update({ handled_at: new Date().toISOString(), handled_by: user.id })
     .eq("id", id);
 
+  // The queue is read per request, so it only needs the router cache clearing.
+  // A withdrawn item is held, and every listing it was on is too.
   revalidatePath("/moderation");
-  revalidatePath("/gallery");
+  updateTag(TAGS.item(itemId));
+  updateTag(TAGS.items);
 }

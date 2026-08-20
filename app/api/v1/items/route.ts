@@ -1,4 +1,6 @@
+import { revalidateTag } from "next/cache";
 import type { NextRequest } from "next/server";
+import { TAGS } from "@/lib/cache/tags";
 import { corsPreflight } from "@/lib/api/cors";
 import { apiError, apiJson } from "@/lib/api/response";
 import { buildItemBody, buildItemsListBody, parseApiFilters } from "@/lib/api/items";
@@ -25,8 +27,6 @@ import { createClient } from "@/lib/supabase/server";
  * why: a client that thinks it filtered and gets everything back is the
  * failure this route exists to avoid.
  */
-export const dynamic = "force-dynamic";
-
 export const OPTIONS = corsPreflight;
 
 export async function GET(request: NextRequest) {
@@ -100,6 +100,12 @@ export async function POST(request: NextRequest) {
   if (!outcome.ok) {
     return apiError(outcome.reason, statusForPublishFailure(outcome.status));
   }
+
+  // The same listings `app/publish/actions.ts` marks stale, since this is the
+  // same publish by another door. `revalidateTag` rather than `updateTag`
+  // because nobody here is about to read a page: the client gets JSON and the
+  // listings refresh when somebody next opens one.
+  revalidateTag(TAGS.items, "max");
 
   const origin = await requestOrigin();
   return apiJson(buildItemBody(outcome.item, `${origin}/i/${outcome.item.id}`), 201);

@@ -37,7 +37,7 @@ const INPUT =
   "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-none";
 
 const BUTTON =
-  "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 hover:text-white";
+  "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white";
 
 export default async function MapCuratedTags({
   params,
@@ -68,7 +68,7 @@ export default async function MapCuratedTags({
                 that leaves moderation. */}
             <Link
               href={`/map/${map.slug}`}
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
             >
               The map
             </Link>

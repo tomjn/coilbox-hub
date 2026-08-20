@@ -2,24 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { skirmish } from "@/components/art/drawings";
+import { BusyForm } from "@/components/BusyForm";
+import { LinkPending } from "@/components/LinkPending";
 import { MapCard } from "@/components/MapCard";
-import { fetchPage, PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
+import { PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
+import { mapsPage, picturesFromEntries } from "@/lib/maps/cached";
 import {
-  applyFilters,
-  applySort,
   type Filters,
   filterHref,
   isFiltered,
   MAP_PAGE_SIZE,
   MAP_SIZES,
   MAP_SORTS,
-  MAP_SUMMARY_COLUMNS,
-  type MapSummary,
-  mapPictures,
   parseFilters,
-  resolveAuthorKey,
 } from "@/lib/maps/query";
-import { createClient } from "@/lib/supabase/server";
 
 /**
  * Every map the hub knows about (issue #189).
@@ -72,36 +68,12 @@ export default async function Maps({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const filters = parseFilters(await searchParams);
-  const supabase = await createClient();
-
-  // The one thing that cannot be worked out here. A reader arrives with a
-  // spelling and the catalog files a key, and the rules turning one into the
-  // other live in the database so there is only ever one copy of them.
-  // `lib/maps/query.ts` sets out what a second copy would cost.
-  const authorKey = await resolveAuthorKey(supabase, filters.author);
-
-  const listing = () =>
-    applySort(
-      applyFilters(
-        supabase.from("map_browse").select(MAP_SUMMARY_COLUMNS, { count: "exact" }),
-        filters,
-        authorKey,
-      ),
-      filters.sort,
-    );
-
-  const { data, count, error } = await fetchPage(
-    () => listing().range((filters.page - 1) * MAP_PAGE_SIZE, filters.page * MAP_PAGE_SIZE - 1),
-    async () => {
-      const { count, error } = await listing().range(0, 0);
-      return { count, error };
-    },
-  );
-  const maps = data as unknown as MapSummary[];
+  // The listing, its count and a minimap per card, all held between requests.
+  // `lib/maps/cached.ts` says why the reads moved out of the page and why the
+  // pictures travel as entries.
+  const { maps, count, error, pictures: entries } = await mapsPage(filters);
+  const pictures = picturesFromEntries(entries);
   const lastPage = Math.max(1, Math.ceil(count / MAP_PAGE_SIZE));
-
-  // One batched lookup for the whole page rather than one per card.
-  const pictures = await mapPictures(supabase, maps);
 
   return (
     <main className="relative flex-1">
@@ -119,7 +91,7 @@ export default async function Maps({
             filters describe and the back button works. The page is deliberately
             not in the form: changing a filter and staying on page 7 is almost
             never where anybody wanted to be. */}
-        <form
+        <BusyForm
           action="/maps"
           className="grid gap-4 border-b border-neutral-900 pb-6 sm:grid-cols-2 lg:grid-cols-3"
         >
@@ -194,17 +166,17 @@ export default async function Maps({
           <div className="flex items-end gap-3">
             <button
               type="submit"
-              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white group-aria-busy:cursor-progress group-aria-busy:opacity-60"
             >
               Filter
             </button>
             {isFiltered(filters) ? (
-              <Link href="/maps" className="text-sm text-neutral-400 hover:text-neutral-200">
+              <Link href="/maps" className="text-sm text-neutral-400 hover:text-neutral-200 active:text-neutral-200">
                 Clear
               </Link>
             ) : null}
           </div>
-        </form>
+        </BusyForm>
 
         {error ? (
           <p className="text-sm text-red-400">
@@ -215,11 +187,14 @@ export default async function Maps({
         ) : (
           <>
             <ul className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {maps.map((map) => {
+              {maps.map((map, index) => {
                 const picture = pictures.get(map.map_name);
                 return picture ? (
                   <li key={map.id}>
-                    <MapCard map={map} picture={picture} filters={filters} />
+                    {/* Two rows of four fill a desktop's first screen and more
+                        than a phone's, so those load with the page and the rest
+                        wait until they are scrolled towards. */}
+                    <MapCard map={map} picture={picture} filters={filters} eager={index < 8} />
                   </li>
                 ) : null;
               })}
@@ -245,7 +220,7 @@ const CONTROL =
  *  36px square at its smallest, which clears the 24px a pointer target has to
  *  be. */
 const STEP =
-  "flex min-h-9 min-w-9 items-center justify-center rounded-md border border-neutral-800 px-2 transition-colors hover:border-neutral-600 hover:text-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "flex min-h-9 min-w-9 items-center justify-center rounded-md border border-neutral-800 px-2 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 /**
  * Which page to read next, as numbers rather than as two words.
@@ -274,7 +249,7 @@ function Pager({
         {filters.page > 1 ? (
           <li>
             <Link href={filterHref(filters, { page: filters.page - 1 })} className={STEP}>
-              Previous
+              <LinkPending>Previous</LinkPending>
             </Link>
           </li>
         ) : null}
@@ -299,7 +274,7 @@ function Pager({
           ) : (
             <li key={step}>
               <Link href={filterHref(filters, { page: step })} className={STEP}>
-                {step}
+                <LinkPending>{step}</LinkPending>
               </Link>
             </li>
           ),
@@ -308,7 +283,7 @@ function Pager({
         {filters.page < lastPage ? (
           <li>
             <Link href={filterHref(filters, { page: filters.page + 1 })} className={STEP}>
-              Next
+              <LinkPending>Next</LinkPending>
             </Link>
           </li>
         ) : null}
@@ -380,7 +355,7 @@ function Empty({
         <p className="text-sm text-neutral-400">That page is past the last map.</p>
         <Link
           href={filterHref(filters, { page: 1 })}
-          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline"
+          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
         >
           Back to the first page
         </Link>
@@ -396,7 +371,7 @@ function Empty({
       {filtered ? (
         <Link
           href="/maps"
-          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline"
+          className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
         >
           Clear the filters
         </Link>

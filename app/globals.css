@@ -21,6 +21,17 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Preflight clears the tap highlight. On a phone none of the hover styles
+   apply either, so without this a tap changes nothing until the next page
+   arrives. The active: styles on each control cover a held press. This covers
+   the quick tap that ends before :active has a chance to show. */
+a,
+button,
+label,
+summary {
+  -webkit-tap-highlight-color: rgb(255 255 255 / 0.1);
+}
+
 /* Somebody who has asked their system for less motion gets the change without
    the movement: the new page is simply there. The transitions are the only
    thing on the site that moves a whole page, so this is where that request is

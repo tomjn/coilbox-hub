@@ -12,10 +12,18 @@ const originalSupabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
 const originalPublishableKey = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const originalServiceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
 
+/** Puts a variable back as it was, including back to not being set at all. */
+function restore(name: string, value: string | undefined): void {
+  if (value === undefined) delete env[name];
+  else env[name] = value;
+}
+
 afterEach(() => {
-  env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
-  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalPublishableKey;
-  env.SUPABASE_SERVICE_ROLE_KEY = originalServiceRoleKey;
+  // See lib/assets/cdn.test.ts: assigning undefined stores the word rather than
+  // removing the variable.
+  restore("NEXT_PUBLIC_SUPABASE_URL", originalSupabaseUrl);
+  restore("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", originalPublishableKey);
+  restore("SUPABASE_SERVICE_ROLE_KEY", originalServiceRoleKey);
 });
 
 test("both values present is ok, and carries them through unchanged", () => {
@@ -32,7 +40,7 @@ test("both values present is ok, and carries them through unchanged", () => {
 });
 
 test("a missing Supabase URL is not ok", () => {
-  env.NEXT_PUBLIC_SUPABASE_URL = undefined;
+  delete env.NEXT_PUBLIC_SUPABASE_URL;
   env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_example";
 
   expect(getSupabaseConfig().ok).toBe(false);
@@ -40,14 +48,14 @@ test("a missing Supabase URL is not ok", () => {
 
 test("a missing publishable key is not ok", () => {
   env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
-  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = undefined;
+  delete env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   expect(getSupabaseConfig().ok).toBe(false);
 });
 
 test("both missing is not ok either", () => {
-  env.NEXT_PUBLIC_SUPABASE_URL = undefined;
-  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = undefined;
+  delete env.NEXT_PUBLIC_SUPABASE_URL;
+  delete env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   expect(getSupabaseConfig().ok).toBe(false);
 });
@@ -70,8 +78,8 @@ test("requireSupabaseConfig returns the config when it is present", () => {
 });
 
 test("requireSupabaseConfig throws a descriptive error when config is missing", () => {
-  env.NEXT_PUBLIC_SUPABASE_URL = undefined;
-  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = undefined;
+  delete env.NEXT_PUBLIC_SUPABASE_URL;
+  delete env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   expect(() => requireSupabaseConfig()).toThrow(/Supabase/);
 });
@@ -83,7 +91,7 @@ test("requireSupabaseServiceRoleKey returns the key when it is present", () => {
 });
 
 test("requireSupabaseServiceRoleKey throws a descriptive error when it is missing", () => {
-  env.SUPABASE_SERVICE_ROLE_KEY = undefined;
+  delete env.SUPABASE_SERVICE_ROLE_KEY;
 
   expect(() => requireSupabaseServiceRoleKey()).toThrow(/Supabase/);
 });

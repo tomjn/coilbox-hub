@@ -3,14 +3,10 @@ import { CoilLogo } from "@/components/CoilLogo";
 import { HubArt } from "@/components/HubArt";
 import { ItemCard } from "@/components/ItemCard";
 import { COILBOX_URL } from "@/lib/coilbox";
+import { newestItems } from "@/lib/gallery/cached";
 import { kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
-import {
-  ITEM_SUMMARY_COLUMNS,
-  type ItemSummary,
-  parseFilters,
-} from "@/lib/gallery/query";
-import { createClient } from "@/lib/supabase/server";
+import { parseFilters } from "@/lib/gallery/query";
 
 // Scales the shape opacities in `HubArt` down from their PR #61 panel
 // tuning: sitting behind the hero text at full viewport size, that tuning
@@ -20,19 +16,11 @@ const BACKDROP_STRENGTH = 0.11;
 // Shared by the two secondary buttons, so the third one added beside the
 // gallery button cannot drift from the one that was already there.
 const outlineButton =
-  "rounded-md border border-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white";
+  "rounded-md border border-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white";
 
 export default async function Home() {
   const origin = await requestOrigin();
-  const supabase = await createClient();
-
-  const { data } = await supabase
-    .from("item")
-    .select(ITEM_SUMMARY_COLUMNS)
-    .order("created_at", { ascending: false })
-    .limit(4);
-
-  const items = (data ?? []) as unknown as ItemSummary[];
+  const items = await newestItems();
   const filters = parseFilters({});
 
   return (
@@ -71,7 +59,7 @@ export default async function Home() {
         <div className="flex flex-wrap justify-center gap-3">
           <Link
             href="/gallery"
-            className="rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white"
+            className="rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300"
           >
             Browse the gallery
           </Link>
@@ -97,7 +85,7 @@ export default async function Home() {
             </h2>
             <Link
               href="/gallery"
-              className="text-sm text-neutral-400 transition-colors hover:text-white"
+              className="text-sm text-neutral-400 transition-colors hover:text-white active:text-white"
             >
               See all
             </Link>

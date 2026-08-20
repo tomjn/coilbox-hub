@@ -54,8 +54,6 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * could not make would stop asking about a map the catalog holds. So a failed
  * read says so, the same as `/api/v1/maps/have`.
  */
-export const dynamic = "force-dynamic";
-
 export const OPTIONS = corsPreflight;
 
 export async function POST(request: Request) {

@@ -45,7 +45,7 @@ import { type Filters, filterHref, type MapSummary } from "@/lib/maps/query";
 /** A row of chips, so the tags on a card and the tags on a map's own page look
  *  like the same thing. */
 const CHIP =
-  "inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200";
+  "inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200";
 
 /** How tall a card's minimap may get, in pixels. Around a card's own width at
  *  four columns, so a square map fills the card and only a map taller than it is
@@ -56,6 +56,7 @@ export function MapCard({
   map,
   picture,
   filters,
+  eager = false,
 }: {
   map: MapSummary;
   /** The hub's own minimap, or the drawing standing in for it, from
@@ -64,6 +65,10 @@ export function MapCard({
   /** What the reader is already filtering by, so a chip on this card adds to it
    *  rather than replacing it. */
   filters: Filters;
+  /** Whether the minimap is fetched with the page or once the card nears the
+   *  viewport. A page of forty is a megabyte and a half of pictures, most of
+   *  them below the fold, so the page says which rows are the first screen. */
+  eager?: boolean;
 }) {
   const title = mapTitle(map.display_name, map.map_name);
   const players = playerCountLabel(map.start_positions);
@@ -89,6 +94,8 @@ export function MapCard({
             <img
               src={picture.url}
               alt={`Minimap of ${map.map_name}`}
+              loading={eager ? undefined : "lazy"}
+              decoding="async"
               className="size-full object-fill"
             />
           </div>
@@ -97,7 +104,7 @@ export function MapCard({
 
       <div className="flex flex-col gap-1">
         <h2 className="min-w-0 break-words text-base font-medium leading-snug">
-          <Link href={`/map/${map.slug}`} className="hover:underline">
+          <Link href={`/map/${map.slug}`} className="hover:underline active:underline">
             {title}
           </Link>
         </h2>
@@ -136,7 +143,7 @@ export function MapCard({
                       under a clan tag or an older handle. */}
                   <Link
                     href={filterHref(filters, { author: key })}
-                    className="transition-colors hover:text-neutral-200"
+                    className="transition-colors hover:text-neutral-200 active:text-neutral-200"
                   >
                     {map.author_names[index] ?? key}
                   </Link>

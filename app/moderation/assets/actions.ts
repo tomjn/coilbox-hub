@@ -1,8 +1,9 @@
 "use server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { isModeratorRejectionKind } from "@/lib/assets/asset";
+import { TAGS } from "@/lib/cache/tags";
 import { approvePictures, pictureIds, rejectPicture } from "@/lib/assets/queue";
 import { createClient } from "@/lib/supabase/server";
 
@@ -46,7 +47,9 @@ export async function approveSelected(form: FormData): Promise<void> {
 
   revalidatePath("/moderation/assets");
   revalidatePath("/moderation/trail");
-  revalidatePath("/gallery");
+  // Approving is what makes a picture public, and it can appear on a map page,
+  // the catalog or any item played on that map.
+  updateTag(TAGS.assets);
 }
 
 /**
@@ -76,4 +79,7 @@ export async function rejectOne(form: FormData): Promise<void> {
 
   revalidatePath("/moderation/assets");
   revalidatePath("/moderation/trail");
+  // A rejected picture was approved a moment ago if this is a correction, so
+  // the pages drawing it have to stop.
+  updateTag(TAGS.assets);
 }
