@@ -32,6 +32,9 @@ export interface GamePage {
   /** Who holds the pen, if anybody. The page shows their game's words where
    *  they exist and offers the request button where they do not. */
   owner_user_id: string | null;
+  /** Set when a moderator or the owner has taken the game off the site (#242).
+   *  Only ever non-null on reads through a client that may see it. */
+  hidden_at: string | null;
   /** The owner's images, where they have uploaded any (#229). */
   logo_path: string | null;
   banner_path: string | null;
@@ -44,6 +47,7 @@ interface GameRow {
   description: string | null;
   links: unknown;
   owner_user_id: string | null;
+  hidden_at: string | null;
   logo_path: string | null;
   banner_path: string | null;
   game_faction: { key: string; name: string; logo_path: string | null }[];
@@ -63,7 +67,7 @@ export async function loadGamePage(
     supabase
       .from("game")
       .select(
-        "shortname,display_name,description,links,owner_user_id,logo_path,banner_path," +
+        "shortname,display_name,description,links,owner_user_id,hidden_at,logo_path,banner_path," +
           "game_faction(key,name,logo_path)," +
           "game_version(version,last_seen_at)",
       )
@@ -92,6 +96,7 @@ export async function loadGamePage(
     factions: held.game_faction ?? [],
     release: held.game_version?.[0]?.version ?? null,
     owner_user_id: held.owner_user_id,
+    hidden_at: held.hidden_at,
     logo_path: held.logo_path,
     banner_path: held.banner_path,
   };

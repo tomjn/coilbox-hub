@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ModerationNav } from "@/components/ModerationNav";
-import { decideRequest } from "@/app/games/actions";
+import { decideRequest, setGameVisibility, setVersionVisibility } from "@/app/games/actions";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -32,6 +32,25 @@ export default async function ModerationGames() {
     note: string | null;
     created_at: string;
     requested_by_name: string;
+    game: { shortname: string };
+  }[];
+
+  // The visibility half of the page. A moderator's session sees through hides
+  // at the policy layer, so these two reads are the full management lists.
+  const [hiddenGames, hiddenVersions] = await Promise.all([
+    supabase.from("game").select("shortname,hidden_at").not("hidden_at", "is", null),
+    supabase
+      .from("game_version")
+      .select("version,hidden_at,game(shortname)")
+      .not("hidden_at", "is", null)
+      .order("hidden_at", { ascending: false }),
+  ]);
+
+  const hiddenGameRows = (hiddenGames.data ?? []) as unknown as {
+    shortname: string;
+  }[];
+  const hiddenVersionRows = (hiddenVersions.data ?? []) as unknown as {
+    version: string;
     game: { shortname: string };
   }[];
 
@@ -90,6 +109,124 @@ export default async function ModerationGames() {
             ))}
           </ul>
         )}
+
+        <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6" aria-labelledby="mod-visibility">
+          <h2 id="mod-visibility" className="text-sm uppercase tracking-wide text-neutral-400">
+            Visibility
+          </h2>
+
+          <form action={setGameVisibility} className="flex items-end gap-2">
+            <input type="hidden" name="hidden" value="true" />
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="hide-shortname" className="text-xs uppercase tracking-wide text-neutral-500">
+                Hide a game
+              </label>
+              <input
+                id="hide-shortname"
+                name="shortname"
+                placeholder="Shortname, e.g. BA"
+                required
+                maxLength={64}
+                className="w-48 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+              />
+            </div>
+            <button
+              type="submit"
+              className="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+            >
+              Hide
+            </button>
+          </form>
+
+          <form action={setVersionVisibility} className="flex items-end gap-2">
+            <input type="hidden" name="hidden" value="true" />
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="hide-version-game" className="text-xs uppercase tracking-wide text-neutral-500">
+                Hide a release
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="hide-version-game"
+                  name="shortname"
+                  placeholder="Shortname"
+                  required
+                  maxLength={64}
+                  className="w-36 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                />
+                <input
+                  name="version"
+                  placeholder="Release, e.g. 1.9.0"
+                  required
+                  maxLength={64}
+                  aria-label="Release to hide"
+                  className="w-44 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+            >
+              Hide
+            </button>
+          </form>
+
+          {hiddenGameRows.length > 0 || hiddenVersionRows.length > 0 ? (
+            <div className="flex flex-col gap-3 pt-2">
+              {hiddenGameRows.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">Hidden games</p>
+                  <ul className="flex flex-col gap-1.5">
+                    {hiddenGameRows.map((row) => (
+                      <li key={row.shortname} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="font-mono text-neutral-300">{row.shortname}</span>
+                        <form action={setGameVisibility}>
+                          <input type="hidden" name="shortname" value={row.shortname} />
+                          <input type="hidden" name="hidden" value="false" />
+                          <button
+                            type="submit"
+                            className="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
+                          >
+                            Unhide
+                          </button>
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {hiddenVersionRows.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">Hidden releases</p>
+                  <ul className="flex flex-col gap-1.5">
+                    {hiddenVersionRows.map((row) => (
+                      <li
+                        key={`${row.game.shortname}:${row.version}`}
+                        className="flex items-center justify-between gap-3 text-sm"
+                      >
+                        <span className="font-mono text-neutral-300">
+                          {row.game.shortname} {row.version}
+                        </span>
+                        <form action={setVersionVisibility}>
+                          <input type="hidden" name="shortname" value={row.game.shortname} />
+                          <input type="hidden" name="version" value={row.version} />
+                          <input type="hidden" name="hidden" value="false" />
+                          <button
+                            type="submit"
+                            className="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
+                          >
+                            Unhide
+                          </button>
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
       </div>
     </main>
   );

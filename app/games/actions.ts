@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { readImageHeader, IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
 import { putBlobGameImage } from "@/lib/assets/blob";
 import { encodedHash } from "@/lib/assets/hash";
@@ -197,6 +198,107 @@ export async function setSnippet(form: FormData): Promise<void> {
  * half a megabyte is not a logo, it is an uncompressed screenshot, and refusing
  * it costs nothing honest. */
 const MAX_IMAGE_BYTES = 512 * 1024;
+
+/**
+ * Who may work a visibility switch (#242): a moderator, or the approved owner
+ * of that particular game. Both checks run with the visitor's own client, so
+ * what they see is what row level security sees.
+ */
+async function mayWorkVisibilitySwitch(
+  supabase: SupabaseClient,
+  shortname: string,
+): Promise<boolean> {
+  const { data: allowed } = await supabase.rpc("is_moderator");
+  if (allowed) return true;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data: owned } = await supabase
+    .from("game")
+    .select("id")
+    .eq("shortname", shortname)
+    .eq("owner_user_id", user.id)
+    .maybeSingle();
+  return owned !== null;
+}
+
+export async function setGameVisibility(form: FormData): Promise<void> {
+  const shortname = String(form.get("shortname") ?? "");
+  const hidden = form.get("hidden") === "true";
+  if (!shortname) return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const admin = createAdmin();
+  if (!user || !admin) return;
+  if (!(await mayWorkVisibilitySwitch(supabase, shortname))) return;
+
+  const { data: game } = await admin
+    .from("game")
+    .select("id")
+    .eq("shortname", shortname)
+    .maybeSingle();
+  if (!game) return;
+
+  // The columns ride one update: who and when are part of the fact, and
+  // unhiding clears both rather than leaving a stale name on a visible row.
+  const { error } = await admin
+    .from("game")
+    .update(
+      hidden
+        ? { hidden_at: new Date().toISOString(), hidden_by: user.id }
+        : { hidden_at: null, hidden_by: null },
+    )
+    .eq("id", game.id);
+  if (error) return;
+
+  revalidatePath("/games");
+  revalidatePath(`/games/${shortname}`);
+  revalidatePath("/moderation/games");
+}
+
+export async function setVersionVisibility(form: FormData): Promise<void> {
+  const shortname = String(form.get("shortname") ?? "");
+  const version = String(form.get("version") ?? "").slice(0, 64);
+  const hidden = form.get("hidden") === "true";
+  if (!shortname || !version) return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const admin = createAdmin();
+  if (!user || !admin) return;
+  if (!(await mayWorkVisibilitySwitch(supabase, shortname))) return;
+
+  const { data: game } = await admin
+    .from("game")
+    .select("id")
+    .eq("shortname", shortname)
+    .maybeSingle();
+  if (!game) return;
+
+  const { error } = await admin
+    .from("game_version")
+    .update(
+      hidden
+        ? { hidden_at: new Date().toISOString(), hidden_by: user.id }
+        : { hidden_at: null, hidden_by: null },
+    )
+    .eq("game_id", game.id)
+    .eq("version", version);
+  if (error) return;
+
+  revalidatePath(`/games/${shortname}`);
+  revalidatePath("/moderation/games");
+}
 
 export async function uploadGameImage(form: FormData): Promise<void> {
   const shortname = String(form.get("shortname") ?? "");

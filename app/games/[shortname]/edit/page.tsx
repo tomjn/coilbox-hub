@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { editGameDetails, uploadGameImage } from "@/app/games/actions";
-import { gamePageCached } from "@/lib/games/cached";
+import { editGameDetails, setGameVisibility, setVersionVisibility, uploadGameImage } from "@/app/games/actions";
+import { loadGamePage } from "@/lib/games/page";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -36,12 +36,26 @@ export default async function EditGame({
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/sign-in");
 
-  const page = await gamePageCached(shortname);
+  // Read with the session client rather than the cached one, for the reason
+  // that makes this page exist at all: an owner must be able to reach their
+  // game's edit form after hiding it, and the cached read answers as anon,
+  // which a hidden row is invisible to. The owner policy on the table is what
+  // lets this read through.
+  const page = await loadGamePage(supabase, shortname);
   if (!page) notFound();
 
   // Not the owner? The route exists but holds nothing for them, which is the
   // same answer an unknown shortname gets.
   if (page.owner_user_id !== user.id) notFound();
+
+  // Every release reported so far, including hidden ones, since managing them
+  // is what this page is for. The public pickers filter those themselves.
+  const { data: versions } = await supabase
+    .from("game_version")
+    .select("version,hidden_at")
+    .eq("game.shortname", shortname)
+    .order("last_seen_at", { ascending: false });
+  const versionRows = (versions ?? []) as unknown as { version: string; hidden_at: string | null }[];
 
   const rows = [0, 1, 2, 3, 4];
 
@@ -122,6 +136,46 @@ export default async function EditGame({
             Save
           </button>
         </form>
+
+        <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
+          <h2 className="text-sm uppercase tracking-wide text-neutral-400">Visibility</h2>
+          <p className="text-sm text-neutral-500">
+            Hidden means off the site for everybody but you. Facts keep flowing; unhiding brings
+            everything back.
+          </p>
+          <form action={setGameVisibility} className="flex items-center gap-3">
+            <input type="hidden" name="shortname" value={shortname} />
+            <input type="hidden" name="hidden" value={page.hidden_at ? "false" : "true"} />
+            <button
+              type="submit"
+              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+            >
+              {page.hidden_at ? "Unhide this game" : "Hide this game"}
+            </button>
+            {page.hidden_at ? (
+              <span className="text-xs text-neutral-500">This game is hidden right now.</span>
+            ) : null}
+          </form>
+
+          <ul className="flex flex-col gap-1.5 text-sm">
+            {versionRows.map((row) => (
+              <li key={row.version} className="flex items-center justify-between gap-3">
+                <span className="font-mono text-neutral-300">{row.version}</span>
+                <form action={setVersionVisibility}>
+                  <input type="hidden" name="shortname" value={shortname} />
+                  <input type="hidden" name="version" value={row.version} />
+                  <input type="hidden" name="hidden" value={row.hidden_at ? "false" : "true"} />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
+                  >
+                    {row.hidden_at ? "Unhide release" : "Hide release"}
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Logo</h2>
