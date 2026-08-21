@@ -27,3 +27,14 @@ export function gameCountLabel(game: Pick<GameSummary, "faction_count" | "unit_c
   const factions = game.faction_count === 1 ? "1 faction" : `${game.faction_count} factions`;
   return `${factions}, ${game.unit_count} units`;
 }
+
+/**
+ * Community content as a count, singular handled.
+ *
+ * "Community items" rather than naming kinds, because the gallery's list of
+ * kinds grows on its own side and a sentence naming two of them goes stale at
+ * the third.
+ */
+export function itemCountLabel(count: number): string {
+  return count === 1 ? "1 community item" : `${count} community items`;
+}

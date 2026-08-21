@@ -8,7 +8,7 @@
 -- as bigger than it is on every card that shows it.
 
 begin;
-select plan(7);
+select plan(10);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -34,6 +34,20 @@ values ('0f8fad5b-0005-4000-8000-000000000002', 'XTA');
 -- Retirement is recorded, not deleted, so the live count has something to
 -- exclude.
 update public.game_unit set removed_at = now() where unit_name = 'armfark';
+
+-- Community content counts by shortname, and only while it stands. One live
+-- item for BA, one withdrawn, one for XTA: the withdrawn one must not count,
+-- because a number the gallery cannot make true is worse than no number.
+insert into auth.users (id, instance_id, aud, role, email)
+values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'publisher@example.test');
+
+insert into public.item (id, kind, kind_version, title, container, game_key, author_id, author_name)
+values
+  ('0f8fad5b-0005-0000-0000-000000000001', 'preset', 1, 'BA battle plan', '{"format":"coilbox","container":1,"kind":"preset","kindVersion":1,"payload":{}}', 'BA', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Ada'),
+  ('0f8fad5b-0005-0000-0000-000000000002', 'blueprint', 1, 'BA old wall', '{"format":"coilbox","container":1,"kind":"blueprint","kindVersion":1,"payload":{}}', 'BA', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Ada'),
+  ('0f8fad5b-0005-0000-0000-000000000003', 'preset', 1, 'XTA plan', '{"format":"coilbox","container":1,"kind":"preset","kindVersion":1,"payload":{}}', 'XTA', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Ada');
+
+update public.item set deleted_at = now() where id = '0f8fad5b-0005-0000-0000-000000000002';
 
 select is(
   (select faction_count from public.game_browse where shortname = 'BA')::int, 2,
@@ -63,6 +77,21 @@ select is(
 select is(
   (select unit_count from public.game_browse where shortname = 'XTA')::int, 0,
   'and no units, which is an ordinary state rather than an error'
+);
+
+select is(
+  (select item_count from public.game_browse where shortname = 'BA')::int, 1,
+  'community content counts by shortname'
+);
+
+select is(
+  (select item_count from public.game_browse where shortname = 'XTA')::int, 1,
+  'each game counts only its own'
+);
+
+select is(
+  (select count(*) from public.item where deleted_at is not null)::int, 1,
+  'the withdrawn item exists but was excluded from the count above'
 );
 
 select results_eq(

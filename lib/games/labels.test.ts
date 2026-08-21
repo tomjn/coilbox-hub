@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { gameCountLabel, gameTitle } from "./labels";
+import { gameCountLabel, gameTitle, itemCountLabel } from "./labels";
 
 /**
  * The sentences a page prints about a game (#225). The listing and the game's
@@ -17,4 +17,10 @@ test("a backfilled game is called by its shortname until anybody names it", () =
 test("the counts read as one sentence, and zero is printed as zero", () => {
   expect(gameCountLabel({ faction_count: 2, unit_count: 340 })).toBe("2 factions, 340 units");
   expect(gameCountLabel({ faction_count: 1, unit_count: 0 })).toBe("1 faction, 0 units");
+});
+
+test("community content counts, singular handled", () => {
+  expect(itemCountLabel(0)).toBe("0 community items");
+  expect(itemCountLabel(1)).toBe("1 community item");
+  expect(itemCountLabel(40)).toBe("40 community items");
 });

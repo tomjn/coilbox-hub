@@ -13,6 +13,7 @@ function row(shortname: string, unitCount: number): Record<string, unknown> {
     description: null,
     faction_count: 1,
     unit_count: unitCount,
+    item_count: 0,
   };
 }
 
