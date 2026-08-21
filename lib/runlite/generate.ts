@@ -1,4 +1,5 @@
 import type { MapDownloadHint } from "../campaign/model";
+import type { NodeMaps } from "../challenge/nodeMaps";
 import type { GameRef } from "../conquest/model";
 import { sectorNameForSeed } from "../conquest/names";
 import {
@@ -468,6 +469,97 @@ export function substituteExcludedMaps(
     };
   });
   return changed ? { ...run, nodes } : run;
+}
+
+/**
+ * Put every encounter on the map the challenge says it uses (issue #1393).
+ *
+ * Warpath has conquest's problem for the same reason: the seed decides the
+ * route and the encounters, but the maps come from whatever this machine has
+ * installed, so the same shared run is fought on different ground by different
+ * people. Mirrors conquest's `applyChallengeMaps`, including the stand-in for a
+ * named map this install cannot offer and the `mapSubstitutedFrom` that says so.
+ *
+ * `maps` is what this install can offer. Returns the run unchanged when the
+ * challenge names nothing, so a run shared before #1393 keeps its local draw.
+ */
+export function applyChallengeMaps(
+  run: RogueliteRun,
+  nodeMaps: NodeMaps | undefined,
+  maps: GenRunMap[],
+): RogueliteRun {
+  if (!nodeMaps) return run;
+  const byName = new Map(maps.map((m) => [m.name, m]));
+  const cols = Math.max(...run.nodes.map((n) => n.col)) + 1;
+
+  let changed = false;
+  const nodes = run.nodes.map((node): RunNode => {
+    const battle = node.battle;
+    const wanted = nodeMaps[node.id];
+    if (!battle || !wanted) return node;
+    let used = byName.get(wanted);
+    let substitutedFrom: string | undefined;
+    if (!used && maps.length > 0) {
+      const depthFrac = cols > 1 ? node.col / (cols - 1) : 0;
+      used = pickMap(mulberry32(hashString(node.id)), maps, depthFrac);
+      substitutedFrom = wanted;
+    }
+    const mapName = used?.name ?? wanted;
+    if (
+      battle.mapName === mapName &&
+      battle.mapSubstitutedFrom === substitutedFrom
+    ) {
+      return node;
+    }
+    changed = true;
+    return {
+      ...node,
+      battle: {
+        ...battle,
+        mapName,
+        // The hint follows the map: the new one's if this install knows it,
+        // none at all if the challenge named a map nobody here has heard of.
+        mapDownload: used?.mapDownload,
+        mapSubstitutedFrom: substitutedFrom,
+      },
+    };
+  });
+  return changed ? { ...run, nodes } : run;
+}
+
+/**
+ * Put one encounter back on the map its challenge named, now that this install
+ * can offer it (issue #1834). Mirrors conquest's `restoreChallengeMap`, down to
+ * doing one node at a time because the offer is made on one node's briefing.
+ *
+ * Caller's job to know the map is usable here, meaning installed and not hidden
+ * from warpath. Returns the run unchanged when the node is not standing in for
+ * anything, so callers can memo on identity.
+ */
+export function restoreChallengeMap(
+  run: RogueliteRun,
+  nodeId: string,
+): RogueliteRun {
+  const node = run.nodes.find((n) => n.id === nodeId);
+  const wanted = node?.battle?.mapSubstitutedFrom;
+  if (!node?.battle || !wanted) return run;
+  const nodes = run.nodes.map(
+    (n): RunNode =>
+      n.id === nodeId && n.battle
+        ? {
+            ...n,
+            battle: {
+              ...n.battle,
+              mapName: wanted,
+              // The stand-in's download hint goes with the stand-in, and the map
+              // taking its place is already here.
+              mapDownload: undefined,
+              mapSubstitutedFrom: undefined,
+            },
+          }
+        : n,
+  );
+  return { ...run, nodes };
 }
 
 export function generateRun(opts: GenerateRunOpts): RogueliteRun {

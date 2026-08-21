@@ -32,6 +32,13 @@ export type RunNodeType =
 export interface EncounterSpec {
   mapName: string;
   mapDownload?: MapDownloadHint;
+  /**
+   * The map this encounter was meant to be fought on, when `mapName` is a
+   * stand-in. Set when an imported challenge names a map this install cannot
+   * offer, so the difference is visible rather than silent (issue #1393
+   * upstream).
+   */
+  mapSubstitutedFrom?: string;
   enemyAiCount: number;
   enemyAiKey?: string;
   startPosType?: number;

@@ -43,6 +43,12 @@ export interface Faction {
 export interface NodeBattleSpec {
   mapName: string;
   mapDownload?: undefined;
+  /**
+   * The map this node was meant to be fought on, when `mapName` is a stand-in.
+   * Set when an imported challenge names a map this install cannot offer, so
+   * the difference is visible rather than silent (issue #1393 upstream).
+   */
+  mapSubstitutedFrom?: string;
 }
 
 /** 2D for the procedural scatters, 3D for galaxies built from real stars. */
