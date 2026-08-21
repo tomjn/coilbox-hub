@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { UnitCard } from "@/components/UnitCard";
 import { PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
-import { unitGridCached } from "@/lib/games/cached";
+import { gamePageCached, unitGridCached } from "@/lib/games/cached";
 import { parseUnitGridFilters, UNIT_PAGE_SIZE } from "@/lib/games/units";
 
 /**
@@ -47,6 +48,10 @@ export default async function Units({
 }) {
   await connection();
   const { shortname } = await params;
+  // A hidden game is invisible at every level, so the grid answers not-found
+  // rather than rendering an empty shelf that reads as "nobody has reported
+  // units yet".
+  if (!(await gamePageCached(shortname))) notFound();
   const filters = parseUnitGridFilters(await searchParams);
   const { units, count, error } = await unitGridCached(shortname, filters);
   const lastPage = Math.max(1, Math.ceil(count / UNIT_PAGE_SIZE));

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { requestOwnership } from "@/app/games/actions";
+import { requestOwnership, setGameVisibility } from "@/app/games/actions";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { staticTierUrl } from "@/lib/assets/cdn";
@@ -94,6 +94,15 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
     data: { user },
   } = await supabase.auth.getUser();
   const isOwner = user !== null && page.owner_user_id === user.id;
+  let mayHide = false;
+  if (user) {
+    if (isOwner) {
+      mayHide = true;
+    } else {
+      const { data: allowed } = await supabase.rpc("is_moderator");
+      mayHide = allowed === true;
+    }
+  }
 
   return (
     <main className="relative flex-1">
@@ -142,6 +151,18 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
               </Link>
               .
             </p>
+          ) : null}
+          {mayHide ? (
+            <form action={setGameVisibility} className="pt-1">
+              <input type="hidden" name="shortname" value={shortname} />
+              <input type="hidden" name="hidden" value="true" />
+              <button
+                type="submit"
+                className="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
+              >
+                Hide this game
+              </button>
+            </form>
           ) : null}
           {!page.owner_user_id && user ? (
             <form action={requestOwnership} className="flex flex-wrap items-end gap-2 pt-1">
