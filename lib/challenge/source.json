@@ -1,0 +1,11 @@
+{
+  "repo": "tomjn/coilbox",
+  "ref": "main",
+  "dir": "src/challenge",
+  "files": {
+    "nodeMaps.ts": "62a0fffbcdc76ecc513cc680a1d0ab267745f132"
+  },
+  "sha256": {
+    "nodeMaps.ts": "757565305d543ecdad80d84a10ffc0191d872244dbfb7932fd2b48d4a6f8cbb8"
+  }
+}

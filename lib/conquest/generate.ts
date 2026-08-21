@@ -1,3 +1,4 @@
+import type { NodeMaps } from "../challenge/nodeMaps";
 import type { Faction, GalaxyDoc, GalaxyNode } from "./model";
 import { MAX_DIFFICULTY, NEUTRAL } from "./model";
 import type { ConquestNames } from "./names";
@@ -645,6 +646,106 @@ export function substituteExcludedMaps(
     };
   });
   return changed ? { ...galaxy, nodes } : galaxy;
+}
+
+/**
+ * Put every system on the map the challenge says it uses (issue #1393).
+ *
+ * Generation draws maps from whatever this machine has installed, so two people
+ * rebuilding the same seed get the same systems and lanes but not the same
+ * battlefields. The challenge names the maps it resolved to, and this is where
+ * that naming wins over the local draw.
+ *
+ * A named map this install cannot offer (not installed, or opted out of
+ * conquest) still gets a stand-in from the same difficulty tier a fresh node
+ * would draw from, keyed on the node id so it is stable. The system remembers
+ * what it should have been in `mapSubstitutedFrom`, which is the whole
+ * difference: a visible substitution from a known original rather than a
+ * quietly different galaxy.
+ *
+ * `maps` is what this install can offer. Returns the doc unchanged when there
+ * is nothing to name, so a challenge shared before #1393 falls straight through
+ * to the maps generation already picked.
+ */
+export function applyChallengeMaps(
+  galaxy: GalaxyDoc,
+  nodeMaps: NodeMaps | undefined,
+  maps: GenMap[],
+): GalaxyDoc {
+  if (!nodeMaps) return galaxy;
+  const available = new Set(maps.map((m) => m.name));
+  const byArea = mapsByArea(maps);
+
+  let changed = false;
+  const nodes = galaxy.nodes.map((node) => {
+    const wanted = nodeMaps[node.id];
+    if (!wanted) return node;
+    let used = wanted;
+    if (!available.has(wanted) && byArea.length > 0) {
+      const tier = mapTier(byArea, node.difficulty);
+      const pool = tier.length > 0 ? tier : byArea;
+      used = pool[hashString(node.id) % pool.length].name;
+    }
+    const substitutedFrom = used === wanted ? undefined : wanted;
+    if (
+      node.battle.mapName === used &&
+      node.battle.mapSubstitutedFrom === substitutedFrom
+    ) {
+      return node;
+    }
+    changed = true;
+    // The generated map's download hint goes with it, or the battle screen
+    // would offer to fetch a map this node no longer uses.
+    return {
+      ...node,
+      battle: {
+        ...node.battle,
+        mapName: used,
+        mapDownload: undefined,
+        mapSubstitutedFrom: substitutedFrom,
+      },
+    };
+  });
+  return changed ? { ...galaxy, nodes } : galaxy;
+}
+
+/**
+ * Put one system back on the map its challenge named, now that this install can
+ * offer it (issue #1834).
+ *
+ * The reverse of the stand-in {@link applyChallengeMaps} leaves behind. A
+ * substitution is a local gap, not part of the challenge, so it should end when
+ * the gap does. One system at a time, because the offer to end it is made on one
+ * system's panel: a map arriving is not a reason to redraw every battlefield in
+ * a conquest somebody is part way through.
+ *
+ * Caller's job to know the map is usable here, meaning installed and not hidden
+ * from conquest. Returns the galaxy unchanged when the system is not standing in
+ * for anything, so callers can memo on identity.
+ */
+export function restoreChallengeMap(
+  galaxy: GalaxyDoc,
+  nodeId: string,
+): GalaxyDoc {
+  const node = galaxy.nodes.find((n) => n.id === nodeId);
+  const wanted = node?.battle.mapSubstitutedFrom;
+  if (!node || !wanted) return galaxy;
+  const nodes = galaxy.nodes.map((n) =>
+    n.id === nodeId
+      ? {
+          ...n,
+          battle: {
+            ...n.battle,
+            mapName: wanted,
+            // The stand-in's download hint goes with the stand-in, and the map
+            // taking its place is already here.
+            mapDownload: undefined,
+            mapSubstitutedFrom: undefined,
+          },
+        }
+      : n,
+  );
+  return { ...galaxy, nodes };
 }
 
 /** The content environment a reroll resolves at call time (never persisted). */

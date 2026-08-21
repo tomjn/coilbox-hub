@@ -146,6 +146,16 @@ const GROUPS: VendorGroup[] = [
         "one type, from a file that is the Tauri plugin binding layer",
     },
   },
+  {
+    // The map each challenge node resolved to (#1393 upstream), which the
+    // conquest generator now reads. Pure functions over plain data, so it
+    // vendors cleanly; its own group rather than a `../` entry in the conquest
+    // one, because a group's dir and files are joined into an upstream URL and
+    // a group answers where a file lives.
+    dir: "src/challenge",
+    vendor: "lib/challenge",
+    files: ["nodeMaps.ts"],
+  },
 ];
 
 interface SourceRecord {
