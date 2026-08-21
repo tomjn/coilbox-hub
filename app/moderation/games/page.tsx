@@ -55,9 +55,9 @@ export default async function ModerationGames() {
   }[];
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
+    <main className="relative flex-1">
       <ModerationNav current="games" />
-      <div className="flex flex-col gap-6 pt-8">
+      <div className="mx-auto w-full max-w-3xl flex flex-col gap-6 px-6 py-12">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Ownership requests</h1>
           <p className="text-sm text-neutral-400">
