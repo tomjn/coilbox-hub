@@ -188,6 +188,43 @@ export async function putBlobAsset(
 }
 
 /**
+ * The write behind a game's logo or banner (#229), which is the one upload on
+ * the hub that overwrites.
+ *
+ * `putBlobAsset` suffixes every key because an asset retry must not strand a
+ * row pointing at half-written bytes. A game image is the other shape of
+ * problem: its path is deterministic (`games/BA/logo.webp`), the row names that
+ * path and nothing else, and a replacement is meant to replace. Suffixing here
+ * would orphan the previous logo on every upload and leave nothing pointing at
+ * it but the store's allowance.
+ */
+export async function putBlobGameImage(
+  path: string,
+  body: BlobAssetBody,
+  contentType: string,
+): Promise<string | null> {
+  let token: string;
+  try {
+    token = requireBlobToken();
+  } catch {
+    return null;
+  }
+
+  try {
+    const result = await put(pathname(path), body, {
+      access: "public",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType,
+      token,
+    });
+    return result.pathname;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Remove objects from the staging tier, addressed by tier relative path.
  *
  * Free: deletion is not metered as either kind of operation, which is what lets

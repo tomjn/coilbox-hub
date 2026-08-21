@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { requestOwnership } from "@/app/games/actions";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { gameCountLabel, gameTitle } from "@/lib/games/labels";
 import { gamePageCached } from "@/lib/games/cached";
 import type { GamePageFaction } from "@/lib/games/page";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * Everything the catalog holds about one game (#226).
@@ -83,6 +85,16 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
 
   const title = gameTitle(page);
 
+  // The session decides which of the three ownership states the visitor sees:
+  // an unowned game asks for somebody to take it, the owner's own game offers
+  // the pen, and a game owned by somebody else says nothing, because who owns a
+  // game is not a fact a visitor needs.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isOwner = user !== null && page.owner_user_id === user.id;
+
   return (
     <main className="relative flex-1">
       <ArtBackdrop drawing={games} strength={BACKDROP_STRENGTH} />
@@ -95,6 +107,41 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           ) : null}
           {page.release ? (
             <p className="text-sm text-neutral-500">Facts as of release {page.release}.</p>
+          ) : null}
+          {isOwner ? (
+            <p className="text-sm">
+              <Link
+                href={`/games/${shortname}/edit`}
+                className="text-neutral-300 underline-offset-4 hover:underline active:underline"
+              >
+                Edit this game&rsquo;s words and images
+              </Link>
+              .
+            </p>
+          ) : null}
+          {!page.owner_user_id && user ? (
+            <form action={requestOwnership} className="flex flex-wrap items-end gap-2 pt-1">
+              <input type="hidden" name="shortname" value={shortname} />
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="ownership-note" className="text-xs uppercase tracking-wide text-neutral-400">
+                  Are you this game&rsquo;s author?
+                </label>
+                <textarea
+                  id="ownership-note"
+                  name="note"
+                  rows={2}
+                  maxLength={2000}
+                  placeholder="Say who you are and how you're involved"
+                  className="w-full max-w-xl rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                />
+              </div>
+              <button
+                type="submit"
+                className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+              >
+                Request ownership
+              </button>
+            </form>
           ) : null}
         </div>
 

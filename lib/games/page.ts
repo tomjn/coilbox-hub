@@ -29,6 +29,9 @@ export interface GamePage {
   /** The release most recently reported, which is how fresh the facts are.
    *  Null until a client has said. */
   release: string | null;
+  /** Who holds the pen, if anybody. The page shows their game's words where
+   *  they exist and offers the request button where they do not. */
+  owner_user_id: string | null;
 }
 
 /** The row as the query hands it back, before the page shapes it. */
@@ -37,6 +40,7 @@ interface GameRow {
   display_name: string | null;
   description: string | null;
   links: unknown;
+  owner_user_id: string | null;
   game_faction: { key: string; name: string; logo_path: string | null }[];
   game_version: { version: string }[];
 }
@@ -54,7 +58,7 @@ export async function loadGamePage(
     supabase
       .from("game")
       .select(
-        "shortname,display_name,description,links," +
+        "shortname,display_name,description,links,owner_user_id," +
           "game_faction(key,name,logo_path)," +
           "game_version(version,last_seen_at)",
       )
@@ -82,5 +86,6 @@ export async function loadGamePage(
     unit_count: counts.data.unit_count,
     factions: held.game_faction ?? [],
     release: held.game_version?.[0]?.version ?? null,
+    owner_user_id: held.owner_user_id,
   };
 }
