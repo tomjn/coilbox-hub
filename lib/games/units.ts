@@ -143,6 +143,8 @@ export interface UnitPage {
   faction_name: string | null;
   build_options: string[];
   stats: Record<string, unknown>;
+  /** The author's own words, where an owner has written any (#229). */
+  snippet: string | null;
   /** Where these facts came from: the release named here is the release that
    *  reported them. Null when no client has said anything yet. */
   source_version: string | null;
@@ -167,7 +169,7 @@ export async function loadUnitPage(
     supabase
       .from("game_unit")
       .select(
-        "id,unit_name,full_name,faction_key,build_options,stats,source_version,removed_at," +
+        "id,unit_name,full_name,faction_key,build_options,stats,snippet,source_version,removed_at," +
           "game_unit_revision(version,full_name,faction_key,build_options,stats)",
       )
       .eq("game.shortname", shortname)
@@ -191,6 +193,7 @@ export async function loadUnitPage(
         faction_key: string | null;
         build_options: string[];
         stats: Record<string, unknown>;
+        snippet: string | null;
         source_version: string | null;
         removed_at: string | null;
         game_unit_revision:
@@ -243,6 +246,7 @@ export async function loadUnitPage(
     faction_name: factionKey ? (factions.get(factionKey) ?? null) : null,
     build_options: buildOptions ?? [],
     stats: stats ?? {},
+    snippet: row.snippet,
     source_version: row.source_version,
     shown_version: revision ? asked : null,
     removed_at: row.removed_at,

@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { setSnippet } from "@/app/games/actions";
 import { AssetPlaceholder } from "@/components/AssetPlaceholder";
 import { StatTable } from "@/components/StatTable";
 import { unitPageCached } from "@/lib/games/cached";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * One unit (#227).
@@ -53,6 +55,24 @@ export default async function Unit({
   if (!loaded) notFound();
   const { page, render } = loaded;
   const label = page.full_name ?? page.unit_name;
+
+  // The snippet form is the owner's alone, and the check is one read: the
+  // policy on the write would refuse anybody else anyway, but a form that can
+  // never succeed should not be on the page.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  let isOwner = false;
+  if (user) {
+    const { data: owned } = await supabase
+      .from("game")
+      .select("owner_user_id")
+      .eq("shortname", shortname)
+      .eq("owner_user_id", user.id)
+      .maybeSingle();
+    isOwner = owned !== null;
+  }
 
   const versionQuery = (version?: string) =>
     version ? `?v=${encodeURIComponent(version)}` : "";
@@ -128,6 +148,42 @@ export default async function Unit({
           </h2>
           <StatTable stats={page.stats} />
         </section>
+
+        {page.snippet && !page.shown_version ? (
+          <section className="flex flex-col gap-2 rounded-md border border-neutral-900 bg-neutral-950 p-4" aria-labelledby="unit-snippet">
+            <h2 id="unit-snippet" className="text-xs uppercase tracking-wide text-neutral-500">
+              From the author
+            </h2>
+            <p className="text-sm text-neutral-200">{page.snippet}</p>
+          </section>
+        ) : null}
+
+        {isOwner ? (
+          <section className="flex flex-col gap-3" aria-labelledby="unit-snippet-edit">
+            <h2 id="unit-snippet-edit" className="text-sm uppercase tracking-wide text-neutral-400">
+              Author snippet
+            </h2>
+            <form action={setSnippet} className="flex flex-col gap-2">
+              <input type="hidden" name="shortname" value={shortname} />
+              <input type="hidden" name="unit_name" value={page.unit_name} />
+              <textarea
+                name="snippet"
+                rows={3}
+                maxLength={2000}
+                defaultValue={page.snippet ?? ""}
+                placeholder="A sentence about this unit, in your own words"
+                aria-label="Author snippet"
+                className="rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+              />
+              <button
+                type="submit"
+                className="self-start rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+              >
+                Save snippet
+              </button>
+            </form>
+          </section>
+        ) : null}
 
         <section className="flex flex-col gap-3" aria-labelledby="unit-builds">
           <h2 id="unit-builds" className="text-sm uppercase tracking-wide text-neutral-400">
