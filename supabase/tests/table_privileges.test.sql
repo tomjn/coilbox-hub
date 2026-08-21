@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(81);
+select plan(84);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -298,6 +298,18 @@ select table_privs_are('public', 'game_unit_revision', 'authenticated', ARRAY['S
 select table_privs_are('public', 'game_unit_revision', 'service_role',
   ARRAY['SELECT', 'INSERT', 'UPDATE'],
   'service_role writes what each version said, replacing a row re-extraction got wrong, and cannot erase one');
+
+-- public.game_browse: what the games listing shows (issue #225). Select for all
+-- three, and nothing else for anybody. It publishes nothing the catalog tables
+-- do not already hand every reader, and it is security invoker so the read-all
+-- policies behind it apply to whoever queries it. game_browse.test.sql is what
+-- proves each column.
+select table_privs_are('public', 'game_browse', 'anon', ARRAY['SELECT'],
+  'anon can only select on game_browse');
+select table_privs_are('public', 'game_browse', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on game_browse');
+select table_privs_are('public', 'game_browse', 'service_role', ARRAY['SELECT'],
+  'service_role can only select on game_browse, since every count on it is computed');
 
 -- public.user_capability: who holds a capability is not public, and neither
 -- is the fact that anybody does. Nobody gets a table grant, not even
