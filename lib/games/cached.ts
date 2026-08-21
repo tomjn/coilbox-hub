@@ -1,10 +1,11 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { TAGS } from "@/lib/cache/tags";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { loadGamePage, type GamePage } from "./page";
 import { fetchGames, type GameSummary } from "./query";
 
 /**
- * The games listing's read, held between requests (#225).
+ * The games catalog's reads, held between requests (#225, #226).
  *
  * `lib/maps/cached.ts` sets out why the catalog's reads live behind a cache and
  * read through an anonymous client. This page has the same shape with less
@@ -25,4 +26,14 @@ export async function gamesListing(): Promise<{
   cacheTag(TAGS.games);
 
   return fetchGames(createAnonClient());
+}
+
+/** One game's page. Null for a shortname nobody holds, which is the page's
+ *  not-found. */
+export async function gamePageCached(shortname: string): Promise<GamePage | null> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games);
+
+  return loadGamePage(createAnonClient(), shortname);
 }
