@@ -52,6 +52,19 @@ export function MapsIcon({ className }: { className?: string }) {
   );
 }
 
+/** A gamepad: two grips and a d-pad cross, drawn at the set's stroke weight. */
+export function GamesIcon({ className }: { className?: string }) {
+  return (
+    <Icon className={className}>
+      <path d="M6 9h4" />
+      <path d="M8 7v4" />
+      <path d="M15 8h0.01" />
+      <path d="M18 11h0.01" />
+      <path d="M17.3 5H6.7a4.7 4.7 0 0 0-4.66 5.28l.72 5.76A2.94 2.94 0 0 0 7.87 18l1.63-2h5l1.63 2a2.94 2.94 0 0 0 5.11-1.96l.72-5.76A4.7 4.7 0 0 0 17.3 5z" />
+    </Icon>
+  );
+}
+
 export function PublishIcon({ className }: { className?: string }) {
   return (
     <Icon className={className}>

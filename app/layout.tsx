@@ -4,7 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { Suspense, ViewTransition } from "react";
 import { CoilLogo } from "@/components/CoilLogo";
-import { DownloadIcon, GalleryIcon, MapsIcon, PublishIcon } from "@/components/icons";
+import { DownloadIcon, GalleryIcon, GamesIcon, MapsIcon, PublishIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
 import { NavAccount, NavAccountFallback } from "@/components/NavAccount";
 import { COILBOX_URL } from "@/lib/coilbox";
@@ -87,6 +87,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <LinkPending className={navBody}>
                 <MapsIcon className="w-4" />
                 <span className="sr-only sm:not-sr-only">Maps</span>
+              </LinkPending>
+            </Link>
+            <Link href="/games" className={navItem}>
+              <LinkPending className={navBody}>
+                <GamesIcon className="w-4" />
+                <span className="sr-only sm:not-sr-only">Games</span>
               </LinkPending>
             </Link>
             <Link href="/publish" className={navItem}>
