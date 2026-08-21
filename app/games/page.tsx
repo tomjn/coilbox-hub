@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { GameCard } from "@/components/GameCard";
@@ -32,6 +33,13 @@ export const metadata: Metadata = {
 const BACKDROP_STRENGTH = 0.05;
 
 export default async function Games() {
+  // Defer to request time, like every other page that reads the catalog. The
+  // header's session read makes the shell dynamic anyway; without this marker
+  // Next would try to prerender the listing at build, where a deployment with
+  // no Supabase configured would be asked for data it cannot reach. The read
+  // itself is still held between requests by "use cache".
+  await connection();
+
   const { games: rows, error } = await gamesListing();
 
   return (
