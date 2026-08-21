@@ -24,6 +24,8 @@ export interface GamePage {
   links: GameLink[];
   faction_count: number;
   unit_count: number;
+  /** Live community content filed under this shortname (#244). */
+  item_count: number;
   /** Alphabetical, so the strip reads the same way every time it is built. */
   factions: GamePageFaction[];
   /** The release most recently reported, which is how fresh the facts are.
@@ -78,7 +80,7 @@ export async function loadGamePage(
       .maybeSingle(),
     supabase
       .from("game_browse")
-      .select("faction_count,unit_count")
+      .select("faction_count,unit_count,item_count")
       .eq("shortname", shortname)
       .maybeSingle(),
   ]);
@@ -93,6 +95,7 @@ export async function loadGamePage(
     links: parseGameLinks(held.links),
     faction_count: counts.data.faction_count,
     unit_count: counts.data.unit_count,
+    item_count: counts.data.item_count,
     factions: held.game_faction ?? [],
     release: held.game_version?.[0]?.version ?? null,
     owner_user_id: held.owner_user_id,

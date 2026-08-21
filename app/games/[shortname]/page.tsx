@@ -6,7 +6,7 @@ import { requestOwnership, setGameVisibility } from "@/app/games/actions";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { staticTierUrl } from "@/lib/assets/cdn";
-import { gameCountLabel, gameTitle } from "@/lib/games/labels";
+import { gameCountLabel, gameTitle, itemCountLabel } from "@/lib/games/labels";
 import { gamePageCached } from "@/lib/games/cached";
 import type { GamePageFaction } from "@/lib/games/page";
 import { createClient } from "@/lib/supabase/server";
@@ -225,7 +225,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           <h2 id="game-explore" className="text-sm uppercase tracking-wide text-neutral-400">
             Explore
           </h2>
-          <ul className="grid gap-4 sm:grid-cols-2">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <li>
               <Link
                 href={`/games/${page.shortname}/units`}
@@ -241,7 +241,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
             </li>
             <li>
               <Link
-                href={`/games/${page.shortname}/tree`}
+                href={`/games/${shortname}/tree`}
                 className="group flex h-full flex-col gap-1 rounded-md border border-neutral-900 p-4 transition-colors hover:border-neutral-600 active:border-neutral-500"
               >
                 <span className="font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
@@ -250,6 +250,17 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
                 <span className="text-sm text-neutral-500">
                   What each faction can reach, from its start units
                 </span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                href={`/gallery?game=${encodeURIComponent(shortname)}`}
+                className="group flex h-full flex-col gap-1 rounded-md border border-neutral-900 p-4 transition-colors hover:border-neutral-600 active:border-neutral-500"
+              >
+                <span className="font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
+                  Community items
+                </span>
+                <span className="text-sm text-neutral-500">{itemCountLabel(page.item_count)}</span>
               </Link>
             </li>
           </ul>

@@ -15,12 +15,14 @@ export interface GameSummary {
   description: string | null;
   faction_count: number;
   unit_count: number;
+  /** Live community content filed under this game's shortname (#244). */
+  item_count: number;
 }
 
 /** Everything `public.game_browse` publishes, which is the whole of what a card
  * shows. */
 export const GAME_SUMMARY_COLUMNS =
-  "shortname,display_name,description,faction_count,unit_count";
+  "shortname,display_name,description,faction_count,unit_count,item_count";
 
 /**
  * Biggest first, then alphabetical.
