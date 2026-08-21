@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(66);
+select plan(81);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -254,6 +254,50 @@ select table_privs_are('public', 'map_source_conflict', 'authenticated', ARRAY[]
   'authenticated holds no table privilege on map_source_conflict');
 select table_privs_are('public', 'map_source_conflict', 'service_role', ARRAY['SELECT', 'INSERT'],
   'service_role records a disagreement and reads it back, and can neither change nor erase one');
+
+-- The game catalog (issue #223). The same shape as the map catalog's: every
+-- row world readable, writes for the routes alone, because facts_digest,
+-- source_version and the faction keys are computed there. game_access.test.sql
+-- is what proves the behaviour of both layers.
+select table_privs_are('public', 'game', 'anon', ARRAY['SELECT'],
+  'anon can only select on game');
+select table_privs_are('public', 'game', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on game, the same as anon');
+select table_privs_are('public', 'game', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE'],
+  'service_role can read and write game, and cannot delete, since a game is a record of something that exists');
+
+select table_privs_are('public', 'game_version', 'anon', ARRAY['SELECT'],
+  'anon can only select on game_version');
+select table_privs_are('public', 'game_version', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on game_version, the same as anon');
+select table_privs_are('public', 'game_version', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE'],
+  'service_role records releases as they are reported and cannot unreport one');
+
+select table_privs_are('public', 'game_faction', 'anon', ARRAY['SELECT'],
+  'anon can only select on game_faction');
+select table_privs_are('public', 'game_faction', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on game_faction, the same as anon');
+select table_privs_are('public', 'game_faction', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  'service_role rewrites the faction list on a resubmission, which means taking the old set away');
+
+select table_privs_are('public', 'game_unit', 'anon', ARRAY['SELECT'],
+  'anon can only select on game_unit');
+select table_privs_are('public', 'game_unit', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on game_unit, the same as anon');
+select table_privs_are('public', 'game_unit', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE'],
+  'service_role updates current facts and marks units retired, and never deletes one');
+
+select table_privs_are('public', 'game_unit_revision', 'anon', ARRAY['SELECT'],
+  'anon can only select on game_unit_revision, since older versions of the stats are half the point');
+select table_privs_are('public', 'game_unit_revision', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on game_unit_revision, the same as anon');
+select table_privs_are('public', 'game_unit_revision', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE'],
+  'service_role writes what each version said, replacing a row re-extraction got wrong, and cannot erase one');
 
 -- public.user_capability: who holds a capability is not public, and neither
 -- is the fact that anybody does. Nobody gets a table grant, not even
