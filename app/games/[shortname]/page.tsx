@@ -97,11 +97,35 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
 
   return (
     <main className="relative flex-1">
-      <ArtBackdrop drawing={games} strength={BACKDROP_STRENGTH} />
+      {page.banner_path ? (
+        // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
+        <img
+          src={staticTierUrl(page.banner_path)}
+          alt=""
+          decoding="async"
+          className="h-40 w-full object-cover sm:h-56"
+        />
+      ) : null}
+      <ArtBackdrop drawing={games} strength={page.banner_path ? 0 : BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-3">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">{page.shortname}</p>
-          <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+          <div className="flex items-center gap-4">
+            {page.logo_path ? (
+              // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
+              <img
+                src={staticTierUrl(page.logo_path)}
+                alt={`${title} logo`}
+                width={64}
+                height={64}
+                decoding="async"
+                className="h-16 w-16 rounded object-contain"
+              />
+            ) : null}
+            <div className="flex flex-col">
+              <p className="text-xs uppercase tracking-wide text-neutral-500">{page.shortname}</p>
+              <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+            </div>
+          </div>
           {page.description ? (
             <p className="max-w-3xl text-neutral-300">{page.description}</p>
           ) : null}
