@@ -14,6 +14,7 @@ import {
   type UnitGridFilters,
   type UnitPage,
 } from "./units";
+import { loadTree, type Tree } from "./tree";
 
 /**
  * The games catalog's reads, held between requests (#225, #226, #227).
@@ -107,4 +108,16 @@ export async function unitCompareCached(
   cacheTag(TAGS.games);
 
   return loadUnitComparison(createAnonClient(), shortname, unitName, leftVersion, rightVersion);
+}
+
+/** One game's build tree, current or as a release said. */
+export async function treeCached(
+  shortname: string,
+  version?: string,
+): Promise<Tree | null> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games);
+
+  return loadTree(createAnonClient(), shortname, version);
 }
