@@ -164,30 +164,6 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
               </button>
             </form>
           ) : null}
-          {!page.owner_user_id && user ? (
-            <form action={requestOwnership} className="flex flex-wrap items-end gap-2 pt-1">
-              <input type="hidden" name="shortname" value={shortname} />
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="ownership-note" className="text-xs uppercase tracking-wide text-neutral-400">
-                  Are you this game&rsquo;s author?
-                </label>
-                <textarea
-                  id="ownership-note"
-                  name="note"
-                  rows={2}
-                  maxLength={2000}
-                  placeholder="Say who you are and how you're involved"
-                  className="w-full max-w-xl rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
-                />
-              </div>
-              <button
-                type="submit"
-                className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-              >
-                Request ownership
-              </button>
-            </form>
-          ) : null}
         </div>
 
         {page.links.length > 0 ? (
@@ -265,6 +241,37 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
             </li>
           </ul>
         </section>
+
+        {/* Claiming a game is rare, so the ask folds down to one quiet line
+         *  below the facts (#249) and only opens for whoever wants it. Open,
+         *  the instruction lives in a real label where typing cannot take it
+         *  away, and the button reads as an action rather than another chip. */}
+        {!page.owner_user_id && user ? (
+          <details>
+            <summary className="w-fit cursor-pointer list-none text-sm text-neutral-400 underline-offset-4 transition-colors hover:text-neutral-200 hover:underline active:text-neutral-200 active:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400">
+              Are you this game&rsquo;s author?
+            </summary>
+            <form action={requestOwnership} className="mt-3 flex max-w-xl flex-col gap-2">
+              <input type="hidden" name="shortname" value={shortname} />
+              <label htmlFor="ownership-note" className="text-xs uppercase tracking-wide text-neutral-400">
+                Say who you are and how you&rsquo;re involved
+              </label>
+              <textarea
+                id="ownership-note"
+                name="note"
+                rows={4}
+                maxLength={2000}
+                className="w-full resize-none rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+              />
+              <button
+                type="submit"
+                className="self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300"
+              >
+                Request ownership
+              </button>
+            </form>
+          </details>
+        ) : null}
 
         <p className="text-sm text-neutral-500">
           <Link href="/games" className="text-neutral-300 underline-offset-4 hover:underline active:underline">
