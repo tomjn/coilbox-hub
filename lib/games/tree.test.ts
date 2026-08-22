@@ -79,13 +79,15 @@ interface UnitRow {
   unit_name: string;
   full_name: string | null;
   build_options: string[];
+  faction_key: string | null;
   removed_at: string | null;
 }
 
 const STORED: UnitRow[] = [
-  { unit_name: "armcom", full_name: "Commander", build_options: ["armsolar"], removed_at: null },
-  { unit_name: "armsolar", full_name: "Solar Collector", build_options: [], removed_at: null },
-  { unit_name: "armbrawl", full_name: "Brawler", build_options: [], removed_at: "2026-01-01" },
+  { unit_name: "armcom", full_name: "Commander", build_options: ["armsolar"], faction_key: "arm", removed_at: null },
+  { unit_name: "armsolar", full_name: "Solar Collector", build_options: [], faction_key: "arm", removed_at: null },
+  { unit_name: "corcom", full_name: "Commander", build_options: [], faction_key: "core", removed_at: null },
+  { unit_name: "armbrawl", full_name: "Brawler", build_options: [], faction_key: "arm", removed_at: "2026-01-01" },
 ];
 
 /**
@@ -147,4 +149,13 @@ test("a retired unit is left out of the tree rather than taking it down", async 
 
   const named = JSON.stringify(tree);
   expect(named).not.toContain("armbrawl");
+});
+
+test("a faction scope keeps the whole walk to that side's units", async () => {
+  const tree = await loadTree(fakeHub(STORED, ["armcom", "corcom"]), "BA", undefined, "core");
+
+  expect(tree?.factions.map((faction) => faction.root)).toEqual(["corcom"]);
+  // The other side's units do not appear anywhere in the answer, not even as
+  // build options the walk could have followed across.
+  expect(JSON.stringify(tree)).not.toContain("armcom");
 });

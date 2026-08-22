@@ -37,6 +37,8 @@ export interface UnitGridFilters {
   /** Retired units are hidden by default; a balance patch that removed a unit
    *  did not erase it, and this is how it is found again. */
   retired: boolean;
+  /** Narrow the grid to one faction's key (#258). Null shows every faction. */
+  faction: string | null;
   page: number;
 }
 
@@ -48,9 +50,10 @@ export function parseUnitGridFilters(
 
   const q = first(params.q)?.trim() || null;
   const retired = first(params.retired) === "1";
+  const faction = first(params.faction)?.trim() || null;
   const rawPage = Number(first(params.page));
   const page = Number.isSafeInteger(rawPage) && rawPage > 1 ? rawPage : 1;
-  return { q, retired, page };
+  return { q, retired, faction, page };
 }
 
 interface UnitRow {
@@ -72,6 +75,7 @@ export async function loadUnitGrid(
   // `is`, not `eq`: PostgREST refuses `removed_at=eq.null` outright, so this
   // took out the whole grid rather than hiding the retired units (#255).
   if (!filters.retired) query = query.is("removed_at", null);
+  if (filters.faction) query = query.eq("faction_key", filters.faction);
   if (filters.q) {
     // Either name is a name. A visitor who typed "commander" is looking for
     // armcom, whose full name says Commander and whose def key does not.
@@ -122,24 +126,39 @@ export async function unitBuildpics(
 }
 
 /**
- * The side each of these units belongs to, keyed by faction key.
+ * Every side a game has, alphabetical as the game page orders them.
  *
  * A unit points at its faction by key and deliberately not by foreign key, so
- * the names arrive from one read of the game's factions rather than an embed
- * that has no relationship to ride. A unit whose faction went away resolves to
- * nothing here, which is what the page renders as ungrouped.
+ * names arrive from one read of the game's factions rather than an embed that
+ * has no relationship to ride. This is also what the faction filters on the
+ * encyclopedia and the build tree offer as choices (#258), so both pages agree
+ * on what the sides are and what they are called.
  */
-async function factionNames(
+export interface FactionOption {
+  key: string;
+  name: string;
+}
+
+export async function gameFactions(
   supabase: SupabaseClient,
   shortname: string,
-): Promise<Map<string, string>> {
+): Promise<FactionOption[]> {
   const { data } = await supabase
     .from("game_faction")
     .select("key,name,game!inner(shortname)")
     .eq("game.shortname", shortname);
-  return new Map(
-    ((data ?? []) as unknown as { key: string; name: string }[]).map((f) => [f.key, f.name]),
-  );
+  return ((data ?? []) as unknown as { key: string; name: string }[]).map((f) => ({
+    key: f.key,
+    name: f.name,
+  }));
+}
+
+async function factionNames(
+  supabase: SupabaseClient,
+  shortname: string,
+): Promise<Map<string, string>> {
+  const factions = await gameFactions(supabase, shortname);
+  return new Map(factions.map((f) => [f.key, f.name]));
 }
 
 /** One unit's page: current facts, or what one release said. */

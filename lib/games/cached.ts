@@ -8,8 +8,10 @@ import {
   loadUnitComparison,
   loadUnitGrid,
   loadUnitPage,
+  gameFactions,
   unitBuildpics,
   unitRender,
+  type FactionOption,
   type UnitComparison,
   type UnitGridFilters,
   type UnitPage,
@@ -110,14 +112,25 @@ export async function unitCompareCached(
   return loadUnitComparison(createAnonClient(), shortname, unitName, leftVersion, rightVersion);
 }
 
-/** One game's build tree, current or as a release said. */
+/** Every side a game has, as the filters offer them (#258). */
+export async function gameFactionsCached(shortname: string): Promise<FactionOption[]> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games);
+
+  return gameFactions(createAnonClient(), shortname);
+}
+
+/** One game's build tree, current or as a release said. Scoped to one faction
+ *  when the reader picked one (#258). */
 export async function treeCached(
   shortname: string,
   version?: string,
+  factionKey?: string | null,
 ): Promise<Tree | null> {
   "use cache";
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games);
 
-  return loadTree(createAnonClient(), shortname, version);
+  return loadTree(createAnonClient(), shortname, version, factionKey);
 }

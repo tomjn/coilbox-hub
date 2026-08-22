@@ -120,30 +120,37 @@ interface TreeUnit {
   unit_name: string;
   full_name: string | null;
   build_options: string[];
+  faction_key: string | null;
 }
 
 /**
  * One game's tree: current facts, or what one release said.
  *
- * Roots come from `game.start_units`, which is not versioned: which sides a
- * game has is stable across releases in a way stats are not, and a root nobody
- * reports is dropped by the walk rather than rendered as an empty heading.
+ * `factionKey` scopes the whole walk to one side's units (#258), so a reader
+ * choosing Arm gets Arm's blocks and nothing else. Roots come from
+ * `game.start_units`, which is not versioned: which sides a game has is stable
+ * across releases in a way stats are not, and a root nobody reports is dropped
+ * by the walk rather than rendered as an empty heading.
  */
 export async function loadTree(
   supabase: SupabaseClient,
   shortname: string,
   version?: string,
+  factionKey?: string | null,
 ): Promise<Tree | null> {
   const [units, game] = await Promise.all([
     version
       ? supabase
           .from("game_unit")
-          .select("unit_name,full_name,game!inner(shortname),game_unit_revision!inner(full_name,build_options)")
+          .select(
+            "unit_name,full_name,faction_key,game!inner(shortname)," +
+              "game_unit_revision!inner(version,full_name,faction_key,build_options)",
+          )
           .eq("game.shortname", shortname)
           .eq("game_unit_revision.version", version)
       : supabase
           .from("game_unit")
-          .select("unit_name,full_name,build_options,game!inner(shortname)")
+          .select("unit_name,full_name,faction_key,build_options,game!inner(shortname)")
           .eq("game.shortname", shortname)
           // `is`, not `eq`: PostgREST refuses `removed_at=eq.null`, and a
           // refused read here is a null tree, which the page shows as a 404
@@ -162,15 +169,28 @@ export async function loadTree(
           units.data as unknown as {
             unit_name: string;
             full_name: string | null;
-            game_unit_revision: { full_name: string | null; build_options: string[] }[];
+            faction_key: string | null;
+            game_unit_revision: {
+              full_name: string | null;
+              faction_key: string | null;
+              build_options: string[];
+            }[];
           }[]
         ).map((row) => ({
           unit_name: row.unit_name,
           full_name: row.game_unit_revision[0]?.full_name ?? row.full_name,
           build_options: row.game_unit_revision[0]?.build_options ?? [],
+          faction_key: row.game_unit_revision[0]?.faction_key ?? row.faction_key,
         }))
       : (units.data as unknown as TreeUnit[])
-  ).map((row) => ({ unit_name: row.unit_name, full_name: row.full_name, build_options: row.build_options ?? [] }));
+  ).map((row) => ({
+    unit_name: row.unit_name,
+    full_name: row.full_name,
+    build_options: row.build_options ?? [],
+    faction_key: row.faction_key ?? null,
+  }));
 
-  return buildTree(rows, game.data.start_units ?? []);
+  const scoped = factionKey ? rows.filter((row) => row.faction_key === factionKey) : rows;
+
+  return buildTree(scoped, game.data.start_units ?? []);
 }
