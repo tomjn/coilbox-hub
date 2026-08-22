@@ -51,12 +51,25 @@ function block() {
   );
 }
 
-test("the start unit renders open, not as one collapsed row", () => {
+test("every branch renders expanded", () => {
   const html = block();
 
-  expect(html).toContain("details open");
-  // The commander's first level is visible without a click.
-  expect(html.indexOf("Vehicle Plant")).toBeGreaterThan(html.indexOf("</summary>"));
+  expect(html.split("<details").length - 1).toBe(3);
+  expect(html.split("<details open").length - 1).toBe(3);
+});
+
+test("leaf ends lead their level, ahead of the builders", () => {
+  const html = block();
+
+  // The commander lists the vehicle plant first in its build options, but
+  // dead ends draw across before the vertical spine starts.
+  expect(html.indexOf("Solar Collector")).toBeLessThan(html.indexOf("Vehicle Plant"));
+});
+
+test("each expander carries a plus that turns on open", () => {
+  const html = block();
+
+  expect(html.match(/group-open:rotate-45/g)?.length).toBe(3);
 });
 
 test("every row carries a buildpic", () => {
