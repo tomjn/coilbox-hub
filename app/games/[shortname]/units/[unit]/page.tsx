@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { setSnippet } from "@/app/games/actions";
 import { StatTable } from "@/components/StatTable";
 import { UnitCard } from "@/components/UnitCard";
-import { UnitPictures } from "@/components/UnitPictures";
+import { UnitPortrait, UnitRenderFigure } from "@/components/UnitPictures";
 import { unitPageCached } from "@/lib/games/cached";
 import { createClient } from "@/lib/supabase/server";
 
@@ -98,7 +98,7 @@ export default async function Unit({
         </nav>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
-          <UnitPictures label={label} render={render} buildpic={buildpic} />
+          <UnitPortrait label={label} asset={buildpic} />
 
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-semibold tracking-tight">{label}</h1>
@@ -128,6 +128,8 @@ export default async function Unit({
             ) : null}
           </div>
         </div>
+
+        <UnitRenderFigure label={label} render={render} />
 
         <section className="flex flex-col gap-3" aria-labelledby="unit-stats">
           <h2 id="unit-stats" className="text-sm uppercase tracking-wide text-neutral-400">
