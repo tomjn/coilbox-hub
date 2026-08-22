@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildTree, loadTree, matchesQuery, type TreeNode } from "./tree";
+import { buildTree, loadTree } from "./tree";
 
 /**
  * The grouping the build tree shows (#228), which is coilbox's own walk and
@@ -58,14 +58,6 @@ test("keys match case-insensitively, because def keys arrive however they like",
   const tree = buildTree(UNITS, ["ARMCOM"]);
   expect(tree.factions).toHaveLength(1);
   expect(tree.factions[0].root).toBe("armcom");
-});
-
-test("search matches either name a reader could know", () => {
-  const node: TreeNode = { name: "armcom", label: "Commander", builds: [] };
-  expect(matchesQuery(node, "command")).toBe(true);
-  expect(matchesQuery(node, "ARM")).toBe(true);
-  expect(matchesQuery(node, "kbot")).toBe(false);
-  expect(matchesQuery(node, null)).toBe(true);
 });
 
 /**

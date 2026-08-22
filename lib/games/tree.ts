@@ -108,13 +108,6 @@ export function buildTree(
   return { factions, ungrouped };
 }
 
-/** Which entries survive a search, by name or by what a reader calls them. */
-export function matchesQuery(node: TreeNode, q: string | null): boolean {
-  if (!q) return true;
-  const needle = q.toLowerCase();
-  return node.name.includes(needle) || node.label.toLowerCase().includes(needle);
-}
-
 /** One unit as the walk reads it. */
 interface TreeUnit {
   unit_name: string;

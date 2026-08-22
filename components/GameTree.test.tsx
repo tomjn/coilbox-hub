@@ -17,7 +17,7 @@ const UNITS = [
   { unit_name: "armsolar", full_name: "Solar Collector", build_options: [] },
 ];
 
-function block(q: string | null = null) {
+function block() {
   const tree = buildTree(UNITS, ["armcom"]);
   const byName = new Map<string, TreeNode>();
   for (const faction of tree.factions) {
@@ -30,7 +30,6 @@ function block(q: string | null = null) {
       note="4 units"
       roots={tree.factions[0].units.filter((unit) => unit.name === "armcom")}
       byName={byName}
-      q={q}
       expanded={new Set()}
     />,
   );
@@ -53,10 +52,6 @@ test("every unit is reachable from the start unit", () => {
   expect(html).toContain('href="/games/BA/units/armveh"');
 });
 
-test("a search that matches nothing draws nothing", () => {
-  expect(block("kbot")).toBe("");
-});
-
 test("a chain deeper than the old depth bound renders to its end", () => {
   // Expansion-once terminates on its own, so there is no MAX_DEPTH left to
   // truncate real graphs: Balanced Annihilation reaches depth 19.
@@ -77,7 +72,6 @@ test("a chain deeper than the old depth bound renders to its end", () => {
       heading="Arm"
       roots={tree.factions[0].units.filter((unit) => unit.name === "chain0")}
       byName={byName}
-      q={null}
       expanded={new Set()}
     />,
   );

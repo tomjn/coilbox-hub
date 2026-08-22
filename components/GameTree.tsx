@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { matchesQuery, type TreeNode } from "@/lib/games/tree";
+import type { TreeNode } from "@/lib/games/tree";
 
 /**
  * One faction's block of the build tree (#228, #266).
@@ -28,20 +28,18 @@ function Node({
   game,
   node,
   byName,
-  q,
   expanded,
 }: {
   game: string;
   node: TreeNode;
   byName: ReadonlyMap<string, TreeNode>;
-  q: string | null;
   /** Every unit already unfolded somewhere above this one, across the whole
    *  page. Shared, so ownership of a subtree is walk order. */
   expanded: Set<string>;
 }) {
   const children = node.builds
     .map((name) => byName.get(name))
-    .filter((child): child is TreeNode => Boolean(child) && matchesQuery(child as TreeNode, q))
+    .filter((child): child is TreeNode => Boolean(child))
     .map((child) => {
       const fresh = !expanded.has(child.name);
       // Claimed before anything renders, so a later sibling pointing back at
@@ -71,7 +69,6 @@ function Node({
                   game={game}
                   node={child}
                   byName={byName}
-                  q={q}
                   expanded={expanded}
                 />
               ) : (
@@ -98,7 +95,6 @@ export function TreeBlock({
   note,
   roots,
   byName,
-  q,
   expanded,
 }: {
   game: string;
@@ -108,13 +104,11 @@ export function TreeBlock({
    *  units when nothing reaches them. */
   roots: TreeNode[];
   byName: ReadonlyMap<string, TreeNode>;
-  q: string | null;
   expanded: Set<string>;
 }) {
-  const visible = roots.filter((node) => matchesQuery(node, q));
-  if (visible.length === 0) return null;
+  if (roots.length === 0) return null;
 
-  for (const node of visible) expanded.add(node.name);
+  for (const node of roots) expanded.add(node.name);
 
   return (
     <section className="flex flex-col gap-2" aria-label={heading}>
@@ -125,8 +119,8 @@ export function TreeBlock({
         ) : null}
       </h2>
       <ul className="flex flex-col gap-1.5">
-        {visible.map((node) => (
-          <Node key={node.name} game={game} node={node} byName={byName} q={q} expanded={expanded} />
+        {roots.map((node) => (
+          <Node key={node.name} game={game} node={node} byName={byName} expanded={expanded} />
         ))}
       </ul>
     </section>
