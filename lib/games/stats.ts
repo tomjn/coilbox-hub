@@ -51,13 +51,47 @@ export function statRows(stats: Record<string, unknown>): { key: string; label: 
  * One value as a cell prints it.
  *
  * Absent stays absent: a def that declares no health reads as a dash, because
- * zero would claim the unit cannot take a hit. Objects and arrays arrive as
- * compact JSON - a weapon summary is data, and folding it into prose would be
- * the hub guessing at a vocabulary it does not hold.
+ * zero would claim the unit cannot take a hit. Arrays of flat records are the
+ * shape a weapons list arrives in (#261), and those belong in a table rather
+ * than as JSON; everything else arrives as compact JSON - data, not prose, so
+ * the hub is not guessing at a vocabulary it does not hold.
  */
 export function formatStatValue(value: unknown): string {
   if (value === null || value === undefined) return "-";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return JSON.stringify(value);
+}
+
+/**
+ * The rows of a tabular stat value, or null when one does not apply.
+ *
+ * A weapons summary is an array of records - `{range, damage, reload,
+ * projectile}`, one per weapon. Anything else (scalars, arrays of scalars,
+ * mixed shapes) stays with `formatStatValue`, because a table drawn over it
+ * would be inventing structure the extraction did not state.
+ */
+export function tabularStatRows(value: unknown): Record<string, unknown>[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  if (
+    !value.every(
+      (item) => typeof item === "object" && item !== null && !Array.isArray(item),
+    )
+  ) {
+    return null;
+  }
+  return value as Record<string, unknown>[];
+}
+
+/** Every column these rows carry, in first-appearance order. A weapon lacking
+ *  a column the others have leaves its cell empty rather than dropping the
+ *  column, since the others do carry it. */
+export function tabularColumns(rows: Record<string, unknown>[]): string[] {
+  const columns: string[] = [];
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      if (!columns.includes(key)) columns.push(key);
+    }
+  }
+  return columns;
 }
