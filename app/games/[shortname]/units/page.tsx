@@ -50,8 +50,10 @@ export default async function Units({
   const { shortname } = await params;
   // A hidden game is invisible at every level, so the grid answers not-found
   // rather than rendering an empty shelf that reads as "nobody has reported
-  // units yet".
-  if (!(await gamePageCached(shortname))) notFound();
+  // units yet". The factions come off the same read: they are what the faction
+  // filter offers (#258).
+  const game = await gamePageCached(shortname);
+  if (!game) notFound();
   const filters = parseUnitGridFilters(await searchParams);
   const { units, count, error } = await unitGridCached(shortname, filters);
   const lastPage = Math.max(1, Math.ceil(count / UNIT_PAGE_SIZE));
@@ -60,6 +62,7 @@ export default async function Units({
     const query = new URLSearchParams();
     if (filters.q) query.set("q", filters.q);
     if (filters.retired) query.set("retired", "1");
+    if (filters.faction) query.set("faction", filters.faction);
     if (page > 1) query.set("page", String(page));
     const suffix = query.toString();
     return `/games/${shortname}/units${suffix ? `?${suffix}` : ""}`;
@@ -93,6 +96,26 @@ export default async function Units({
             </label>
             <input id="units-q" type="search" name="q" defaultValue={filters.q ?? ""} className={CONTROL} />
           </div>
+          {game.factions.length > 1 ? (
+            <div className="flex min-w-40 flex-col gap-1.5">
+              <label htmlFor="units-faction" className="text-xs uppercase tracking-wide text-neutral-400">
+                Faction
+              </label>
+              <select
+                id="units-faction"
+                name="faction"
+                defaultValue={filters.faction ?? ""}
+                className={CONTROL}
+              >
+                <option value="">All factions</option>
+                {game.factions.map((faction) => (
+                  <option key={faction.key} value={faction.key}>
+                    {faction.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <label className="flex items-center gap-2 pb-2 text-sm text-neutral-400">
             <input type="checkbox" name="retired" value="1" defaultChecked={filters.retired} className="size-4" />
             Show retired units
@@ -114,7 +137,7 @@ export default async function Units({
             <p className="text-sm text-neutral-400">
               {count > 0
                 ? "That page is past the last unit."
-                : filters.q || filters.retired
+                : filters.q || filters.retired || filters.faction
                   ? "No unit matches that."
                   : "Nobody has reported this game's units yet."}
             </p>

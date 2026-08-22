@@ -93,3 +93,21 @@ test("asking for retired units shows the one that was removed", async () => {
     "armbrawl",
   ]);
 });
+
+test("a faction filter narrows the grid to that side (#258)", async () => {
+  const rows: Row[] = [
+    ...ROWS,
+    { unit_name: "corcom", full_name: "Commander", faction_key: "core", removed_at: null },
+    { unit_name: "corsolar", full_name: "Solar Collector", faction_key: "core", removed_at: null },
+  ];
+  const grid = await loadUnitGrid(fakeUnits(rows), "BA", parseUnitGridFilters({ faction: "core" }));
+
+  expect(grid.error).toBeNull();
+  expect(grid.units.map((u) => u.unit_name)).toEqual(["corcom", "corsolar"]);
+});
+
+test("the faction filter parses to null when nothing is chosen", () => {
+  expect(parseUnitGridFilters({}).faction).toBeNull();
+  expect(parseUnitGridFilters({ faction: "" }).faction).toBeNull();
+  expect(parseUnitGridFilters({ faction: ["core"] }).faction).toBe("core");
+});

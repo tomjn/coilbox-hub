@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { TreeBlock } from "@/components/GameTree";
-import { treeCached } from "@/lib/games/cached";
+import { gameFactionsCached, treeCached } from "@/lib/games/cached";
 import type { TreeNode } from "@/lib/games/tree";
 
 /**
@@ -54,8 +54,12 @@ export default async function TreePage({
   };
   const v = raw("v");
   const q = raw("q")?.trim() || null;
+  const faction = raw("faction")?.trim() || null;
 
-  const tree = await treeCached(shortname, v);
+  const [tree, factions] = await Promise.all([
+    treeCached(shortname, v, faction),
+    gameFactionsCached(shortname),
+  ]);
   if (!tree) notFound();
 
   // Every unit the tree holds, so any build option resolves to its subtree.
@@ -95,6 +99,26 @@ export default async function TreePage({
             </label>
             <input id="tree-q" type="search" name="q" defaultValue={q ?? ""} className={CONTROL} />
           </div>
+          {factions.length > 1 ? (
+            <div className="flex min-w-40 flex-col gap-1.5">
+              <label htmlFor="tree-faction" className="text-xs uppercase tracking-wide text-neutral-400">
+                Faction
+              </label>
+              <select
+                id="tree-faction"
+                name="faction"
+                defaultValue={faction ?? ""}
+                className={CONTROL}
+              >
+                <option value="">All factions</option>
+                {factions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <button
             type="submit"
             className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
