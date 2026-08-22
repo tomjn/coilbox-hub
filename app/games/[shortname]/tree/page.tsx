@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { TreeBlock } from "@/components/GameTree";
 import { treeCached } from "@/lib/games/cached";
-import { matchesQuery, type TreeNode } from "@/lib/games/tree";
+import type { TreeNode } from "@/lib/games/tree";
 
 /**
  * The build tree (#228).
@@ -34,106 +35,8 @@ export async function generateMetadata({
   };
 }
 
-/** How deep the walk may nest before it stops.
- *
- * Real games do not cycle their build options, but a typo in an extraction can
- * report one, and a cycle here would render forever without a bound. */
-const MAX_DEPTH = 8;
-
 const CONTROL =
   "rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
-
-/** One unit: its name as a link, and what it builds when opened.
- *
- * Children resolve through the whole tree's nodes rather than through copies,
- * so walking down reaches real subtrees. A unit two builders make opens under
- * both, which is the point of a grouping. */
-function Node({
-  game,
-  node,
-  byName,
-  q,
-  depth,
-}: {
-  game: string;
-  node: TreeNode;
-  byName: ReadonlyMap<string, TreeNode>;
-  q: string | null;
-  depth: number;
-}) {
-  const children = node.builds
-    .map((name) => byName.get(name))
-    .filter((child): child is TreeNode => Boolean(child) && matchesQuery(child as TreeNode, q));
-
-  return (
-    <li>
-      <Link
-        href={`/games/${game}/units/${node.name}`}
-        className="text-sm text-neutral-300 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
-      >
-        {node.label}
-      </Link>
-      {children.length > 0 ? (
-        <details>
-          <summary className="ml-1 inline cursor-pointer list-none text-xs text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300">
-            builds {children.length}
-          </summary>
-          <ul className="ml-3 mt-1 flex flex-col gap-1 border-l border-neutral-900 pl-3">
-            {depth < MAX_DEPTH
-              ? children.map((child) => (
-                  <Node key={child.name} game={game} node={child} byName={byName} q={q} depth={depth + 1} />
-                ))
-              : children.map((child) => (
-                  <li key={child.name}>
-                    <Link
-                      href={`/games/${game}/units/${child.name}`}
-                      className="text-sm text-neutral-400 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
-                    >
-                      {child.label}
-                    </Link>
-                  </li>
-                ))}
-          </ul>
-        </details>
-      ) : null}
-    </li>
-  );
-}
-
-function Block({
-  game,
-  heading,
-  note,
-  nodes,
-  byName,
-  q,
-}: {
-  game: string;
-  heading: string;
-  note?: string;
-  nodes: TreeNode[];
-  byName: ReadonlyMap<string, TreeNode>;
-  q: string | null;
-}) {
-  const visible = nodes.filter((node) => matchesQuery(node, q));
-  if (visible.length === 0) return null;
-
-  return (
-    <section className="flex flex-col gap-2" aria-label={heading}>
-      <h2 className="text-sm uppercase tracking-wide text-neutral-400">
-        {heading}
-        {note ? (
-          <span className="ml-2 normal-case tracking-normal text-neutral-600">{note}</span>
-        ) : null}
-      </h2>
-      <ul className="flex flex-col gap-1.5">
-        {visible.map((node) => (
-          <Node key={node.name} game={game} node={node} byName={byName} q={q} depth={0} />
-        ))}
-      </ul>
-    </section>
-  );
-}
 
 export default async function TreePage({
   params,
@@ -205,7 +108,7 @@ export default async function TreePage({
         ) : (
           <div className="flex flex-col gap-8">
             {tree.factions.map((faction) => (
-              <Block
+              <TreeBlock
                 key={faction.root}
                 game={shortname}
                 heading={faction.label}
@@ -216,7 +119,7 @@ export default async function TreePage({
               />
             ))}
             {tree.ungrouped.length > 0 ? (
-              <Block
+              <TreeBlock
                 game={shortname}
                 heading="No faction reaches these"
                 note={`${tree.ungrouped.length} units`}
