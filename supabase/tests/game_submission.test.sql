@@ -13,7 +13,7 @@
 -- unit that comes back comes all the way back.
 
 begin;
-select plan(27);
+select plan(28);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -28,7 +28,7 @@ select public.submit_game_facts($j$
   {
     "shortname": "BA",
     "release": "1.9.0",
-    "startUnits": ["armcom"],
+    "start_units": ["armcom"],
     "factions": [{"key": "armada", "name": "Armada"}],
     "units": [
       {"unit": {"name": "armcom", "full_name": "Commander", "faction_key": "armada", "build_options": ["armsolar"], "stats": {"health": 5000}}, "facts_digest": "d-armcom"},
@@ -105,6 +105,27 @@ select is(
   (select count(*) from public.game_unit_revision)::int, 2,
   'and no phantom revision appears'
 ) from repeat_report;
+
+-- The roots also move when a later report knows them, which is how a backfill
+-- that learned better corrects the tree. The keys are snake case here because
+-- this is what the route sends after it normalises the wire (#246): the suite
+-- once submitted camelCase, which is how the function read one key and stored
+-- nothing without a test noticing.
+create temp table rooted_report as
+select public.submit_game_facts($j$
+  {
+    "shortname": "BA",
+    "release": "1.9.0",
+    "start_units": ["armcom", "seacom"],
+    "units": []
+  }
+$j$::jsonb, '88888888-8888-8888-8888-888888888888') as outcomes;
+
+select is(
+  (select start_units from public.game where shortname = 'BA'),
+  ARRAY['armcom', 'seacom'],
+  'roots a later report carries replace what the first said'
+);
 
 -- The same facts arriving for a release the hub has never seen are new history,
 -- even though they are old news about the unit. The revision is taken away by
