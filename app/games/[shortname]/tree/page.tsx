@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { TreeBlock } from "@/components/GameTree";
 import { FactionToggles } from "@/components/FactionToggles";
-import { gameFactionsCached, treeCached } from "@/lib/games/cached";
+import { gameFactionsCached, treeCached, treeUnitPicturesCached } from "@/lib/games/cached";
 import type { TreeNode } from "@/lib/games/tree";
 
 /**
@@ -69,6 +69,9 @@ export default async function TreePage({
   }
   for (const node of tree.ungrouped) byName.set(node.name, node);
 
+  // One batched read for every buildpic the page draws.
+  const pictures = await treeUnitPicturesCached(shortname, [...byName.keys()]);
+
   // Shared across every block on the page: a unit unfolds at most once per
   // request, wherever in the walk its first occurrence lands (#266).
   const expanded = new Set<string>();
@@ -126,6 +129,7 @@ export default async function TreePage({
                   note={`${faction.units.length} units`}
                   roots={[rootNode]}
                   byName={byName}
+                  pictures={pictures}
                   expanded={expanded}
                 />
               ) : null;
@@ -137,6 +141,7 @@ export default async function TreePage({
                 note={`${tree.ungrouped.length} units`}
                 roots={tree.ungrouped}
                 byName={byName}
+                pictures={pictures}
                 expanded={expanded}
               />
             ) : null}

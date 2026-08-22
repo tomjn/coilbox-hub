@@ -147,6 +147,23 @@ export async function gameFactionsCached(shortname: string): Promise<FactionOpti
   return gameFactions(createAnonClient(), shortname);
 }
 
+/** The buildpics for a tree's units, keyed by unit name, one batched read. */
+export async function treeUnitPicturesCached(
+  shortname: string,
+  unitNames: string[],
+): Promise<ReadonlyMap<string, ResolvedAsset>> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games, TAGS.assets);
+
+  const supabase = createAnonClient();
+  return unitBuildpics(
+    supabase,
+    shortname,
+    unitNames.map((unit_name) => ({ unit_name, full_name: null, faction_key: null })),
+  );
+}
+
 /** One game's build tree, current or as a release said. Scoped to one faction
  *  when the reader picked one (#258). */
 export async function treeCached(

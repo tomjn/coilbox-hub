@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ResolvedAsset } from "@/lib/assets/resolve";
 import type { TreeNode } from "@/lib/games/tree";
 
 /**
@@ -22,20 +23,67 @@ import type { TreeNode } from "@/lib/games/tree";
  * level claimed, so the walk cannot outlive the faction's own unit count, and
  * Balanced Annihilation reaches depth 19 - deeper than any bound worth
  * keeping would allow.
+ *
+ * The start units render already open: a page that arrives as one collapsed
+ * row asks to be clicked before it says anything (#276). Deeper levels stay
+ * closed behind their build counts.
  */
+
+function UnitRow({
+  game,
+  node,
+  picture,
+  muted,
+}: {
+  game: string;
+  node: TreeNode;
+  picture?: ResolvedAsset;
+  muted?: boolean;
+}) {
+  return (
+    <Link
+      href={`/games/${game}/units/${node.name}`}
+      className={`flex items-center gap-2 ${
+        muted
+          ? "text-sm text-neutral-400 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
+          : "text-sm text-neutral-300 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
+      }`}
+    >
+      {picture && picture.from !== "placeholder" ? (
+        // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
+        <img
+          src={picture.url}
+          alt=""
+          width={picture.width}
+          height={picture.height}
+          loading="lazy"
+          decoding="async"
+          className="size-8 shrink-0 object-contain"
+        />
+      ) : null}
+      {node.label}
+    </Link>
+  );
+}
 
 function Node({
   game,
   node,
   byName,
+  pictures,
   expanded,
+  open,
 }: {
   game: string;
   node: TreeNode;
   byName: ReadonlyMap<string, TreeNode>;
+  pictures: ReadonlyMap<string, ResolvedAsset>;
   /** Every unit already unfolded somewhere above this one, across the whole
    *  page. Shared, so ownership of a subtree is walk order. */
   expanded: Set<string>;
+  /** Start units render with their first level showing; everything below
+   *  starts closed. */
+  open?: boolean;
 }) {
   const children = node.builds
     .map((name) => byName.get(name))
@@ -50,14 +98,9 @@ function Node({
 
   return (
     <li>
-      <Link
-        href={`/games/${game}/units/${node.name}`}
-        className="text-sm text-neutral-300 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
-      >
-        {node.label}
-      </Link>
+      <UnitRow game={game} node={node} picture={pictures.get(node.name)} />
       {children.length > 0 ? (
-        <details>
+        <details open={open}>
           <summary className="ml-1 inline cursor-pointer list-none text-xs text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300">
             builds {children.length}
           </summary>
@@ -69,16 +112,12 @@ function Node({
                   game={game}
                   node={child}
                   byName={byName}
+                  pictures={pictures}
                   expanded={expanded}
                 />
               ) : (
                 <li key={child.name}>
-                  <Link
-                    href={`/games/${game}/units/${child.name}`}
-                    className="text-sm text-neutral-400 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
-                  >
-                    {child.label}
-                  </Link>
+                  <UnitRow game={game} node={child} picture={pictures.get(child.name)} muted />
                 </li>
               ),
             )}
@@ -95,6 +134,7 @@ export function TreeBlock({
   note,
   roots,
   byName,
+  pictures,
   expanded,
 }: {
   game: string;
@@ -104,6 +144,7 @@ export function TreeBlock({
    *  units when nothing reaches them. */
   roots: TreeNode[];
   byName: ReadonlyMap<string, TreeNode>;
+  pictures: ReadonlyMap<string, ResolvedAsset>;
   expanded: Set<string>;
 }) {
   if (roots.length === 0) return null;
@@ -120,7 +161,15 @@ export function TreeBlock({
       </h2>
       <ul className="flex flex-col gap-1.5">
         {roots.map((node) => (
-          <Node key={node.name} game={game} node={node} byName={byName} expanded={expanded} />
+          <Node
+            key={node.name}
+            game={game}
+            node={node}
+            byName={byName}
+            pictures={pictures}
+            expanded={expanded}
+            open
+          />
         ))}
       </ul>
     </section>
