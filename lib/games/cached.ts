@@ -12,6 +12,7 @@ import {
   unitBuildpic,
   unitBuildpics,
   unitRender,
+  unbuildableUnits,
   type FactionOption,
   type UnitComparison,
   type UnitGridFilters,
@@ -66,7 +67,11 @@ export async function unitGridCached(
   cacheTag(TAGS.games, TAGS.assets);
 
   const supabase = createAnonClient();
-  const grid = await loadUnitGrid(supabase, shortname, filters);
+  // The shelf hides what a player can never reach (#280), so the exclusion
+  // rides into the query itself: filtering after paging would shift every
+  // window and lie with the count.
+  const ghosts = await unbuildableUnits(supabase, shortname);
+  const grid = await loadUnitGrid(supabase, shortname, filters, ghosts);
   const pictures = await unitBuildpics(supabase, shortname, grid.units);
 
   return {

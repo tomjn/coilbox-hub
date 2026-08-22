@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { loadUnitGrid, parseUnitGridFilters } from "./units";
+import { loadUnitGrid, parseUnitGridFilters, unbuildableUnits } from "./units";
 
 /**
  * Hiding retired units is a null check, and PostgREST spells that `is.null`
@@ -110,4 +110,56 @@ test("the faction filter parses to null when nothing is chosen", () => {
   expect(parseUnitGridFilters({}).faction).toBeNull();
   expect(parseUnitGridFilters({ faction: "" }).faction).toBeNull();
   expect(parseUnitGridFilters({ faction: ["core"] }).faction).toBe("core");
+});
+
+/**
+ * Unbuildable units (#280): nothing builds them and no start unit heads
+ * them, which is what an archive's reference defs are. The exclusion list
+ * rides into the grid query, so paging and the count stay honest.
+ */
+
+interface Referencing {
+  unit_name: string;
+  build_options: string[];
+  removed_at: string | null;
+}
+
+function fakeCatalog(rows: Referencing[], startUnits: string[]): SupabaseClient {
+  const build = (held: Referencing[]) => ({
+    select: () => build(held),
+    eq: () => build(held),
+    is: (_column: string, value: unknown) =>
+      Promise.resolve({
+        data: held.filter((row) => row.removed_at === value),
+        error: null,
+      }),
+  });
+  const game = {
+    select: () => game,
+    eq: () => game,
+    maybeSingle: () => Promise.resolve({ data: { start_units: startUnits }, error: null }),
+  };
+  return {
+    from: (table: string) => (table === "game" ? game : build(rows)),
+  } as unknown as SupabaseClient;
+}
+
+const CATALOG: Referencing[] = [
+  { unit_name: "armcom", build_options: ["armsolar"], removed_at: null },
+  { unit_name: "armsolar", build_options: [], removed_at: null },
+  { unit_name: "armfark", build_options: [], removed_at: null },
+  { unit_name: "oldref", build_options: [], removed_at: "2026-01-01" },
+];
+
+test("a unit nobody builds and no start unit heads is a ghost", async () => {
+  const ghosts = await unbuildableUnits(fakeCatalog(CATALOG, ["armcom"]), "BA");
+
+  // armfark is alive but unreachable and unbuilt; oldref does not count,
+  // since it retired already.
+  expect(ghosts).toEqual(["armfark"]);
+});
+
+test("a start unit never hides, however lonely it is", async () => {
+  const ghosts = await unbuildableUnits(fakeCatalog(CATALOG, ["armcom", "armfark"]), "BA");
+  expect(ghosts).toEqual([]);
 });
