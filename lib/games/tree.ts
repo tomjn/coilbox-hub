@@ -23,6 +23,11 @@ export interface TreeNode {
   label: string;
   /** What this unit builds, as keys into the same tree. Sorted. */
   builds: string[];
+  /** Whether the unit's own facts report weapons (#278). Builders read
+   *  separately through {@link TreeNode.builds}, since the two answers draw
+   *  differently: a wall that shoots and a plant that builds are not the same
+   *  kind of row. */
+  armed: boolean;
 }
 
 export interface TreeFaction {
@@ -45,11 +50,31 @@ export interface Tree {
  * worker reports def keys, so lookups are case-insensitive by construction
  * rather than by everybody remembering to normalise at every use.
  */
+/**
+ * Whether a unit's facts report a weapons summary.
+ *
+ * The summary arrives as a stat whose value is an array of records (#261), the
+ * same shape {@link tabularStatRows} draws as a table. An empty array is not
+ * armed: it says the extraction measured none, and zero is not some.
+ */
+function armedOf(stats: Record<string, unknown> | null | undefined): boolean {
+  const weapons = stats?.weapons;
+  return Array.isArray(weapons) && weapons.length > 0;
+}
+
 export function buildTree(
-  units: { unit_name: string; full_name: string | null; build_options: string[] }[],
+  units: {
+    unit_name: string;
+    full_name: string | null;
+    build_options: string[];
+    stats?: Record<string, unknown> | null;
+  }[],
   roots: string[],
 ): Tree {
-  const known = new Map<string, { unit_name: string; full_name: string | null; build_options: string[] }>();
+  const known = new Map<
+    string,
+    { unit_name: string; full_name: string | null; build_options: string[]; stats?: Record<string, unknown> | null }
+  >();
   for (const unit of units) {
     known.set(unit.unit_name.toLowerCase(), unit);
   }
@@ -88,6 +113,7 @@ export function buildTree(
       .map((option) => option.toLowerCase())
       .filter((option) => known.has(option))
       .sort(),
+    armed: armedOf(known.get(key)?.stats),
   });
 
   const factions = rootKeys.map((root) => ({
@@ -114,6 +140,9 @@ interface TreeUnit {
   full_name: string | null;
   build_options: string[];
   faction_key: string | null;
+  /** The unit's own facts, read for the weapons summary alone; only whether
+   *  that summary exists reaches the tree (#278). */
+  stats: Record<string, unknown> | null;
 }
 
 /**
@@ -136,14 +165,16 @@ export async function loadTree(
       ? supabase
           .from("game_unit")
           .select(
-            "unit_name,full_name,faction_key,game!inner(shortname)," +
-              "game_unit_revision!inner(version,full_name,faction_key,build_options)",
+            "unit_name,full_name,faction_key,stats,build_options,game!inner(shortname)," +
+              "game_unit_revision!inner(version,full_name,faction_key,build_options,stats)",
           )
           .eq("game.shortname", shortname)
           .eq("game_unit_revision.version", version)
       : supabase
           .from("game_unit")
-          .select("unit_name,full_name,faction_key,build_options,game!inner(shortname)")
+          .select(
+            "unit_name,full_name,faction_key,build_options,stats,game!inner(shortname)",
+          )
           .eq("game.shortname", shortname)
           // `is`, not `eq`: PostgREST refuses `removed_at=eq.null`, and a
           // refused read here is a null tree, which the page shows as a 404
@@ -163,10 +194,12 @@ export async function loadTree(
             unit_name: string;
             full_name: string | null;
             faction_key: string | null;
+            stats: Record<string, unknown> | null;
             game_unit_revision: {
               full_name: string | null;
               faction_key: string | null;
               build_options: string[];
+              stats: Record<string, unknown> | null;
             }[];
           }[]
         ).map((row) => ({
@@ -174,6 +207,7 @@ export async function loadTree(
           full_name: row.game_unit_revision[0]?.full_name ?? row.full_name,
           build_options: row.game_unit_revision[0]?.build_options ?? [],
           faction_key: row.game_unit_revision[0]?.faction_key ?? row.faction_key,
+          stats: row.game_unit_revision[0]?.stats ?? row.stats ?? null,
         }))
       : (units.data as unknown as TreeUnit[])
   ).map((row) => ({
@@ -181,6 +215,7 @@ export async function loadTree(
     full_name: row.full_name,
     build_options: row.build_options ?? [],
     faction_key: row.faction_key ?? null,
+    stats: row.stats ?? null,
   }));
 
   const scoped = factionKey ? rows.filter((row) => row.faction_key === factionKey) : rows;

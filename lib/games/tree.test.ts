@@ -61,6 +61,48 @@ test("keys match case-insensitively, because def keys arrive however they like",
 });
 
 /**
+ * Armed-ness rides the walk too (#278): a weapons summary is a stat holding an
+ * array of records, the same shape #261 draws as a table. Nothing measured is
+ * not armed, whatever the shape around it says.
+ */
+
+const ARMED_UNITS = [
+  {
+    unit_name: "armllt",
+    full_name: "Light Laser Tower",
+    build_options: [],
+    stats: { weapons: [{ range: 210 }] },
+  },
+  { unit_name: "armsolar", full_name: "Solar Collector", build_options: [], stats: {} },
+  {
+    unit_name: "armemp",
+    full_name: "EMP Missile",
+    build_options: [],
+    stats: { weapons: [] },
+  },
+  {
+    unit_name: "armck",
+    full_name: "Constructor Kbot",
+    build_options: ["armsolar"],
+    stats: { health: 200 },
+  },
+];
+
+test("a weapons summary makes a unit armed", () => {
+  const tree = buildTree(ARMED_UNITS, []);
+  const armed = new Map(tree.ungrouped.concat(...tree.factions.map((f) => f.units)).map((u) => [u.name, u.armed]));
+  expect(armed.get("armllt")).toBe(true);
+});
+
+test("no summary, an empty one, or none at all leaves a unit unarmed", () => {
+  const tree = buildTree(ARMED_UNITS, []);
+  const armed = new Map(tree.ungrouped.concat(...tree.factions.map((f) => f.units)).map((u) => [u.name, u.armed]));
+  expect(armed.get("armsolar")).toBe(false);
+  expect(armed.get("armemp")).toBe(false);
+  expect(armed.get("armck")).toBe(false);
+});
+
+/**
  * Leaving retired units out is a null check, and PostgREST spells that
  * `is.null` (#255). Asking it for `removed_at=eq.null` is refused, and
  * `loadTree` answers null on a refused read, which the page turns into a 404.
