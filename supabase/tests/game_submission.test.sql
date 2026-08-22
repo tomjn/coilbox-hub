@@ -13,7 +13,7 @@
 -- unit that comes back comes all the way back.
 
 begin;
-select plan(28);
+select plan(33);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -38,12 +38,18 @@ select public.submit_game_facts($j$
 $j$::jsonb, '88888888-8888-8888-8888-888888888888') as outcomes;
 
 select is(
-  first_report.outcomes -> 0 ->> 'outcome', 'accepted',
-  'the first report of a unit stores it'
+  first_report.outcomes -> 0,
+  '{"kind":"faction","name":"armada","outcome":"accepted","said":null}'::jsonb,
+  'the faction is answered, before the units that point at it'
 ) from first_report;
 
 select is(
   first_report.outcomes -> 1 ->> 'outcome', 'accepted',
+  'the first report of a unit stores it'
+) from first_report;
+
+select is(
+  first_report.outcomes -> 2 ->> 'outcome', 'accepted',
   'and every unit in the batch is answered'
 ) from first_report;
 
@@ -285,6 +291,12 @@ select is(
   'a resubmission rewrites the faction list rather than appending to it'
 );
 
+select is(
+  faction_swap.outcomes -> 0,
+  '{"kind":"faction","name":"cortex","outcome":"accepted","said":null}'::jsonb,
+  'and each side of a replaced set is answered by name'
+) from faction_swap;
+
 create temp table faction_kept as
 select public.submit_game_facts($j$
   { "shortname": "BA", "release": "2.0.0", "units": [] }
@@ -294,6 +306,34 @@ select is(
   (select array_agg(key order by key) from public.game_faction), ARRAY['cortex'],
   'and a submission without factions leaves the held set alone'
 );
+
+-- A side named twice in one batch: the second cannot land on the unique pair.
+-- This is the refusal a client that logs its results has to be able to see,
+-- which is why the answer carries kind faction at all (#247).
+create temp table dup_faction as
+select public.submit_game_facts($j$
+  {
+    "shortname": "BA",
+    "release": "2.0.0",
+    "factions": [{"key": "armada", "name": "Armada"}, {"key": "armada", "name": "Armada again"}],
+    "units": []
+  }
+$j$::jsonb, '88888888-8888-8888-8888-888888888888') as outcomes;
+
+select is(
+  dup_faction.outcomes -> 0 ->> 'outcome', 'accepted',
+  'the first side with a key lands'
+) from dup_faction;
+
+select is(
+  dup_faction.outcomes -> 1 ->> 'outcome', 'refused',
+  'and the second is refused rather than dropped on the floor'
+) from dup_faction;
+
+select is(
+  (dup_faction.outcomes -> 1 ->> 'said') is not null, true,
+  'with the reason carried home beside it'
+) from dup_faction;
 
 -- One bad entry costs itself and not its neighbours.
 create temp table mixed_batch as
