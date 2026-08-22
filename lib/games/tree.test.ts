@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { buildTree, matchesQuery, type TreeNode } from "./tree";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildTree, loadTree, matchesQuery, type TreeNode } from "./tree";
 
 /**
  * The grouping the build tree shows (#228), which is coilbox's own walk and
@@ -65,4 +66,85 @@ test("search matches either name a reader could know", () => {
   expect(matchesQuery(node, "ARM")).toBe(true);
   expect(matchesQuery(node, "kbot")).toBe(false);
   expect(matchesQuery(node, null)).toBe(true);
+});
+
+/**
+ * Leaving retired units out is a null check, and PostgREST spells that
+ * `is.null` (#255). Asking it for `removed_at=eq.null` is refused, and
+ * `loadTree` answers null on a refused read, which the page turns into a 404.
+ * So the whole tree went missing rather than one retired unit.
+ */
+
+interface UnitRow {
+  unit_name: string;
+  full_name: string | null;
+  build_options: string[];
+  removed_at: string | null;
+}
+
+const STORED: UnitRow[] = [
+  { unit_name: "armcom", full_name: "Commander", build_options: ["armsolar"], removed_at: null },
+  { unit_name: "armsolar", full_name: "Solar Collector", build_options: [], removed_at: null },
+  { unit_name: "armbrawl", full_name: "Brawler", build_options: [], removed_at: "2026-01-01" },
+];
+
+/**
+ * A hub holding `rows` for one game, answering about null the way PostgREST
+ * does: `is` is the null check, and a null handed to `eq` is refused. A fake
+ * that quietly accepted `eq` would pass while every tree stayed a 404.
+ */
+function fakeHub(rows: UnitRow[], startUnits: string[]): SupabaseClient {
+  const units = (held: UnitRow[], refused: string | null) => ({
+    select: () => units(held, refused),
+    eq(column: string, value: unknown) {
+      if (value === null) {
+        return units(held, `"failed to parse filter (eq.null)" on ${column}`);
+      }
+      if (column === "game.shortname") return units(held, refused);
+      return units(
+        held.filter((row) => row[column as keyof UnitRow] === value),
+        refused,
+      );
+    },
+    is(column: string, value: unknown) {
+      return units(
+        held.filter((row) => row[column as keyof UnitRow] === value),
+        refused,
+      );
+    },
+    then: (resolve: (value: unknown) => unknown) =>
+      Promise.resolve({
+        data: refused ? null : held,
+        error: refused ? { message: refused } : null,
+      }).then(resolve),
+  });
+
+  const game = {
+    select: () => game,
+    eq: () => game,
+    maybeSingle: () =>
+      Promise.resolve({ data: { start_units: startUnits }, error: null }),
+  };
+
+  return {
+    from: (table: string) => (table === "game" ? game : units(rows, null)),
+  } as unknown as SupabaseClient;
+}
+
+test("the tree draws from the units the hub has not retired", async () => {
+  const tree = await loadTree(fakeHub(STORED, ["armcom"]), "BA");
+
+  expect(tree).not.toBeNull();
+  expect(tree?.factions.map((faction) => faction.root)).toEqual(["armcom"]);
+  expect(tree?.factions[0].units.map((unit) => unit.name)).toEqual([
+    "armcom",
+    "armsolar",
+  ]);
+});
+
+test("a retired unit is left out of the tree rather than taking it down", async () => {
+  const tree = await loadTree(fakeHub(STORED, ["armcom"]), "BA");
+
+  const named = JSON.stringify(tree);
+  expect(named).not.toContain("armbrawl");
 });

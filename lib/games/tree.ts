@@ -145,7 +145,10 @@ export async function loadTree(
           .from("game_unit")
           .select("unit_name,full_name,build_options,game!inner(shortname)")
           .eq("game.shortname", shortname)
-          .eq("removed_at", null),
+          // `is`, not `eq`: PostgREST refuses `removed_at=eq.null`, and a
+          // refused read here is a null tree, which the page shows as a 404
+          // (#255).
+          .is("removed_at", null),
     supabase.from("game").select("start_units").eq("shortname", shortname).maybeSingle(),
   ]);
 
