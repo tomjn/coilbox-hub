@@ -46,3 +46,22 @@ test("a unit with no picture gets the drawing, not a broken frame", () => {
   );
   expect(html).not.toContain("<img");
 });
+
+test("the placeholder says nothing, since the cell prints the name itself", () => {
+  const html = renderToStaticMarkup(
+    <UnitCard
+      game="BA"
+      unit={{ unit_name: "arm_leftshoulder", full_name: null }}
+      picture={{
+        from: "placeholder",
+        keyedOn: "unit",
+        name: "arm_leftshoulder_nationwars_us",
+        footprint: null,
+      }}
+    />,
+  );
+  // The caption would read the def key a second time under the label. It may
+  // survive once, inside the drawing's aria-label, where nobody sees it twice.
+  expect(html).not.toContain("No picture yet");
+  expect(html.split("nationwars").length - 1).toBe(1);
+});
