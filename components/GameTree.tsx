@@ -24,9 +24,11 @@ import type { TreeNode } from "@/lib/games/tree";
  * Balanced Annihilation reaches depth 19 - deeper than any bound worth
  * keeping would allow.
  *
- * The start units render already open: a page that arrives as one collapsed
- * row asks to be clicked before it says anything (#276). Deeper levels stay
- * closed behind their build counts.
+ * Every branch renders expanded (#276), and any of them can be collapsed
+ * behind its build count. Within a level the walk splits in two: dead ends -
+ * units that build nothing - sit together in one horizontal row, and the
+ * builders and factories follow underneath as the vertical spine of the
+ * hierarchy.
  */
 
 function UnitRow({
@@ -72,7 +74,6 @@ function Node({
   byName,
   pictures,
   expanded,
-  open,
 }: {
   game: string;
   node: TreeNode;
@@ -81,9 +82,6 @@ function Node({
   /** Every unit already unfolded somewhere above this one, across the whole
    *  page. Shared, so ownership of a subtree is walk order. */
   expanded: Set<string>;
-  /** Start units render with their first level showing; everything below
-   *  starts closed. */
-  open?: boolean;
 }) {
   const children = node.builds
     .map((name) => byName.get(name))
@@ -96,16 +94,40 @@ function Node({
       return { child, fresh };
     });
 
+  // Dead ends read across; the builders and factories carry the hierarchy
+  // down the page.
+  const leaves = children.filter(({ child }) => child.builds.length === 0);
+  const builders = children.filter(({ child }) => child.builds.length > 0);
+
   return (
     <li>
       <UnitRow game={game} node={node} picture={pictures.get(node.name)} />
       {children.length > 0 ? (
-        <details open={open}>
+        <details open className="group">
           <summary className="ml-1 inline cursor-pointer list-none text-xs text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300">
+            <span
+              aria-hidden
+              className="mr-1 inline-block text-center transition-transform group-open:rotate-45"
+            >
+              +
+            </span>
             builds {children.length}
           </summary>
-          <ul className="ml-3 mt-1 flex flex-col gap-1 border-l border-neutral-900 pl-3">
-            {children.map(({ child, fresh }) =>
+          <ul className="ml-6 mt-1 flex flex-col gap-1.5 border-l border-neutral-800 pl-5">
+            {leaves.length > 0 ? (
+              <li className="flex flex-wrap items-center gap-x-4 gap-y-1 py-0.5">
+                {leaves.map(({ child }) => (
+                  <UnitRow
+                    key={child.name}
+                    game={game}
+                    node={child}
+                    picture={pictures.get(child.name)}
+                    muted
+                  />
+                ))}
+              </li>
+            ) : null}
+            {builders.map(({ child, fresh }) =>
               fresh ? (
                 <Node
                   key={child.name}
@@ -168,7 +190,6 @@ export function TreeBlock({
             byName={byName}
             pictures={pictures}
             expanded={expanded}
-            open
           />
         ))}
       </ul>
