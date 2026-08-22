@@ -15,6 +15,11 @@ import { formatStatValue, statLabel, statRows } from "./stats";
  * Everything here reads through row level security with an anonymous client.
  * The facts are public, and so are the pictures: `fetchHeldAssets` filters on
  * approved only, which is the same line every other page's pictures sit behind.
+ *
+ * Every read below narrows to one game by filtering on `game.shortname`, and
+ * PostgREST refuses such a filter unless the request also embeds `game` in its
+ * select (#250). That embedded column is never read by TypeScript; dropping it
+ * brings back the PGRST108 these reads used to answer.
  */
 
 export const UNIT_PAGE_SIZE = 48;
@@ -61,7 +66,7 @@ export async function loadUnitGrid(
 ): Promise<{ units: UnitSummary[]; count: number; error: string | null }> {
   let query = supabase
     .from("game_unit")
-    .select("unit_name,full_name,faction_key", { count: "exact" })
+    .select("unit_name,full_name,faction_key,game!inner(shortname)", { count: "exact" })
     .eq("game.shortname", shortname);
 
   if (!filters.retired) query = query.eq("removed_at", null);
@@ -128,7 +133,7 @@ async function factionNames(
 ): Promise<Map<string, string>> {
   const { data } = await supabase
     .from("game_faction")
-    .select("key,name")
+    .select("key,name,game!inner(shortname)")
     .eq("game.shortname", shortname);
   return new Map(
     ((data ?? []) as unknown as { key: string; name: string }[]).map((f) => [f.key, f.name]),
@@ -170,6 +175,7 @@ export async function loadUnitPage(
       .from("game_unit")
       .select(
         "id,unit_name,full_name,faction_key,build_options,stats,snippet,source_version,removed_at," +
+          "game!inner(shortname)," +
           "game_unit_revision(version,full_name,faction_key,build_options,stats)",
       )
       .eq("game.shortname", shortname)
@@ -179,7 +185,7 @@ export async function loadUnitPage(
       .maybeSingle(),
     supabase
       .from("game_version")
-      .select("version,last_seen_at")
+      .select("version,last_seen_at,game!inner(shortname)")
       .eq("game.shortname", shortname)
       .order("last_seen_at", { ascending: false }),
     factionNames(supabase, shortname),
@@ -227,7 +233,7 @@ export async function loadUnitPage(
       ? []
       : await supabase
           .from("game_unit")
-          .select("unit_name,full_name")
+          .select("unit_name,full_name,game!inner(shortname)")
           .eq("game.shortname", shortname)
           .in("unit_name", options)
           .then(({ data }) => {
@@ -312,6 +318,7 @@ export async function loadUnitComparison(
     .from("game_unit")
     .select(
       "unit_name," +
+        "game!inner(shortname)," +
         "game_unit_revision(version,full_name,faction_key,build_options,stats)",
     )
     .eq("game.shortname", shortname)

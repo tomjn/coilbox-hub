@@ -138,12 +138,12 @@ export async function loadTree(
     version
       ? supabase
           .from("game_unit")
-          .select("unit_name,full_name,game_unit_revision!inner(full_name,build_options)")
+          .select("unit_name,full_name,game!inner(shortname),game_unit_revision!inner(full_name,build_options)")
           .eq("game.shortname", shortname)
           .eq("game_unit_revision.version", version)
       : supabase
           .from("game_unit")
-          .select("unit_name,full_name,build_options")
+          .select("unit_name,full_name,build_options,game!inner(shortname)")
           .eq("game.shortname", shortname)
           .eq("removed_at", null),
     supabase.from("game").select("start_units").eq("shortname", shortname).maybeSingle(),
