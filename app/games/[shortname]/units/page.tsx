@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
+import { FactionToggles, type FactionToggleOption } from "@/components/FactionToggles";
 import { UnitCard } from "@/components/UnitCard";
 import { PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
 import { gamePageCached, unitGridCached } from "@/lib/games/cached";
@@ -68,6 +69,26 @@ export default async function Units({
     return `/games/${shortname}/units${suffix ? `?${suffix}` : ""}`;
   };
 
+  // Faction as toggles rather than a dropdown (#269). Each option is a link
+  // carrying the other filters, and choosing a side restarts paging.
+  const factionHref = (key: string | null) => {
+    const query = new URLSearchParams();
+    if (filters.q) query.set("q", filters.q);
+    if (filters.retired) query.set("retired", "1");
+    if (key) query.set("faction", key);
+    const suffix = query.toString();
+    return `/games/${shortname}/units${suffix ? `?${suffix}` : ""}`;
+  };
+  const factionOptions: FactionToggleOption[] = [
+    { key: "", label: "All factions", href: factionHref(null), active: !filters.faction },
+    ...game.factions.map((faction) => ({
+      key: faction.key,
+      label: faction.name,
+      href: factionHref(faction.key),
+      active: filters.faction === faction.key,
+    })),
+  ];
+
   return (
     <main className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
@@ -88,45 +109,31 @@ export default async function Units({
         </div>
 
         {/* A GET to this same route, so submitting it produces the URL the
-            filters describe and the back button works. */}
-        <form action={`/games/${shortname}/units`} className="flex flex-wrap items-end gap-3 border-b border-neutral-900 pb-6">
-          <div className="flex min-w-48 flex-1 flex-col gap-1.5">
-            <label htmlFor="units-q" className="text-xs uppercase tracking-wide text-neutral-400">
-              Search
-            </label>
-            <input id="units-q" type="search" name="q" defaultValue={filters.q ?? ""} className={CONTROL} />
-          </div>
-          {game.factions.length > 1 ? (
-            <div className="flex min-w-40 flex-col gap-1.5">
-              <label htmlFor="units-faction" className="text-xs uppercase tracking-wide text-neutral-400">
-                Faction
+            filters describe and the back button works. The faction choice is
+            not a form field: it is a set of links above, since a side is what
+            you are looking at rather than something to filter by (#269). */}
+        <div className="flex flex-col gap-4 border-b border-neutral-900 pb-6">
+          {game.factions.length > 1 ? <FactionToggles options={factionOptions} /> : null}
+          <form action={`/games/${shortname}/units`} className="flex flex-wrap items-end gap-3">
+            <div className="flex min-w-48 flex-1 flex-col gap-1.5">
+              <label htmlFor="units-q" className="text-xs uppercase tracking-wide text-neutral-400">
+                Search
               </label>
-              <select
-                id="units-faction"
-                name="faction"
-                defaultValue={filters.faction ?? ""}
-                className={CONTROL}
-              >
-                <option value="">All factions</option>
-                {game.factions.map((faction) => (
-                  <option key={faction.key} value={faction.key}>
-                    {faction.name}
-                  </option>
-                ))}
-              </select>
+              <input id="units-q" type="search" name="q" defaultValue={filters.q ?? ""} className={CONTROL} />
             </div>
-          ) : null}
-          <label className="flex items-center gap-2 pb-2 text-sm text-neutral-400">
-            <input type="checkbox" name="retired" value="1" defaultChecked={filters.retired} className="size-4" />
-            Show retired units
-          </label>
-          <button
-            type="submit"
-            className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-          >
-            Filter
-          </button>
-        </form>
+            <label className="flex items-center gap-2 pb-2 text-sm text-neutral-400">
+              <input type="checkbox" name="retired" value="1" defaultChecked={filters.retired} className="size-4" />
+              Show retired units
+            </label>
+            {filters.faction ? <input type="hidden" name="faction" value={filters.faction} /> : null}
+            <button
+              type="submit"
+              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+            >
+              Filter
+            </button>
+          </form>
+        </div>
 
         {error ? (
           <p className="text-sm text-red-400">
