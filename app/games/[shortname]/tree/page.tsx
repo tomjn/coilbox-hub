@@ -36,9 +36,6 @@ export async function generateMetadata({
   };
 }
 
-const CONTROL =
-  "rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
-
 export default async function TreePage({
   params,
   searchParams,
@@ -54,7 +51,6 @@ export default async function TreePage({
     return Array.isArray(value) ? value[0] : value;
   };
   const v = raw("v");
-  const q = raw("q")?.trim() || null;
   const factionParam = raw("faction")?.trim() || null;
 
   // One faction per request (#266): the chosen one, or the game's first. The
@@ -77,12 +73,12 @@ export default async function TreePage({
   // request, wherever in the walk its first occurrence lands (#266).
   const expanded = new Set<string>();
 
-  // Sides as toggles rather than a dropdown (#269). Each carries the release
-  // and the search along, so switching faction loses nothing else.
+  // Sides as toggles rather than a dropdown (#269), and the only control on
+  // the page (#271): search had nothing to say here, since matching units
+  // whose ancestors do not match draws nothing useful from a walk.
   const factionHref = (key: string) => {
     const query = new URLSearchParams();
     if (v) query.set("v", v);
-    if (q) query.set("q", q);
     query.set("faction", key);
     return `/games/${shortname}/tree?${query.toString()}`;
   };
@@ -112,31 +108,7 @@ export default async function TreePage({
           </p>
         </div>
 
-        {/* The side you are looking at is a set of toggles above the search,
-            not a field inside it (#269). The form carries the current faction
-            along so a search does not drop it. */}
-        <div className="flex flex-col gap-4 border-b border-neutral-900 pb-6">
-          {factions.length > 1 ? <FactionToggles options={factionOptions} /> : null}
-          <form
-            action={`/games/${shortname}/tree`}
-            className="flex flex-wrap items-end gap-3"
-          >
-            {v ? <input type="hidden" name="v" value={v} /> : null}
-            {faction ? <input type="hidden" name="faction" value={faction} /> : null}
-            <div className="flex min-w-48 flex-1 flex-col gap-1.5">
-              <label htmlFor="tree-q" className="text-xs uppercase tracking-wide text-neutral-400">
-                Search
-              </label>
-              <input id="tree-q" type="search" name="q" defaultValue={q ?? ""} className={CONTROL} />
-            </div>
-            <button
-              type="submit"
-              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-            >
-              Filter
-            </button>
-          </form>
-        </div>
+        {factions.length > 1 ? <FactionToggles options={factionOptions} /> : null}
 
         {tree.factions.length === 0 && tree.ungrouped.length === 0 ? (
           <p className="text-sm text-neutral-500">Nobody has reported this game&rsquo;s units yet.</p>
@@ -154,7 +126,6 @@ export default async function TreePage({
                   note={`${faction.units.length} units`}
                   roots={[rootNode]}
                   byName={byName}
-                  q={q}
                   expanded={expanded}
                 />
               ) : null;
@@ -166,7 +137,6 @@ export default async function TreePage({
                 note={`${tree.ungrouped.length} units`}
                 roots={tree.ungrouped}
                 byName={byName}
-                q={q}
                 expanded={expanded}
               />
             ) : null}
