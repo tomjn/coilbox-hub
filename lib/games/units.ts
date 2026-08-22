@@ -69,7 +69,9 @@ export async function loadUnitGrid(
     .select("unit_name,full_name,faction_key,game!inner(shortname)", { count: "exact" })
     .eq("game.shortname", shortname);
 
-  if (!filters.retired) query = query.eq("removed_at", null);
+  // `is`, not `eq`: PostgREST refuses `removed_at=eq.null` outright, so this
+  // took out the whole grid rather than hiding the retired units (#255).
+  if (!filters.retired) query = query.is("removed_at", null);
   if (filters.q) {
     // Either name is a name. A visitor who typed "commander" is looking for
     // armcom, whose full name says Commander and whose def key does not.
