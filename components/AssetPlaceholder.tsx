@@ -46,9 +46,15 @@ const OUTLINE = 0.62;
 export function AssetPlaceholder({
   of,
   className,
+  quiet,
 }: {
   of: MissingPicture;
   className?: string;
+  /** No caption. For callers that print the name themselves right below, where
+   *  the drawing saying it too reads the name twice (#280) - and a def key with
+   *  no spaces in it cannot wrap, so it walks out of the box and over its
+   *  neighbours. */
+  quiet?: boolean;
 }) {
   const box = placeholderBox(of.footprint);
   const measure = placeholderMeasure(of);
@@ -85,12 +91,14 @@ export function AssetPlaceholder({
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-      <p className="flex flex-col items-center gap-0.5 text-center text-xs">
-        <span className="text-neutral-300">{of.name}</span>
-        <span className="text-neutral-500">
-          {measure ? `${measure}, no picture yet` : "No picture yet"}
-        </span>
-      </p>
+      {quiet ? null : (
+        <p className="flex max-w-full flex-col items-center gap-0.5 text-center text-xs">
+          <span className="break-all text-neutral-300">{of.name}</span>
+          <span className="break-all text-neutral-500">
+            {measure ? `${measure}, no picture yet` : "No picture yet"}
+          </span>
+        </p>
+      )}
     </div>
   );
 }

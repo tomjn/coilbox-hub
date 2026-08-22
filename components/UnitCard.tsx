@@ -28,11 +28,18 @@ export function UnitCard({
     <li>
       <Link
         href={`/games/${game}/units/${unit.unit_name}`}
-        className="group flex h-full flex-col items-center gap-2 rounded-md border border-neutral-900 p-3 transition-colors hover:border-neutral-600 active:border-neutral-500"
+        className="group flex h-full min-w-0 flex-col items-center gap-2 rounded-md border border-neutral-900 p-3 transition-colors hover:border-neutral-600 active:border-neutral-500"
       >
         <span className="flex h-16 w-full items-center justify-center">
           {picture.from === "placeholder" ? (
-            <AssetPlaceholder of={picture} className="w-full max-w-16" />
+            // Square and quiet: the cell prints the name below, so the
+            // drawing saying it too read every def key twice (#280), and a
+            // footprint taller than the slot walked over its neighbours.
+            <AssetPlaceholder
+              of={{ name: picture.name, keyedOn: picture.keyedOn, footprint: null }}
+              quiet
+              className="size-16"
+            />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
             <img
