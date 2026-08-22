@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { gameCountLabel, gameTitle, itemCountLabel } from "@/lib/games/labels";
+import { gameCountLabel, gameTitle } from "@/lib/games/labels";
 import type { GameSummary } from "@/lib/games/query";
 
 /**
@@ -32,7 +32,7 @@ export function GameCard({ game }: { game: GameSummary }) {
         </span>
         {game.description ? <span className={BLURB}>{game.description}</span> : null}
         <span className="mt-auto text-xs uppercase tracking-wide text-neutral-500">
-          {gameCountLabel(game)} &middot; {itemCountLabel(game.item_count)}
+          {gameCountLabel(game)}
         </span>
       </Link>
     </li>
