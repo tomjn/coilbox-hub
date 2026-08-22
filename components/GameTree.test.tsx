@@ -106,10 +106,26 @@ test("builders wear the yellow dash, armed leaves red, quiet ones neutral", () =
   const html = block();
 
   // Four builder rows - commander, plant, vehicle, and the plant again as an
-  // edge node - all dashed yellow.
-  expect(html.split("border-dashed border-yellow-400/80").length - 1).toBe(4);
-  // The laser tower shoots and builds nothing: solid red.
-  expect(html.split("border-red-400/80").length - 1).toBe(1);
+  // edge node - all dashed yellow at two pixels.
+  expect(html.split("border-2 border-dashed border-yellow-400/80").length - 1).toBe(4);
+  // The laser tower shoots and builds nothing: faint solid red.
+  expect(html.split("border-2 border-red-400/50").length - 1).toBe(1);
   // The solar collector does neither: the plain depth line's colour.
   expect(html.split("border-neutral-800").length - 1).toBeGreaterThanOrEqual(1);
+});
+
+test("armed dead ends group ahead of the quiet ones", () => {
+  const html = block();
+
+  // The commander lists the solar first in its build options, but the red
+  // chips draw together before the quiet ones start.
+  expect(html.indexOf("Light Laser Tower")).toBeLessThan(html.indexOf("Solar Collector"));
+});
+
+test("spine rows hug their name instead of stretching across the level", () => {
+  const html = block();
+
+  // Commander, plant, vehicle, and the plant's edge mention: four spine rows
+  // with the leaf grid's 10rem floor. Leaf cells size themselves by the grid.
+  expect(html.split("w-fit min-w-40").length - 1).toBe(4);
 });

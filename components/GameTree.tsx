@@ -39,14 +39,15 @@ import type { TreeNode } from "@/lib/games/tree";
  * changes meaning:
  *
  * - Builders and factories wear the yellow dash.
- * - Units that shoot but build nothing wear red.
+ * - Units that shoot but build nothing wear red, kept faint so forty of them
+ *   do not shout over the page.
  * - Everything else - a solar, a storage shed - keeps the plain depth line's
  *   colour, present but quiet.
  */
 function chipBorder(node: TreeNode): string {
-  if (node.builds.length > 0) return "border-dashed border-yellow-400/80";
-  if (node.armed) return "border-red-400/80";
-  return "border-neutral-800";
+  if (node.builds.length > 0) return "border-2 border-dashed border-yellow-400/80";
+  if (node.armed) return "border-2 border-red-400/50";
+  return "border-2 border-neutral-800";
 }
 
 function UnitRow({
@@ -54,16 +55,22 @@ function UnitRow({
   node,
   picture,
   muted,
+  fit,
 }: {
   game: string;
   node: TreeNode;
   picture?: ResolvedAsset;
   muted?: boolean;
+  /** Spine rows hug their name down to the leaf grid's 10rem floor, instead
+   *  of stretching across the level the way a block element defaults to. */
+  fit?: boolean;
 }) {
   return (
     <Link
       href={`/games/${game}/units/${node.name}`}
       className={`flex min-w-0 items-center gap-2 rounded-sm border px-1 py-0.5 ${chipBorder(node)} ${
+        fit ? "w-fit min-w-40" : ""
+      } ${
         muted
           ? "text-sm text-neutral-400 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
           : "text-sm text-neutral-300 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
@@ -113,13 +120,16 @@ function Node({
     });
 
   // Dead ends read across; the builders and factories carry the hierarchy
-  // down the page.
+  // down the page. Armed dead ends group ahead of the quiet ones so the red
+  // reads as a set rather than scattered singles.
   const leaves = children.filter(({ child }) => child.builds.length === 0);
+  const armedLeaves = leaves.filter(({ child }) => child.armed);
+  const quietLeaves = leaves.filter(({ child }) => !child.armed);
   const builders = children.filter(({ child }) => child.builds.length > 0);
 
   return (
     <li>
-      <UnitRow game={game} node={node} picture={pictures.get(node.name)} />
+      <UnitRow game={game} node={node} picture={pictures.get(node.name)} fit />
       {children.length > 0 ? (
         <details open className="group">
           <summary className="ml-1 inline cursor-pointer list-none text-xs text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300">
@@ -134,7 +144,7 @@ function Node({
           <ul className="ml-6 mt-1 flex flex-col gap-1.5 border-l border-neutral-800 pl-5">
             {leaves.length > 0 ? (
               <li className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] items-center gap-x-3 gap-y-1 py-0.5">
-                {leaves.map(({ child }) => (
+                {[...armedLeaves, ...quietLeaves].map(({ child }) => (
                   <UnitRow
                     key={child.name}
                     game={game}
@@ -157,7 +167,13 @@ function Node({
                 />
               ) : (
                 <li key={child.name}>
-                  <UnitRow game={game} node={child} picture={pictures.get(child.name)} muted />
+                  <UnitRow
+                    game={game}
+                    node={child}
+                    picture={pictures.get(child.name)}
+                    muted
+                    fit
+                  />
                 </li>
               ),
             )}
