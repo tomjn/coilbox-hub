@@ -299,6 +299,28 @@ export async function unitRender(
   return resolveAsset(identity, held, null);
 }
 
+/**
+ * The buildpic on its own terms, beside the render rather than under it (#259).
+ *
+ * The render's own resolution substitutes a buildpic when no top down render
+ * is stored, which is the ladder working; this read is what lets a page show
+ * both pictures at once when the hub holds both.
+ */
+export async function unitBuildpic(
+  supabase: SupabaseClient,
+  shortname: string,
+  unitName: string,
+): Promise<ResolvedAsset> {
+  const identity: AssetIdentity = {
+    keyedOn: "unit",
+    game: shortname,
+    unitName,
+    variant: UNIT_BUILDPIC_VARIANT,
+  };
+  const held = await fetchHeldAssets(supabase, [identity]);
+  return resolveAsset(identity, held, null);
+}
+
 /** One side of a compare view: what one release said about one unit. */
 interface ComparisonSide {
   version: string;

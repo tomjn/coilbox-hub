@@ -9,6 +9,7 @@ import {
   loadUnitGrid,
   loadUnitPage,
   gameFactions,
+  unitBuildpic,
   unitBuildpics,
   unitRender,
   type FactionOption,
@@ -87,7 +88,11 @@ export async function unitPageCached(
   shortname: string,
   unitName: string,
   version?: string,
-): Promise<{ page: UnitPage; render: ResolvedAsset } | null> {
+): Promise<{
+  page: UnitPage;
+  render: ResolvedAsset;
+  buildpic: ResolvedAsset;
+} | null> {
   "use cache";
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games, TAGS.assets);
@@ -95,7 +100,11 @@ export async function unitPageCached(
   const supabase = createAnonClient();
   const page = await loadUnitPage(supabase, shortname, unitName, version);
   if (!page) return null;
-  return { page, render: await unitRender(supabase, shortname, unitName) };
+  return {
+    page,
+    render: await unitRender(supabase, shortname, unitName),
+    buildpic: await unitBuildpic(supabase, shortname, unitName),
+  };
 }
 
 /** Two releases of one unit, side by side. */
