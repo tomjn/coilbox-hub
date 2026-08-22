@@ -17,31 +17,28 @@ import { matchesQuery, type TreeNode } from "@/lib/games/tree";
  *   open once near the top and again underneath the vehicle as a plain link.
  *   Without this, graphs whose builders point at each other draw once per path,
  *   which is how a 379 unit game became a million drawings (#257).
+ *
+ * There is no depth bound. Each level of recursion claims a unit no earlier
+ * level claimed, so the walk cannot outlive the faction's own unit count, and
+ * Balanced Annihilation reaches depth 19 - deeper than any bound worth
+ * keeping would allow.
  */
-
-/** How deep the walk may nest before it stops. The once-per-tree rule above
- *  bounds the drawing count on its own; this keeps a pathological graph from
- *  nesting past reading depth. */
-const MAX_DEPTH = 8;
 
 function Node({
   game,
   node,
   byName,
   q,
-  depth,
   expanded,
 }: {
   game: string;
   node: TreeNode;
   byName: ReadonlyMap<string, TreeNode>;
   q: string | null;
-  depth: number;
   /** Every unit already unfolded somewhere above this one, across the whole
    *  page. Shared, so ownership of a subtree is walk order. */
   expanded: Set<string>;
 }) {
-  const recurse = depth < MAX_DEPTH;
   const children = node.builds
     .map((name) => byName.get(name))
     .filter((child): child is TreeNode => Boolean(child) && matchesQuery(child as TreeNode, q))
@@ -49,7 +46,7 @@ function Node({
       const fresh = !expanded.has(child.name);
       // Claimed before anything renders, so a later sibling pointing back at
       // this unit sees the claim and draws itself as an edge node.
-      if (fresh && recurse) expanded.add(child.name);
+      if (fresh) expanded.add(child.name);
       return { child, fresh };
     });
 
@@ -68,14 +65,13 @@ function Node({
           </summary>
           <ul className="ml-3 mt-1 flex flex-col gap-1 border-l border-neutral-900 pl-3">
             {children.map(({ child, fresh }) =>
-              fresh && recurse ? (
+              fresh ? (
                 <Node
                   key={child.name}
                   game={game}
                   node={child}
                   byName={byName}
                   q={q}
-                  depth={depth + 1}
                   expanded={expanded}
                 />
               ) : (
@@ -130,7 +126,7 @@ export function TreeBlock({
       </h2>
       <ul className="flex flex-col gap-1.5">
         {visible.map((node) => (
-          <Node key={node.name} game={game} node={node} byName={byName} q={q} depth={0} expanded={expanded} />
+          <Node key={node.name} game={game} node={node} byName={byName} q={q} expanded={expanded} />
         ))}
       </ul>
     </section>
