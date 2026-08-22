@@ -52,7 +52,7 @@ export default async function EditGame({
   // is what this page is for. The public pickers filter those themselves.
   const { data: versions } = await supabase
     .from("game_version")
-    .select("version,hidden_at")
+    .select("version,hidden_at,game!inner(shortname)")
     .eq("game.shortname", shortname)
     .order("last_seen_at", { ascending: false });
   const versionRows = (versions ?? []) as unknown as { version: string; hidden_at: string | null }[];
