@@ -26,8 +26,10 @@ test("a game with no description yet shows none rather than an empty block", () 
 });
 
 /** The counts are the one number a card carries, so it is the sentence a
- *  player uses rather than two bare figures. */
+ *  player uses rather than two bare figures. Community items live on the
+ *  game's own page, not on the shelf (#280). */
 test("a card says how much there is in words", () => {
   const html = renderToStaticMarkup(<GameCard game={GAME} />);
-  expect(html).toContain("2 factions, 340 units · 12 community items");
+  expect(html).toContain("2 factions, 340 units");
+  expect(html).not.toContain("community item");
 });
