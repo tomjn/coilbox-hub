@@ -56,3 +56,31 @@ test("every unit is reachable from the start unit", () => {
 test("a search that matches nothing draws nothing", () => {
   expect(block("kbot")).toBe("");
 });
+
+test("a chain deeper than the old depth bound renders to its end", () => {
+  // Expansion-once terminates on its own, so there is no MAX_DEPTH left to
+  // truncate real graphs: Balanced Annihilation reaches depth 19.
+  const LENGTH = 20;
+  const chain = Array.from({ length: LENGTH }, (_, index) => ({
+    unit_name: `chain${index}`,
+    full_name: `Chain ${index}`,
+    build_options: index < LENGTH - 1 ? [`chain${index + 1}`] : [],
+  }));
+  const tree = buildTree(chain, ["chain0"]);
+  const byName = new Map<string, TreeNode>();
+  for (const faction of tree.factions) {
+    for (const node of faction.units) byName.set(node.name, node);
+  }
+  const html = renderToStaticMarkup(
+    <TreeBlock
+      game="BA"
+      heading="Arm"
+      roots={tree.factions[0].units.filter((unit) => unit.name === "chain0")}
+      byName={byName}
+      q={null}
+      expanded={new Set()}
+    />,
+  );
+
+  expect(html).toContain("Chain 19");
+});
