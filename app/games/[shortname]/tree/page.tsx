@@ -54,12 +54,15 @@ export default async function TreePage({
   };
   const v = raw("v");
   const q = raw("q")?.trim() || null;
-  const faction = raw("faction")?.trim() || null;
+  const factionParam = raw("faction")?.trim() || null;
 
-  const [tree, factions] = await Promise.all([
-    treeCached(shortname, v, faction),
-    gameFactionsCached(shortname),
-  ]);
+  // One faction per request (#266): the chosen one, or the game's first. The
+  // walk is scoped to that side's units before it runs, so a request never
+  // carries two factions' graphs.
+  const factions = await gameFactionsCached(shortname);
+  const faction = factionParam ?? factions[0]?.key ?? null;
+
+  const tree = await treeCached(shortname, v, faction);
   if (!tree) notFound();
 
   // Every unit the tree holds, so any build option resolves to its subtree.
@@ -68,6 +71,10 @@ export default async function TreePage({
     for (const node of faction.units) byName.set(node.name, node);
   }
   for (const node of tree.ungrouped) byName.set(node.name, node);
+
+  // Shared across every block on the page: a unit unfolds at most once per
+  // request, wherever in the walk its first occurrence lands (#266).
+  const expanded = new Set<string>();
 
   return (
     <main className="relative flex-1">
@@ -110,7 +117,6 @@ export default async function TreePage({
                 defaultValue={faction ?? ""}
                 className={CONTROL}
               >
-                <option value="">All factions</option>
                 {factions.map((option) => (
                   <option key={option.key} value={option.key}>
                     {option.name}
@@ -131,25 +137,32 @@ export default async function TreePage({
           <p className="text-sm text-neutral-500">Nobody has reported this game&rsquo;s units yet.</p>
         ) : (
           <div className="flex flex-col gap-8">
-            {tree.factions.map((faction) => (
-              <TreeBlock
-                key={faction.root}
-                game={shortname}
-                heading={faction.label}
-                note={`${faction.units.length} units`}
-                nodes={faction.units}
-                byName={byName}
-                q={q}
-              />
-            ))}
+            {tree.factions.map((faction) => {
+              // The block hangs from its start unit (#266); the walk beneath
+              // it reaches everything else in the faction.
+              const rootNode = faction.units.find((node) => node.name === faction.root);
+              return rootNode ? (
+                <TreeBlock
+                  key={faction.root}
+                  game={shortname}
+                  heading={faction.label}
+                  note={`${faction.units.length} units`}
+                  roots={[rootNode]}
+                  byName={byName}
+                  q={q}
+                  expanded={expanded}
+                />
+              ) : null;
+            })}
             {tree.ungrouped.length > 0 ? (
               <TreeBlock
                 game={shortname}
                 heading="No faction reaches these"
                 note={`${tree.ungrouped.length} units`}
-                nodes={tree.ungrouped}
+                roots={tree.ungrouped}
                 byName={byName}
                 q={q}
+                expanded={expanded}
               />
             ) : null}
           </div>
