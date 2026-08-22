@@ -3,8 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { setSnippet } from "@/app/games/actions";
-import { AssetPlaceholder } from "@/components/AssetPlaceholder";
 import { StatTable } from "@/components/StatTable";
+import { UnitPictures } from "@/components/UnitPictures";
 import { unitPageCached } from "@/lib/games/cached";
 import { createClient } from "@/lib/supabase/server";
 
@@ -53,7 +53,7 @@ export default async function Unit({
 
   const loaded = await unitPageCached(shortname, unit, v);
   if (!loaded) notFound();
-  const { page, render } = loaded;
+  const { page, render, buildpic } = loaded;
   const label = page.full_name ?? page.unit_name;
 
   // The snippet form is the owner's alone, and the check is one read: the
@@ -97,21 +97,7 @@ export default async function Unit({
         </nav>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
-          <div className="flex w-48 shrink-0 items-center justify-center rounded-md border border-neutral-900 bg-black p-4">
-            {render.from === "placeholder" ? (
-              <AssetPlaceholder of={render} className="w-full" />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
-              <img
-                src={render.url}
-                alt={`Top down render of ${label}`}
-                width={render.width}
-                height={render.height}
-                decoding="async"
-                className="h-auto w-full object-contain"
-              />
-            )}
-          </div>
+          <UnitPictures label={label} render={render} buildpic={buildpic} />
 
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-semibold tracking-tight">{label}</h1>
