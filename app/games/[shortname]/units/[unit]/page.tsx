@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { setSnippet } from "@/app/games/actions";
 import { StatTable } from "@/components/StatTable";
+import { UnitCard } from "@/components/UnitCard";
 import { UnitPictures } from "@/components/UnitPictures";
 import { unitPageCached } from "@/lib/games/cached";
 import { createClient } from "@/lib/supabase/server";
@@ -53,7 +54,7 @@ export default async function Unit({
 
   const loaded = await unitPageCached(shortname, unit, v);
   if (!loaded) notFound();
-  const { page, render, buildpic } = loaded;
+  const { page, render, buildpic, buildPictures } = loaded;
   const label = page.full_name ?? page.unit_name;
 
   // The snippet form is the owner's alone, and the check is one read: the
@@ -178,16 +179,24 @@ export default async function Unit({
           {page.builds.length === 0 ? (
             <p className="text-sm text-neutral-500">Nothing, or nothing reported yet.</p>
           ) : (
-            <ul className="flex flex-wrap gap-2">
-              {page.builds.map((build) => (
-                <li key={build.name}>
-                  <Link
-                    href={`/games/${shortname}/units/${build.name}`}
-                    className="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-                  >
-                    {build.label}
-                  </Link>
-                </li>
+            // The same cells the catalog grid draws (#260): a reader who has
+            // just been scrolling units recognises them by their buildpics.
+            <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+              {page.builds.map((build, index) => (
+                <UnitCard
+                  key={build.name}
+                  game={shortname}
+                  unit={{ unit_name: build.name, full_name: build.label }}
+                  picture={
+                    buildPictures.get(build.name) ?? {
+                      from: "placeholder",
+                      keyedOn: "unit",
+                      name: build.name,
+                      footprint: null,
+                    }
+                  }
+                  eager={index < 16}
+                />
               ))}
             </ul>
           )}
