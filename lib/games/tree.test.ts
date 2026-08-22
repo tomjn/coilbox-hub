@@ -47,11 +47,28 @@ test("a start unit nobody holds heads nothing", () => {
   expect(tree.factions.map((faction) => faction.root)).toEqual(["armcom"]);
 });
 
-test("units no root reaches stay visible as ungrouped", () => {
+test("units no root reaches stay visible as ungrouped, unless nothing builds them either", () => {
   const tree = buildTree(UNITS, ["corcom"]);
-  // armsolar is reached from corcom, so it belongs to cortex; the commander
-  // line and what only it builds are the ones left outside.
-  expect(tree.ungrouped.map((unit) => unit.name)).toEqual(["armcom", "armfark", "armmex"]);
+  // armsolar is reached from corcom, so it belongs to cortex. armmex is
+  // unreachable but armcom builds it, so it stays visible. armcom itself and
+  // armfark have no incoming edges at all - archive ghosts (#280) - so they
+  // hide rather than head an ungrouped block.
+  expect(tree.ungrouped.map((unit) => unit.name)).toEqual(["armmex"]);
+});
+
+test("a reference kept only by an unreachable unit still counts as built", () => {
+  // An orphaned cluster that points at each other stays visible as a cluster;
+  // hiding chain by chain would take the whole island out one walk at a time.
+  const island = [
+    { unit_name: "root", full_name: "Root", build_options: ["a"] },
+    { unit_name: "a", full_name: "A", build_options: ["b"] },
+    { unit_name: "b", full_name: "B", build_options: ["a"] },
+    { unit_name: "ghost", full_name: "Ghost", build_options: [] },
+  ];
+  const tree = buildTree(island, ["missing"]);
+  // root heads no faction and nobody builds it either, so it is a ghost like
+  // ghost is; the pair that points at each other survives.
+  expect(tree.ungrouped.map((unit) => unit.name)).toEqual(["a", "b"]);
 });
 
 test("keys match case-insensitively, because def keys arrive however they like", () => {
@@ -67,6 +84,7 @@ test("keys match case-insensitively, because def keys arrive however they like",
  */
 
 const ARMED_UNITS = [
+  { unit_name: "armbase", full_name: "Base", build_options: ["armllt", "armemp", "armck"], stats: {} },
   {
     unit_name: "armllt",
     full_name: "Light Laser Tower",
@@ -89,14 +107,14 @@ const ARMED_UNITS = [
 ];
 
 test("a weapons summary makes a unit armed", () => {
-  const tree = buildTree(ARMED_UNITS, []);
-  const armed = new Map(tree.ungrouped.concat(...tree.factions.map((f) => f.units)).map((u) => [u.name, u.armed]));
+  const tree = buildTree(ARMED_UNITS, ["armbase"]);
+  const armed = new Map(tree.factions[0].units.map((u) => [u.name, u.armed]));
   expect(armed.get("armllt")).toBe(true);
 });
 
 test("no summary, an empty one, or none at all leaves a unit unarmed", () => {
-  const tree = buildTree(ARMED_UNITS, []);
-  const armed = new Map(tree.ungrouped.concat(...tree.factions.map((f) => f.units)).map((u) => [u.name, u.armed]));
+  const tree = buildTree(ARMED_UNITS, ["armbase"]);
+  const armed = new Map(tree.factions[0].units.map((u) => [u.name, u.armed]));
   expect(armed.get("armsolar")).toBe(false);
   expect(armed.get("armemp")).toBe(false);
   expect(armed.get("armck")).toBe(false);

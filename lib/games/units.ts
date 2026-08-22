@@ -66,6 +66,8 @@ export async function loadUnitGrid(
   supabase: SupabaseClient,
   shortname: string,
   filters: UnitGridFilters,
+  /** Units nothing builds and no start unit heads (#280): off the shelf. */
+  exclude: string[] = [],
 ): Promise<{ units: UnitSummary[]; count: number; error: string | null }> {
   let query = supabase
     .from("game_unit")
@@ -80,6 +82,10 @@ export async function loadUnitGrid(
     // Either name is a name. A visitor who typed "commander" is looking for
     // armcom, whose full name says Commander and whose def key does not.
     query = query.or(`unit_name.ilike.%${filters.q}%,full_name.ilike.%${filters.q}%`);
+  }
+  if (exclude.length > 0) {
+    // Def keys are lowercased words, so no list here needs CSV quoting.
+    query = query.not("unit_name", "in", `(${exclude.join(",")})`);
   }
 
   const listing = () =>
@@ -98,6 +104,46 @@ export async function loadUnitGrid(
 
   if (error) return { units: [], count: 0, error };
   return { units: (data ?? []) as unknown as UnitRow[], count: count ?? 0, error: null };
+}
+
+/**
+ * The units a player can never reach (#280): nothing builds them and no start
+ * unit heads them. An archive keeps reference defs among a game's facts - old
+ * units, experiments - and a shelf of ghosts helps nobody.
+ *
+ * A mention counts only from a living row: the one build option a retired unit
+ * holds is not a live path either. The answer feeds an exclusion list, so it
+ * stays empty on any read that fails rather than taking the grid down with it.
+ */
+export async function unbuildableUnits(
+  supabase: SupabaseClient,
+  shortname: string,
+): Promise<string[]> {
+  const [units, game] = await Promise.all([
+    supabase
+      .from("game_unit")
+      .select("unit_name,build_options,game!inner(shortname)")
+      .eq("game.shortname", shortname)
+      .is("removed_at", null),
+    supabase.from("game").select("start_units").eq("shortname", shortname).maybeSingle(),
+  ]);
+  if (units.error || !units.data || game.error || !game.data) return [];
+
+  const rows = units.data as unknown as { unit_name: string; build_options: string[] }[];
+  const starts = new Set(
+    ((game.data.start_units ?? []) as string[]).map((name) => name.toLowerCase()),
+  );
+  const referenced = new Set<string>();
+  for (const row of rows) {
+    for (const option of row.build_options ?? []) {
+      const key = option?.toLowerCase();
+      if (key) referenced.add(key);
+    }
+  }
+  return rows
+    .map((row) => row.unit_name)
+    .filter((name) => !referenced.has(name.toLowerCase()) && !starts.has(name.toLowerCase()))
+    .sort();
 }
 
 /** The buildpic for every unit in a page of the grid, keyed by unit name. */

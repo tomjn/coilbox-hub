@@ -126,8 +126,22 @@ export function buildTree(
       .map(nodeOf),
   }));
 
+  // A unit nothing builds and no start unit heads is a reference somebody
+  // kept in the archive, not a thing a player can reach (#280): it hides
+  // rather than filling the ungrouped block with ghosts. A mention from
+  // another unreachable unit still counts as built-by-something, so an
+  // orphaned cluster stays visible instead of vanishing chain by chain.
+  const referenced = new Set<string>();
+  for (const unit of units) {
+    for (const option of unit.build_options) {
+      const key = option?.toLowerCase();
+      if (key) referenced.add(key);
+    }
+  }
+
   const ungrouped = [...known.keys()]
     .filter((key) => !factionOf.has(key))
+    .filter((key) => referenced.has(key))
     .sort()
     .map(nodeOf);
 
