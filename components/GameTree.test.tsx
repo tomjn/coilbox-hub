@@ -13,10 +13,16 @@ import { buildTree, type TreeNode } from "@/lib/games/tree";
  */
 
 const UNITS = [
-  { unit_name: "armcom", full_name: "Commander", build_options: ["armveh", "armsolar"] },
+  { unit_name: "armcom", full_name: "Commander", build_options: ["armveh", "armsolar", "armllt"] },
   { unit_name: "armveh", full_name: "Vehicle Plant", build_options: ["armcv"] },
   { unit_name: "armcv", full_name: "Construction Vehicle", build_options: ["armveh"] },
   { unit_name: "armsolar", full_name: "Solar Collector", build_options: [] },
+  {
+    unit_name: "armllt",
+    full_name: "Light Laser Tower",
+    build_options: [],
+    stats: { weapons: [{ range: 210 }] },
+  },
 ];
 
 const PICTURE: ResolvedAsset = {
@@ -75,8 +81,8 @@ test("each expander carries a plus that turns on open", () => {
 test("every row carries a buildpic", () => {
   const html = block();
 
-  // Five rows: four units plus the vehicle plant again as an edge node.
-  expect(html.split("<img").length - 1).toBe(5);
+  // Six rows: five units plus the vehicle plant again as an edge node.
+  expect(html.split("<img").length - 1).toBe(6);
 });
 
 test("the loop closes as an edge node, not another lap", () => {
@@ -94,4 +100,16 @@ test("every unit is reachable from the start unit", () => {
   expect(html).toContain("Solar Collector");
   expect(html).toContain("Construction Vehicle");
   expect(html).toContain('href="/games/BA/units/armveh"');
+});
+
+test("builders wear the yellow dash, armed leaves red, quiet ones neutral", () => {
+  const html = block();
+
+  // Four builder rows - commander, plant, vehicle, and the plant again as an
+  // edge node - all dashed yellow.
+  expect(html.split("border-dashed border-yellow-400/80").length - 1).toBe(4);
+  // The laser tower shoots and builds nothing: solid red.
+  expect(html.split("border-red-400/80").length - 1).toBe(1);
+  // The solar collector does neither: the plain depth line's colour.
+  expect(html.split("border-neutral-800").length - 1).toBeGreaterThanOrEqual(1);
 });

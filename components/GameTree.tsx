@@ -28,8 +28,26 @@ import type { TreeNode } from "@/lib/games/tree";
  * behind its build count. Within a level the walk splits in two: dead ends -
  * units that build nothing - sit together in one equal-width grid, and the
  * builders and factories follow underneath as the vertical spine of the
- * hierarchy.
+ * hierarchy. A chip's border says what its unit is: yellow dashed when it
+ * builds, red when it only shoots (#278).
  */
+
+/**
+ * The border a unit's chip wears (#278).
+ *
+ * Every row gets the same box so the grid's columns stay put; only the border
+ * changes meaning:
+ *
+ * - Builders and factories wear the yellow dash.
+ * - Units that shoot but build nothing wear red.
+ * - Everything else - a solar, a storage shed - keeps the plain depth line's
+ *   colour, present but quiet.
+ */
+function chipBorder(node: TreeNode): string {
+  if (node.builds.length > 0) return "border-dashed border-yellow-400/80";
+  if (node.armed) return "border-red-400/80";
+  return "border-neutral-800";
+}
 
 function UnitRow({
   game,
@@ -45,7 +63,7 @@ function UnitRow({
   return (
     <Link
       href={`/games/${game}/units/${node.name}`}
-      className={`flex min-w-0 items-center gap-2 ${
+      className={`flex min-w-0 items-center gap-2 rounded-sm border px-1 py-0.5 ${chipBorder(node)} ${
         muted
           ? "text-sm text-neutral-400 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
           : "text-sm text-neutral-300 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
