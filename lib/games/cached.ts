@@ -92,6 +92,7 @@ export async function unitPageCached(
   page: UnitPage;
   render: ResolvedAsset;
   buildpic: ResolvedAsset;
+  buildPictures: ReadonlyMap<string, ResolvedAsset>;
 } | null> {
   "use cache";
   cacheLife(LISTING_LIFE);
@@ -100,10 +101,26 @@ export async function unitPageCached(
   const supabase = createAnonClient();
   const page = await loadUnitPage(supabase, shortname, unitName, version);
   if (!page) return null;
+  const [render, buildpic, buildPictures] = await Promise.all([
+    unitRender(supabase, shortname, unitName),
+    unitBuildpic(supabase, shortname, unitName),
+    // What it builds draws as catalog cells (#260), which means one buildpic
+    // per entry - a couple of dozen at most, since that is what a unit builds.
+    unitBuildpics(
+      supabase,
+      shortname,
+      page.builds.map((build) => ({
+        unit_name: build.name,
+        full_name: build.label,
+        faction_key: null,
+      })),
+    ),
+  ]);
   return {
     page,
-    render: await unitRender(supabase, shortname, unitName),
-    buildpic: await unitBuildpic(supabase, shortname, unitName),
+    render,
+    buildpic,
+    buildPictures,
   };
 }
 
