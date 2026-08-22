@@ -185,6 +185,20 @@ export interface FactionOption {
   name: string;
 }
 
+/**
+ * Whether a side is the die roll rather than an army (#280).
+ *
+ * Games report a faction called Random so a lobby can pick one for you. It has
+ * no units of its own worth a strip, a filter or a tree block, and offering it
+ * beside real sides reads as a side somebody plays.
+ */
+function isRandomFaction(faction: { key: string; name: string }): boolean {
+  return (
+    faction.key.trim().toLowerCase() === "random" ||
+    faction.name.trim().toLowerCase() === "random"
+  );
+}
+
 export async function gameFactions(
   supabase: SupabaseClient,
   shortname: string,
@@ -193,10 +207,12 @@ export async function gameFactions(
     .from("game_faction")
     .select("key,name,game!inner(shortname)")
     .eq("game.shortname", shortname);
-  return ((data ?? []) as unknown as { key: string; name: string }[]).map((f) => ({
-    key: f.key,
-    name: f.name,
-  }));
+  return ((data ?? []) as unknown as { key: string; name: string }[])
+    .filter((f) => !isRandomFaction(f))
+    .map((f) => ({
+      key: f.key,
+      name: f.name,
+    }));
 }
 
 async function factionNames(

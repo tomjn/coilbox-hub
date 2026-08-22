@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { loadUnitGrid, parseUnitGridFilters, unbuildableUnits } from "./units";
+import {
+  gameFactions,
+  loadUnitGrid,
+  parseUnitGridFilters,
+  unbuildableUnits,
+} from "./units";
 
 /**
  * Hiding retired units is a null check, and PostgREST spells that `is.null`
@@ -162,4 +167,26 @@ test("a unit nobody builds and no start unit heads is a ghost", async () => {
 test("a start unit never hides, however lonely it is", async () => {
   const ghosts = await unbuildableUnits(fakeCatalog(CATALOG, ["armcom", "armfark"]), "BA");
   expect(ghosts).toEqual([]);
+});
+
+/**
+ * A side called Random is the die roll a lobby offers, not an army (#280).
+ * No list offers it beside real sides, whatever casing it arrived in.
+ */
+test("the random side hides from every faction list", async () => {
+  const rows = [
+    { key: "arm", name: "Arm" },
+    { key: "random", name: "Random" },
+    { key: "core", name: "Random" },
+    { key: "random", name: "Trolls" },
+  ];
+  const factionQuery = {
+    select: () => factionQuery,
+    eq: () => factionQuery,
+    then: (resolve: (value: unknown) => unknown) =>
+      Promise.resolve({ data: rows, error: null }).then(resolve),
+  };
+  const supabase = { from: () => factionQuery } as unknown as SupabaseClient;
+
+  expect(await gameFactions(supabase, "BA")).toEqual([{ key: "arm", name: "Arm" }]);
 });

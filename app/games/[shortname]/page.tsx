@@ -57,23 +57,29 @@ export async function generateMetadata({
 
 /** One side of the game, as a chip beside its fellows. The name is always
  *  there; the logo rides along when the hub holds one, because a strip of
- *  dashed boxes would promise pictures nobody has yet. */
-function Faction({ faction }: { faction: GamePageFaction }) {
+ *  dashed boxes would promise pictures nobody has yet. The whole chip is a
+ *  link into the encyclopedia, filtered to that side (#280). */
+function Faction({ game, faction }: { game: string; faction: GamePageFaction }) {
   return (
-    <li className="flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
-      {faction.logo_path ? (
-        // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
-        <img
-          src={staticTierUrl(faction.logo_path)}
-          alt=""
-          width={24}
-          height={24}
-          loading="lazy"
-          decoding="async"
-          className="h-6 w-6 rounded object-contain"
-        />
-      ) : null}
-      <span>{faction.name}</span>
+    <li>
+      <Link
+        href={`/games/${game}/units?faction=${encodeURIComponent(faction.key)}`}
+        className="flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 underline-offset-4 transition-colors hover:border-neutral-600 hover:text-white active:border-neutral-500 active:text-white"
+      >
+        {faction.logo_path ? (
+          // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
+          <img
+            src={staticTierUrl(faction.logo_path)}
+            alt=""
+            width={24}
+            height={24}
+            loading="lazy"
+            decoding="async"
+            className="h-6 w-6 rounded object-contain"
+          />
+        ) : null}
+        <span>{faction.name}</span>
+      </Link>
     </li>
   );
 }
@@ -189,7 +195,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           {page.factions.length > 0 ? (
             <ul className="flex flex-wrap gap-2">
               {page.factions.map((faction) => (
-                <Faction key={faction.key} faction={faction} />
+                <Faction key={faction.key} game={page.shortname} faction={faction} />
               ))}
             </ul>
           ) : (
