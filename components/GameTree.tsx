@@ -26,7 +26,7 @@ import type { TreeNode } from "@/lib/games/tree";
  *
  * Every branch renders expanded (#276), and any of them can be collapsed
  * behind its build count. Within a level the walk splits in two: dead ends -
- * units that build nothing - sit together in one horizontal row, and the
+ * units that build nothing - sit together in one equal-width grid, and the
  * builders and factories follow underneath as the vertical spine of the
  * hierarchy.
  */
@@ -45,7 +45,7 @@ function UnitRow({
   return (
     <Link
       href={`/games/${game}/units/${node.name}`}
-      className={`flex items-center gap-2 ${
+      className={`flex min-w-0 items-center gap-2 ${
         muted
           ? "text-sm text-neutral-400 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
           : "text-sm text-neutral-300 underline-offset-4 hover:text-white active:text-white hover:underline active:underline"
@@ -63,7 +63,7 @@ function UnitRow({
           className="size-8 shrink-0 object-contain"
         />
       ) : null}
-      {node.label}
+      <span className="truncate">{node.label}</span>
     </Link>
   );
 }
@@ -115,7 +115,7 @@ function Node({
           </summary>
           <ul className="ml-6 mt-1 flex flex-col gap-1.5 border-l border-neutral-800 pl-5">
             {leaves.length > 0 ? (
-              <li className="flex flex-wrap items-center gap-x-4 gap-y-1 py-0.5">
+              <li className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] items-center gap-x-3 gap-y-1 py-0.5">
                 {leaves.map(({ child }) => (
                   <UnitRow
                     key={child.name}
