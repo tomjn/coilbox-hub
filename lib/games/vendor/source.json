@@ -1,0 +1,11 @@
+{
+  "repo": "tomjn/coilbox",
+  "ref": "main",
+  "dir": ".",
+  "files": {
+    "catalog.json": "b3a333eb6b2a07a9332fcdb8d98508f88061fa99"
+  },
+  "sha256": {
+    "catalog.json": "a6f1fc5eb093523c58302b5f2e54b1ced07ed688a3d648d584f4d7c2df9c5a98"
+  }
+}

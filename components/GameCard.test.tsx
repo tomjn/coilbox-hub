@@ -7,6 +7,7 @@ const GAME: GameSummary = {
   shortname: "BA",
   display_name: "Balanced Annihilation",
   description: "The classic total annihilation balance mod.",
+  logo_path: null,
   faction_count: 2,
   unit_count: 340,
   item_count: 12,
@@ -32,4 +33,19 @@ test("a card says how much there is in words", () => {
   const html = renderToStaticMarkup(<GameCard game={GAME} />);
   expect(html).toContain("2 factions, 340 units");
   expect(html).not.toContain("community item");
+});
+
+/** A game the hub holds a logo for draws it above the name (#239), from the
+ *  durable tier. One that holds none keeps the typographic card. */
+test("a card with a logo draws it, and one without does not", () => {
+  const withLogo = renderToStaticMarkup(
+    <GameCard
+      game={{ ...GAME, shortname: "SF", logo_path: "games/SF/logo.webp" }}
+    />,
+  );
+  expect(withLogo).toContain(
+    'src="https://tomjn.github.io/coilbox-assets/games/SF/logo.webp"',
+  );
+
+  expect(renderToStaticMarkup(<GameCard game={GAME} />)).not.toContain("<img");
 });

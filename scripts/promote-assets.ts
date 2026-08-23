@@ -58,9 +58,10 @@ export {}; // top level await needs this file to be a module
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { deleteBlobAssets } from "@/lib/assets/blob";
+import { blobTierUrl, deleteBlobAssets } from "@/lib/assets/blob";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { PROMOTION_BATCH, type PromotionPorts, runPromotion } from "@/lib/assets/promote";
+import { runGameImagePromotion } from "@/lib/assets/promoteGameImages";
 import {
   fetchOutstandingWithdrawals,
   recordWithdrawn,
@@ -290,6 +291,7 @@ if (withdrawn) {
   const { durablePath, fetchPendingDeletions, fetchPromotable } = await import(
     "@/lib/assets/promote"
   );
+  const { fetchStagedGameImages } = await import("@/lib/assets/promoteGameImages");
 
   const leftover = await fetchPendingDeletions(supabase);
   for (const row of leftover) {
@@ -301,8 +303,26 @@ if (withdrawn) {
     console.log(`would promote ${row.id}: ${row.path} -> ${durablePath(row) ?? "(unstorable)"}`);
   }
 
+  // A game picture's tier is not recorded on its row - the path means the same
+  // file on either tier - so the dry run asks the store directly. A HEAD is
+  // data transfer, not an operation, and a path that answers is one this run
+  // would have moved.
+  const staged = await fetchStagedGameImages(supabase);
+  let waiting = 0;
+  const seen = new Set<string>();
+  for (const image of staged) {
+    if (seen.has(image.path)) continue;
+    seen.add(image.path);
+    const response = await fetch(blobTierUrl(image.path), { method: "HEAD", cache: "no-store" });
+    if (response.ok) {
+      console.log(`would promote game ${image.kind} ${image.path}`);
+      waiting++;
+    }
+  }
+
   console.log(
-    `${leftover.length} left over, ${due.length} due. Dry run only. Re-run with --write to apply.`,
+    `${leftover.length} left over, ${due.length} due, ${waiting} game picture(s) waiting. ` +
+      `Dry run only. Re-run with --write to apply.`,
   );
 } else {
   const result = await runPromotion(supabase, ports, { limit });
@@ -314,5 +334,11 @@ if (withdrawn) {
   // A skip is a row the run read and did not move, which is normal once
   // (something changed underneath it) and a fault if it keeps happening. It is
   // not a reason to fail the run: the rows that did move, moved.
+
+  // The game pictures ride the same run and the same ports. After the asset
+  // pass, so their files join whatever commit it made or start their own.
+  const images = await runGameImagePromotion(supabase, ports);
+  if (images.skipped > 0) console.log(`${images.skipped} game picture(s) skipped, listed above.`);
+
   if (result.skipped > 0) console.log("Skipped rows are listed above with the reason.");
 }

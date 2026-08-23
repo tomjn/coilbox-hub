@@ -136,6 +136,16 @@ const GROUPS: VendorGroup[] = [
     files: ["map-catalog.json"],
   },
   {
+    // The branding catalog (#285): coilbox's own catalog.json, which brands an
+    // installed game with a banner, a logo and display-name overrides. Vendored
+    // so the hub's import matches entries against exactly the catalog the app
+    // reads, and so a test can pin that against real entries rather than
+    // fixtures. The only group whose upstream file sits at the repo root.
+    dir: ".",
+    vendor: "lib/games/vendor",
+    files: ["catalog.json"],
+  },
+  {
     // Reached from the warpath generator. It imports nothing but a type, so
     // unlike the rest of `src/content` it vendors cleanly.
     dir: "src/content",

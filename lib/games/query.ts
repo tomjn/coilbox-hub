@@ -13,6 +13,9 @@ export interface GameSummary {
   shortname: string;
   display_name: string | null;
   description: string | null;
+  /** Tier relative path to the game's logo, or null when the hub holds none
+   *  (#239). A card without one keeps the typographic look. */
+  logo_path: string | null;
   faction_count: number;
   unit_count: number;
   /** Live community content filed under this game's shortname (#244). */
@@ -22,7 +25,7 @@ export interface GameSummary {
 /** Everything `public.game_browse` publishes, which is the whole of what a card
  * shows. */
 export const GAME_SUMMARY_COLUMNS =
-  "shortname,display_name,description,faction_count,unit_count,item_count";
+  "shortname,display_name,description,logo_path,faction_count,unit_count,item_count";
 
 /**
  * Biggest first, then alphabetical.
