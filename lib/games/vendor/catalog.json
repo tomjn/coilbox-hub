@@ -1,0 +1,689 @@
+{
+  "version": 1,
+  "updated": "2026-07-31",
+  "excludedMaps": [
+    {
+      "id": "zwzsg-hexfarm",
+      "match": { "regex": "^hex ?farm" },
+      "reason": "Built for Kernel Panic. It ships its own LuaRules gadget and sets maxMetal to 0.1, so another game has no economy on it."
+    },
+    {
+      "id": "comet-catcher",
+      "match": { "regex": "^comet catcher" },
+      "reason": "Throws an engine error on load, so a warpath or conquest route drawn to it gets stuck."
+    }
+  ],
+  "githubGameRepos": [
+    {
+      "key": "metal-factions",
+      "label": "Metal Factions",
+      "repo": "springraaar/metal_factions",
+      "nameKey": "metalfactions"
+    },
+    {
+      "key": "evolution-rts",
+      "label": "Evolution RTS",
+      "repo": "EvolutionRTS/Evolution-RTS",
+      "nameKey": "evolutionrts"
+    },
+    {
+      "key": "tap",
+      "label": "TAP",
+      "repo": "FluidPlay/TAP",
+      "nameKey": ""
+    },
+    {
+      "key": "balanced-annihilation",
+      "label": "Balanced Annihilation",
+      "repo": "Balanced-Annihilation/Balanced-Annihilation",
+      "nameKey": "balancedannihilation"
+    },
+    {
+      "key": "splinterfaction",
+      "label": "SplinterFaction",
+      "repo": "SplinterFaction/SplinterFaction",
+      "nameKey": "splinterfaction"
+    }
+  ],
+  "suggested": {
+    "games": [
+      {
+        "id": "metal-factions",
+        "title": "Metal Factions",
+        "entryId": "metal-factions",
+        "blurb": "Fast-paced multi-faction RTS.",
+        "download": { "kind": "rapid", "tag": "metalfactions:stable" }
+      },
+      {
+        "id": "mechcommander-legacy",
+        "title": "MechCommander: Legacy",
+        "entryId": "mechcommander-legacy",
+        "blurb": "BattleTech-inspired mech combat.",
+        "download": { "kind": "rapid", "tag": "mcl:test" }
+      },
+      {
+        "id": "splinter-faction",
+        "title": "SplinterFaction",
+        "entryId": "splinter-faction",
+        "blurb": "Asymmetric sci-fi RTS, distributed via GitHub releases.",
+        "download": {
+          "kind": "github",
+          "sourceKey": "splinterfaction"
+        }
+      }
+    ],
+    "maps": [
+      {
+        "id": "all-that-glitters",
+        "title": "All That Glitters",
+        "filename": "all_that_glitters_v2.2.3.sd7",
+        "blurb": "Large 12-16 player brawl over rich reclaim fields.",
+        "download": { "kind": "map", "springName": "All That Glitters v2.2.3" }
+      },
+      {
+        "id": "supreme-isthmus",
+        "title": "Supreme Isthmus v2.1",
+        "filename": "supreme_isthmus_v2.1.sd7",
+        "blurb": "10-16 player clashes across a contested isthmus.",
+        "download": { "kind": "map", "springName": "Supreme Isthmus v2.1" }
+      },
+      {
+        "id": "crystallized-plains",
+        "title": "Crystallized Plains",
+        "filename": "crystallized_plains_1.1.sd7",
+        "blurb": "Compact 2-4 player duel on crystal flats.",
+        "download": { "kind": "map", "springName": "Crystallized Plains 1.1" }
+      },
+      {
+        "id": "altair-crossing",
+        "title": "Altair Crossing",
+        "filename": "altair_crossing_v4.1.sd7",
+        "blurb": "Small 2-6 player map built for fast T1 fights.",
+        "download": { "kind": "map", "springName": "Altair_Crossing_V4.1" }
+      },
+      {
+        "id": "fallendell",
+        "title": "Fallendell",
+        "filename": "fallendell_v4.sd7",
+        "blurb": "2-4 player map with varied terrain and routes.",
+        "download": { "kind": "map", "springName": "Fallendell_V4" }
+      },
+      {
+        "id": "heartbreak-hill",
+        "title": "Heartbreak Hill",
+        "filename": "heartbreak_hill_v4.0.1.sd7",
+        "blurb": "2-6 player fight over ridgelines to the central hill.",
+        "download": { "kind": "map", "springName": "Heartbreak Hill v4.0.1" }
+      }
+    ],
+    "mapLists": [
+      {
+        "id": "starter-pack",
+        "title": "Starter pack",
+        "blurb": "A handful of well-rounded maps to get a first game going.",
+        "maps": [
+          {
+            "id": "all-that-glitters",
+            "title": "All That Glitters",
+            "filename": "all_that_glitters_v2.2.3.sd7",
+            "blurb": "Large 12-16 player brawl over rich reclaim fields.",
+            "download": {
+              "kind": "map",
+              "springName": "All That Glitters v2.2.3"
+            }
+          },
+          {
+            "id": "supreme-isthmus",
+            "title": "Supreme Isthmus v2.1",
+            "filename": "supreme_isthmus_v2.1.sd7",
+            "blurb": "10-16 player clashes across a contested isthmus.",
+            "download": { "kind": "map", "springName": "Supreme Isthmus v2.1" }
+          },
+          {
+            "id": "crystallized-plains",
+            "title": "Crystallized Plains",
+            "filename": "crystallized_plains_1.1.sd7",
+            "blurb": "Compact 2-4 player duel on crystal flats.",
+            "download": { "kind": "map", "springName": "Crystallized Plains 1.1" }
+          },
+          {
+            "id": "altair-crossing",
+            "title": "Altair Crossing",
+            "filename": "altair_crossing_v4.1.sd7",
+            "blurb": "Small 2-6 player map built for fast T1 fights.",
+            "download": { "kind": "map", "springName": "Altair_Crossing_V4.1" }
+          },
+          {
+            "id": "fallendell",
+            "title": "Fallendell",
+            "filename": "fallendell_v4.sd7",
+            "blurb": "2-4 player map with varied terrain and routes.",
+            "download": { "kind": "map", "springName": "Fallendell_V4" }
+          },
+          {
+            "id": "heartbreak-hill",
+            "title": "Heartbreak Hill",
+            "filename": "heartbreak_hill_v4.0.1.sd7",
+            "blurb": "2-6 player fight over ridgelines to the central hill.",
+            "download": { "kind": "map", "springName": "Heartbreak Hill v4.0.1" }
+          }
+        ]
+      },
+      {
+        "id": "space-maps",
+        "title": "Space maps",
+        "blurb": "Void-edged battlegrounds set among asteroids, moons and the stars.",
+        "maps": [
+          {
+            "id": "space-asteroid-mines-v3",
+            "title": "Asteroid Mines V3",
+            "filename": "asteroid_mines_v3.sd7",
+            "download": { "kind": "map", "springName": "Asteroid_Mines_V3" }
+          },
+          {
+            "id": "space-cloud9-v2",
+            "title": "Cloud9 V2",
+            "filename": "cloud9_v2.sd7",
+            "download": { "kind": "map", "springName": "Cloud9_V2" }
+          },
+          {
+            "id": "space-faster-than-light",
+            "title": "Faster Than Light 1.1",
+            "filename": "faster_than_light_1.1.sd7",
+            "download": { "kind": "map", "springName": "Faster Than Light 1.1" }
+          },
+          {
+            "id": "space-houses-of-tripolis",
+            "title": "Houses of Tripolis 1.3",
+            "filename": "houses_of_tripolis_1.3.sd7",
+            "download": {
+              "kind": "map",
+              "springName": "Houses of Tripolis 1.3"
+            }
+          },
+          {
+            "id": "space-moonq20xr2",
+            "title": "MoonQ20XR2",
+            "filename": "moonq20xr2_2.0.sd7",
+            "thumb": [
+              "https://springfiles.springrts.com/metadata/adddb12508f02e8f032546833651ae3a.jpg"
+            ],
+            "download": { "kind": "map", "springName": "MoonQ20XR2 2.0" }
+          },
+          {
+            "id": "space-oort-cloud-v2",
+            "title": "Oort Cloud V2",
+            "filename": "oort_cloud_v2.sd7",
+            "download": { "kind": "map", "springName": "Oort_Cloud_V2" }
+          },
+          {
+            "id": "space-project-sd-129",
+            "title": "Project SD-129 v1.0",
+            "filename": "project_sd-129_v1.0.sd7",
+            "download": {
+              "kind": "map",
+              "springName": "Project SD-129 v1.0"
+            }
+          },
+          {
+            "id": "space-tma20xr",
+            "title": "TMA20XR 2.1",
+            "filename": "tma20xr_2.1.sd7",
+            "thumb": [
+              "https://springfiles.springrts.com/metadata/696dcde8d2175f9cfd13cb8a42786431.jpg"
+            ],
+            "download": { "kind": "map", "springName": "TMA20XR 2.1" }
+          }
+        ]
+      },
+      {
+        "id": "classics",
+        "title": "Classics",
+        "blurb": "Time-honoured battlefields that have decided games for two decades.",
+        "maps": [
+          {
+            "id": "classic-delta-siege-dry",
+            "title": "Delta Siege Dry",
+            "filename": "deltasiegedry.sd7",
+            "thumb": [
+              "https://springfiles.springrts.com/metadata/fe4a5b78a3211fb31b68b5c1733c64db.jpg"
+            ],
+            "download": { "kind": "map", "springName": "DeltaSiegeDry" }
+          },
+          {
+            "id": "classic-evad-river-confluence",
+            "title": "Evad River Confluence",
+            "filename": "evad_river_confluence_v2.sd7",
+            "download": {
+              "kind": "map",
+              "springName": "Evad River Confluence_V2"
+            }
+          },
+          {
+            "id": "classic-great-divide",
+            "title": "Great Divide",
+            "filename": "great_divide_v1.sd7",
+            "download": {
+              "kind": "map",
+              "springName": "Great Divide V1"
+            }
+          },
+          {
+            "id": "classic-painted-desert",
+            "title": "Painted Desert",
+            "filename": "painted_desert_v1.0.sd7",
+            "download": {
+              "kind": "map",
+              "springName": "Painted Desert v1.0"
+            }
+          },
+          {
+            "id": "classic-the-cold-place",
+            "title": "The Cold Place",
+            "filename": "thecoldplace.sd7",
+            "thumb": [
+              "https://springfiles.springrts.com/metadata/b498483985e2a45d2bdf0953a42ea37a.jpg"
+            ],
+            "download": { "kind": "map", "springName": "TheColdPlace" }
+          }
+        ]
+      },
+      {
+        "id": "resource-extremes",
+        "title": "Resource Extremes",
+        "blurb": "Metal-soaked and metal-starved maps for fast, focused fights.",
+        "maps": [
+          {
+            "id": "resource-duck",
+            "title": "Duck",
+            "filename": "duck.sd7",
+            "thumb": [
+              "https://springfiles.springrts.com/metadata/7b283b33d39b7e40b444e88872bff97f.jpg"
+            ],
+            "download": { "kind": "map", "springName": "duck" }
+          },
+          {
+            "id": "resource-mini-speedmetal",
+            "title": "Mini SpeedMetal",
+            "filename": "mini_speedmetal.sd7",
+            "thumb": [
+              "https://springfiles.springrts.com/metadata/0ed88fcae3f1627941b1f45c5612bfd8.jpg"
+            ],
+            "download": { "kind": "map", "springName": "Mini_SpeedMetal" }
+          },
+          {
+            "id": "resource-nometal-speedmetal",
+            "title": "NoMetal SpeedMetal",
+            "filename": "nometal_speedmetal.sd7",
+            "thumb": [
+              "https://springfiles.springrts.com/metadata/8f566ae85e32822ab0daf9fc840f5dd3.jpg"
+            ],
+            "download": { "kind": "map", "springName": "NoMetal SpeedMetal" }
+          },
+          {
+            "id": "resource-speed-ball",
+            "title": "Speed Ball",
+            "filename": "speed_ball.sd7",
+            "thumb": [
+              "https://springfiles.springrts.com/metadata/40f7379e39d5d35134a6d29ca3c173c3.jpg"
+            ],
+            "download": { "kind": "map", "springName": "Speed_Ball" }
+          },
+          {
+            "id": "resource-speedmetal",
+            "title": "SpeedMetal",
+            "filename": "speedmetal.sd7",
+            "thumb": [
+              "https://springfiles.springrts.com/metadata/8f566ae85e32822ab0daf9fc840f5dd3.jpg"
+            ],
+            "download": { "kind": "map", "springName": "SpeedMetal" }
+          }
+        ]
+      }
+    ]
+  },
+  "entries": [
+    {
+      "id": "mechcommander-legacy",
+      "match": { "regex": "^MechCommander:? *Legacy", "names": ["MCL"] },
+      "title": "MechCommander: Legacy",
+      "banner": ["https://recoilengine.org/showcase/mcl.jpg"],
+      "logo": [],
+      "screenshots": [],
+      "videos": [],
+      "links": [
+        {
+          "label": "GitHub",
+          "url": "https://github.com/SpringMCLegacy/SpringMCLegacy"
+        },
+        {
+          "label": "Wiki",
+          "url": "https://github.com/SpringMCLegacy/SpringMCLegacy/wiki"
+        },
+        { "label": "Discord", "url": "https://discord.com/invite/QMCChXp4zH" }
+      ]
+    },
+    {
+      "id": "splinter-faction",
+      "match": { "regex": "^Splinter *Faction" },
+      "title": "SplinterFaction",
+      "banner": ["https://img.itch.zone/aW1nLzIxNjg5NTc3LnBuZw==/original/W1YpP9.png"],
+      "logo": ["https://splinterfaction.info/images/logo.webp"],
+      "screenshots": [],
+      "videos": [],
+      "links": [
+        { "label": "Website", "url": "https://splinterfaction.info/" },
+        { "label": "itch.io", "url": "https://frozenyak.itch.io/splinterfaction" }
+      ]
+    },
+    {
+      "id": "metal-factions",
+      "match": { "regex": "^Metal *Factions" },
+      "title": "Metal Factions",
+      "banner": ["https://www.metalfactions.pt/images/main_units2.jpg"],
+      "logo": [],
+      "screenshots": [
+        { "urls": ["https://www.metalfactions.pt/images/slideshow/1_sml.jpg"] }
+      ],
+      "videos": [],
+      "links": [{ "label": "Website", "url": "https://www.metalfactions.pt/" }]
+    },
+    {
+      "id": "balanced-annihilation",
+      "match": { "regex": "^Balanced *Annihilation", "names": ["BA"] },
+      "conquest": {
+        "starNames": [
+          "Empyrrean",
+          "Thalassean",
+          "Tergiverse IV",
+          "Aegus",
+          "Aqueous Minor",
+          "Barathrum",
+          "Rougpelt",
+          "Core Prime",
+          "Dump",
+          "Hydross",
+          "Lusch",
+          "Temblor",
+          "Gelidus",
+          "Nigh Pilago",
+          "Destral II",
+          "Yrdac",
+          "Novaspin IV",
+          "Terseknos",
+          "Caranat",
+          "Kral",
+          "Retorb",
+          "Ravenstein",
+          "Prasad",
+          "Krocark",
+          "Hanan",
+          "Baryn",
+          "Yerrot",
+          "Vetes",
+          "Ansapp",
+          "Meraldi",
+          "Lipar",
+          "Chimo",
+          "Nayrb",
+          "Neovestral II",
+          "Rashak IV",
+          "Calibran",
+          "Mynn",
+          "Rhyoss",
+          "Rumad",
+          "Orpheriun",
+          "Talon",
+          "Argon",
+          "Rogue",
+          "Xect",
+          "Un",
+          "Aramon",
+          "Veruna",
+          "Taros",
+          "Zhon",
+          "Creon",
+          "Gok",
+          "Grantham",
+          "Drenigal",
+          "Kathos",
+          "Tiebreemb",
+          "Webster",
+          "Dalok",
+          "Yorlat",
+          "Kudzu",
+          "Nhanon",
+          "Groshen",
+          "Kaki",
+          "Hyenbacku",
+          "Yenisten",
+          "Miniement",
+          "Pikas",
+          "Landown",
+          "Brooban",
+          "Motien",
+          "Larab",
+          "Bromid",
+          "Xantippe",
+          "Aqueous Major",
+          "Evad",
+          "Slolam",
+          "Vebreen",
+          "Parche",
+          "Yollet",
+          "Kerrap",
+          "Arnen",
+          "Solidspire",
+          "Hasfap",
+          "Guditha",
+          "Crustal 14",
+          "Zedtopt",
+          "Skyreld",
+          "Mesa 368"
+        ],
+        "factions": [
+          { "name": "Arm", "side": "ARM" },
+          { "name": "Core", "side": "CORE" }
+        ]
+      }
+    },
+    {
+      "id": "xta",
+      "match": { "regex": "^XTA", "names": ["XTA"] },
+      "conquest": {
+        "starNames": [
+          "Empyrrean",
+          "Thalassean",
+          "Tergiverse IV",
+          "Aegus",
+          "Aqueous Minor",
+          "Barathrum",
+          "Rougpelt",
+          "Core Prime",
+          "Dump",
+          "Hydross",
+          "Lusch",
+          "Temblor",
+          "Gelidus",
+          "Nigh Pilago",
+          "Destral II",
+          "Yrdac",
+          "Novaspin IV",
+          "Terseknos",
+          "Caranat",
+          "Kral",
+          "Retorb",
+          "Ravenstein",
+          "Prasad",
+          "Krocark",
+          "Hanan",
+          "Baryn",
+          "Yerrot",
+          "Vetes",
+          "Ansapp",
+          "Meraldi",
+          "Lipar",
+          "Chimo",
+          "Nayrb",
+          "Neovestral II",
+          "Rashak IV",
+          "Calibran",
+          "Mynn",
+          "Rhyoss",
+          "Rumad",
+          "Orpheriun",
+          "Talon",
+          "Argon",
+          "Rogue",
+          "Xect",
+          "Un",
+          "Aramon",
+          "Veruna",
+          "Taros",
+          "Zhon",
+          "Creon",
+          "Gok",
+          "Grantham",
+          "Drenigal",
+          "Kathos",
+          "Tiebreemb",
+          "Webster",
+          "Dalok",
+          "Yorlat",
+          "Kudzu",
+          "Nhanon",
+          "Groshen",
+          "Kaki",
+          "Hyenbacku",
+          "Yenisten",
+          "Miniement",
+          "Pikas",
+          "Landown",
+          "Brooban",
+          "Motien",
+          "Larab",
+          "Bromid",
+          "Xantippe",
+          "Aqueous Major",
+          "Evad",
+          "Slolam",
+          "Vebreen",
+          "Parche",
+          "Yollet",
+          "Kerrap",
+          "Arnen",
+          "Solidspire",
+          "Hasfap",
+          "Guditha",
+          "Crustal 14",
+          "Zedtopt",
+          "Skyreld",
+          "Mesa 368"
+        ],
+        "factions": [
+          { "name": "Arm", "side": "Arm" },
+          { "name": "Core", "side": "Core" }
+        ]
+      }
+    },
+    {
+      "id": "basically-ota",
+      "match": { "regex": "^Basically *OTA", "names": ["BOTA"] },
+      "conquest": {
+        "starNames": [
+          "Empyrrean",
+          "Thalassean",
+          "Tergiverse IV",
+          "Aegus",
+          "Aqueous Minor",
+          "Barathrum",
+          "Rougpelt",
+          "Core Prime",
+          "Dump",
+          "Hydross",
+          "Lusch",
+          "Temblor",
+          "Gelidus",
+          "Nigh Pilago",
+          "Destral II",
+          "Yrdac",
+          "Novaspin IV",
+          "Terseknos",
+          "Caranat",
+          "Kral",
+          "Retorb",
+          "Ravenstein",
+          "Prasad",
+          "Krocark",
+          "Hanan",
+          "Baryn",
+          "Yerrot",
+          "Vetes",
+          "Ansapp",
+          "Meraldi",
+          "Lipar",
+          "Chimo",
+          "Nayrb",
+          "Neovestral II",
+          "Rashak IV",
+          "Calibran",
+          "Mynn",
+          "Rhyoss",
+          "Rumad",
+          "Orpheriun",
+          "Talon",
+          "Argon",
+          "Rogue",
+          "Xect",
+          "Un",
+          "Aramon",
+          "Veruna",
+          "Taros",
+          "Zhon",
+          "Creon",
+          "Gok",
+          "Grantham",
+          "Drenigal",
+          "Kathos",
+          "Tiebreemb",
+          "Webster",
+          "Dalok",
+          "Yorlat",
+          "Kudzu",
+          "Nhanon",
+          "Groshen",
+          "Kaki",
+          "Hyenbacku",
+          "Yenisten",
+          "Miniement",
+          "Pikas",
+          "Landown",
+          "Brooban",
+          "Motien",
+          "Larab",
+          "Bromid",
+          "Xantippe",
+          "Aqueous Major",
+          "Evad",
+          "Slolam",
+          "Vebreen",
+          "Parche",
+          "Yollet",
+          "Kerrap",
+          "Arnen",
+          "Solidspire",
+          "Hasfap",
+          "Guditha",
+          "Crustal 14",
+          "Zedtopt",
+          "Skyreld",
+          "Mesa 368"
+        ],
+        "factions": [
+          { "name": "Arm", "side": "ARM" },
+          { "name": "Core", "side": "CORE" }
+        ]
+      }
+    }
+  ]
+}
