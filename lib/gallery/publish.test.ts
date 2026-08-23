@@ -154,7 +154,7 @@ test("a pack published as a collection of games is named for the first of them",
   const result = accept(code);
   expect(result.ok).toBe(true);
   if (!result.ok) return;
-  expect(result.accepted.gameName).toBe("SF");
+  expect(result.accepted.gameName).toBe("SplinterFaction 0.1.78");
   expect(result.accepted.gameKey).toBe("SF");
   expect(result.accepted.mapName).toBeNull();
 });
@@ -185,10 +185,11 @@ test("a challenge names its game by shortname", () => {
   expect(result.accepted.mapName).toBeNull();
 });
 
-test("a shortname wins over a pinned build name when both are present", () => {
+test("the pinned build name is what a person reads, the shortname is the grouping key", () => {
   // The common shape for a pinned challenge: a stable shortname alongside the
   // exact build it was set up on. The shortname is what groups it with other
-  // challenges for the same game across builds, so it is what the row shows.
+  // challenges for the same game across builds (gameKey), while the row shows
+  // the build name so a reader can tell which version it is for (issue #92).
   const code = encodeContainerCode(
     "challenge",
     SUPPORTED_KIND_VERSIONS.challenge,
@@ -198,7 +199,7 @@ test("a shortname wins over a pinned build name when both are present", () => {
   const result = accept(code);
   expect(result.ok).toBe(true);
   if (!result.ok) return;
-  expect(result.accepted.gameName).toBe("FN");
+  expect(result.accepted.gameName).toBe("Full Name 1.2.3");
   expect(result.accepted.gameKey).toBe("FN");
 });
 
@@ -214,7 +215,7 @@ test("a preset carrying the unified game field resolves its game through it", ()
   const result = accept(code);
   expect(result.ok).toBe(true);
   if (!result.ok) return;
-  expect(result.accepted.gameName).toBe("BAR");
+  expect(result.accepted.gameName).toBe("Beyond All Reason 1.2.3");
   expect(result.accepted.gameKey).toBe("BAR");
 });
 
@@ -289,6 +290,29 @@ test("a name-only row and a shortname-only row for the same real game do not sha
   expect(scenario.accepted.gameKey).toBeNull();
   expect(challenge.accepted.gameName).toBe("BA");
   expect(challenge.accepted.gameKey).toBe("BA");
+});
+
+test("a blueprint shows the build its game field carries, not just the shortname", () => {
+  // Issue #92: the first published blueprint carried
+  // game: { name: "SplinterFaction 0.1.80", shortname: "SF" } and the row read
+  // "SF" for both columns, so nobody could tell which build it was for.
+  const code = encodeContainerCode(
+    "blueprint",
+    SUPPORTED_KIND_VERSIONS.blueprint,
+    {
+      name: "A layout",
+      buildings: [],
+      footprints: {},
+      game: { name: "SplinterFaction 0.1.80", shortname: "SF" },
+    },
+  );
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.kind).toBe("blueprint");
+  expect(result.accepted.gameName).toBe("SplinterFaction 0.1.80");
+  expect(result.accepted.gameKey).toBe("SF");
 });
 
 // publishItem is the shared middle of the publish form and the API's

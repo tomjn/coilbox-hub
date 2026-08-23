@@ -62,9 +62,10 @@ export function describe(
   payload: unknown,
   game: GameIdentity | undefined,
 ) {
-  // gameName is what a person reads on a card: the stable shortname when
-  // there is one, falling back to the exact pinned build so an item still
-  // shows something rather than nothing.
+  // gameName is what a person reads on a card (issue #92): the exact pinned
+  // build name when there is one, because "SplinterFaction 0.1.80" says which
+  // build an item is for where the shortname alone ("SF") does not, falling
+  // back to the shortname for the one kind that only ever has it.
   //
   // gameKey is what a listing groups and filters by, and it is deliberately
   // narrower (issue #50). Two items exported from different machines can
@@ -77,7 +78,7 @@ export function describe(
   // and absent rather than guessed at when there isn't one. That leaves two
   // items that each carry only one spelling unable to group with each other,
   // which this does not attempt to fix - see the PR description for why.
-  const gameName = game ? (game.shortname ?? game.name ?? null) : null;
+  const gameName = game ? (game.name ?? game.shortname ?? null) : null;
   const gameKey = game?.shortname ?? null;
 
   if (typeof payload !== "object" || payload === null) {
