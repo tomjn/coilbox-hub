@@ -3,9 +3,9 @@
   "ref": "main",
   "dir": "shared",
   "files": {
-    "asset-vocabulary.json": "fe892e45f1d1de2e51ed5a2971654597461d4358"
+    "asset-vocabulary.json": "3df7e91d7e9917d82ceff2acee906b1120fbf021"
   },
   "sha256": {
-    "asset-vocabulary.json": "66f986361a51d8486b619b2f5a541f4e207ad4309e0a8a0ae2597b859daf84bd"
+    "asset-vocabulary.json": "4879f85b17a5cee05e71b04fbe44607ba2cfb957bef0b2ac7c3dd658519d8b4e"
   }
 }
