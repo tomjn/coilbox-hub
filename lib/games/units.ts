@@ -223,6 +223,46 @@ async function factionNames(
   return new Map(factions.map((f) => [f.key, f.name]));
 }
 
+/** What the catalog calls a unit, as the encyclopedia links to it. */
+export interface UnitNameLabel {
+  /** The unit's name as the catalog spells it, which is what its page's URL
+   *  segment has to be: the unit page reads by exact match. */
+  name: string;
+  label: string;
+}
+
+/**
+ * Every unit of a game the catalog holds, keyed on the lower cased def.
+ *
+ * A blueprint's roster names buildings with whatever the author typed, lower
+ * cased on read (`lib/gallery/blueprintPreview.ts`), while the catalog stores a
+ * row under each unit's authored name. Reading the whole game's names once and
+ * keying them lower cased makes that join case-insensitive by construction, the
+ * same way `buildTree` keys its walk, rather than by everybody remembering to
+ * normalise at every use.
+ */
+export async function unitNameLabels(
+  supabase: SupabaseClient,
+  shortname: string,
+): Promise<ReadonlyMap<string, UnitNameLabel>> {
+  const { data } = await supabase
+    .from("game_unit")
+    .select("unit_name,full_name,game!inner(shortname)")
+    .eq("game.shortname", shortname);
+
+  const names = new Map<string, UnitNameLabel>();
+  for (const row of (data ?? []) as unknown as {
+    unit_name: string;
+    full_name: string | null;
+  }[]) {
+    names.set(row.unit_name.toLowerCase(), {
+      name: row.unit_name,
+      label: row.full_name ?? row.unit_name,
+    });
+  }
+  return names;
+}
+
 /** One unit's page: current facts, or what one release said. */
 export interface UnitPage {
   unit_name: string;

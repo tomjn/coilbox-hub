@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { ImportLink } from "@/components/ImportLink";
-import { ItemPreview } from "@/components/ItemPreview";
+import { ItemPreview, type UnitNameLink } from "@/components/ItemPreview";
 import { KindIcon } from "@/components/KindIcon";
 import { MapMinimap } from "@/components/MapMinimap";
 import { ReportButton } from "@/components/ReportButton";
@@ -21,6 +21,7 @@ import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { startPosNote } from "@/lib/gallery/presetPreview";
 import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
+import { unitNameLabelsCached, type UnitNameLabel } from "@/lib/games/cached";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/supabase/user";
@@ -132,6 +133,24 @@ export default async function Item({
   const published = new Date(item.created_at).toISOString().slice(0, 10);
   const { drawing, strength } = itemArt(item.kind, item.mode);
 
+  // What the catalog calls each unit in a blueprint, so the roster reads as
+  // "Cold Fusion Power Plant" and links to its encyclopedia page rather than
+  // spelling the def key. A blueprint without a game, or in a game the hub
+  // holds no catalog for, gets an empty map and keeps the raw keys.
+  const names: ReadonlyMap<string, UnitNameLabel> =
+    item.kind === "blueprint" && item.game_key
+      ? await unitNameLabelsCached(item.game_key)
+      : new Map();
+  const unitNames: ReadonlyMap<string, UnitNameLink> = new Map(
+    [...names].map(([def, entry]) => [
+      def,
+      {
+        label: entry.label,
+        href: `/games/${item.game_key}/units/${entry.name}`,
+      },
+    ]),
+  );
+
   // Every map this page names: the one on the row, and a setup pack's own list
   // (issue #176).
   const packMapNames = setupPackMaps(item.container);
@@ -194,6 +213,7 @@ export default async function Item({
                 kind={item.kind}
                 container={item.container}
                 units={pictures.units}
+                names={unitNames}
               />
             </div>
           </div>
@@ -202,6 +222,7 @@ export default async function Item({
             kind={item.kind}
             container={item.container}
             units={pictures.units}
+            names={unitNames}
           />
         )}
 

@@ -21,6 +21,7 @@
  * still has none.
  */
 
+import Link from "next/link";
 import type { ServedAsset } from "@/lib/assets/resolve";
 import type { PayloadFootprint } from "@/lib/blueprint/payload";
 import {
@@ -389,6 +390,36 @@ function footprintLabel(footprint: PayloadFootprint | null): string {
   return footprint ? `${footprint.x} by ${footprint.z}` : "size not given";
 }
 
+/** A def the game catalog knows, as its encyclopedia page names and links it.
+ *  Absent from the map for a def the catalog has never heard of. */
+export interface UnitNameLink {
+  label: string;
+  href: string;
+}
+
+/**
+ * One roster line's name: what the catalog calls the unit, linked to its
+ * encyclopedia page, or the raw def when the catalog does not know it.
+ */
+function UnitName({
+  def,
+  names,
+}: {
+  def: string;
+  names: ReadonlyMap<string, UnitNameLink>;
+}) {
+  const known = names.get(def);
+  if (!known) return <>{def}</>;
+  return (
+    <Link
+      href={known.href}
+      className="hover:text-white active:text-white"
+    >
+      {known.label}
+    </Link>
+  );
+}
+
 /**
  * What the plan is made of, said in words (issue #93).
  *
@@ -396,12 +427,11 @@ function footprintLabel(footprint: PayloadFootprint | null): string {
  * says what they are, so this does: how many of each kind, the name the game
  * knows that kind by, and the ground one of them stands on.
  *
- * The names are internal ones. The hub cannot turn `coldfusionpowerplant` into
- * "Cold Fusion Power Plant" because that takes unitsync and the game installed,
- * which is the same reason it draws squares rather than unit models. What it
- * does have is the picture, where somebody has published one, and that picture
- * beside the name is what makes a kind recognisable to a reader who does not
- * know the internal names.
+ * The names come from the game catalog where it holds the def (#109), which
+ * turns `coldfusionpowerplant` into "Cold Fusion Power Plant" and links it to
+ * that unit's encyclopedia page. A def the catalog has never heard of still
+ * reads as the raw key, which is the honest answer about a unit nobody has told
+ * the hub about.
  *
  * This is the list for a layout with no build order, which is most of them. One
  * that has an order gets {@link BuildOrder} instead, which says the same things
@@ -410,9 +440,11 @@ function footprintLabel(footprint: PayloadFootprint | null): string {
 function BuildingRoster({
   kinds,
   units,
+  names,
 }: {
   kinds: BuildingKind[];
   units: ReadonlyMap<string, ServedAsset>;
+  names: ReadonlyMap<string, UnitNameLink>;
 }) {
   // A picture slot for every kind or for none. A game the hub holds no pictures
   // for gets no empty column of indent.
@@ -424,7 +456,7 @@ function BuildingRoster({
         <li key={kind.def} className="flex items-center gap-2 text-xs">
           {pictured ? <UnitPicture picture={units.get(kind.def)} /> : null}
           <span className="min-w-0 break-all text-neutral-200">
-            {kind.count} {kind.def}
+            {kind.count} <UnitName def={kind.def} names={names} />
           </span>
           <span className="shrink-0 text-neutral-500">
             {footprintLabel(kind.footprint)}
@@ -454,9 +486,11 @@ function BuildingRoster({
 function BuildOrder({
   runs,
   units,
+  names,
 }: {
   runs: BuildingRun[];
   units: ReadonlyMap<string, ServedAsset>;
+  names: ReadonlyMap<string, UnitNameLink>;
 }) {
   const pictured = runs.some((run) => units.has(run.def));
 
@@ -469,7 +503,7 @@ function BuildOrder({
           </span>
           {pictured ? <UnitPicture picture={units.get(run.def)} /> : null}
           <span className="min-w-0 break-all text-neutral-200">
-            {run.count} {run.def}
+            {run.count} <UnitName def={run.def} names={names} />
           </span>
           <span className="shrink-0 text-neutral-500">
             {footprintLabel(run.footprint)}
@@ -511,12 +545,14 @@ function BlueprintLayout({
   kinds,
   runs,
   units,
+  names,
 }: {
   shape: BlueprintShape;
   kinds: BuildingKind[];
   /** The build order, or null for a layout that never claimed one. */
   runs: BuildingRun[] | null;
   units: ReadonlyMap<string, ServedAsset>;
+  names: ReadonlyMap<string, UnitNameLink>;
 }) {
   const buildings = shape.squares.length;
   const sheet = blueprintSheet(shape, PAGE_BOX);
@@ -641,9 +677,9 @@ function BlueprintLayout({
       {/* The line above says which of these two lists this is: "in build
           order", or just a count of buildings. */}
       {runs ? (
-        <BuildOrder runs={runs} units={units} />
+        <BuildOrder runs={runs} units={units} names={names} />
       ) : (
-        <BuildingRoster kinds={kinds} units={units} />
+        <BuildingRoster kinds={kinds} units={units} names={names} />
       )}
     </div>
   );
@@ -652,6 +688,9 @@ function BlueprintLayout({
 /** No pictures, which is what a caller that has not looked any up passes and
  *  what every caller got before issue #109. */
 const EMPTY: ReadonlyMap<string, ServedAsset> = new Map();
+
+/** No catalog names, which is the same "draw it as before" absence. */
+const EMPTY_NAMES: ReadonlyMap<string, UnitNameLink> = new Map();
 
 /** Stat rows carry a label and a value that is not always a number, unlike
  * {@link Stat}. */
@@ -744,6 +783,7 @@ export function ItemPreview({
   kind,
   container,
   units = EMPTY,
+  names = EMPTY_NAMES,
 }: {
   kind: string;
   container: unknown;
@@ -751,6 +791,9 @@ export function ItemPreview({
    *  `lib/gallery/itemPictures.ts`. Only the blueprint plan reads it, and a def
    *  that is absent is drawn as its footprint. */
   units?: ReadonlyMap<string, ServedAsset>;
+  /** What the game catalog calls each unit, keyed by lower case def name. Only
+   *  the blueprint lists read it; a def that is absent keeps its raw key. */
+  names?: ReadonlyMap<string, UnitNameLink>;
 }) {
   const payload = (container as { payload?: unknown } | null)?.payload;
   if (typeof payload !== "object" || payload === null) return null;
@@ -767,6 +810,7 @@ export function ItemPreview({
         kinds={blueprintRoster(record)}
         runs={blueprintBuildOrder(record)}
         units={units}
+        names={names}
       />
     ) : null;
   }
