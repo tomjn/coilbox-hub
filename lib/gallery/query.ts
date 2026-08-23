@@ -139,8 +139,8 @@ export interface ItemSummary {
   mode: string | null;
   title: string;
   description: string;
-  /** What a person reads: the stable shortname when there is one, else the
-   * exact pinned build. See lib/gallery/publish.ts `describe()`. */
+  /** What a person reads: the exact pinned build when there is one, else the
+   * shortname (issue #92). See lib/gallery/publish.ts `describe()`. */
   game_name: string | null;
   /** What a listing groups and filters by. Narrower than `game_name`
    * (issue #50): only ever the shortname, so an item that names its game
