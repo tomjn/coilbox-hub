@@ -11,6 +11,7 @@ import {
   gameFactions,
   unitBuildpic,
   unitBuildpics,
+  unitNameLabels,
   unitRender,
   unbuildableUnits,
   type FactionOption,
@@ -18,6 +19,9 @@ import {
   type UnitGridFilters,
   type UnitPage,
 } from "./units";
+import type { UnitNameLabel } from "./units";
+
+export type { UnitNameLabel };
 import { loadTree, type Tree } from "./tree";
 
 /**
@@ -150,6 +154,17 @@ export async function gameFactionsCached(shortname: string): Promise<FactionOpti
   cacheTag(TAGS.games);
 
   return gameFactions(createAnonClient(), shortname);
+}
+
+/** What the catalog calls every unit of a game, keyed on the lower cased def. */
+export async function unitNameLabelsCached(shortname: string): Promise<
+  ReadonlyMap<string, UnitNameLabel>
+> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games);
+
+  return unitNameLabels(createAnonClient(), shortname);
 }
 
 /** The buildpics for a tree's units, keyed by unit name, one batched read. */
