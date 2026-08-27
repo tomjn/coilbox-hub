@@ -12,7 +12,7 @@
     "sync:vendor": "bun scripts/sync-vendor.ts",
     "check:vendor": "bun scripts/sync-vendor.ts --check",
     "backfill:game-names": "bun scripts/backfill-game-names.ts",
-  "import:branding": "bun scripts/import-branding.ts",
+    "import:branding": "bun scripts/import-branding.ts",
     "promote:assets": "bun scripts/promote-assets.ts",
     "seed:assets": "bun scripts/seed-assets.ts",
     "cleanup:assets": "bun scripts/cleanup-assets.ts"
@@ -20,6 +20,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.2",
+    "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.8.0",
     "@vercel/speed-insights": "^2.0.0",
     "fflate": "^0.8.3",
