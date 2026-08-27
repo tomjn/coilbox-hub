@@ -263,6 +263,66 @@ export async function unitNameLabels(
   return names;
 }
 
+/**
+ * Who builds this unit: the units holding it as a build option. The edge lives
+ * on the builder's row and not on the unit's, so this is a containment read
+ * across the game's units rather than anything the unit itself carries.
+ *
+ * `version` answers for one release, riding the same inner joined revision
+ * `loadTree` reads, so an old page's two directions agree with each other and
+ * name a builder what that release named it. Without one the answer is current
+ * facts, and a retired builder does not count: the build option a retired unit
+ * holds is not a live path, which is the rule {@link unbuildableUnits} decides
+ * ghosts by, and a unit hidden from the grid as a ghost must not claim a
+ * builder on its own page.
+ *
+ * Matched exact case, as the forward direction's `in` on `unit_name` is, so the
+ * two break together rather than disagreeing about one edge. Sorted, because
+ * the read's order is not a fact, and empty on a failed read rather than taking
+ * the page down with it.
+ */
+export async function unitBuilders(
+  supabase: SupabaseClient,
+  shortname: string,
+  unitName: string,
+  version?: string | null,
+): Promise<{ name: string; label: string }[]> {
+  const { data, error } = version
+    ? await supabase
+        .from("game_unit")
+        .select(
+          "unit_name,full_name,game!inner(shortname)," +
+            "game_unit_revision!inner(full_name,build_options)",
+        )
+        .eq("game.shortname", shortname)
+        .eq("game_unit_revision.version", version)
+        .contains("game_unit_revision.build_options", [unitName])
+    : await supabase
+        .from("game_unit")
+        .select("unit_name,full_name,game!inner(shortname)")
+        .eq("game.shortname", shortname)
+        .contains("build_options", [unitName])
+        // `is`, not `eq`: PostgREST refuses `removed_at=eq.null` (#255).
+        .is("removed_at", null);
+
+  if (error || !data) return [];
+
+  const rows = data as unknown as {
+    unit_name: string;
+    full_name: string | null;
+    game_unit_revision?: { full_name: string | null }[];
+  }[];
+
+  return rows
+    .map((row) => {
+      // The same fallback the unit's own heading takes: a release that named
+      // nothing falls back to the def key, not to today's name.
+      const named = version ? (row.game_unit_revision?.[0]?.full_name ?? null) : row.full_name;
+      return { name: row.unit_name, label: named ?? row.unit_name };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** One unit's page: current facts, or what one release said. */
 export interface UnitPage {
   unit_name: string;
@@ -285,6 +345,8 @@ export interface UnitPage {
   /** What this unit builds, with each entry's display name where the catalog
    *  holds one. Sorted, because the array order is not a fact. */
   builds: { name: string; label: string }[];
+  /** What builds this unit, the reverse of {@link UnitPage.builds}. */
+  built_by: { name: string; label: string }[];
 }
 
 export async function loadUnitPage(
@@ -351,10 +413,13 @@ export async function loadUnitPage(
   // listed under its own key: dropping it would hide exactly the edge a reader
   // came to check.
   const options = [...new Set(buildOptions ?? [])].sort();
-  const builds =
+  // Both directions of the edge, read together: which release they answer for
+  // is only known once the revision above has been resolved, so neither could
+  // join the batch that read it.
+  const [builds, builtBy] = await Promise.all([
     options.length === 0
       ? []
-      : await supabase
+      : supabase
           .from("game_unit")
           .select("unit_name,full_name,game!inner(shortname)")
           .eq("game.shortname", shortname)
@@ -366,7 +431,9 @@ export async function loadUnitPage(
               ),
             );
             return options.map((name) => ({ name, label: names.get(name) ?? name }));
-          });
+          }),
+    unitBuilders(supabase, shortname, row.unit_name, revision ? asked : null),
+  ]);
 
   return {
     unit_name: row.unit_name,
@@ -381,6 +448,7 @@ export async function loadUnitPage(
     removed_at: row.removed_at,
     versions: ((versions.data ?? []) as unknown as { version: string }[]).map((v) => v.version),
     builds,
+    built_by: builtBy,
   };
 }
 
