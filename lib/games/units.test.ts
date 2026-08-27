@@ -5,6 +5,7 @@ import {
   loadUnitGrid,
   parseUnitGridFilters,
   unbuildableUnits,
+  unitBuilders,
 } from "./units";
 
 /**
@@ -167,6 +168,127 @@ test("a unit nobody builds and no start unit heads is a ghost", async () => {
 test("a start unit never hides, however lonely it is", async () => {
   const ghosts = await unbuildableUnits(fakeCatalog(CATALOG, ["armcom", "armfark"]), "BA");
   expect(ghosts).toEqual([]);
+});
+
+/**
+ * Who builds a unit: the reverse of the build options a unit's page already
+ * lists. The edge lives on the builder's row, so the answer is a containment
+ * read across the game's units rather than anything the unit itself holds.
+ */
+
+interface BuilderRow {
+  unit_name: string;
+  full_name: string | null;
+  removed_at: string | null;
+  build_options: string[];
+  game_unit_revision: { version: string; full_name: string | null; build_options: string[] }[];
+}
+
+const BUILDERS: BuilderRow[] = [
+  {
+    unit_name: "armlab",
+    full_name: "Kbot Lab",
+    removed_at: null,
+    build_options: ["armck", "armpw"],
+    game_unit_revision: [
+      { version: "1.0", full_name: "Kbot Factory", build_options: ["armck"] },
+      { version: "2.0", full_name: "Kbot Lab", build_options: ["armck", "armpw"] },
+    ],
+  },
+  {
+    unit_name: "armcom",
+    full_name: "Commander",
+    removed_at: null,
+    build_options: ["armlab", "armsolar"],
+    game_unit_revision: [{ version: "2.0", full_name: "Commander", build_options: ["armlab"] }],
+  },
+  {
+    unit_name: "armshed",
+    full_name: "Kbot Shed",
+    removed_at: "2026-01-01",
+    build_options: ["armck"],
+    game_unit_revision: [{ version: "1.0", full_name: "Kbot Shed", build_options: ["armck"] }],
+  },
+];
+
+/**
+ * A `game_unit` that filters the way PostgREST does for the two reads
+ * {@link unitBuilders} makes: `cs` on the row's own array, and `cs` on an inner
+ * joined revision's array once `version` has narrowed it.
+ */
+function fakeBuilders(rows: BuilderRow[]): SupabaseClient {
+  const build = (held: BuilderRow[]) => {
+    const builder = {
+      select: () => build(held),
+      eq(column: string, value: unknown) {
+        if (column === "game.shortname") return build(held);
+        if (column === "game_unit_revision.version") {
+          // An inner join keeps only the rows with a revision for the version,
+          // and narrows the embedded array to it.
+          return build(
+            held
+              .map((row) => ({
+                ...row,
+                game_unit_revision: row.game_unit_revision.filter((r) => r.version === value),
+              }))
+              .filter((row) => row.game_unit_revision.length > 0),
+          );
+        }
+        throw new Error(`unexpected eq on ${column}`);
+      },
+      is: (column: string, value: unknown) =>
+        build(held.filter((row) => row[column as keyof BuilderRow] === value)),
+      contains(column: string, value: unknown) {
+        const wanted = value as string[];
+        const options = (row: BuilderRow) =>
+          column === "build_options"
+            ? row.build_options
+            : row.game_unit_revision.flatMap((r) => r.build_options);
+        return build(held.filter((row) => wanted.every((w) => options(row).includes(w))));
+      },
+      then: (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({ data: held, error: null }).then(resolve),
+    };
+    return builder;
+  };
+  return { from: () => build(rows) } as unknown as SupabaseClient;
+}
+
+test("a unit's builders are the units holding it as a build option", async () => {
+  expect(await unitBuilders(fakeBuilders(BUILDERS), "BA", "armlab")).toEqual([
+    { name: "armcom", label: "Commander" },
+  ]);
+});
+
+test("a retired builder is not a live path to a unit", async () => {
+  // armshed builds armck too, but it retired, so only the lab counts.
+  expect(await unitBuilders(fakeBuilders(BUILDERS), "BA", "armck")).toEqual([
+    { name: "armlab", label: "Kbot Lab" },
+  ]);
+});
+
+test("a release answers with that release's builders, under that release's names", async () => {
+  // In 1.0 the lab was called a factory and did not build armpw yet, and it
+  // had not retired, so the shed still counts.
+  expect(await unitBuilders(fakeBuilders(BUILDERS), "BA", "armck", "1.0")).toEqual([
+    { name: "armlab", label: "Kbot Factory" },
+    { name: "armshed", label: "Kbot Shed" },
+  ]);
+  expect(await unitBuilders(fakeBuilders(BUILDERS), "BA", "armpw", "1.0")).toEqual([]);
+});
+
+test("a read that fails answers with nothing rather than taking the page down", async () => {
+  const refused = {
+    select: () => refused,
+    eq: () => refused,
+    is: () => refused,
+    contains: () => refused,
+    then: (resolve: (value: unknown) => unknown) =>
+      Promise.resolve({ data: null, error: { message: "nope" } }).then(resolve),
+  };
+  const supabase = { from: () => refused } as unknown as SupabaseClient;
+
+  expect(await unitBuilders(supabase, "BA", "armlab")).toEqual([]);
 });
 
 /**

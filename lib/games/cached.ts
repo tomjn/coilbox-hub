@@ -113,16 +113,21 @@ export async function unitPageCached(
   const [render, buildpic, buildPictures] = await Promise.all([
     unitRender(supabase, shortname, unitName),
     unitBuildpic(supabase, shortname, unitName),
-    // What it builds draws as catalog cells (#260), which means one buildpic
-    // per entry - a couple of dozen at most, since that is what a unit builds.
+    // Both directions of the edge draw as catalog cells (#260), which means one
+    // buildpic per entry - a couple of dozen at most, since that is what a unit
+    // builds and what builds it. Deduped, because a unit that builds its own
+    // builder would otherwise be asked for twice.
     unitBuildpics(
       supabase,
       shortname,
-      page.builds.map((build) => ({
-        unit_name: build.name,
-        full_name: build.label,
-        faction_key: null,
-      })),
+      [
+        ...new Map(
+          [...page.built_by, ...page.builds].map((entry) => [
+            entry.name,
+            { unit_name: entry.name, full_name: entry.label, faction_key: null },
+          ]),
+        ).values(),
+      ],
     ),
   ]);
   return {

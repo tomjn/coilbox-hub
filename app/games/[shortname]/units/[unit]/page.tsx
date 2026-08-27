@@ -6,14 +6,16 @@ import { setSnippet } from "@/app/games/actions";
 import { StatTable } from "@/components/StatTable";
 import { UnitCard } from "@/components/UnitCard";
 import { UnitPortrait, UnitRenderFigure } from "@/components/UnitPictures";
+import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { unitPageCached } from "@/lib/games/cached";
 import { createClient } from "@/lib/supabase/server";
 
 /**
  * One unit (#227).
  *
- * The top down render large, the stats as a table, what it builds, and which
- * release the facts came from. An author snippet will sit under the description
+ * The top down render large, the stats as a table, what builds it and what it
+ * builds, and which release the facts came from. An author snippet will sit
+ * under the description
  * once ownership exists to write one (#229); the space is deliberately not
  * drawn now, because an empty box labelled "the author says nothing yet" would
  * be a promise about a feature rather than a fact about a unit.
@@ -28,6 +30,43 @@ import { createClient } from "@/lib/supabase/server";
  * release is an ordinary answer.
  */
 
+/**
+ * One edge of the build graph as catalog cells (#260): a reader who has just
+ * been scrolling units recognises them by their buildpics. Both directions draw
+ * the same way, because "makes" and "is made by" are one relationship read from
+ * two ends and nothing about the cell should differ.
+ */
+function UnitGrid({
+  game,
+  units,
+  pictures,
+}: {
+  game: string;
+  units: { name: string; label: string }[];
+  pictures: ReadonlyMap<string, ResolvedAsset>;
+}) {
+  return (
+    <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+      {units.map((unit, index) => (
+        <UnitCard
+          key={unit.name}
+          game={game}
+          unit={{ unit_name: unit.name, full_name: unit.label }}
+          picture={
+            pictures.get(unit.name) ?? {
+              from: "placeholder",
+              keyedOn: "unit",
+              name: unit.name,
+              footprint: null,
+            }
+          }
+          eager={index < 16}
+        />
+      ))}
+    </ul>
+  );
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -36,7 +75,7 @@ export async function generateMetadata({
   const { shortname, unit } = await params;
   return {
     title: `${unit} - ${shortname} - Coilbox Hub`,
-    description: `Stats, build options and renders for ${unit}, as ${shortname} ships it.`,
+    description: `Stats, builders, build options and renders for ${unit}, as ${shortname} ships it.`,
   };
 }
 
@@ -174,6 +213,19 @@ export default async function Unit({
           </section>
         ) : null}
 
+        {/* Upstream before downstream: what makes this thing, then what it
+            makes. A reader arriving from a build order wants the first. */}
+        <section className="flex flex-col gap-3" aria-labelledby="unit-built-by">
+          <h2 id="unit-built-by" className="text-sm uppercase tracking-wide text-neutral-400">
+            Built by
+          </h2>
+          {page.built_by.length === 0 ? (
+            <p className="text-sm text-neutral-500">Nothing builds this.</p>
+          ) : (
+            <UnitGrid game={shortname} units={page.built_by} pictures={buildPictures} />
+          )}
+        </section>
+
         <section className="flex flex-col gap-3" aria-labelledby="unit-builds">
           <h2 id="unit-builds" className="text-sm uppercase tracking-wide text-neutral-400">
             Builds
@@ -181,26 +233,7 @@ export default async function Unit({
           {page.builds.length === 0 ? (
             <p className="text-sm text-neutral-500">Nothing, or nothing reported yet.</p>
           ) : (
-            // The same cells the catalog grid draws (#260): a reader who has
-            // just been scrolling units recognises them by their buildpics.
-            <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-              {page.builds.map((build, index) => (
-                <UnitCard
-                  key={build.name}
-                  game={shortname}
-                  unit={{ unit_name: build.name, full_name: build.label }}
-                  picture={
-                    buildPictures.get(build.name) ?? {
-                      from: "placeholder",
-                      keyedOn: "unit",
-                      name: build.name,
-                      footprint: null,
-                    }
-                  }
-                  eager={index < 16}
-                />
-              ))}
-            </ul>
+            <UnitGrid game={shortname} units={page.builds} pictures={buildPictures} />
           )}
         </section>
 
