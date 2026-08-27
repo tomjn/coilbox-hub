@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -129,6 +130,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Reports Core Web Vitals from real visits (issue 94). It renders no
             markup, and in development it only logs to the console. */}
         <SpeedInsights />
+        {/* Counts page views from real visits, next to the vitals rather than
+            instead of them. A client component, so it renders no markup and
+            reads nothing about the request, and the held shell above stays
+            held. */}
+        <Analytics />
       </body>
     </html>
   );
