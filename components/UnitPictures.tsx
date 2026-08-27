@@ -67,6 +67,10 @@ function UnitRenderFigure({ label, render }: { label: string; render: UnitRender
 
   return (
     <figure className="flex flex-col items-center gap-2 rounded-md border border-neutral-900 bg-black p-6">
+      {/* `my-auto` only bites in the wide row below, where the boxes share a
+          height: it centres the angle in its box and drops every caption onto
+          one line. The angles are different shapes, so a row of four without it
+          reads as four captions at four heights. */}
       {/* eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image, see next.config.ts */}
       <img
         src={asset.url}
@@ -74,7 +78,7 @@ function UnitRenderFigure({ label, render }: { label: string; render: UnitRender
         width={asset.width}
         height={asset.height}
         decoding="async"
-        className="h-auto max-w-sm object-contain"
+        className="my-auto h-auto max-w-full object-contain"
       />
       <figcaption className="text-xs text-neutral-500">{caption}</figcaption>
     </figure>
@@ -82,12 +86,38 @@ function UnitRenderFigure({ label, render }: { label: string; render: UnitRender
 }
 
 /**
+ * What a wide screen does with the angles, by how many of them there are.
+ *
+ * A render is capped at 256px on its longest edge by the vocabulary, so no
+ * arrangement makes these bigger and the only thing left to win is seeing every
+ * angle at once. Three or four wrap into a second row inside the 42rem column
+ * and leave both margins of a 64rem page empty to do it, so from `xl` they
+ * straighten into a single row: four break out past the page column to hold
+ * their size, three fit across it as it stands. One or two already read right
+ * in 42rem, so they are absent here and stay as they are at every width.
+ *
+ * `items-stretch` is what puts the captions on one line, by giving the boxes in
+ * a row one height to share. The flex fallback keeps `items-start` instead,
+ * where the same stretch would only pad a short box out to a tall one's height
+ * with nothing to show for it.
+ *
+ * Both rows have to undo the `mx-auto` they inherit, which is a centring margin
+ * in the pair layout but makes this a shrink to fit box in a column flex parent,
+ * and a row measured 13px inside the page column reads as a mistake rather than
+ * as a choice. Four undoes it with the breakout, three with `mx-0`.
+ */
+const WIDE_ROW: Record<number, string> = {
+  3: " xl:mx-0 xl:grid xl:max-w-none xl:grid-cols-3 xl:items-stretch",
+  4: " xl:-mx-24 xl:grid xl:max-w-none xl:grid-cols-4 xl:items-stretch",
+};
+
+/**
  * Every angle the hub holds, or nothing at all when it holds none.
  *
  * Wrapped rather than left to the page, because whether the section exists
  * depends on what survives the per angle test above and the page would have to
- * repeat that test to know. One render centres, four wrap into pairs, and
- * neither needs a case of its own.
+ * repeat that test to know. One render centres, four line up, and neither needs
+ * a case of its own here.
  */
 export function UnitRenders({
   label,
@@ -106,17 +136,14 @@ export function UnitRenders({
       <h2 id="unit-renders" className="text-sm uppercase tracking-wide text-neutral-400">
         Renders
       </h2>
-      {/* `items-start` because the angles are different shapes: a side on is
-          wider than it is tall and a top down is square, and a stretched row
-          would sit each of them in a box the height of the tallest.
-
-          The width cap is what makes four angles read as a square of four
-          rather than a row of three and an orphan. A render is capped at 256px
-          on its longest edge by the vocabulary, so two figures always fit
-          across 42rem and three never do, whatever shape they are. One render
-          still centres, which is what this section was before it could hold
-          more than one. */}
-      <div className="mx-auto flex max-w-2xl flex-wrap items-start justify-center gap-4">
+      {/* Two angles wrap into a pair across 42rem and one centres, which is
+          what this section was before it could hold more than one. Every width
+          narrower than `xl` still does that, whatever `WIDE_ROW` says above. */}
+      <div
+        className={`mx-auto flex max-w-2xl flex-wrap items-start justify-center gap-4${
+          WIDE_ROW[shown.length] ?? ""
+        }`}
+      >
         {shown.map((render) => (
           <UnitRenderFigure key={render.angle} label={label} render={render} />
         ))}
