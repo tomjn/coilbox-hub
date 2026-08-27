@@ -132,6 +132,21 @@ export const UNIT_BUILDPIC_VARIANT = vocabulary.unit.buildpicVariant;
 export const UNIT_RENDER_VARIANT_PREFIX = vocabulary.unit.renderVariantPrefix;
 
 /**
+ * Every angle coilbox draws, in the order a unit's page shows them.
+ *
+ * Taken off the vocabulary whole, because a page showing a unit wants whatever
+ * views of it exist and has no reason to prefer one. That is the opposite of
+ * {@link UNIT_TOP_RENDER_VARIANT} below, which one caller wants for a reason of
+ * its own, and the two are separate for that reason rather than by oversight.
+ *
+ * An angle added upstream reaches the page through `bun run sync:vendor` and
+ * nothing else. The upload route never reads this: it takes any `render:<angle>`
+ * the client sends, so a client running ahead of the hub is not refused, its
+ * extra angle simply has nothing drawing it yet.
+ */
+export const UNIT_RENDER_ANGLES = vocabulary.unit.renderAngles;
+
+/**
  * The unit seen from above, which is the one a page asks for by hand, the way
  * {@link MAP_MINIMAP_VARIANT} is on the map side.
  *
