@@ -12,12 +12,13 @@ import {
   unitBuildpic,
   unitBuildpics,
   unitNameLabels,
-  unitRender,
+  unitRenders,
   unbuildableUnits,
   type FactionOption,
   type UnitComparison,
   type UnitGridFilters,
   type UnitPage,
+  type UnitRenderView,
 } from "./units";
 import type { UnitNameLabel } from "./units";
 
@@ -99,7 +100,7 @@ export async function unitPageCached(
   version?: string,
 ): Promise<{
   page: UnitPage;
-  render: ResolvedAsset;
+  renders: UnitRenderView[];
   buildpic: ResolvedAsset;
   buildPictures: ReadonlyMap<string, ResolvedAsset>;
 } | null> {
@@ -110,8 +111,8 @@ export async function unitPageCached(
   const supabase = createAnonClient();
   const page = await loadUnitPage(supabase, shortname, unitName, version);
   if (!page) return null;
-  const [render, buildpic, buildPictures] = await Promise.all([
-    unitRender(supabase, shortname, unitName),
+  const [renders, buildpic, buildPictures] = await Promise.all([
+    unitRenders(supabase, shortname, unitName),
     unitBuildpic(supabase, shortname, unitName),
     // Both directions of the edge draw as catalog cells (#260), which means one
     // buildpic per entry - a couple of dozen at most, since that is what a unit
@@ -132,7 +133,7 @@ export async function unitPageCached(
   ]);
   return {
     page,
-    render,
+    renders,
     buildpic,
     buildPictures,
   };

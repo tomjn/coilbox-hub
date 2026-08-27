@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { setSnippet } from "@/app/games/actions";
 import { StatTable } from "@/components/StatTable";
 import { UnitCard } from "@/components/UnitCard";
-import { UnitPortrait, UnitRenderFigure } from "@/components/UnitPictures";
+import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { unitPageCached } from "@/lib/games/cached";
 import { createClient } from "@/lib/supabase/server";
@@ -93,7 +93,7 @@ export default async function Unit({
 
   const loaded = await unitPageCached(shortname, unit, v);
   if (!loaded) notFound();
-  const { page, render, buildpic, buildPictures } = loaded;
+  const { page, renders, buildpic, buildPictures } = loaded;
   const label = page.full_name ?? page.unit_name;
 
   // The snippet form is the owner's alone, and the check is one read: the
@@ -168,7 +168,7 @@ export default async function Unit({
           </div>
         </div>
 
-        <UnitRenderFigure label={label} render={render} />
+        <UnitRenders label={label} renders={renders} />
 
         <section className="flex flex-col gap-3" aria-labelledby="unit-stats">
           <h2 id="unit-stats" className="text-sm uppercase tracking-wide text-neutral-400">

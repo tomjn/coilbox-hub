@@ -1,11 +1,13 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { UNIT_RENDER_ANGLES } from "@/lib/assets/asset";
 import {
   gameFactions,
   loadUnitGrid,
   parseUnitGridFilters,
   unbuildableUnits,
   unitBuilders,
+  unitRenders,
 } from "./units";
 
 /**
@@ -73,6 +75,77 @@ function fakeUnits(rows: Row[]): SupabaseClient {
 
   return { from: () => build(rows, null) } as unknown as SupabaseClient;
 }
+
+/**
+ * The `asset` table as far as a picture read is concerned. The identity filter
+ * is recorded rather than applied, the way `lib/assets/resolve.test.ts` does it:
+ * what matters here is which angles were asked for and in how many round trips.
+ */
+function fakeAssets(rows: Record<string, unknown>[], filters: string[]): SupabaseClient {
+  const from = () => ({
+    select: () => ({
+      eq: () => ({
+        or: (filter: string) => {
+          filters.push(filter);
+          return Promise.resolve({ data: rows, error: null });
+        },
+      }),
+    }),
+  });
+
+  return { from } as unknown as SupabaseClient;
+}
+
+function renderRow(angle: string) {
+  return {
+    game: "BA",
+    unit_name: "armcom",
+    map_name: null,
+    variant: `render:${angle}`,
+    tier: "static",
+    path: `units/BA/render-${angle}/abc.webp`,
+    width: 256,
+    height: 256,
+    moderation: "approved",
+  };
+}
+
+/**
+ * Coilbox renders four angles and the page used to ask for the top one alone,
+ * so the other three sat in the store with nothing to draw them.
+ */
+test("a unit's renders cover every angle the vocabulary names", async () => {
+  const filters: string[] = [];
+  const renders = await unitRenders(
+    fakeAssets([renderRow("top"), renderRow("side")], filters),
+    "BA",
+    "armcom",
+  );
+
+  expect(renders.map((entry) => entry.angle)).toEqual([...UNIT_RENDER_ANGLES]);
+  for (const angle of UNIT_RENDER_ANGLES) {
+    expect(filters.join(" ")).toContain(`render:${angle}`);
+  }
+});
+
+test("every angle resolves in one read rather than one each", async () => {
+  const filters: string[] = [];
+  await unitRenders(fakeAssets([], filters), "BA", "armcom");
+
+  expect(filters).toHaveLength(1);
+});
+
+test("an angle the hub holds is served and one it does not is a placeholder", async () => {
+  const renders = await unitRenders(
+    fakeAssets([renderRow("top"), renderRow("side")], []),
+    "BA",
+    "armcom",
+  );
+  const by = new Map(renders.map((entry) => [entry.angle, entry.asset]));
+
+  expect(by.get("side")?.from).toBe("static");
+  expect(by.get("front")?.from).toBe("placeholder");
+});
 
 test("the grid hides retired units without being refused for it", async () => {
   const grid = await loadUnitGrid(

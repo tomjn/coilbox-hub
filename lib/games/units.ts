@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   UNIT_BUILDPIC_VARIANT,
-  UNIT_TOP_RENDER_VARIANT,
+  UNIT_RENDER_ANGLES,
+  UNIT_RENDER_VARIANT_PREFIX,
   type AssetIdentity,
 } from "@/lib/assets/asset";
 import { fetchHeldAssets, resolveAsset, type ResolvedAsset } from "@/lib/assets/resolve";
@@ -452,21 +453,44 @@ export async function loadUnitPage(
   };
 }
 
-/** The top down render for a unit's page, falling back to its buildpic through
- *  the ladder `lib/assets/resolve.ts` owns. */
-export async function unitRender(
+/** One angle of a unit, as the page draws it. The angle rides along because
+ *  `asset.served` carries a variant and a caption wants the angle on its own. */
+export interface UnitRenderView {
+  angle: string;
+  asset: ResolvedAsset;
+}
+
+/**
+ * Every angle of a unit, resolved through the ladder `lib/assets/resolve.ts`
+ * owns, in one read.
+ *
+ * One read rather than one per angle: `fetchHeldAssets` takes the whole set and
+ * chunks it, so four angles and the buildpic behind them are a single query.
+ * Asking angle by angle would be four round trips for a page that draws them
+ * together.
+ *
+ * Every angle comes back, held or not, and the caller drops what it cannot
+ * draw. Returning only what is stored would hide the ladder's substitution from
+ * a caller that has to know about it: a missing angle resolves to the buildpic,
+ * which the portrait is already showing.
+ */
+export async function unitRenders(
   supabase: SupabaseClient,
   shortname: string,
   unitName: string,
-): Promise<ResolvedAsset> {
-  const identity: AssetIdentity = {
+): Promise<UnitRenderView[]> {
+  const identities: AssetIdentity[] = UNIT_RENDER_ANGLES.map((angle) => ({
     keyedOn: "unit",
     game: shortname,
     unitName,
-    variant: UNIT_TOP_RENDER_VARIANT,
-  };
-  const held = await fetchHeldAssets(supabase, [identity]);
-  return resolveAsset(identity, held, null);
+    variant: `${UNIT_RENDER_VARIANT_PREFIX}${angle}`,
+  }));
+  const held = await fetchHeldAssets(supabase, identities);
+
+  return UNIT_RENDER_ANGLES.map((angle, index) => ({
+    angle,
+    asset: resolveAsset(identities[index], held, null),
+  }));
 }
 
 /**
