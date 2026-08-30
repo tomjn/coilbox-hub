@@ -43,16 +43,16 @@ export interface GameSubmission {
  *
  * The name is inside the hash as well as on the row, the way a map's is, so
  * "the same facts" never has to ask whether identity was part of the
- * comparison. Build options are sorted and deduplicated here rather than
- * trusted to the caller, because order is not a fact: two clients reading one
- * def can list what it builds in whatever order Lua handed it over, and one
- * digest for both is the difference between idempotence and a new revision on
- * every run.
- *
- * Morph targets get no such sort here. The client already sorts them by
- * target and deduplicates before it sends, and `canonicalJson` sorts each
- * entry's own keys, so what arrives is already in the one order two clients
- * reading the same def would agree on.
+ * comparison. Build options and morph targets are both sorted here rather
+ * than trusted to the caller, because order is not a fact for either: two
+ * clients reading one def can list what it builds, or what it turns into, in
+ * whatever order Lua handed it over, and one digest for both is the
+ * difference between idempotence and a new revision on every run. Build
+ * options are deduplicated too, belt and braces over the parser's own
+ * dedupe. Morph targets are not deduplicated a second time here: the parser
+ * already keeps at most one entry per `into`, and unlike a plain string there
+ * is no rule for which of two objects sharing an `into` should win, so a
+ * second pass would need to invent one nothing calls for.
  */
 export async function unitDigest(unit: SubmittedUnit): Promise<string> {
   const canonical = canonicalJson({
@@ -61,7 +61,9 @@ export async function unitDigest(unit: SubmittedUnit): Promise<string> {
     factionKey: unit.faction_key,
     buildOptions: [...new Set(unit.build_options)].sort(),
     stats: unit.stats,
-    morphTargets: unit.morph_targets,
+    morphTargets: [...unit.morph_targets].sort((a, b) =>
+      String(a.into).localeCompare(String(b.into)),
+    ),
   });
   return encodedHash(new TextEncoder().encode(canonical).buffer as ArrayBuffer);
 }

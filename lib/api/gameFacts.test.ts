@@ -207,3 +207,29 @@ test("takes a unit that sends no morph targets at all", () => {
   if (!parsed.ok) return;
   expect(parsed.submission.units[0].morph_targets).toEqual([]);
 });
+
+test("morph targets must be objects of bounded size", () => {
+  const ok = parseGameFactsBody(
+    body({ units: [{ name: "armcom", morphTargets: [{ into: "armcom1" }] }] }),
+  );
+  expect(ok.ok).toBe(true);
+
+  const notObject = parseGameFactsBody(
+    body({ units: [{ name: "armcom", morphTargets: ["armcom1"] }] }),
+  );
+  expect(notObject.ok).toBe(false);
+  if (!notObject.ok) expect(notObject.error).toContain("morphTargets");
+
+  const tooBig = parseGameFactsBody(
+    body({
+      units: [
+        {
+          name: "armcom",
+          morphTargets: [{ into: "armcom1", blob: "x".repeat(10_000) }],
+        },
+      ],
+    }),
+  );
+  expect(tooBig.ok).toBe(false);
+  if (!tooBig.ok) expect(tooBig.error).toContain("morphTargets");
+});
