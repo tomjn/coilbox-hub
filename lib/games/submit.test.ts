@@ -12,6 +12,7 @@ function unit(name: string, overrides: Partial<SubmittedUnit> = {}): SubmittedUn
     faction_key: null,
     build_options: [],
     stats: {},
+    morph_targets: [],
     ...overrides,
   };
 }
@@ -60,6 +61,28 @@ test("absent and null optional text are one fact, not two spellings of it", asyn
 test("build options arrive at one digest whatever order they were read in", async () => {
   const one = await unitDigest(unit("armcom", { build_options: ["armmex", "armsolar"] }));
   const other = await unitDigest(unit("armcom", { build_options: ["armsolar", "armmex"] }));
+  expect(one).toBe(other);
+});
+
+test("digests a unit whose morphs changed as different facts", async () => {
+  const before = await unitDigest(unit("armcom", { morph_targets: [] }));
+  const after = await unitDigest(
+    unit("armcom", { morph_targets: [{ into: "armcom1" }] }),
+  );
+  expect(before).not.toBe(after);
+});
+
+test("morph targets arrive at one digest whatever order they were read in", async () => {
+  const one = await unitDigest(
+    unit("armcom", {
+      morph_targets: [{ into: "armcom1" }, { into: "armcom2" }],
+    }),
+  );
+  const other = await unitDigest(
+    unit("armcom", {
+      morph_targets: [{ into: "armcom2" }, { into: "armcom1" }],
+    }),
+  );
   expect(one).toBe(other);
 });
 

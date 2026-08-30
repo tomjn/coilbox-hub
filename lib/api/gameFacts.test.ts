@@ -146,3 +146,90 @@ test("a request past the unit cap is refused before any entry is read", () => {
   expect(parsed.ok).toBe(false);
   if (!parsed.ok) expect(parsed.error).toContain("at most");
 });
+
+test("accepts morph targets on a unit", () => {
+  const parsed = parseGameFactsBody(
+    body({
+      units: [
+        {
+          name: "armcom",
+          buildOptions: [],
+          stats: {},
+          morphTargets: [{ into: "armcom1", morphtime: 10 }],
+        },
+      ],
+    }),
+  );
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.units[0].morph_targets).toEqual([
+    { into: "armcom1", morphtime: 10 },
+  ]);
+});
+
+// Amended from the plan's draft, which asserted `parsed.ok === true` with the
+// bad unit dropped. `readUnit`'s callers already fail the whole request on any
+// unit-level error, the same path `stats` and `buildOptions` take, and that
+// batch semantics is not this task's to change. `morphTargets` fails exactly
+// the way its neighbours do, and what matters is that the message names the
+// field.
+test("refuses a morph target with no unit to turn into", () => {
+  const parsed = parseGameFactsBody(
+    body({
+      units: [
+        { name: "armcom", buildOptions: [], stats: {}, morphTargets: [{ morphtime: 10 }] },
+      ],
+    }),
+  );
+  expect(parsed.ok).toBe(false);
+  if (parsed.ok) return;
+  expect(parsed.error).toContain("morphTargets");
+});
+
+test("refuses morph targets that are not a list", () => {
+  const parsed = parseGameFactsBody(
+    body({
+      units: [
+        { name: "armcom", buildOptions: [], stats: {}, morphTargets: { into: "armcom1" } },
+      ],
+    }),
+  );
+  expect(parsed.ok).toBe(false);
+  if (parsed.ok) return;
+  expect(parsed.error).toContain("morphTargets");
+});
+
+test("takes a unit that sends no morph targets at all", () => {
+  const parsed = parseGameFactsBody(
+    body({ units: [{ name: "armcom", buildOptions: [], stats: {} }] }),
+  );
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.units[0].morph_targets).toEqual([]);
+});
+
+test("morph targets must be objects of bounded size", () => {
+  const ok = parseGameFactsBody(
+    body({ units: [{ name: "armcom", morphTargets: [{ into: "armcom1" }] }] }),
+  );
+  expect(ok.ok).toBe(true);
+
+  const notObject = parseGameFactsBody(
+    body({ units: [{ name: "armcom", morphTargets: ["armcom1"] }] }),
+  );
+  expect(notObject.ok).toBe(false);
+  if (!notObject.ok) expect(notObject.error).toContain("morphTargets");
+
+  const tooBig = parseGameFactsBody(
+    body({
+      units: [
+        {
+          name: "armcom",
+          morphTargets: [{ into: "armcom1", blob: "x".repeat(10_000) }],
+        },
+      ],
+    }),
+  );
+  expect(tooBig.ok).toBe(false);
+  if (!tooBig.ok) expect(tooBig.error).toContain("morphTargets");
+});

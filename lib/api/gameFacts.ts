@@ -96,6 +96,7 @@ export interface SubmittedUnit {
   faction_key: string | null;
   build_options: string[];
   stats: Record<string, unknown>;
+  morph_targets: Record<string, unknown>[];
 }
 
 /** Everything one request carries, normalised. */
@@ -125,7 +126,14 @@ const BODY_FIELDS = [
 
 const FACTION_FIELDS = ["key", "name"] as const;
 
-const UNIT_FIELDS = ["name", "fullName", "factionKey", "buildOptions", "stats"] as const;
+const UNIT_FIELDS = [
+  "name",
+  "fullName",
+  "factionKey",
+  "buildOptions",
+  "stats",
+  "morphTargets",
+] as const;
 
 const MAX_LENGTHS = {
   shortname: 64,
@@ -233,6 +241,51 @@ function readStats(record: Record<string, unknown>): Read<Record<string, unknown
   return { ok: true, value };
 }
 
+/** The largest serialised morph blob one unit may carry. The same number
+ * `MAX_STATS_JSON` uses, and for the same reason. The widest morph a real game
+ * has been measured to declare is 1586 bytes, on Metal Factions' commander. */
+const MAX_MORPH_JSON = 8_192;
+
+/**
+ * What a unit turns into, as the client read it.
+ *
+ * `into` is the only field named here. Everything beside it is the game's own
+ * condition vocabulary, stored and rendered as it arrives, because four games
+ * spell it four ways and a hub that named them would refuse the fifth.
+ */
+function readMorphTargets(
+  record: Record<string, unknown>,
+): Read<Record<string, unknown>[]> {
+  const value = record.morphTargets;
+  if (value === undefined || value === null) return { ok: true, value: [] };
+  if (!Array.isArray(value)) {
+    return { ok: false, error: "`morphTargets` must be an array of morph objects." };
+  }
+  const seen = new Set<string>();
+  const targets: Record<string, unknown>[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) {
+      return { ok: false, error: "`morphTargets` entries must be JSON objects." };
+    }
+    const into = entry.into;
+    if (typeof into !== "string" || into.trim().length === 0) {
+      return { ok: false, error: "a `morphTargets` entry must name the unit it turns into." };
+    }
+    if (into.trim().length > MAX_LENGTHS.unitName) {
+      return { ok: false, error: "a `morphTargets` entry names a unit too long to store." };
+    }
+    // Two edges to one target are one edge. The client deduplicates already, so
+    // this is about what a second client might send rather than about ours.
+    if (seen.has(into.trim())) continue;
+    seen.add(into.trim());
+    targets.push({ ...entry, into: into.trim() });
+  }
+  if (canonicalJson(targets).length > MAX_MORPH_JSON) {
+    return { ok: false, error: `\`morphTargets\` holds more than ${MAX_MORPH_JSON} bytes of JSON.` };
+  }
+  return { ok: true, value: targets };
+}
+
 function readUnit(value: unknown): Read<SubmittedUnit> {
   if (!isRecord(value)) return { ok: false, error: "must be a JSON object." };
 
@@ -254,6 +307,9 @@ function readUnit(value: unknown): Read<SubmittedUnit> {
   const stats = readStats(value);
   if (!stats.ok) return stats;
 
+  const morphTargets = readMorphTargets(value);
+  if (!morphTargets.ok) return morphTargets;
+
   return {
     ok: true,
     value: {
@@ -262,6 +318,7 @@ function readUnit(value: unknown): Read<SubmittedUnit> {
       faction_key: factionKey.value,
       build_options: buildOptions.value,
       stats: stats.value,
+      morph_targets: morphTargets.value,
     },
   };
 }
