@@ -48,6 +48,11 @@ export interface GameSubmission {
  * def can list what it builds in whatever order Lua handed it over, and one
  * digest for both is the difference between idempotence and a new revision on
  * every run.
+ *
+ * Morph targets get no such sort here. The client already sorts them by
+ * target and deduplicates before it sends, and `canonicalJson` sorts each
+ * entry's own keys, so what arrives is already in the one order two clients
+ * reading the same def would agree on.
  */
 export async function unitDigest(unit: SubmittedUnit): Promise<string> {
   const canonical = canonicalJson({
@@ -56,6 +61,7 @@ export async function unitDigest(unit: SubmittedUnit): Promise<string> {
     factionKey: unit.faction_key,
     buildOptions: [...new Set(unit.build_options)].sort(),
     stats: unit.stats,
+    morphTargets: unit.morph_targets,
   });
   return encodedHash(new TextEncoder().encode(canonical).buffer as ArrayBuffer);
 }
