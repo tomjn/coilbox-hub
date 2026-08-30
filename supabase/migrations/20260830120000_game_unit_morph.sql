@@ -9,6 +9,19 @@
 -- that has them. Splitting the target from what it costs would need a second
 -- key joining two columns nothing keeps in step.
 --
+-- Folding morph_targets into the unit digest means the digest of every unit
+-- changes the moment this ships. The first submission after deploy rewrites
+-- every game_unit and game_unit_revision row once, self healing but alarming
+-- to watch, and an old desktop build that has not learned to send the field
+-- keeps digesting as though it sent an empty array, so its submission can
+-- erase morph_targets a newer client already stored, until a build that
+-- sends them submits again, a window lib/api/gameFacts.ts:9-12 says can run
+-- for months. Making absent mean leave what is held alone was considered and
+-- rejected: it would need morph_targets nullable through the parser, the
+-- digest and here, and the digest would still oscillate between the two
+-- shapes, buying storage stability while keeping the churn, not worth it for
+-- a field nothing reads yet.
+--
 -- A new migration carrying the whole function rather than an edit of the
 -- applied one, per the house rule. Stacked on
 -- 20260822130000_faction_answers.sql, the true current body; this is that
@@ -154,9 +167,10 @@ begin
     v_build_options := array(
       select jsonb_array_elements_text(v_entry -> 'unit' -> 'build_options')
     );
-    -- What the unit turns into, stored as it arrives: absent means an older
-    -- client that never learned to send it, so it stores nothing rather than
-    -- null.
+    -- What the unit turns into, stored as it arrives. Absent is coalesced to
+    -- an empty array rather than left null, so on the accepted branch below
+    -- it replaces whatever morph_targets was held with '[]', it does not
+    -- leave the held value alone.
     v_morph_targets := coalesce(v_entry -> 'unit' -> 'morph_targets', '[]'::jsonb);
     v_outcome := null;
     v_said := null;

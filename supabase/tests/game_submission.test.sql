@@ -13,7 +13,7 @@
 -- unit that comes back comes all the way back.
 
 begin;
-select plan(35);
+select plan(36);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -199,6 +199,13 @@ select is(
      and unit_id = (select u.id from public.game_unit u join public.game g on g.id = u.game_id where g.shortname = 'BA' and u.unit_name = 'armcom')),
   '{"health": 4500}'::jsonb,
   'and the revision for this version is what this version now says, not what it said twice'
+);
+
+select is(
+  (select u.morph_targets from public.game_unit u join public.game g on g.id = u.game_id
+    where g.shortname = 'BA' and u.unit_name = 'armcom'),
+  '[]'::jsonb,
+  'and a resubmission that sends no morph targets erases the one the first report stored'
 );
 
 -- A new release reporting the same facts writes history without moving the
