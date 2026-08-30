@@ -47,12 +47,16 @@ export interface GameSubmission {
  * than trusted to the caller, because order is not a fact for either: two
  * clients reading one def can list what it builds, or what it turns into, in
  * whatever order Lua handed it over, and one digest for both is the
- * difference between idempotence and a new revision on every run. Build
- * options are deduplicated too, belt and braces over the parser's own
- * dedupe. Morph targets are not deduplicated a second time here: the parser
- * already keeps at most one entry per `into`, and unlike a plain string there
- * is no rule for which of two objects sharing an `into` should win, so a
- * second pass would need to invent one nothing calls for.
+ * difference between idempotence and a new revision on every run. Sorted by
+ * code unit, the way `build_options`' bare `.sort()` already is and
+ * `canonicalJson`'s own comment explains: `localeCompare` depends on the
+ * locale the process runs in, so the hub would compute one digest on a
+ * developer's machine and another on a server. Build options are
+ * deduplicated too, belt and braces over the parser's own dedupe. Morph
+ * targets are not deduplicated a second time here: the parser already keeps
+ * at most one entry per `into`, and unlike a plain string there is no rule
+ * for which of two objects sharing an `into` should win, so a second pass
+ * would need to invent one nothing calls for.
  */
 export async function unitDigest(unit: SubmittedUnit): Promise<string> {
   const canonical = canonicalJson({
@@ -61,9 +65,11 @@ export async function unitDigest(unit: SubmittedUnit): Promise<string> {
     factionKey: unit.faction_key,
     buildOptions: [...new Set(unit.build_options)].sort(),
     stats: unit.stats,
-    morphTargets: [...unit.morph_targets].sort((a, b) =>
-      String(a.into).localeCompare(String(b.into)),
-    ),
+    morphTargets: [...unit.morph_targets].sort((a, b) => {
+      const into = a.into as string;
+      const other = b.into as string;
+      return into < other ? -1 : into > other ? 1 : 0;
+    }),
   });
   return encodedHash(new TextEncoder().encode(canonical).buffer as ArrayBuffer);
 }

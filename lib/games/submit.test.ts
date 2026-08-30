@@ -72,6 +72,20 @@ test("digests a unit whose morphs changed as different facts", async () => {
   expect(before).not.toBe(after);
 });
 
+test("morph targets arrive at one digest whatever order they were read in", async () => {
+  const one = await unitDigest(
+    unit("armcom", {
+      morph_targets: [{ into: "armcom1" }, { into: "armcom2" }],
+    }),
+  );
+  const other = await unitDigest(
+    unit("armcom", {
+      morph_targets: [{ into: "armcom2" }, { into: "armcom1" }],
+    }),
+  );
+  expect(one).toBe(other);
+});
+
 test("one request carries one game and its whole batch to submit_game_facts", async () => {
   const calls: Call[] = [];
   const supabase = fakeSupabase(
