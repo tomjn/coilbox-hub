@@ -13,7 +13,7 @@
 -- unit that comes back comes all the way back.
 
 begin;
-select plan(33);
+select plan(35);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -31,7 +31,7 @@ select public.submit_game_facts($j$
     "start_units": ["armcom"],
     "factions": [{"key": "armada", "name": "Armada"}],
     "units": [
-      {"unit": {"name": "armcom", "full_name": "Commander", "faction_key": "armada", "build_options": ["armsolar"], "stats": {"health": 5000}}, "facts_digest": "d-armcom"},
+      {"unit": {"name": "armcom", "full_name": "Commander", "faction_key": "armada", "build_options": ["armsolar"], "morph_targets": [{"into": "armcom1", "morphtime": 10}], "stats": {"health": 5000}}, "facts_digest": "d-armcom"},
       {"unit": {"name": "armmex"}, "facts_digest": "d-armmex"}
     ]
   }
@@ -90,6 +90,22 @@ select is(
 select is(
   (select count(*) from public.game_unit_revision)::int, 2,
   'and both units carry a revision for the release they were read at'
+);
+
+select is(
+  (select u.morph_targets from public.game_unit u join public.game g on g.id = u.game_id
+    where g.shortname = 'BA' and u.unit_name = 'armcom'),
+  '[{"into": "armcom1", "morphtime": 10}]'::jsonb,
+  'a submitted morph target is stored on the unit'
+);
+
+select is(
+  (select gur.morph_targets from public.game_unit_revision gur
+    join public.game_unit u on u.id = gur.unit_id
+    join public.game g on g.id = u.game_id
+    where g.shortname = 'BA' and u.unit_name = 'armcom' and gur.version = '1.9.0'),
+  '[{"into": "armcom1", "morphtime": 10}]'::jsonb,
+  'and on the revision the release wrote'
 );
 
 -- The ordinary case the second time round: nothing changed, nothing written.
