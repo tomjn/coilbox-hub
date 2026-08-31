@@ -54,7 +54,10 @@ test("what an upgrade costs prints in the game's own words", () => {
     <StageStrip game="BA" stages={STAGES} pictures={NO_PICTURES} />,
   );
 
-  expect(html).toContain("Reached from armcom1");
+  // Named as a reader sees it. "Reached from armcom1" beside a heading saying
+  // Commander reads as a different unit entirely.
+  expect(html).toContain("Reached from Commander");
+  expect(html).not.toContain("Reached from armcom1");
   expect(html).toContain("600");
   expect(html).toContain("30");
 });
@@ -80,7 +83,7 @@ test("a morph whose terms nobody reported still says where it came from", () => 
 
   // Silence here would read as a free upgrade, which is a claim the catalog
   // never made.
-  expect(html).toContain("Reached from armcom1");
+  expect(html).toContain("Reached from Commander");
   expect(html).toContain("the extraction did not report");
 });
 

@@ -24,11 +24,17 @@ export function StageStrip({
   stages: UnitStage[];
   pictures: ReadonlyMap<string, ResolvedAsset>;
 }) {
+  // The stage before this one, by the name a reader sees rather than by the
+  // def key. "Reached from armcom1" beside a heading saying Commander reads as
+  // a different unit entirely.
+  const nameOf = new Map(stages.map((stage) => [stage.unit_name, stage.label]));
+
   return (
     <ol className="flex flex-col gap-2">
       {stages.map((stage, index) => {
         const picture = pictures.get(stage.unit_name);
         const conditions = Object.entries(stage.conditions);
+        const previous = stage.from ? (nameOf.get(stage.from) ?? stage.from) : null;
         return (
           <li
             key={stage.unit_name}
@@ -71,17 +77,17 @@ export function StageStrip({
                 ) : null}
               </div>
 
-              {stage.from && conditions.length > 0 ? (
+              {previous && conditions.length > 0 ? (
                 <p className="text-sm text-neutral-400">
-                  Reached from {stage.from} for{" "}
+                  Reached from {previous} for{" "}
                   {conditions
                     .map(([name, value]) => `${statLabel(name)} ${formatStatValue(value)}`)
                     .join(", ")}
                   .
                 </p>
-              ) : stage.from ? (
+              ) : previous ? (
                 <p className="text-sm text-neutral-400">
-                  Reached from {stage.from}, on terms the extraction did not report.
+                  Reached from {previous}, on terms the extraction did not report.
                 </p>
               ) : null}
 
