@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { readAll } from "@/lib/supabase/readAll";
 import { baseIndex, morphGroups } from "./morph";
 
 /**
@@ -248,37 +249,47 @@ export async function loadTree(
   version?: string,
   factionKey?: string | null,
 ): Promise<Tree | null> {
+  // Paged, because the walk is over a whole game and a truncated read does not
+  // draw a smaller tree, it draws a wrong one: every build option pointing at a
+  // unit past the cap is dropped as dangling, so whole branches vanish with
+  // nothing to say they did. `lib/supabase/readAll.ts` has the rest.
   const [units, game] = await Promise.all([
-    version
-      ? supabase
-          .from("game_unit")
-          .select(
-            "unit_name,full_name,faction_key,stats,build_options,morph_targets,game!inner(shortname)," +
-              "game_unit_revision!inner(version,full_name,faction_key,build_options,morph_targets,stats)",
-          )
-          .eq("game.shortname", shortname)
-          .eq("game_unit_revision.version", version)
-      : supabase
-          .from("game_unit")
-          .select(
-            "unit_name,full_name,faction_key,build_options,morph_targets,stats,game!inner(shortname)",
-          )
-          .eq("game.shortname", shortname)
-          // `is`, not `eq`: PostgREST refuses `removed_at=eq.null`, and a
-          // refused read here is a null tree, which the page shows as a 404
-          // (#255).
-          .is("removed_at", null),
+    readAll<Record<string, unknown>>((from, to) =>
+      version
+        ? supabase
+            .from("game_unit")
+            .select(
+              "unit_name,full_name,faction_key,stats,build_options,morph_targets,game!inner(shortname)," +
+                "game_unit_revision!inner(version,full_name,faction_key,build_options,morph_targets,stats)",
+            )
+            .eq("game.shortname", shortname)
+            .eq("game_unit_revision.version", version)
+            .order("unit_name")
+            .range(from, to)
+        : supabase
+            .from("game_unit")
+            .select(
+              "unit_name,full_name,faction_key,build_options,morph_targets,stats,game!inner(shortname)",
+            )
+            .eq("game.shortname", shortname)
+            // `is`, not `eq`: PostgREST refuses `removed_at=eq.null`, and a
+            // refused read here is a null tree, which the page shows as a 404
+            // (#255).
+            .is("removed_at", null)
+            .order("unit_name")
+            .range(from, to),
+    ),
     supabase.from("game").select("start_units").eq("shortname", shortname).maybeSingle(),
   ]);
 
-  if (units.error || !units.data || game.error || !game.data) return null;
+  if (!units || game.error || !game.data) return null;
 
-  // A versioned read rides the inner join to the revision and reads from there;
-  // a current read has the columns on the row itself.
+  // A versioned read rides the inner join to the revision and reads from there.
+  // A current read has the columns on the row itself.
   const rows: TreeUnit[] = (
     version
       ? (
-          units.data as unknown as {
+          units as unknown as {
             unit_name: string;
             full_name: string | null;
             faction_key: string | null;
@@ -302,7 +313,7 @@ export async function loadTree(
           // that release reported rather than today's.
           morph_targets: row.game_unit_revision[0]?.morph_targets ?? row.morph_targets,
         }))
-      : (units.data as unknown as TreeUnit[])
+      : (units as unknown as TreeUnit[])
   ).map((row) => ({
     unit_name: row.unit_name,
     full_name: row.full_name,

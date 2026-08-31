@@ -7,6 +7,7 @@ import {
 } from "@/lib/assets/asset";
 import { fetchHeldAssets, resolveAsset, type ResolvedAsset } from "@/lib/assets/resolve";
 import { fetchPage } from "@/lib/gallery/query";
+import { readAll } from "@/lib/supabase/readAll";
 import { morphGroups, type MorphStage } from "./morph";
 import { formatStatValue, statLabel, statRows, tabularStatRows } from "./stats";
 
@@ -122,16 +123,23 @@ export async function unbuildableUnits(
   shortname: string,
 ): Promise<string[]> {
   const [units, game] = await Promise.all([
-    supabase
-      .from("game_unit")
-      .select("unit_name,build_options,game!inner(shortname)")
-      .eq("game.shortname", shortname)
-      .is("removed_at", null),
+    // Paged, because a mention is only absent if the whole game was looked at:
+    // a truncated read would call every unit past the cap a ghost and empty
+    // half the shelf.
+    readAll<{ unit_name: string; build_options: string[] }>((from, to) =>
+      supabase
+        .from("game_unit")
+        .select("unit_name,build_options,game!inner(shortname)")
+        .eq("game.shortname", shortname)
+        .is("removed_at", null)
+        .order("unit_name")
+        .range(from, to),
+    ),
     supabase.from("game").select("start_units").eq("shortname", shortname).maybeSingle(),
   ]);
-  if (units.error || !units.data || game.error || !game.data) return [];
+  if (!units || game.error || !game.data) return [];
 
-  const rows = units.data as unknown as { unit_name: string; build_options: string[] }[];
+  const rows = units;
   const starts = new Set(
     ((game.data.start_units ?? []) as string[]).map((name) => name.toLowerCase()),
   );
@@ -154,25 +162,13 @@ interface MorphRow {
   morph_targets: unknown;
 }
 
-/** How many rows one morph read asks for at a time. `supabase/config.toml`
- *  caps a response at 1000 rows, and a game may carry twice that
- *  (`GAME_FACTS_MAX_UNITS`), so this read pages rather than trusting one
- *  request to carry a whole game. */
-const MORPH_READ_PAGE = 1000;
-
 /**
- * Every unit of a game beside what it turns into, whatever the row cap is.
+ * Every unit of a game beside what it turns into.
  *
- * Grouping is the one read here that a truncated answer makes wrong rather
- * than short: a chain whose upper levels fell past the cap silently stops
- * being a chain, and the grid grows cells the whole feature exists to remove.
- * So it pages until a request comes back empty, and it advances by what
- * arrived rather than by what it asked for, which is what makes it right
- * whatever `max_rows` is set to.
- *
- * Ordered by name, because a page boundary without a stable order skips rows
- * and repeats others. Null on a failed read, which every caller turns into the
- * empty answer rather than a broken page.
+ * Grouping is the read a truncated answer makes wrong rather than short: a
+ * chain whose upper levels fell past the row cap silently stops being a chain,
+ * and the grid grows back the cells the grouping exists to remove. So it goes
+ * through {@link readAll}, which says why one request is not a whole game.
  */
 async function morphRows(
   supabase: SupabaseClient,
@@ -180,45 +176,35 @@ async function morphRows(
   liveOnly: boolean,
   version?: string | null,
 ): Promise<MorphRow[] | null> {
-  const rows: MorphRow[] = [];
-  for (let from = 0; ; ) {
-    // Filtered rather than inner joined, so a unit the release has no record of
-    // keeps its row and reports no edges, instead of dropping out and taking
-    // the rest of its chain's shape with it.
-    let query = supabase
-      .from("game_unit")
-      .select(
-        version
-          ? "unit_name,morph_targets,game!inner(shortname),game_unit_revision(version,morph_targets)"
-          : "unit_name,morph_targets,game!inner(shortname)",
-      )
-      .eq("game.shortname", shortname);
-    // `is`, not `eq`: PostgREST refuses `removed_at=eq.null` (#255).
-    if (liveOnly) query = query.is("removed_at", null);
-    if (version) query = query.eq("game_unit_revision.version", version);
+  const rows = await readAll<MorphRow & { game_unit_revision?: { morph_targets: unknown }[] | null }>(
+    (from, to) => {
+      // Filtered rather than inner joined, so a unit the release has no record
+      // of keeps its row and reports no edges, instead of dropping out and
+      // taking the rest of its chain's shape with it.
+      let query = supabase
+        .from("game_unit")
+        .select(
+          version
+            ? "unit_name,morph_targets,game!inner(shortname),game_unit_revision(version,morph_targets)"
+            : "unit_name,morph_targets,game!inner(shortname)",
+        )
+        .eq("game.shortname", shortname);
+      // `is`, not `eq`: PostgREST refuses `removed_at=eq.null` (#255).
+      if (liveOnly) query = query.is("removed_at", null);
+      if (version) query = query.eq("game_unit_revision.version", version);
+      return query.order("unit_name").range(from, to);
+    },
+  );
+  if (!rows) return null;
 
-    const { data, error } = await query
-      .order("unit_name")
-      .range(from, from + MORPH_READ_PAGE - 1);
-    if (error || !data) return null;
-
-    const page = data as unknown as (MorphRow & {
-      game_unit_revision?: { morph_targets: unknown }[] | null;
-    })[];
-    rows.push(
-      ...page.map((row) => ({
-        unit_name: row.unit_name,
-        // A release that reported nothing about this unit reported no edges
-        // for it. Falling back to today's would draw a chain that release
-        // never had.
-        morph_targets: version
-          ? (row.game_unit_revision?.[0]?.morph_targets ?? [])
-          : row.morph_targets,
-      })),
-    );
-    if (page.length === 0) return rows;
-    from += page.length;
-  }
+  return rows.map((row) => ({
+    unit_name: row.unit_name,
+    // A release that reported nothing about this unit reported no edges for
+    // it. Falling back to today's would draw a chain that release never had.
+    morph_targets: version
+      ? (row.game_unit_revision?.[0]?.morph_targets ?? [])
+      : row.morph_targets,
+  }));
 }
 
 /**
@@ -539,16 +525,19 @@ export async function unitNameLabels(
   supabase: SupabaseClient,
   shortname: string,
 ): Promise<ReadonlyMap<string, UnitNameLabel>> {
-  const { data } = await supabase
-    .from("game_unit")
-    .select("unit_name,full_name,game!inner(shortname)")
-    .eq("game.shortname", shortname);
+  // Paged, because a name this misses is a blueprint entry that loses its link
+  // rather than an error anybody sees.
+  const data = await readAll<{ unit_name: string; full_name: string | null }>((from, to) =>
+    supabase
+      .from("game_unit")
+      .select("unit_name,full_name,game!inner(shortname)")
+      .eq("game.shortname", shortname)
+      .order("unit_name")
+      .range(from, to),
+  );
 
   const names = new Map<string, UnitNameLabel>();
-  for (const row of (data ?? []) as unknown as {
-    unit_name: string;
-    full_name: string | null;
-  }[]) {
+  for (const row of data ?? []) {
     names.set(row.unit_name.toLowerCase(), {
       name: row.unit_name,
       label: row.full_name ?? row.unit_name,
@@ -655,18 +644,38 @@ export async function loadUnitPage(
   unitName: string,
   version?: string,
 ): Promise<UnitPage | null> {
+  // The revision the reader asked for, narrowed by the server rather than
+  // searched for in whatever the embed happened to carry. This used to order
+  // the revisions newest first and take one, then look through that one for the
+  // release asked for: an older release was never in it, so every `?v=` older
+  // than the newest showed current facts under that release's name and said the
+  // hub held no record.
+  //
+  // Filtered, not inner joined, because a release with no revision for this
+  // unit still has to render. The parent row survives with an empty embed, and
+  // the page says the record is missing.
+  //
+  // No version asked for means no embed at all, since nothing reads it then.
+  const asked = version ?? null;
   const [held, versions, factions] = await Promise.all([
-    supabase
-      .from("game_unit")
-      .select(
-        "id,unit_name,full_name,faction_key,build_options,stats,snippet,source_version,removed_at," +
-          "game!inner(shortname)," +
-          "game_unit_revision(version,full_name,faction_key,build_options,stats)",
-      )
+    (asked
+      ? supabase
+          .from("game_unit")
+          .select(
+            "id,unit_name,full_name,faction_key,build_options,stats,snippet,source_version,removed_at," +
+              "game!inner(shortname)," +
+              "game_unit_revision(version,full_name,faction_key,build_options,stats)",
+          )
+          .eq("game_unit_revision.version", asked)
+      : supabase
+          .from("game_unit")
+          .select(
+            "id,unit_name,full_name,faction_key,build_options,stats,snippet,source_version,removed_at," +
+              "game!inner(shortname)",
+          )
+    )
       .eq("game.shortname", shortname)
       .eq("unit_name", unitName)
-      .order("version", { referencedTable: "game_unit_revision", ascending: false })
-      .limit(1, { referencedTable: "game_unit_revision" })
       .maybeSingle(),
     supabase
       .from("game_version")
@@ -699,8 +708,7 @@ export async function loadUnitPage(
   // page still renders - with the current facts and a line saying this release
   // has no record - because a unit existing today and not in some old release
   // is an ordinary answer, not a missing page.
-  const asked = version ?? null;
-  const revision = asked ? (row.game_unit_revision?.find((r) => r.version === asked) ?? null) : null;
+  const revision = asked ? (row.game_unit_revision?.[0] ?? null) : null;
 
   const fullName = revision ? revision.full_name : row.full_name;
   const factionKey = revision ? revision.faction_key : row.faction_key;

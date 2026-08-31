@@ -5,6 +5,7 @@ import {
   gameFactions,
   loadUnitGrid,
   parseUnitGridFilters,
+  loadUnitPage,
   loadUnitStages,
   morphedAwayUnits,
   unbuildableUnits,
@@ -210,10 +211,10 @@ function fakeCatalog(rows: Referencing[], startUnits: string[]): SupabaseClient 
     select: () => build(held),
     eq: () => build(held),
     is: (_column: string, value: unknown) =>
-      Promise.resolve({
-        data: held.filter((row) => row.removed_at === value),
-        error: null,
-      }),
+      build(held.filter((row) => row.removed_at === value)),
+    order: () => build([...held].sort((a, b) => a.unit_name.localeCompare(b.unit_name))),
+    range: (from: number, to: number) =>
+      Promise.resolve({ data: held.slice(from, to + 1), error: null }),
   });
   const game = {
     select: () => game,
@@ -330,6 +331,124 @@ test("a chain split across the row cap is still one chain", async () => {
   expect(await morphedAwayUnits(fakeMorphs([...chain, ...filler], 3), "BA")).toEqual([
     "armcom2",
   ]);
+});
+
+/**
+ * The release picker on a unit's page (#227). `?v=<release>` has to show what
+ * that release said, and the read embeds the revisions to find it.
+ *
+ * The embed is filtered by the release asked for. Ordering it newest first and
+ * taking one, then searching that one for an older release, finds nothing every
+ * time and quietly shows current facts under an older release's name.
+ */
+
+interface Revision {
+  version: string;
+  full_name: string | null;
+  faction_key: string | null;
+  build_options: string[];
+  stats: Record<string, unknown>;
+}
+
+const REVISIONS: Revision[] = [
+  { version: "2.0", full_name: "Commander", faction_key: "arm", build_options: ["armsolar"], stats: { health: 3000 } },
+  { version: "1.0", full_name: "Commander Mk I", faction_key: "arm", build_options: [], stats: { health: 2200 } },
+];
+
+/**
+ * A hub that embeds revisions the way PostgREST does: a filter on an embedded
+ * column narrows the embedded rows, and `limit` on a referenced table takes
+ * that many per parent row. A fake that ignored either would pass while the
+ * picker stayed broken.
+ */
+function fakeRevisions(revisions: Revision[]): SupabaseClient {
+  const unit = (embedded: Revision[]) => {
+    const builder = {
+      select: () => unit(embedded),
+      eq: (column: string, value: unknown) =>
+        column === "game_unit_revision.version"
+          ? unit(embedded.filter((row) => row.version === value))
+          : unit(embedded),
+      is: () => unit(embedded),
+      contains: () => unit(embedded),
+      in: () => unit(embedded),
+      order: (_column: string, options?: { referencedTable?: string; ascending?: boolean }) =>
+        options?.referencedTable
+          ? unit(
+              [...embedded].sort((a, b) =>
+                options.ascending === false
+                  ? b.version.localeCompare(a.version)
+                  : a.version.localeCompare(b.version),
+              ),
+            )
+          : unit(embedded),
+      limit: (count: number, options?: { referencedTable?: string }) =>
+        options?.referencedTable ? unit(embedded.slice(0, count)) : unit(embedded),
+      range: () => Promise.resolve({ data: [], error: null }),
+      maybeSingle: () =>
+        Promise.resolve({
+          data: {
+            id: 1,
+            unit_name: "armcom",
+            full_name: "Commander",
+            faction_key: "arm",
+            build_options: ["armsolar"],
+            stats: { health: 3000 },
+            snippet: null,
+            source_version: "2.0",
+            removed_at: null,
+            morph_targets: [],
+            game_unit_revision: embedded,
+          },
+          error: null,
+        }),
+      then: (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({ data: [], error: null }).then(resolve),
+    };
+    return builder;
+  };
+
+  const versions = {
+    select: () => versions,
+    eq: () => versions,
+    order: () => Promise.resolve({ data: [{ version: "2.0" }, { version: "1.0" }], error: null }),
+  };
+
+  const empty = {
+    select: () => empty,
+    eq: () => empty,
+    then: (resolve: (value: unknown) => unknown) =>
+      Promise.resolve({ data: [], error: null }).then(resolve),
+  };
+
+  return {
+    from: (table: string) =>
+      table === "game_version" ? versions : table === "game_unit" ? unit(revisions) : empty,
+  } as unknown as SupabaseClient;
+}
+
+test("asking for an older release shows what that release said", async () => {
+  const page = await loadUnitPage(fakeRevisions(REVISIONS), "BA", "armcom", "1.0");
+
+  expect(page?.shown_version).toBe("1.0");
+  expect(page?.full_name).toBe("Commander Mk I");
+  expect(page?.stats).toEqual({ health: 2200 });
+});
+
+test("a release the hub holds no revision for falls back to current facts", async () => {
+  const page = await loadUnitPage(fakeRevisions(REVISIONS), "BA", "armcom", "0.9");
+
+  // An ordinary answer for a unit a later patch added, and the page says so
+  // rather than 404ing.
+  expect(page?.shown_version).toBeNull();
+  expect(page?.full_name).toBe("Commander");
+});
+
+test("no release asked for is current facts, and reads no revisions to say so", async () => {
+  const page = await loadUnitPage(fakeRevisions(REVISIONS), "BA", "armcom");
+
+  expect(page?.shown_version).toBeNull();
+  expect(page?.stats).toEqual({ health: 3000 });
 });
 
 /**

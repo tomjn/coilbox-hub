@@ -233,7 +233,7 @@ const STORED: UnitRow[] = [
  * does: `is` is the null check, and a null handed to `eq` is refused. A fake
  * that quietly accepted `eq` would pass while every tree stayed a 404.
  */
-function fakeHub(rows: UnitRow[], startUnits: string[]): SupabaseClient {
+function fakeHub(rows: UnitRow[], startUnits: string[], cap = 1000): SupabaseClient {
   const units = (held: UnitRow[], refused: string | null) => ({
     select: () => units(held, refused),
     eq(column: string, value: unknown) {
@@ -252,6 +252,15 @@ function fakeHub(rows: UnitRow[], startUnits: string[]): SupabaseClient {
         refused,
       );
     },
+    order: () =>
+      units([...held].sort((a, b) => a.unit_name.localeCompare(b.unit_name)), refused),
+    // The whole game is read a page at a time (`lib/supabase/readAll.ts`), so
+    // the fake has to serve a window rather than the lot.
+    range: (from: number, to: number) =>
+      Promise.resolve({
+        data: refused ? null : held.slice(from, Math.min(to + 1, from + cap)),
+        error: refused ? { message: refused } : null,
+      }),
     then: (resolve: (value: unknown) => unknown) =>
       Promise.resolve({
         data: refused ? null : held,
@@ -287,6 +296,31 @@ test("a retired unit is left out of the tree rather than taking it down", async 
 
   const named = JSON.stringify(tree);
   expect(named).not.toContain("armbrawl");
+});
+
+test("a game larger than one response still draws a whole tree", async () => {
+  // PostgREST caps a response at max_rows, 1000 in supabase/config.toml, while
+  // GAME_FACTS_MAX_UNITS lets a game carry 2000. A read that took one request
+  // for the lot did not draw a smaller tree, it drew a wrong one: every build
+  // option pointing past the cap read as dangling and its branch vanished.
+  const wide: UnitRow[] = [
+    { unit_name: "armcom", full_name: "Commander", build_options: ["zzlast"], faction_key: "arm", removed_at: null },
+    ...Array.from({ length: 8 }, (_, index) => ({
+      unit_name: `filler${index}`,
+      full_name: `Filler ${index}`,
+      build_options: [],
+      faction_key: "arm",
+      removed_at: null,
+    })),
+    { unit_name: "zzlast", full_name: "Last Unit", build_options: [], faction_key: "arm", removed_at: null },
+  ];
+
+  const tree = await loadTree(fakeHub(wide, ["armcom"], 3), "BA");
+
+  // zzlast sorts last, so it is on the final page. Its branch has to survive.
+  const commander = tree?.factions[0].units.find((unit) => unit.name === "armcom");
+  expect(commander?.builds).toEqual(["zzlast"]);
+  expect(tree?.factions[0].units.map((unit) => unit.name)).toEqual(["armcom", "zzlast"]);
 });
 
 test("a faction scope keeps the whole walk to that side's units", async () => {
