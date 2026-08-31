@@ -6,6 +6,7 @@ import { setSnippet } from "@/app/games/actions";
 import { StatTable } from "@/components/StatTable";
 import { UnitCard } from "@/components/UnitCard";
 import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
+import { StageStats, StageStrip } from "@/components/UnitStages";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { unitPageCached } from "@/lib/games/cached";
 import { createClient } from "@/lib/supabase/server";
@@ -170,12 +171,41 @@ export default async function Unit({
 
         <UnitRenders label={label} renders={renders} />
 
+        {/* Above the stats, because the stages are the frame everything below
+            is read in: these numbers belong to one level of a unit that has
+            several, and a reader who does not know that reads them wrong. */}
+        {page.stages.length > 0 ? (
+          <section className="flex flex-col gap-3" aria-labelledby="unit-stages">
+            <h2 id="unit-stages" className="text-sm uppercase tracking-wide text-neutral-400">
+              Stages
+            </h2>
+            <p className="text-sm text-neutral-500">
+              This unit turns into another. The catalog holds a row for each stage, and
+              every one of them has its own page.
+            </p>
+            <StageStrip game={shortname} stages={page.stages} pictures={buildPictures} />
+          </section>
+        ) : null}
+
         <section className="flex flex-col gap-3" aria-labelledby="unit-stats">
           <h2 id="unit-stats" className="text-sm uppercase tracking-wide text-neutral-400">
             Stats
           </h2>
           <StatTable stats={page.stats} />
         </section>
+
+        {page.stage_stats.length > 0 ? (
+          <section className="flex flex-col gap-3" aria-labelledby="unit-stage-stats">
+            <h2 id="unit-stage-stats" className="text-sm uppercase tracking-wide text-neutral-400">
+              Stats across the stages
+            </h2>
+            <StageStats stages={page.stages} rows={page.stage_stats} />
+            <p className="text-sm text-neutral-500">
+              A stat that draws as its own table, such as a weapons summary, is on each
+              stage&rsquo;s own page rather than in this one.
+            </p>
+          </section>
+        ) : null}
 
         {page.snippet && !page.shown_version ? (
           <section className="flex flex-col gap-2 rounded-md border border-neutral-900 bg-neutral-950 p-4" aria-labelledby="unit-snippet">
