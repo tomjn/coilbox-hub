@@ -5,6 +5,9 @@ import {
   gameFactions,
   loadUnitGrid,
   parseUnitGridFilters,
+  loadUnitPage,
+  loadUnitStages,
+  morphedAwayUnits,
   unbuildableUnits,
   unitBuilders,
   unitRenders,
@@ -208,10 +211,10 @@ function fakeCatalog(rows: Referencing[], startUnits: string[]): SupabaseClient 
     select: () => build(held),
     eq: () => build(held),
     is: (_column: string, value: unknown) =>
-      Promise.resolve({
-        data: held.filter((row) => row.removed_at === value),
-        error: null,
-      }),
+      build(held.filter((row) => row.removed_at === value)),
+    order: () => build([...held].sort((a, b) => a.unit_name.localeCompare(b.unit_name))),
+    range: (from: number, to: number) =>
+      Promise.resolve({ data: held.slice(from, to + 1), error: null }),
   });
   const game = {
     select: () => game,
@@ -241,6 +244,367 @@ test("a unit nobody builds and no start unit heads is a ghost", async () => {
 test("a start unit never hides, however lonely it is", async () => {
   const ghosts = await unbuildableUnits(fakeCatalog(CATALOG, ["armcom", "armfark"]), "BA");
   expect(ghosts).toEqual([]);
+});
+
+/**
+ * A morph chain is one cell (#295). Every level but the base joins the same
+ * exclusion list the ghosts ride, so the grid's paging and its count are
+ * computed over what it actually shows.
+ */
+
+interface Morphing {
+  unit_name: string;
+  morph_targets: unknown;
+  removed_at: string | null;
+}
+
+/**
+ * A `game_unit` that caps a response the way PostgREST's `max_rows` does, so a
+ * read that trusted one request to carry a whole game comes back short here
+ * rather than in production. `cap` is the fake's own limit, well below the real
+ * 1000, because the point is that the reader pages rather than what the number
+ * is.
+ */
+function fakeMorphs(rows: Morphing[], cap = 1000): SupabaseClient {
+  const build = (held: Morphing[]) => ({
+    select: () => build(held),
+    eq: () => build(held),
+    is: (_column: string, value: unknown) =>
+      build(held.filter((row) => row.removed_at === value)),
+    order: () => build([...held].sort((a, b) => a.unit_name.localeCompare(b.unit_name))),
+    range: (from: number, to: number) =>
+      Promise.resolve({
+        data: held.slice(from, Math.min(to + 1, from + cap)),
+        error: null,
+      }),
+  });
+  return { from: () => build(rows) } as unknown as SupabaseClient;
+}
+
+const MORPHING: Morphing[] = [
+  { unit_name: "ArmCom1", morph_targets: [{ into: "armcom2" }], removed_at: null },
+  { unit_name: "armcom2", morph_targets: [{ into: "armcom3" }], removed_at: null },
+  { unit_name: "armcom3", morph_targets: [], removed_at: null },
+  { unit_name: "armsolar", morph_targets: [], removed_at: null },
+];
+
+test("every level but the base is kept off the grid", async () => {
+  const hidden = await morphedAwayUnits(fakeMorphs(MORPHING), "BA");
+
+  // The stored spelling, because the exclusion is a `unit_name` filter and
+  // PostgREST matches it exactly. The base itself stays: it is the cell.
+  expect(hidden).toEqual(["armcom2", "armcom3"]);
+});
+
+test("a unit that turns into nothing is not hidden by this", async () => {
+  const hidden = await morphedAwayUnits(fakeMorphs(MORPHING), "BA");
+  expect(hidden).not.toContain("armsolar");
+});
+
+test("a retired level does not head the group the grid shows", async () => {
+  // The read is live units only, the way the ghost read is. So a patch that
+  // retired level one leaves level two heading the cell, rather than the grid
+  // losing the commander to a base it is not allowed to draw.
+  const retiredBase: Morphing[] = [
+    { unit_name: "armcom1", morph_targets: [{ into: "armcom2" }], removed_at: "2026-01-01" },
+    { unit_name: "armcom2", morph_targets: [{ into: "armcom3" }], removed_at: null },
+    { unit_name: "armcom3", morph_targets: [], removed_at: null },
+  ];
+
+  expect(await morphedAwayUnits(fakeMorphs(retiredBase), "BA")).toEqual(["armcom3"]);
+});
+
+test("a chain split across the row cap is still one chain", async () => {
+  // A game may carry twice what one response holds. A read that took the first
+  // page for the whole game would see armcom1 alone, group nothing, and grow
+  // back every cell this feature exists to remove.
+  const filler: Morphing[] = Array.from({ length: 8 }, (_, index) => ({
+    unit_name: `filler${index}`,
+    morph_targets: [],
+    removed_at: null,
+  }));
+  const chain: Morphing[] = [
+    { unit_name: "armcom1", morph_targets: [{ into: "armcom2" }], removed_at: null },
+    { unit_name: "armcom2", morph_targets: [], removed_at: null },
+  ];
+
+  expect(await morphedAwayUnits(fakeMorphs([...chain, ...filler], 3), "BA")).toEqual([
+    "armcom2",
+  ]);
+});
+
+/**
+ * The release picker on a unit's page (#227). `?v=<release>` has to show what
+ * that release said, and the read embeds the revisions to find it.
+ *
+ * The embed is filtered by the release asked for. Ordering it newest first and
+ * taking one, then searching that one for an older release, finds nothing every
+ * time and quietly shows current facts under an older release's name.
+ */
+
+interface Revision {
+  version: string;
+  full_name: string | null;
+  faction_key: string | null;
+  build_options: string[];
+  stats: Record<string, unknown>;
+}
+
+const REVISIONS: Revision[] = [
+  { version: "2.0", full_name: "Commander", faction_key: "arm", build_options: ["armsolar"], stats: { health: 3000 } },
+  { version: "1.0", full_name: "Commander Mk I", faction_key: "arm", build_options: [], stats: { health: 2200 } },
+];
+
+/**
+ * A hub that embeds revisions the way PostgREST does: a filter on an embedded
+ * column narrows the embedded rows, and `limit` on a referenced table takes
+ * that many per parent row. A fake that ignored either would pass while the
+ * picker stayed broken.
+ */
+function fakeRevisions(revisions: Revision[]): SupabaseClient {
+  const unit = (embedded: Revision[]) => {
+    const builder = {
+      select: () => unit(embedded),
+      eq: (column: string, value: unknown) =>
+        column === "game_unit_revision.version"
+          ? unit(embedded.filter((row) => row.version === value))
+          : unit(embedded),
+      is: () => unit(embedded),
+      contains: () => unit(embedded),
+      in: () => unit(embedded),
+      order: (_column: string, options?: { referencedTable?: string; ascending?: boolean }) =>
+        options?.referencedTable
+          ? unit(
+              [...embedded].sort((a, b) =>
+                options.ascending === false
+                  ? b.version.localeCompare(a.version)
+                  : a.version.localeCompare(b.version),
+              ),
+            )
+          : unit(embedded),
+      limit: (count: number, options?: { referencedTable?: string }) =>
+        options?.referencedTable ? unit(embedded.slice(0, count)) : unit(embedded),
+      range: () => Promise.resolve({ data: [], error: null }),
+      maybeSingle: () =>
+        Promise.resolve({
+          data: {
+            id: 1,
+            unit_name: "armcom",
+            full_name: "Commander",
+            faction_key: "arm",
+            build_options: ["armsolar"],
+            stats: { health: 3000 },
+            snippet: null,
+            source_version: "2.0",
+            removed_at: null,
+            morph_targets: [],
+            game_unit_revision: embedded,
+          },
+          error: null,
+        }),
+      then: (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({ data: [], error: null }).then(resolve),
+    };
+    return builder;
+  };
+
+  const versions = {
+    select: () => versions,
+    eq: () => versions,
+    order: () => Promise.resolve({ data: [{ version: "2.0" }, { version: "1.0" }], error: null }),
+  };
+
+  const empty = {
+    select: () => empty,
+    eq: () => empty,
+    then: (resolve: (value: unknown) => unknown) =>
+      Promise.resolve({ data: [], error: null }).then(resolve),
+  };
+
+  return {
+    from: (table: string) =>
+      table === "game_version" ? versions : table === "game_unit" ? unit(revisions) : empty,
+  } as unknown as SupabaseClient;
+}
+
+test("asking for an older release shows what that release said", async () => {
+  const page = await loadUnitPage(fakeRevisions(REVISIONS), "BA", "armcom", "1.0");
+
+  expect(page?.shown_version).toBe("1.0");
+  expect(page?.full_name).toBe("Commander Mk I");
+  expect(page?.stats).toEqual({ health: 2200 });
+});
+
+test("a release the hub holds no revision for falls back to current facts", async () => {
+  const page = await loadUnitPage(fakeRevisions(REVISIONS), "BA", "armcom", "0.9");
+
+  // An ordinary answer for a unit a later patch added, and the page says so
+  // rather than 404ing.
+  expect(page?.shown_version).toBeNull();
+  expect(page?.full_name).toBe("Commander");
+});
+
+test("no release asked for is current facts, and reads no revisions to say so", async () => {
+  const page = await loadUnitPage(fakeRevisions(REVISIONS), "BA", "armcom");
+
+  expect(page?.shown_version).toBeNull();
+  expect(page?.stats).toEqual({ health: 3000 });
+});
+
+/**
+ * What a unit's own page says about its stages (#295): the levels in order,
+ * what each one costs to reach, what each one unlocks, and the stats running
+ * across them so a reader can see what an upgrade buys.
+ */
+
+interface StageFixture {
+  unit_name: string;
+  full_name: string | null;
+  build_options: string[];
+  stats: Record<string, unknown>;
+  morph_targets: unknown;
+  removed_at: string | null;
+}
+
+function fakeStages(rows: StageFixture[]): SupabaseClient {
+  const build = (held: StageFixture[]) => ({
+    select: () => build(held),
+    eq: () => build(held),
+    is: () => build(held),
+    order: () => build(held),
+    in: (_column: string, names: string[]) =>
+      Promise.resolve({
+        data: held.filter((row) => names.includes(row.unit_name)),
+        error: null,
+      }),
+    range: (from: number, to: number) =>
+      Promise.resolve({ data: held.slice(from, to + 1), error: null }),
+  });
+  return { from: () => build(rows) } as unknown as SupabaseClient;
+}
+
+const COMMANDER: StageFixture[] = [
+  {
+    unit_name: "armcom1",
+    full_name: "Commander",
+    build_options: ["armsolar"],
+    stats: { health: 3000, buildpower: 100 },
+    morph_targets: [{ into: "armcom2", metal: 600, time: 30 }],
+    removed_at: null,
+  },
+  {
+    unit_name: "armcom2",
+    full_name: "Commander, level 2",
+    build_options: ["armsolar", "armvp"],
+    stats: { health: 4500, buildpower: 100 },
+    morph_targets: [{ into: "armcom3", metal: 1800 }],
+    removed_at: null,
+  },
+  {
+    unit_name: "armcom3",
+    full_name: "Commander, level 3",
+    build_options: ["armsolar", "armvp", "armfus"],
+    stats: { health: 6000, buildpower: 200 },
+    morph_targets: [],
+    removed_at: null,
+  },
+  {
+    unit_name: "armsolar",
+    full_name: "Solar Collector",
+    build_options: [],
+    stats: {},
+    morph_targets: [],
+    removed_at: null,
+  },
+  {
+    unit_name: "armvp",
+    full_name: "Vehicle Plant",
+    build_options: [],
+    stats: {},
+    morph_targets: [],
+    removed_at: null,
+  },
+  {
+    unit_name: "armfus",
+    full_name: "Fusion Plant",
+    build_options: [],
+    stats: {},
+    morph_targets: [],
+    removed_at: null,
+  },
+];
+
+test("a level's page lists every stage in order, and marks the one being shown", async () => {
+  const { stages } = await loadUnitStages(fakeStages(COMMANDER), "BA", "armcom2");
+
+  expect(stages.map((stage) => stage.unit_name)).toEqual(["armcom1", "armcom2", "armcom3"]);
+  expect(stages.map((stage) => stage.current)).toEqual([false, true, false]);
+  expect(stages.map((stage) => stage.label)).toEqual([
+    "Commander",
+    "Commander, level 2",
+    "Commander, level 3",
+  ]);
+});
+
+test("a stage says what it unlocks, not everything it can build", async () => {
+  const { stages } = await loadUnitStages(fakeStages(COMMANDER), "BA", "armcom1");
+  const unlocks = new Map(
+    stages.map((stage) => [stage.unit_name, stage.unlocks.map((unit) => unit.name)]),
+  );
+
+  // The base has no level before it, so it unlocks nothing rather than
+  // claiming everything it builds is new.
+  expect(unlocks.get("armcom1")).toEqual([]);
+  expect(unlocks.get("armcom2")).toEqual(["armvp"]);
+  expect(unlocks.get("armcom3")).toEqual(["armfus"]);
+});
+
+test("an unlocked unit is named as the catalog names it", async () => {
+  const { stages } = await loadUnitStages(fakeStages(COMMANDER), "BA", "armcom1");
+  const second = stages.find((stage) => stage.unit_name === "armcom2");
+
+  expect(second?.unlocks).toEqual([{ name: "armvp", label: "Vehicle Plant" }]);
+});
+
+test("how you get to a stage rides along in the game's own words", async () => {
+  const { stages } = await loadUnitStages(fakeStages(COMMANDER), "BA", "armcom1");
+
+  expect(stages[0].from).toBeNull();
+  expect(stages[0].conditions).toEqual({});
+  expect(stages[1].from).toBe("armcom1");
+  expect(stages[1].conditions).toEqual({ metal: 600, time: 30 });
+  expect(stages[2].conditions).toEqual({ metal: 1800 });
+});
+
+test("the stats run across the stages, with the rows that move marked", async () => {
+  const { stage_stats } = await loadUnitStages(fakeStages(COMMANDER), "BA", "armcom1");
+  const rows = new Map(stage_stats.map((row) => [row.key, row]));
+
+  expect(rows.get("health")?.values).toEqual(["3000", "4500", "6000"]);
+  expect(rows.get("health")?.changed).toBe(true);
+  // Build power is the same at levels one and two and different at three, so
+  // the row still moves. A row that never moves is not worth a reader's eye.
+  expect(rows.get("buildpower")?.values).toEqual(["100", "100", "200"]);
+  expect(rows.get("buildpower")?.changed).toBe(true);
+});
+
+test("a stat that holds still across every stage is not marked as moving", async () => {
+  const flat: StageFixture[] = [
+    { ...COMMANDER[0], stats: { health: 3000 } },
+    { ...COMMANDER[1], stats: { health: 3000 } },
+    { ...COMMANDER[2], stats: { health: 3000 } },
+    ...COMMANDER.slice(3),
+  ];
+  const { stage_stats } = await loadUnitStages(fakeStages(flat), "BA", "armcom1");
+
+  expect(stage_stats.find((row) => row.key === "health")?.changed).toBe(false);
+});
+
+test("a unit that turns into nothing gets no strip at all", async () => {
+  const { stages, stage_stats } = await loadUnitStages(fakeStages(COMMANDER), "BA", "armsolar");
+
+  expect(stages).toEqual([]);
+  expect(stage_stats).toEqual([]);
 });
 
 /**

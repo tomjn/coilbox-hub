@@ -121,6 +121,92 @@ test("no summary, an empty one, or none at all leaves a unit unarmed", () => {
 });
 
 /**
+ * A morph chain is one node (#295). Five rows for a five level commander are
+ * one unit at five stages of its life, and a level that unlocks a factory folds
+ * that factory under the same node rather than starting a second subtree.
+ */
+
+const MORPH_UNITS = [
+  {
+    unit_name: "armcom1",
+    full_name: "Commander",
+    build_options: ["armsolar"],
+    morph_targets: [{ into: "armcom2" }],
+  },
+  {
+    unit_name: "armcom2",
+    full_name: "Commander, level 2",
+    build_options: ["armsolar", "armvp"],
+    morph_targets: [{ into: "armcom3" }],
+    stats: { weapons: [{ range: 300 }] },
+  },
+  {
+    unit_name: "armcom3",
+    full_name: "Commander, level 3",
+    build_options: ["armfus"],
+    morph_targets: [],
+  },
+  { unit_name: "armsolar", full_name: "Solar Collector", build_options: [], morph_targets: [] },
+  { unit_name: "armfus", full_name: "Fusion Plant", build_options: [], morph_targets: [] },
+  {
+    unit_name: "armvp",
+    full_name: "Vehicle Plant",
+    build_options: ["armcom3"],
+    morph_targets: [],
+  },
+];
+
+test("a morph chain is one node, and the levels are not nodes of their own", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom1"]);
+  const named = tree.factions[0].units.map((unit) => unit.name);
+
+  expect(named).toContain("armcom1");
+  expect(named).not.toContain("armcom2");
+  expect(named).not.toContain("armcom3");
+  expect(JSON.stringify(tree.ungrouped)).not.toContain("armcom2");
+});
+
+test("what the levels build folds into the one node", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom1"]);
+  const commander = tree.factions[0].units.find((unit) => unit.name === "armcom1");
+
+  // armsolar from level one, armvp from level two, armfus from level three.
+  expect(commander?.builds).toEqual(["armfus", "armsolar", "armvp"]);
+});
+
+test("a node says how many stages it stands for, and an ordinary unit says one", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom1"]);
+  const stages = new Map(tree.factions[0].units.map((unit) => [unit.name, unit.stages]));
+
+  expect(stages.get("armcom1")).toBe(3);
+  expect(stages.get("armsolar")).toBe(1);
+});
+
+test("a build option naming a level points at the level's base", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom1"]);
+  const plant = tree.factions[0].units.find((unit) => unit.name === "armvp");
+
+  // The vehicle plant reports building armcom3. The reader sees it pointing at
+  // the commander, which is the unit armcom3 is a stage of.
+  expect(plant?.builds).toEqual(["armcom1"]);
+});
+
+test("a node is armed when any of its stages is", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom1"]);
+  const commander = tree.factions[0].units.find((unit) => unit.name === "armcom1");
+
+  // Only level two reports weapons. The node stands for the whole life of the
+  // unit, so the node shoots.
+  expect(commander?.armed).toBe(true);
+});
+
+test("a start unit naming a level heads the group its level belongs to", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom2"]);
+
+  expect(tree.factions.map((faction) => faction.root)).toEqual(["armcom1"]);
+});
+
+/**
  * Leaving retired units out is a null check, and PostgREST spells that
  * `is.null` (#255). Asking it for `removed_at=eq.null` is refused, and
  * `loadTree` answers null on a refused read, which the page turns into a 404.
@@ -147,7 +233,7 @@ const STORED: UnitRow[] = [
  * does: `is` is the null check, and a null handed to `eq` is refused. A fake
  * that quietly accepted `eq` would pass while every tree stayed a 404.
  */
-function fakeHub(rows: UnitRow[], startUnits: string[]): SupabaseClient {
+function fakeHub(rows: UnitRow[], startUnits: string[], cap = 1000): SupabaseClient {
   const units = (held: UnitRow[], refused: string | null) => ({
     select: () => units(held, refused),
     eq(column: string, value: unknown) {
@@ -166,6 +252,15 @@ function fakeHub(rows: UnitRow[], startUnits: string[]): SupabaseClient {
         refused,
       );
     },
+    order: () =>
+      units([...held].sort((a, b) => a.unit_name.localeCompare(b.unit_name)), refused),
+    // The whole game is read a page at a time (`lib/supabase/readAll.ts`), so
+    // the fake has to serve a window rather than the lot.
+    range: (from: number, to: number) =>
+      Promise.resolve({
+        data: refused ? null : held.slice(from, Math.min(to + 1, from + cap)),
+        error: refused ? { message: refused } : null,
+      }),
     then: (resolve: (value: unknown) => unknown) =>
       Promise.resolve({
         data: refused ? null : held,
@@ -201,6 +296,31 @@ test("a retired unit is left out of the tree rather than taking it down", async 
 
   const named = JSON.stringify(tree);
   expect(named).not.toContain("armbrawl");
+});
+
+test("a game larger than one response still draws a whole tree", async () => {
+  // PostgREST caps a response at max_rows, 1000 in supabase/config.toml, while
+  // GAME_FACTS_MAX_UNITS lets a game carry 2000. A read that took one request
+  // for the lot did not draw a smaller tree, it drew a wrong one: every build
+  // option pointing past the cap read as dangling and its branch vanished.
+  const wide: UnitRow[] = [
+    { unit_name: "armcom", full_name: "Commander", build_options: ["zzlast"], faction_key: "arm", removed_at: null },
+    ...Array.from({ length: 8 }, (_, index) => ({
+      unit_name: `filler${index}`,
+      full_name: `Filler ${index}`,
+      build_options: [],
+      faction_key: "arm",
+      removed_at: null,
+    })),
+    { unit_name: "zzlast", full_name: "Last Unit", build_options: [], faction_key: "arm", removed_at: null },
+  ];
+
+  const tree = await loadTree(fakeHub(wide, ["armcom"], 3), "BA");
+
+  // zzlast sorts last, so it is on the final page. Its branch has to survive.
+  const commander = tree?.factions[0].units.find((unit) => unit.name === "armcom");
+  expect(commander?.builds).toEqual(["zzlast"]);
+  expect(tree?.factions[0].units.map((unit) => unit.name)).toEqual(["armcom", "zzlast"]);
 });
 
 test("a faction scope keeps the whole walk to that side's units", async () => {

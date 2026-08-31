@@ -7,7 +7,9 @@ import {
 } from "@/lib/assets/asset";
 import { fetchHeldAssets, resolveAsset, type ResolvedAsset } from "@/lib/assets/resolve";
 import { fetchPage } from "@/lib/gallery/query";
-import { formatStatValue, statLabel, statRows } from "./stats";
+import { readAll } from "@/lib/supabase/readAll";
+import { morphGroups, type MorphStage } from "./morph";
+import { formatStatValue, statLabel, statRows, tabularStatRows } from "./stats";
 
 /**
  * The encyclopedia's reads (#227): a grid of a game's units, one unit's page,
@@ -121,16 +123,23 @@ export async function unbuildableUnits(
   shortname: string,
 ): Promise<string[]> {
   const [units, game] = await Promise.all([
-    supabase
-      .from("game_unit")
-      .select("unit_name,build_options,game!inner(shortname)")
-      .eq("game.shortname", shortname)
-      .is("removed_at", null),
+    // Paged, because a mention is only absent if the whole game was looked at:
+    // a truncated read would call every unit past the cap a ghost and empty
+    // half the shelf.
+    readAll<{ unit_name: string; build_options: string[] }>((from, to) =>
+      supabase
+        .from("game_unit")
+        .select("unit_name,build_options,game!inner(shortname)")
+        .eq("game.shortname", shortname)
+        .is("removed_at", null)
+        .order("unit_name")
+        .range(from, to),
+    ),
     supabase.from("game").select("start_units").eq("shortname", shortname).maybeSingle(),
   ]);
-  if (units.error || !units.data || game.error || !game.data) return [];
+  if (!units || game.error || !game.data) return [];
 
-  const rows = units.data as unknown as { unit_name: string; build_options: string[] }[];
+  const rows = units;
   const starts = new Set(
     ((game.data.start_units ?? []) as string[]).map((name) => name.toLowerCase()),
   );
@@ -145,6 +154,276 @@ export async function unbuildableUnits(
     .map((row) => row.unit_name)
     .filter((name) => !referenced.has(name.toLowerCase()) && !starts.has(name.toLowerCase()))
     .sort();
+}
+
+/** One unit as the morph walk reads it. */
+interface MorphRow {
+  unit_name: string;
+  morph_targets: unknown;
+}
+
+/**
+ * Every unit of a game beside what it turns into.
+ *
+ * Grouping is the read a truncated answer makes wrong rather than short: a
+ * chain whose upper levels fell past the row cap silently stops being a chain,
+ * and the grid grows back the cells the grouping exists to remove. So it goes
+ * through {@link readAll}, which says why one request is not a whole game.
+ */
+async function morphRows(
+  supabase: SupabaseClient,
+  shortname: string,
+  liveOnly: boolean,
+  version?: string | null,
+): Promise<MorphRow[] | null> {
+  const rows = await readAll<MorphRow & { game_unit_revision?: { morph_targets: unknown }[] | null }>(
+    (from, to) => {
+      // Filtered rather than inner joined, so a unit the release has no record
+      // of keeps its row and reports no edges, instead of dropping out and
+      // taking the rest of its chain's shape with it.
+      let query = supabase
+        .from("game_unit")
+        .select(
+          version
+            ? "unit_name,morph_targets,game!inner(shortname),game_unit_revision(version,morph_targets)"
+            : "unit_name,morph_targets,game!inner(shortname)",
+        )
+        .eq("game.shortname", shortname);
+      // `is`, not `eq`: PostgREST refuses `removed_at=eq.null` (#255).
+      if (liveOnly) query = query.is("removed_at", null);
+      if (version) query = query.eq("game_unit_revision.version", version);
+      return query.order("unit_name").range(from, to);
+    },
+  );
+  if (!rows) return null;
+
+  return rows.map((row) => ({
+    unit_name: row.unit_name,
+    // A release that reported nothing about this unit reported no edges for
+    // it. Falling back to today's would draw a chain that release never had.
+    morph_targets: version
+      ? (row.game_unit_revision?.[0]?.morph_targets ?? [])
+      : row.morph_targets,
+  }));
+}
+
+/**
+ * The levels of a morph chain that are not its base (#295).
+ *
+ * A five level commander is one unit at five stages of its life, so the grid
+ * shows one cell and the other four hide. The answer feeds the same exclusion
+ * list the ghosts ride into the query, so paging and the count are computed
+ * over what the grid actually shows rather than filtered afterwards.
+ *
+ * Live units only, the way {@link unbuildableUnits} reads. A retired level is
+ * not part of the game any more, so it neither heads a group nor drags its
+ * live levels off the shelf behind it: a patch that retired level one leaves
+ * level two heading the cell. A unit's own page groups over retired levels too
+ * ({@link loadUnitPage}), because the stages there are the unit's history and a
+ * removed level still has a page (#227).
+ *
+ * Names come back spelled as they are stored, because the exclusion is a
+ * `unit_name` filter and PostgREST matches it exactly. Empty on a failed read
+ * rather than taking the grid down with it.
+ */
+export async function morphedAwayUnits(
+  supabase: SupabaseClient,
+  shortname: string,
+): Promise<string[]> {
+  const rows = await morphRows(supabase, shortname, true);
+  if (!rows) return [];
+
+  return morphGroups(rows)
+    .flatMap((group) => group.stages.filter((stage) => stage.name !== group.base))
+    .map((stage) => stage.unit_name)
+    .sort();
+}
+
+/** One stage of a unit's life, as its page draws it (#295). */
+export interface UnitStage {
+  /** The name as stored, which is this stage's own URL segment. */
+  unit_name: string;
+  label: string;
+  /** Whether this is the stage the page is showing. */
+  current: boolean;
+  /** The stage this one is reached from, as stored. Null for the base, and for
+   *  a stage nothing else in the group turns into. */
+  from: string | null;
+  /** How you get here, in the game's own words: whatever the extraction put on
+   *  the edge beside the unit it names. Empty when there is no such edge. */
+  conditions: Record<string, unknown>;
+  /** What this stage builds that the stage before it could not. The reason
+   *  somebody upgrades, which is the fact this page exists to carry. */
+  unlocks: { name: string; label: string }[];
+  stats: Record<string, unknown>;
+  /** False when the release being shown has no record of this stage, which is
+   *  the ordinary answer for a level a later patch added. */
+  found: boolean;
+  removed_at: string | null;
+}
+
+/** One row of the stats table that runs across the stages: every stat any
+ *  stage carries, one value per stage in stage order. */
+export interface StageStatRow {
+  key: string;
+  label: string;
+  values: string[];
+  /** True when the stages do not all agree, which is what a reader comparing
+   *  levels is looking for. */
+  changed: boolean;
+}
+
+interface StageRow {
+  unit_name: string;
+  full_name: string | null;
+  build_options: string[];
+  stats: Record<string, unknown> | null;
+  removed_at: string | null;
+  game_unit_revision?:
+    | { full_name: string | null; build_options: string[]; stats: Record<string, unknown> | null }[]
+    | null;
+}
+
+/**
+ * The stages of one unit's life (#295).
+ *
+ * A commander that upgrades through tech levels is one unit at five stages,
+ * and this is what the page puts above the stat table: the levels in order,
+ * what each one costs to reach, and what each one unlocks.
+ *
+ * Grouped over every unit the game holds, retired ones included, because a
+ * level a patch removed is still part of how this unit got here and still has
+ * a page (#227). The grid groups over live units only, and
+ * {@link morphedAwayUnits} says why the two differ.
+ *
+ * Empty when the unit turns into nothing and nothing turns into it, which is
+ * how the page knows to draw no strip at all rather than a strip of one.
+ */
+export async function loadUnitStages(
+  supabase: SupabaseClient,
+  shortname: string,
+  unitName: string,
+  version?: string | null,
+): Promise<{ stages: UnitStage[]; stage_stats: StageStatRow[] }> {
+  const none = { stages: [], stage_stats: [] };
+
+  const rows = await morphRows(supabase, shortname, false, version);
+  if (!rows) return none;
+
+  const key = unitName.toLowerCase();
+  const group = morphGroups(rows).find((candidate) =>
+    candidate.stages.some((stage) => stage.name === key),
+  );
+  if (!group) return none;
+
+  const held = version
+    ? await supabase
+        .from("game_unit")
+        .select(
+          "unit_name,full_name,build_options,stats,removed_at,game!inner(shortname)," +
+            "game_unit_revision(version,full_name,build_options,stats)",
+        )
+        .eq("game.shortname", shortname)
+        .in("unit_name", group.stages.map((stage) => stage.unit_name))
+        .eq("game_unit_revision.version", version)
+    : await supabase
+        .from("game_unit")
+        .select("unit_name,full_name,build_options,stats,removed_at,game!inner(shortname)")
+        .eq("game.shortname", shortname)
+        .in("unit_name", group.stages.map((stage) => stage.unit_name));
+
+  if (held.error || !held.data) return none;
+
+  const facts = new Map<string, StageRow>();
+  for (const row of held.data as unknown as StageRow[]) {
+    facts.set(row.unit_name.toLowerCase(), row);
+  }
+
+  /** What one stage builds, lowercased and deduplicated, from whichever record
+   *  the page is showing. */
+  const optionsOf = (stage: MorphStage): Set<string> => {
+    const row = facts.get(stage.name);
+    const reported = version ? row?.game_unit_revision?.[0]?.build_options : row?.build_options;
+    return new Set((reported ?? []).map((option) => option?.toLowerCase()).filter(Boolean));
+  };
+
+  // Every name any stage builds, labelled in one read. A build option nobody
+  // holds keeps its own key, the same as the page's own Builds list does:
+  // dropping it would hide exactly the edge a reader came to check.
+  const unlocked = [
+    ...new Set(group.stages.flatMap((stage) => [...optionsOf(stage)])),
+  ].sort();
+  const labels = new Map<string, string>();
+  if (unlocked.length > 0) {
+    const { data } = await supabase
+      .from("game_unit")
+      .select("unit_name,full_name,game!inner(shortname)")
+      .eq("game.shortname", shortname)
+      .in("unit_name", unlocked);
+    for (const row of (data ?? []) as unknown as { unit_name: string; full_name: string | null }[]) {
+      labels.set(row.unit_name.toLowerCase(), row.full_name ?? row.unit_name);
+    }
+  }
+
+  const unlocksOf = (stage: MorphStage, previous: MorphStage | null) => {
+    if (!previous) return [];
+    const before = optionsOf(previous);
+    return [...optionsOf(stage)]
+      .filter((option) => !before.has(option))
+      .sort()
+      .map((option) => ({ name: option, label: labels.get(option) ?? option }));
+  };
+
+  const stages: UnitStage[] = group.stages.map((stage) => {
+    const row = facts.get(stage.name);
+    const revision = version ? (row?.game_unit_revision?.[0] ?? null) : null;
+    const found = version ? revision !== null : row !== undefined;
+    // What the stage before this one could build. A stage nothing leads to -
+    // the base, or the far root of a converging group - unlocks nothing rather
+    // than claiming its whole build list is new, which the page's own Builds
+    // section already shows.
+    const previous = stage.from
+      ? (group.stages.find((candidate) => candidate.name === stage.from) ?? null)
+      : null;
+
+    return {
+      unit_name: stage.unit_name,
+      // The same fallback the page's own heading takes: a release that named
+      // nothing falls back to the def key, not to today's name.
+      label: (version ? revision?.full_name : row?.full_name) ?? stage.unit_name,
+      current: stage.name === key,
+      from: stage.from ? (facts.get(stage.from)?.unit_name ?? stage.from) : null,
+      conditions: stage.conditions,
+      unlocks: unlocksOf(stage, previous),
+      stats: (version ? revision?.stats : row?.stats) ?? {},
+      found,
+      removed_at: row?.removed_at ?? null,
+    };
+  });
+
+  // The union of every stage's stat keys, in reading order, so a stat one
+  // level introduces is on the table with the levels below it reading as not
+  // recorded. The same rule the release comparison follows.
+  const ordered = stages
+    .flatMap((stage) => statRows(stage.stats).map((row) => row.key))
+    .filter((key, index, all) => all.indexOf(key) === index)
+    // A stat whose value is a list of records draws as its own table (#261),
+    // and `formatStatValue` would print it as a line of JSON in a column two
+    // inches wide. A weapons summary belongs on the stage's own page, which
+    // the strip above the table links to, rather than mangled here.
+    .filter((key) => stages.every((stage) => tabularStatRows(stage.stats[key]) === null));
+
+  const stage_stats: StageStatRow[] = ordered.map((key) => {
+    const values = stages.map((stage) => formatStatValue(stage.stats[key] ?? null));
+    return {
+      key,
+      label: statLabel(key),
+      values,
+      changed: new Set(values).size > 1,
+    };
+  });
+
+  return { stages, stage_stats };
 }
 
 /** The buildpic for every unit in a page of the grid, keyed by unit name. */
@@ -246,16 +525,19 @@ export async function unitNameLabels(
   supabase: SupabaseClient,
   shortname: string,
 ): Promise<ReadonlyMap<string, UnitNameLabel>> {
-  const { data } = await supabase
-    .from("game_unit")
-    .select("unit_name,full_name,game!inner(shortname)")
-    .eq("game.shortname", shortname);
+  // Paged, because a name this misses is a blueprint entry that loses its link
+  // rather than an error anybody sees.
+  const data = await readAll<{ unit_name: string; full_name: string | null }>((from, to) =>
+    supabase
+      .from("game_unit")
+      .select("unit_name,full_name,game!inner(shortname)")
+      .eq("game.shortname", shortname)
+      .order("unit_name")
+      .range(from, to),
+  );
 
   const names = new Map<string, UnitNameLabel>();
-  for (const row of (data ?? []) as unknown as {
-    unit_name: string;
-    full_name: string | null;
-  }[]) {
+  for (const row of data ?? []) {
     names.set(row.unit_name.toLowerCase(), {
       name: row.unit_name,
       label: row.full_name ?? row.unit_name,
@@ -348,6 +630,12 @@ export interface UnitPage {
   builds: { name: string; label: string }[];
   /** What builds this unit, the reverse of {@link UnitPage.builds}. */
   built_by: { name: string; label: string }[];
+  /** The stages of this unit's life, in order from the base (#295). Empty when
+   *  it turns into nothing and nothing turns into it, which is most units. */
+  stages: UnitStage[];
+  /** Every stat any stage carries, one column per stage. Empty alongside
+   *  {@link UnitPage.stages}. */
+  stage_stats: StageStatRow[];
 }
 
 export async function loadUnitPage(
@@ -356,18 +644,38 @@ export async function loadUnitPage(
   unitName: string,
   version?: string,
 ): Promise<UnitPage | null> {
+  // The revision the reader asked for, narrowed by the server rather than
+  // searched for in whatever the embed happened to carry. This used to order
+  // the revisions newest first and take one, then look through that one for the
+  // release asked for: an older release was never in it, so every `?v=` older
+  // than the newest showed current facts under that release's name and said the
+  // hub held no record.
+  //
+  // Filtered, not inner joined, because a release with no revision for this
+  // unit still has to render. The parent row survives with an empty embed, and
+  // the page says the record is missing.
+  //
+  // No version asked for means no embed at all, since nothing reads it then.
+  const asked = version ?? null;
   const [held, versions, factions] = await Promise.all([
-    supabase
-      .from("game_unit")
-      .select(
-        "id,unit_name,full_name,faction_key,build_options,stats,snippet,source_version,removed_at," +
-          "game!inner(shortname)," +
-          "game_unit_revision(version,full_name,faction_key,build_options,stats)",
-      )
+    (asked
+      ? supabase
+          .from("game_unit")
+          .select(
+            "id,unit_name,full_name,faction_key,build_options,stats,snippet,source_version,removed_at," +
+              "game!inner(shortname)," +
+              "game_unit_revision(version,full_name,faction_key,build_options,stats)",
+          )
+          .eq("game_unit_revision.version", asked)
+      : supabase
+          .from("game_unit")
+          .select(
+            "id,unit_name,full_name,faction_key,build_options,stats,snippet,source_version,removed_at," +
+              "game!inner(shortname)",
+          )
+    )
       .eq("game.shortname", shortname)
       .eq("unit_name", unitName)
-      .order("version", { referencedTable: "game_unit_revision", ascending: false })
-      .limit(1, { referencedTable: "game_unit_revision" })
       .maybeSingle(),
     supabase
       .from("game_version")
@@ -400,8 +708,7 @@ export async function loadUnitPage(
   // page still renders - with the current facts and a line saying this release
   // has no record - because a unit existing today and not in some old release
   // is an ordinary answer, not a missing page.
-  const asked = version ?? null;
-  const revision = asked ? (row.game_unit_revision?.find((r) => r.version === asked) ?? null) : null;
+  const revision = asked ? (row.game_unit_revision?.[0] ?? null) : null;
 
   const fullName = revision ? revision.full_name : row.full_name;
   const factionKey = revision ? revision.faction_key : row.faction_key;
@@ -417,7 +724,7 @@ export async function loadUnitPage(
   // Both directions of the edge, read together: which release they answer for
   // is only known once the revision above has been resolved, so neither could
   // join the batch that read it.
-  const [builds, builtBy] = await Promise.all([
+  const [builds, builtBy, staged] = await Promise.all([
     options.length === 0
       ? []
       : supabase
@@ -434,6 +741,7 @@ export async function loadUnitPage(
             return options.map((name) => ({ name, label: names.get(name) ?? name }));
           }),
     unitBuilders(supabase, shortname, row.unit_name, revision ? asked : null),
+    loadUnitStages(supabase, shortname, row.unit_name, revision ? asked : null),
   ]);
 
   return {
@@ -450,6 +758,8 @@ export async function loadUnitPage(
     versions: ((versions.data ?? []) as unknown as { version: string }[]).map((v) => v.version),
     builds,
     built_by: builtBy,
+    stages: staged.stages,
+    stage_stats: staged.stage_stats,
   };
 }
 

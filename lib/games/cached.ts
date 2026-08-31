@@ -9,6 +9,7 @@ import {
   loadUnitGrid,
   loadUnitPage,
   gameFactions,
+  morphedAwayUnits,
   unitBuildpic,
   unitBuildpics,
   unitNameLabels,
@@ -72,11 +73,15 @@ export async function unitGridCached(
   cacheTag(TAGS.games, TAGS.assets);
 
   const supabase = createAnonClient();
-  // The shelf hides what a player can never reach (#280), so the exclusion
-  // rides into the query itself: filtering after paging would shift every
-  // window and lie with the count.
-  const ghosts = await unbuildableUnits(supabase, shortname);
-  const grid = await loadUnitGrid(supabase, shortname, filters, ghosts);
+  // The shelf hides what a player can never reach (#280) and every level of a
+  // morph chain but its base (#295), so both exclusions ride into the query
+  // itself: filtering after paging would shift every window and lie with the
+  // count. Two independent reads, so they go together.
+  const [ghosts, morphed] = await Promise.all([
+    unbuildableUnits(supabase, shortname),
+    morphedAwayUnits(supabase, shortname),
+  ]);
+  const grid = await loadUnitGrid(supabase, shortname, filters, [...ghosts, ...morphed]);
   const pictures = await unitBuildpics(supabase, shortname, grid.units);
 
   return {
@@ -116,14 +121,20 @@ export async function unitPageCached(
     unitBuildpic(supabase, shortname, unitName),
     // Both directions of the edge draw as catalog cells (#260), which means one
     // buildpic per entry - a couple of dozen at most, since that is what a unit
-    // builds and what builds it. Deduped, because a unit that builds its own
-    // builder would otherwise be asked for twice.
+    // builds and what builds it. The stages ride the same batch (#295): a
+    // strip of levels is recognised by its pictures the same way. Deduped,
+    // because a unit that builds its own builder would otherwise be asked for
+    // twice.
     unitBuildpics(
       supabase,
       shortname,
       [
         ...new Map(
-          [...page.built_by, ...page.builds].map((entry) => [
+          [
+            ...page.built_by,
+            ...page.builds,
+            ...page.stages.map((stage) => ({ name: stage.unit_name, label: stage.label })),
+          ].map((entry) => [
             entry.name,
             { unit_name: entry.name, full_name: entry.label, faction_key: null },
           ]),
