@@ -89,6 +89,14 @@ function UnitRow({
         />
       ) : null}
       <span className="truncate">{node.label}</span>
+      {/* A folded morph chain is one node (#295), so the node says how many
+          stages it stands for. Otherwise a commander that upgrades four times
+          reads as a commander that does not. */}
+      {node.stages > 1 ? (
+        <span className="shrink-0 rounded bg-neutral-800 px-1 py-0.5 text-xs text-neutral-400">
+          {node.stages} stages
+        </span>
+      ) : null}
     </Link>
   );
 }

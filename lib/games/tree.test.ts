@@ -121,6 +121,92 @@ test("no summary, an empty one, or none at all leaves a unit unarmed", () => {
 });
 
 /**
+ * A morph chain is one node (#295). Five rows for a five level commander are
+ * one unit at five stages of its life, and a level that unlocks a factory folds
+ * that factory under the same node rather than starting a second subtree.
+ */
+
+const MORPH_UNITS = [
+  {
+    unit_name: "armcom1",
+    full_name: "Commander",
+    build_options: ["armsolar"],
+    morph_targets: [{ into: "armcom2" }],
+  },
+  {
+    unit_name: "armcom2",
+    full_name: "Commander, level 2",
+    build_options: ["armsolar", "armvp"],
+    morph_targets: [{ into: "armcom3" }],
+    stats: { weapons: [{ range: 300 }] },
+  },
+  {
+    unit_name: "armcom3",
+    full_name: "Commander, level 3",
+    build_options: ["armfus"],
+    morph_targets: [],
+  },
+  { unit_name: "armsolar", full_name: "Solar Collector", build_options: [], morph_targets: [] },
+  { unit_name: "armfus", full_name: "Fusion Plant", build_options: [], morph_targets: [] },
+  {
+    unit_name: "armvp",
+    full_name: "Vehicle Plant",
+    build_options: ["armcom3"],
+    morph_targets: [],
+  },
+];
+
+test("a morph chain is one node, and the levels are not nodes of their own", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom1"]);
+  const named = tree.factions[0].units.map((unit) => unit.name);
+
+  expect(named).toContain("armcom1");
+  expect(named).not.toContain("armcom2");
+  expect(named).not.toContain("armcom3");
+  expect(JSON.stringify(tree.ungrouped)).not.toContain("armcom2");
+});
+
+test("what the levels build folds into the one node", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom1"]);
+  const commander = tree.factions[0].units.find((unit) => unit.name === "armcom1");
+
+  // armsolar from level one, armvp from level two, armfus from level three.
+  expect(commander?.builds).toEqual(["armfus", "armsolar", "armvp"]);
+});
+
+test("a node says how many stages it stands for, and an ordinary unit says one", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom1"]);
+  const stages = new Map(tree.factions[0].units.map((unit) => [unit.name, unit.stages]));
+
+  expect(stages.get("armcom1")).toBe(3);
+  expect(stages.get("armsolar")).toBe(1);
+});
+
+test("a build option naming a level points at the level's base", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom1"]);
+  const plant = tree.factions[0].units.find((unit) => unit.name === "armvp");
+
+  // The vehicle plant reports building armcom3. The reader sees it pointing at
+  // the commander, which is the unit armcom3 is a stage of.
+  expect(plant?.builds).toEqual(["armcom1"]);
+});
+
+test("a node is armed when any of its stages is", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom1"]);
+  const commander = tree.factions[0].units.find((unit) => unit.name === "armcom1");
+
+  // Only level two reports weapons. The node stands for the whole life of the
+  // unit, so the node shoots.
+  expect(commander?.armed).toBe(true);
+});
+
+test("a start unit naming a level heads the group its level belongs to", () => {
+  const tree = buildTree(MORPH_UNITS, ["armcom2"]);
+
+  expect(tree.factions.map((faction) => faction.root)).toEqual(["armcom1"]);
+});
+
+/**
  * Leaving retired units out is a null check, and PostgREST spells that
  * `is.null` (#255). Asking it for `removed_at=eq.null` is refused, and
  * `loadTree` answers null on a refused read, which the page turns into a 404.
