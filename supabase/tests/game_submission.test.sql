@@ -13,7 +13,7 @@
 -- unit that comes back comes all the way back.
 
 begin;
-select plan(36);
+select plan(45);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -392,6 +392,107 @@ select is(
   mixed_batch.outcomes -> 0 ->> 'outcome', 'unchanged',
   'while its neighbours go on standing'
 ) from mixed_batch;
+
+-- A game's own name, description and links (#300, tomjn/coilbox#1950). A
+-- fresh shortname, so this stands apart from the BA scenario built up above.
+create temp table named_first_report as
+select public.submit_game_facts($j$
+  {
+    "shortname": "SF",
+    "release": "0.1.78",
+    "name": "SplinterFaction",
+    "description": "A tribute to the Total Annihilation mod scene.",
+    "links": [{"label": "Website", "url": "https://splinterfaction.info/"}],
+    "units": [{"unit": {"name": "sfcom"}, "facts_digest": "d-sfcom"}]
+  }
+$j$::jsonb, '88888888-8888-8888-8888-888888888888') as outcomes;
+
+select is(
+  (select display_name from public.game where shortname = 'SF'), 'SplinterFaction',
+  'a first report with a name fills display_name'
+) from named_first_report;
+
+select is(
+  (select description from public.game where shortname = 'SF'),
+  'A tribute to the Total Annihilation mod scene.',
+  'and its description'
+) from named_first_report;
+
+select is(
+  (select links from public.game where shortname = 'SF'),
+  '[{"label": "Website", "url": "https://splinterfaction.info/"}]'::jsonb,
+  'and its links'
+) from named_first_report;
+
+-- A game reported with none of the three leaves them at their starting
+-- values, the field-left-off rule `start_units` and `factions` already
+-- follow: absent means say nothing, not "this game has none".
+create temp table nameless_report as
+select public.submit_game_facts($j$
+  { "shortname": "NL", "release": "1.0", "units": [{"unit": {"name": "x"}, "facts_digest": "d-x"}] }
+$j$::jsonb, '88888888-8888-8888-8888-888888888888') as outcomes;
+
+select is(
+  (select display_name from public.game where shortname = 'NL'), null,
+  'a report with no name leaves display_name null'
+) from nameless_report;
+
+select is(
+  (select links from public.game where shortname = 'NL'), '[]'::jsonb,
+  'and links empty'
+) from nameless_report;
+
+-- The scenario the ticket is about: a later sweep must not argue with a name
+-- the hub already holds, whether it arrived from an earlier report or from an
+-- owner's own edit.
+create temp table renamed_sweep as
+select public.submit_game_facts($j$
+  {
+    "shortname": "SF",
+    "release": "0.1.79",
+    "name": "Splinter Faction Renamed",
+    "description": "A different description entirely.",
+    "links": [{"label": "Discord", "url": "https://discord.gg/example"}],
+    "units": [{"unit": {"name": "sfcom"}, "facts_digest": "d-sfcom"}]
+  }
+$j$::jsonb, '88888888-8888-8888-8888-888888888888') as outcomes;
+
+select is(
+  (select display_name from public.game where shortname = 'SF'), 'SplinterFaction',
+  'a later sweep does not overwrite the name the hub already holds'
+) from renamed_sweep;
+
+select is(
+  (select description from public.game where shortname = 'SF'),
+  'A tribute to the Total Annihilation mod scene.',
+  'nor the description'
+) from renamed_sweep;
+
+select is(
+  (select links from public.game where shortname = 'SF'),
+  '[{"label": "Website", "url": "https://splinterfaction.info/"}]'::jsonb,
+  'nor the links'
+) from renamed_sweep;
+
+-- The same rule holds for a name typed in by hand through editGameDetails,
+-- which is the write this whole fill-if-null rule exists to protect.
+update public.game set display_name = 'Splinter Faction (owner edited)' where shortname = 'NL';
+
+create temp table owner_edited_sweep as
+select public.submit_game_facts($j$
+  {
+    "shortname": "NL",
+    "release": "1.1",
+    "name": "A Name From The Archive",
+    "units": [{"unit": {"name": "x"}, "facts_digest": "d-x"}]
+  }
+$j$::jsonb, '88888888-8888-8888-8888-888888888888') as outcomes;
+
+select is(
+  (select display_name from public.game where shortname = 'NL'),
+  'Splinter Faction (owner edited)',
+  'a sweep run after an owner has edited the name leaves their edit standing'
+) from owner_edited_sweep;
 
 select * from finish();
 rollback;

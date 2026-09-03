@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   GAME_FACTS_FORMAT,
+  GAME_FACTS_MAX_LINKS,
   GAME_FACTS_MAX_UNITS,
   parseGameFactsBody,
 } from "./gameFacts";
@@ -206,6 +207,99 @@ test("takes a unit that sends no morph targets at all", () => {
   expect(parsed.ok).toBe(true);
   if (!parsed.ok) return;
   expect(parsed.submission.units[0].morph_targets).toEqual([]);
+});
+
+// #300: a game's own name, description and links (fixture modinfo carrying
+// both, and one carrying neither).
+test("a submission carrying a name and description parses both, trimmed", () => {
+  const parsed = parseGameFactsBody(
+    body({
+      name: "  SplinterFaction  ",
+      description: " A tribute to the Total Annihilation mod scene. ",
+    }),
+  );
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.display_name).toBe("SplinterFaction");
+  expect(parsed.submission.description).toBe(
+    "A tribute to the Total Annihilation mod scene.",
+  );
+});
+
+test("a submission with neither leaves both null rather than sending empty strings", () => {
+  const parsed = parseGameFactsBody(body());
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.display_name).toBeNull();
+  expect(parsed.submission.description).toBeNull();
+});
+
+test("a blank name or description arrives as null, the way other optional text does", () => {
+  const parsed = parseGameFactsBody(body({ name: "  ", description: "" }));
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.display_name).toBeNull();
+  expect(parsed.submission.description).toBeNull();
+});
+
+test("a name past 256 characters is refused", () => {
+  const parsed = parseGameFactsBody(body({ name: "x".repeat(257) }));
+  expect(parsed.ok).toBe(false);
+  if (!parsed.ok) expect(parsed.error).toContain("name");
+});
+
+test("a description past 4000 characters is refused", () => {
+  const parsed = parseGameFactsBody(body({ description: "x".repeat(4001) }));
+  expect(parsed.ok).toBe(false);
+  if (!parsed.ok) expect(parsed.error).toContain("description");
+});
+
+test("links parse as an array of trimmed {label, url} pairs", () => {
+  const parsed = parseGameFactsBody(
+    body({ links: [{ label: " Website ", url: " https://example.test/ " }] }),
+  );
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.links).toEqual([
+    { label: "Website", url: "https://example.test/" },
+  ]);
+});
+
+test("absent links stay absent rather than becoming an empty set", () => {
+  const parsed = parseGameFactsBody(body());
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.links).toBeNull();
+});
+
+test("links past the cap are refused", () => {
+  const links = Array.from({ length: GAME_FACTS_MAX_LINKS + 1 }, (_, i) => ({
+    label: `Link ${i}`,
+    url: `https://example.test/${i}`,
+  }));
+  const parsed = parseGameFactsBody(body({ links }));
+  expect(parsed.ok).toBe(false);
+  if (!parsed.ok) expect(parsed.error).toContain("at most");
+});
+
+test("a link missing its label or url is refused", () => {
+  const noLabel = parseGameFactsBody(
+    body({ links: [{ url: "https://example.test/" }] }),
+  );
+  expect(noLabel.ok).toBe(false);
+
+  const noUrl = parseGameFactsBody(body({ links: [{ label: "Website" }] }));
+  expect(noUrl.ok).toBe(false);
+});
+
+test("a link with an unknown field is refused rather than dropped", () => {
+  const parsed = parseGameFactsBody(
+    body({
+      links: [{ label: "Website", url: "https://example.test/", icon: "x" }],
+    }),
+  );
+  expect(parsed.ok).toBe(false);
+  if (!parsed.ok) expect(parsed.error).toContain("icon");
 });
 
 test("morph targets must be objects of bounded size", () => {

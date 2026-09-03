@@ -36,6 +36,9 @@ export interface GameSubmission {
   start_units: string[] | null;
   factions: { key: string; name: string }[] | null;
   units: UnitSubmission[];
+  display_name: string | null;
+  description: string | null;
+  links: { label: string; url: string }[] | null;
 }
 
 /**
