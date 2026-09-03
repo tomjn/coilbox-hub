@@ -54,6 +54,9 @@ export const GAME_FACTS_VERSION = 1;
 export const GAME_FACTS_MAX_BYTES = 2_000_000;
 export const GAME_FACTS_MAX_UNITS = 2_000;
 export const GAME_FACTS_MAX_FACTIONS = 64;
+/** The most links a submission may carry, matching what the edit form's
+ * `linksFromForm` already caps a person's own edit at (`app/games/actions.ts`). */
+export const GAME_FACTS_MAX_LINKS = 12;
 
 /**
  * What the hub did with one entry.
@@ -99,6 +102,12 @@ export interface SubmittedUnit {
   morph_targets: Record<string, unknown>[];
 }
 
+/** One labelled link, as the route parsed it. */
+export interface SubmittedLink {
+  label: string;
+  url: string;
+}
+
 /** Everything one request carries, normalised. */
 export interface GameFactsSubmission {
   shortname: string;
@@ -107,6 +116,11 @@ export interface GameFactsSubmission {
   start_units: string[] | null;
   factions: SubmittedFaction[] | null;
   units: SubmittedUnit[];
+  /** What the game calls itself, off its own modinfo (#300). Named `display_name`
+   * here, matching the column it fills, though the wire field is `name`. */
+  display_name: string | null;
+  description: string | null;
+  links: SubmittedLink[] | null;
 }
 
 export type ParsedGameFactsBody =
@@ -122,7 +136,12 @@ const BODY_FIELDS = [
   "startUnits",
   "factions",
   "units",
+  "name",
+  "description",
+  "links",
 ] as const;
+
+const LINK_FIELDS = ["label", "url"] as const;
 
 const FACTION_FIELDS = ["key", "name"] as const;
 
@@ -143,6 +162,9 @@ const MAX_LENGTHS = {
   unitName: 128,
   fullName: 256,
   buildOption: 128,
+  // The same bound `public.game.display_name` and `.description` check.
+  displayName: 256,
+  description: 4000,
 } as const;
 
 /** The largest serialised stats blob one unit may carry. Stats render as a
@@ -338,6 +360,54 @@ function readFaction(value: unknown): Read<SubmittedFaction> {
   return { ok: true, value: { key: key.value, name: name.value } };
 }
 
+/** One labelled link, as an owner's edit form already writes it: a label and a
+ * url, both required, and nothing else. No length bound on either beyond the
+ * body's own byte cap: `public.game.links` stores whatever is well formed and
+ * an owner's own edit form does not bound them either. */
+function readLink(value: unknown): Read<SubmittedLink> {
+  if (!isRecord(value)) return { ok: false, error: "must be a JSON object." };
+
+  const extra = unknownField(value, LINK_FIELDS);
+  if (extra) return { ok: false, error: `unknown field: ${extra}` };
+
+  const label = value.label;
+  if (typeof label !== "string" || label.trim().length === 0) {
+    return { ok: false, error: "`label` is required and must be a non-empty string." };
+  }
+  const url = value.url;
+  if (typeof url !== "string" || url.trim().length === 0) {
+    return { ok: false, error: "`url` is required and must be a non-empty string." };
+  }
+
+  return { ok: true, value: { label: label.trim(), url: url.trim() } };
+}
+
+/**
+ * The game's own links, absent meaning say nothing about them, the same rule
+ * `factions` follows. Capped at `GAME_FACTS_MAX_LINKS`, matching what an
+ * owner's own edit already caps a hand written list at.
+ */
+function readLinks(record: Record<string, unknown>): Read<SubmittedLink[] | null> {
+  const value = record.links;
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (!Array.isArray(value)) {
+    return { ok: false, error: "`links` must be an array of {label, url} objects." };
+  }
+  if (value.length > GAME_FACTS_MAX_LINKS) {
+    return {
+      ok: false,
+      error: `\`links\` may hold at most ${GAME_FACTS_MAX_LINKS} entries.`,
+    };
+  }
+  const links: SubmittedLink[] = [];
+  for (const entry of value) {
+    const parsed = readLink(entry);
+    if (!parsed.ok) return { ok: false, error: `A link ${parsed.error}` };
+    links.push(parsed.value);
+  }
+  return { ok: true, value: links };
+}
+
 /**
  * The whole request, normalised.
  *
@@ -451,6 +521,21 @@ export function parseGameFactsBody(body: unknown): ParsedGameFactsBody {
     units.push(parsed.value);
   }
 
+  const displayName = optionalText(body, "name", MAX_LENGTHS.displayName);
+  if (!displayName.ok) {
+    return { ok: false, error: displayName.error, status: 400 };
+  }
+
+  const description = optionalText(body, "description", MAX_LENGTHS.description);
+  if (!description.ok) {
+    return { ok: false, error: description.error, status: 400 };
+  }
+
+  const links = readLinks(body);
+  if (!links.ok) {
+    return { ok: false, error: links.error, status: 400 };
+  }
+
   return {
     ok: true,
     submission: {
@@ -460,6 +545,9 @@ export function parseGameFactsBody(body: unknown): ParsedGameFactsBody {
       start_units: startUnits,
       factions,
       units,
+      display_name: displayName.value,
+      description: description.value,
+      links: links.value,
     },
   };
 }

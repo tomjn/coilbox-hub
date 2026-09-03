@@ -107,6 +107,9 @@ test("one request carries one game and its whole batch to submit_game_facts", as
     start_units: ["armcom"],
     factions: [{ key: "armada", name: "Armada" }],
     units: [unit("armcom"), unit("armmex")],
+    display_name: "Balanced Annihilation",
+    description: null,
+    links: null,
   });
 
   const written = await submitGameFacts(supabase, built, USER);
@@ -138,6 +141,9 @@ test("a failure from the database is one refusal for the request, not per entry"
       start_units: null,
       factions: null,
       units: [],
+      display_name: null,
+      description: null,
+      links: null,
     }),
     USER,
   );
