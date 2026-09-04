@@ -27,9 +27,14 @@ mock.module("@vercel/blob", () => ({
   },
 }));
 
-const { fetchOrphans, forgetOrphans, recordUnclaimedObject, sweepOrphans } = await import(
-  "./orphan"
-);
+const {
+  claimedPaths,
+  fetchOrphans,
+  forgetOrphans,
+  recordUnclaimedObject,
+  stagingPathsInUse,
+  sweepOrphans,
+} = await import("./orphan");
 
 interface AssetRow {
   path: string;
@@ -56,6 +61,8 @@ class World {
   said: string[] = [];
   /** Set to make `discard` throw, which is how a sweep is killed mid-run. */
   discardFails = false;
+  /** Size of every `.in()` call made against `assets`, in request order. */
+  inBatchSizes: number[] = [];
 
   live(path: string) {
     this.assets.push({ path, tier: "blob", blob_path: null });
@@ -90,7 +97,7 @@ function pick(row: Record<string, unknown>, columns: string[]): Record<string, u
 
 /** As much of PostgREST as this module asks for. */
 function fakeSupabase(world: World): SupabaseClient {
-  const table = (rows: Record<string, unknown>[]) => {
+  const table = (name: string, rows: Record<string, unknown>[]) => {
     let matching = rows;
     let columns: string[] = [];
 
@@ -108,6 +115,7 @@ function fakeSupabase(world: World): SupabaseClient {
         return builder;
       },
       in: (column: string, values: unknown[]) => {
+        if (name === "asset") world.inBatchSizes.push(values.length);
         matching = matching.filter((row) => values.includes(row[column]));
         return builder;
       },
@@ -126,6 +134,7 @@ function fakeSupabase(world: World): SupabaseClient {
   return {
     from: (name: string) =>
       table(
+        name,
         (name === "asset_orphan" ? world.orphans : world.assets) as unknown as Record<
           string,
           unknown
@@ -285,6 +294,35 @@ test("an object nobody claimed is recorded once, however many times it is report
   expect(world.orphans.map((row) => [row.path, row.reason])).toEqual([
     ["stranded.webp", "unclaimed"],
   ]);
+});
+
+test("a long list of pathnames is asked about in batches, not one request", async () => {
+  // #300: a queue of 200 pending deletions was enough to trip Supabase's
+  // gateway with a 400 before a single row-count answer came back. Every
+  // request has to stay well under that regardless of how large the queue
+  // gets.
+  const paths = Array.from({ length: 120 }, (_, i) => `units/bar/buildpic/${i}.webp`);
+  for (const path of paths) world.live(path);
+
+  const inUse = await stagingPathsInUse(fakeSupabase(world), paths);
+
+  expect(inUse.size).toBe(120);
+  expect(world.inBatchSizes.length).toBeGreaterThan(1);
+  expect(world.inBatchSizes.every((size) => size <= 50)).toBe(true);
+  expect(world.inBatchSizes.reduce((a, b) => a + b, 0)).toBe(120);
+});
+
+test("claimedPaths batches both the live check and the queue check", async () => {
+  const paths = Array.from({ length: 120 }, (_, i) => `units/bar/buildpic/${i}.webp`);
+  for (const [i, path] of paths.entries()) {
+    if (i % 2 === 0) world.live(path);
+    else world.queued(`row-${i}.webp`, path);
+  }
+
+  const claimed = await claimedPaths(fakeSupabase(world), paths);
+
+  expect(claimed.size).toBe(120);
+  expect(world.inBatchSizes.every((size) => size <= 50)).toBe(true);
 });
 
 test("recording says no rather than throwing when the database will not have it", async () => {

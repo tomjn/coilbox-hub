@@ -55,6 +55,25 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *  normal one, the way `PROMOTION_BATCH` does. */
 export const CLEANUP_BATCH = 200;
 
+/**
+ * How many pathnames one `.in()` query asks about at a time.
+ *
+ * PostgREST puts an `.in()` list in the request URL, and on 2026-09-04 a
+ * queue of 200 pending deletions (24,264 characters of raw pathname, before
+ * URL encoding) was enough for Supabase's gateway to reject it outright with
+ * a 400 rather than a row-count error. Splitting the list keeps every
+ * request a quarter of that size regardless of how large `CLEANUP_BATCH` or
+ * `PROMOTION_BATCH` grow, or how large the deletion queue gets after a run
+ * that failed before it could drain.
+ */
+const PATH_QUERY_BATCH = 50;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
 export type OrphanReason = "superseded" | "unclaimed";
 
 /** One staging object nothing points at. */
@@ -109,17 +128,23 @@ export async function stagingPathsInUse(
 ): Promise<Set<string>> {
   if (paths.length === 0) return new Set();
 
-  const { data, error } = await supabase
-    .from("asset")
-    .select("path")
-    .eq("tier", "blob")
-    .in("path", paths);
+  const inUse = new Set<string>();
 
-  if (error) {
-    throw new Error(`Could not check what still claims these objects: ${error.message}`);
+  for (const batch of chunk(paths, PATH_QUERY_BATCH)) {
+    const { data, error } = await supabase
+      .from("asset")
+      .select("path")
+      .eq("tier", "blob")
+      .in("path", batch);
+
+    if (error) {
+      throw new Error(`Could not check what still claims these objects: ${error.message}`);
+    }
+
+    for (const row of (data ?? []) as { path: string }[]) inUse.add(row.path);
   }
 
-  return new Set(((data ?? []) as { path: string }[]).map((row) => row.path));
+  return inUse;
 }
 
 /**
@@ -137,19 +162,21 @@ export async function claimedPaths(
 ): Promise<Set<string>> {
   if (paths.length === 0) return new Set();
 
-  const [live, queued] = await Promise.all([
-    stagingPathsInUse(supabase, paths),
-    supabase.from("asset").select("blob_path").in("blob_path", paths),
-  ]);
+  const queued = new Set<string>();
 
-  if (queued.error) {
-    throw new Error(`Could not check what still claims these objects: ${queued.error.message}`);
+  for (const batch of chunk(paths, PATH_QUERY_BATCH)) {
+    const { data, error } = await supabase.from("asset").select("blob_path").in("blob_path", batch);
+
+    if (error) {
+      throw new Error(`Could not check what still claims these objects: ${error.message}`);
+    }
+
+    for (const row of (data ?? []) as { blob_path: string }[]) queued.add(row.blob_path);
   }
 
-  return new Set([
-    ...live,
-    ...((queued.data ?? []) as { blob_path: string }[]).map((row) => row.blob_path),
-  ]);
+  const live = await stagingPathsInUse(supabase, paths);
+
+  return new Set([...live, ...queued]);
 }
 
 /** Say the objects are gone. Answers with how many entries it settled, which is
