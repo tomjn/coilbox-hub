@@ -57,10 +57,14 @@ const GROUPS: VendorGroup[] = [
     // The conquest generator, so a challenge's galaxy can be drawn from its
     // seed (#76). Same seed, same graph: positions, lanes and starting
     // territory are settled before the generator touches installed content.
+    // mapSubstitution.ts is vendored alongside it (#2441): the generator calls
+    // three of its functions as values, not types, so there is no external
+    // stand-in that would not change what the generator does.
     dir: "src/conquest",
     vendor: "lib/conquest",
     files: [
       "generate.ts",
+      "mapSubstitution.ts",
       "names.ts",
       "rng.ts",
       "realstars/index.ts",
@@ -75,6 +79,11 @@ const GROUPS: VendorGroup[] = [
       // writing a new field fails typecheck the moment it is synced. The
       // values are not, so they are checked below.
       "lib/conquest/model.ts": "a hand written subset of upstream's model.ts",
+      // mapSubstitution.ts takes MapDownloadHint the same way the runlite
+      // generator does: passed through untouched, never inspected. Already
+      // declared external there, for the same file and the same reason.
+      "lib/campaign/model.ts":
+        "one type mapSubstitution.ts only passes through, from a file that reaches the plugin bindings",
     },
     constants: {
       file: "model.ts",
