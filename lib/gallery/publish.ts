@@ -101,6 +101,26 @@ export function describe(
     };
   }
 
+  if (kind === "scenario") {
+    // Same wrapper `gameIdentityFromPayload` reads for a scenario's game
+    // (coilbox #2600): an export wraps the document beside its dialogue
+    // media, and a bare document - or one from a much older coilbox that
+    // never had this field - is read the same way. `str()` turns an empty
+    // or whitespace-only mapName into null rather than storing a value the
+    // map filter would offer and never match (a scenario naming no map is
+    // an unset draft, not a scenario with an empty map).
+    const scenario =
+      typeof p.scenario === "object" && p.scenario !== null
+        ? (p.scenario as Record<string, unknown>)
+        : p;
+    const setup = scenario.setup;
+    const mapName =
+      typeof setup === "object" && setup !== null
+        ? str((setup as Record<string, unknown>).mapName)
+        : null;
+    return { gameName, gameKey, mapName };
+  }
+
   return { gameName, gameKey, mapName: null };
 }
 
