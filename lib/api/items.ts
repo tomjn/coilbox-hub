@@ -4,6 +4,7 @@ import {
   type ItemSummary,
   PAGE_SIZE,
   parseFilters,
+  SORT_ORDERS,
 } from "@/lib/gallery/query";
 
 /**
@@ -66,7 +67,23 @@ export function buildItemBody(item: ItemSummary, containerUrl: string): ItemBody
   };
 }
 
-const FILTER_KEYS = ["kind", "game", "map", "tag", "author", "q", "page"] as const;
+const FILTER_KEYS = [
+  "kind",
+  "game",
+  "map",
+  "tag",
+  "author",
+  "q",
+  "sort",
+  "page",
+] as const;
+
+/** `kind`, `tag` and `author` take more than one value, by repeating the
+ *  parameter (`?kind=preset&kind=blueprint`). Everything else takes exactly
+ *  one: a second `game` or `page` is as much a client bug as an unknown
+ *  parameter name, and the same silent-take-one failure this file exists to
+ *  rule out for `kind`, so it is rejected the same way. */
+const SINGLE_VALUE_KEYS = ["game", "map", "q", "sort", "page"] as const;
 
 export type ParsedApiFilters =
   | { ok: true; filters: Filters }
@@ -78,8 +95,9 @@ export type ParsedApiFilters =
  * asking this API for a filter it thinks it applied needs the opposite. If
  * `kind=challeng` gets silently dropped, the API hands back everything and
  * the client renders it believing it is looking at only challenges. So here,
- * unknown parameter names and an unrecognised `kind` value are rejected
- * outright rather than dropped.
+ * unknown parameter names, a repeated single-value parameter, an unrecognised
+ * `kind` and an unrecognised `sort` are all rejected outright rather than
+ * dropped or silently narrowed to one value.
  */
 export function parseApiFilters(searchParams: URLSearchParams): ParsedApiFilters {
   for (const key of searchParams.keys()) {
@@ -88,14 +106,30 @@ export function parseApiFilters(searchParams: URLSearchParams): ParsedApiFilters
     }
   }
 
-  const kind = searchParams.get("kind");
-  if (kind && !(GALLERY_KINDS as readonly string[]).includes(kind)) {
-    return { ok: false, error: `Unknown kind: ${kind}` };
+  for (const key of SINGLE_VALUE_KEYS) {
+    if (searchParams.getAll(key).length > 1) {
+      return { ok: false, error: `${key} takes one value, not several. Send it once.` };
+    }
   }
 
-  const params: Record<string, string> = {};
-  for (const key of searchParams.keys()) {
-    params[key] = searchParams.get(key) ?? "";
+  for (const kind of searchParams.getAll("kind")) {
+    if (!(GALLERY_KINDS as readonly string[]).includes(kind)) {
+      const hint = kind.includes(",")
+        ? ". Repeat kind for more than one, e.g. kind=preset&kind=blueprint."
+        : "";
+      return { ok: false, error: `Unknown kind: ${kind}${hint}` };
+    }
+  }
+
+  const sort = searchParams.get("sort");
+  if (sort && !(SORT_ORDERS as readonly string[]).includes(sort)) {
+    return { ok: false, error: `Unknown sort: ${sort}` };
+  }
+
+  const params: Record<string, string | string[]> = {};
+  for (const key of new Set(searchParams.keys())) {
+    const values = searchParams.getAll(key);
+    params[key] = values.length > 1 ? values : (values[0] ?? "");
   }
 
   return { ok: true, filters: parseFilters(params) };

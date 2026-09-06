@@ -29,12 +29,13 @@ export function MapPlayedOn({
   if (items.length === 0) return null;
 
   const filters: Filters = {
-    kind: null,
+    kind: [],
     game: null,
     map: mapName,
-    tag: null,
-    author: null,
+    tag: [],
+    author: [],
     q: null,
+    sort: "newest",
     page: 1,
   };
 

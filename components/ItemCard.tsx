@@ -38,7 +38,7 @@ export function ItemCard({
           </Link>
         </h2>
         <Link
-          href={filterHref(filters, { kind: item.kind })}
+          href={filterHref(filters, { kind: [item.kind] })}
           className="flex shrink-0 items-center gap-1.5 rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
         >
           <KindIcon kind={item.kind} mode={item.mode} className="w-3.5" />
@@ -70,7 +70,7 @@ export function ItemCard({
           <dd>
             by{" "}
             <Link
-              href={filterHref(filters, { author: item.author_name })}
+              href={filterHref(filters, { author: [item.author_name] })}
               className="transition-colors hover:text-neutral-200 active:text-neutral-200"
             >
               {item.author_name}
@@ -94,7 +94,7 @@ export function ItemCard({
           {item.tags.map((tag) => (
             <li key={tag}>
               <Link
-                href={filterHref(filters, { tag })}
+                href={filterHref(filters, { tag: [tag] })}
                 className="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200"
               >
                 {tag}

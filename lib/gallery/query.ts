@@ -156,13 +156,32 @@ export interface ItemSummary {
 export const ITEM_SUMMARY_COLUMNS =
   "id,kind,mode,title,description,game_name,game_key,map_name,tags,author_name,created_at";
 
+/** The two orderings a listing offers. Newest first is the default, since a
+ *  gallery is "what's new" until asked otherwise. Title is the one an
+ *  alphabetical search for something specific needs. */
+export const SORT_ORDERS = ["newest", "title"] as const;
+export type SortOrder = (typeof SORT_ORDERS)[number];
+
+/** The column and direction a sort order means, kept here so nothing calling
+ *  this spells out a database column name of its own. */
+export function orderBy(sort: SortOrder): { column: string; ascending: boolean } {
+  return sort === "title"
+    ? { column: "title", ascending: true }
+    : { column: "created_at", ascending: false };
+}
+
 export interface Filters {
-  kind: GalleryKind | null;
+  /** Empty means no filter. More than one is a union: any of these kinds. */
+  kind: GalleryKind[];
   game: string | null;
   map: string | null;
-  tag: string | null;
-  author: string | null;
+  /** Empty means no filter. More than one is a union: any of these tags. */
+  tag: string[];
+  /** Empty means no filter. More than one is a union: any of these authors.
+   *  An item has exactly one author, so "and" would always match nothing. */
+  author: string[];
   q: string | null;
+  sort: SortOrder;
   page: number;
 }
 
@@ -170,6 +189,19 @@ function one(value: string | string[] | undefined): string | null {
   const first = Array.isArray(value) ? value[0] : value;
   const trimmed = first?.trim();
   return trimmed ? trimmed : null;
+}
+
+/** Every value given for a repeatable filter, trimmed, emptied of blanks, and
+ *  deduplicated. A single value arrives as a bare string here, not an array of
+ *  one, so both shapes are accepted. */
+function many(value: string | string[] | undefined): string[] {
+  const values = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const trimmed = raw.trim();
+    if (trimmed) seen.add(trimmed);
+  }
+  return [...seen];
 }
 
 /**
@@ -181,19 +213,22 @@ function one(value: string | string[] | undefined): string | null {
 export function parseFilters(
   params: Record<string, string | string[] | undefined>,
 ): Filters {
-  const kind = one(params.kind);
   const page = Number.parseInt(one(params.page) ?? "1", 10);
+  const sort = one(params.sort);
 
   return {
-    kind:
-      kind && (GALLERY_KINDS as readonly string[]).includes(kind)
-        ? (kind as GalleryKind)
-        : null,
+    kind: many(params.kind).filter((k): k is GalleryKind =>
+      (GALLERY_KINDS as readonly string[]).includes(k),
+    ),
     game: one(params.game),
     map: one(params.map),
-    tag: one(params.tag)?.toLowerCase() ?? null,
-    author: one(params.author),
+    tag: many(params.tag).map((t) => t.toLowerCase()),
+    author: many(params.author),
     q: one(params.q),
+    sort:
+      sort && (SORT_ORDERS as readonly string[]).includes(sort)
+        ? (sort as SortOrder)
+        : "newest",
     page: Number.isFinite(page) && page > 0 ? page : 1,
   };
 }
@@ -203,7 +238,8 @@ export function parseFilters(
  * full, heavily generic type. */
 interface FilterableQuery<Query> {
   eq(column: string, value: string): Query;
-  contains(column: string, value: readonly string[]): Query;
+  in(column: string, values: readonly string[]): Query;
+  overlaps(column: string, value: readonly string[]): Query;
   textSearch(
     column: string,
     query: string,
@@ -212,23 +248,30 @@ interface FilterableQuery<Query> {
 }
 
 /**
- * Turn parsed filters into the same `.eq()`/`.contains()`/`.textSearch()` chain
- * everywhere a listing of items is built, so the gallery page and the API read
- * the database the same way rather than two hand written copies drifting apart.
+ * Turn parsed filters into the same `.eq()`/`.in()`/`.overlaps()`/`.textSearch()`
+ * chain everywhere a listing of items is built, so the gallery page and the API
+ * read the database the same way rather than two hand written copies drifting
+ * apart.
+ *
+ * `kind`, `tag` and `author` all use `.in()` or `.overlaps()` rather than
+ * `.eq()`/`.contains()` even for a single value: an item has one kind and one
+ * author, so more than one of either can only ever mean "any of these", and
+ * `.overlaps()` on `tags` means the same for a tag someone might have several
+ * of.
  */
 export function applyFilters<Query extends FilterableQuery<Query>>(
   query: Query,
   filters: Filters,
 ): Query {
   let next = query;
-  if (filters.kind) next = next.eq("kind", filters.kind);
+  if (filters.kind.length > 0) next = next.in("kind", filters.kind);
   // Filters on the grouping key, not the display name (issue #50): game_name
   // can hold a version-carrying archive name that no other row shares, and
   // matching on that would filter to a group of one rather than "no game".
   if (filters.game) next = next.eq("game_key", filters.game);
   if (filters.map) next = next.eq("map_name", filters.map);
-  if (filters.tag) next = next.contains("tags", [filters.tag]);
-  if (filters.author) next = next.eq("author_name", filters.author);
+  if (filters.tag.length > 0) next = next.overlaps("tags", filters.tag);
+  if (filters.author.length > 0) next = next.in("author_name", filters.author);
   // websearch_to_tsquery takes what a person would actually type, quotes and all,
   // and never throws on punctuation the way plainto_ or to_tsquery can.
   if (filters.q) next = next.textSearch("search", filters.q, { type: "websearch" });
@@ -245,12 +288,13 @@ export function filterHref(
   const next = { ...current, ...change };
   const params = new URLSearchParams();
 
-  if (next.kind) params.set("kind", next.kind);
+  for (const kind of next.kind) params.append("kind", kind);
   if (next.game) params.set("game", next.game);
   if (next.map) params.set("map", next.map);
-  if (next.tag) params.set("tag", next.tag);
-  if (next.author) params.set("author", next.author);
+  for (const tag of next.tag) params.append("tag", tag);
+  for (const author of next.author) params.append("author", author);
   if (next.q) params.set("q", next.q);
+  if (next.sort !== "newest") params.set("sort", next.sort);
   if (next.page > 1 && change.page !== undefined) {
     params.set("page", String(next.page));
   }

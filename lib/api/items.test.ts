@@ -55,18 +55,18 @@ test("recognised filters parse the same way the website's forgiving parser does"
 
   expect(result.ok).toBe(true);
   if (result.ok) {
-    expect(result.filters.kind).toBe("preset");
+    expect(result.filters.kind).toEqual(["preset"]);
     expect(result.filters.game).toBe("BAR");
     expect(result.filters.page).toBe(2);
   }
 });
 
 test("an unknown query parameter is rejected rather than silently dropped", () => {
-  const result = parseApiFilters(new URLSearchParams("kind=preset&sort=newest"));
+  const result = parseApiFilters(new URLSearchParams("kind=preset&orderBy=title"));
 
   expect(result.ok).toBe(false);
   if (!result.ok) {
-    expect(result.error).toBe("Unknown query parameter: sort");
+    expect(result.error).toBe("Unknown query parameter: orderBy");
   }
 });
 
@@ -84,7 +84,67 @@ test("no filters at all is fine", () => {
 
   expect(result.ok).toBe(true);
   if (result.ok) {
-    expect(result.filters.kind).toBeNull();
+    expect(result.filters.kind).toEqual([]);
     expect(result.filters.page).toBe(1);
+  }
+});
+
+test("a repeated kind is a union, not the first value winning", () => {
+  const result = parseApiFilters(new URLSearchParams("kind=blueprint&kind=preset"));
+
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(result.filters.kind).toEqual(["blueprint", "preset"]);
+  }
+});
+
+test("a comma separated kind list is rejected, with a hint towards the repeated form", () => {
+  const result = parseApiFilters(new URLSearchParams("kind=preset,blueprint"));
+
+  expect(result.ok).toBe(false);
+  if (!result.ok) {
+    expect(result.error).toBe(
+      "Unknown kind: preset,blueprint. Repeat kind for more than one, e.g. kind=preset&kind=blueprint.",
+    );
+  }
+});
+
+test("repeated author or tag is also a union", () => {
+  const result = parseApiFilters(
+    new URLSearchParams("author=Alice&author=Bob&tag=eco&tag=pvp"),
+  );
+
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(result.filters.author).toEqual(["Alice", "Bob"]);
+    expect(result.filters.tag).toEqual(["eco", "pvp"]);
+  }
+});
+
+test("a repeated single-value parameter is rejected rather than silently taking the first", () => {
+  const result = parseApiFilters(new URLSearchParams("game=BAR&game=BA"));
+
+  expect(result.ok).toBe(false);
+  if (!result.ok) {
+    expect(result.error).toBe("game takes one value, not several. Send it once.");
+  }
+});
+
+test("sort accepts newest and title", () => {
+  const newest = parseApiFilters(new URLSearchParams("sort=newest"));
+  const title = parseApiFilters(new URLSearchParams("sort=title"));
+
+  expect(newest.ok).toBe(true);
+  if (newest.ok) expect(newest.filters.sort).toBe("newest");
+  expect(title.ok).toBe(true);
+  if (title.ok) expect(title.filters.sort).toBe("title");
+});
+
+test("an unrecognised sort is rejected rather than falling back to newest", () => {
+  const result = parseApiFilters(new URLSearchParams("sort=oldest"));
+
+  expect(result.ok).toBe(false);
+  if (!result.ok) {
+    expect(result.error).toBe("Unknown sort: oldest");
   }
 });
