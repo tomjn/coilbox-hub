@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encodeContainerCode, SUPPORTED_KIND_VERSIONS } from "@/lib/container";
-import { accept, publishItem } from "./publish";
+import { accept, describe, publishItem } from "./publish";
 import type { ItemSummary } from "./query";
 
 const presetPayload = {
@@ -257,6 +257,83 @@ test("a scenario with nothing to name its game yields no game name", () => {
   expect(result.accepted.gameName).toBeNull();
   expect(result.accepted.gameKey).toBeNull();
   expect(result.accepted.mapName).toBeNull();
+});
+
+// coilbox #2600: a scenario names its map at payload.scenario.setup.mapName,
+// the same field launch.ts and compile.ts read to run it.
+test("a scenario names its map, wrapped in an export beside its dialogue media", () => {
+  const code = encodeContainerCode("scenario", SUPPORTED_KIND_VERSIONS.scenario, {
+    scenario: {
+      triggers: [],
+      zones: [],
+      setup: { gameName: "Beyond All Reason", mapName: "Comet Catcher Remake" },
+    },
+    media: {},
+  });
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.mapName).toBe("Comet Catcher Remake");
+});
+
+test("a scenario's blank mapName is stored as no map, not as an empty one", () => {
+  // isSetUp() in coilbox's src/scenario/listing.ts treats a scenario naming
+  // no map as an unfinished draft. An empty string in the row would offer a
+  // map filter option that matches nothing, which is worse than no option.
+  const code = encodeContainerCode("scenario", SUPPORTED_KIND_VERSIONS.scenario, {
+    scenario: { triggers: [], zones: [], setup: { gameName: "BAR", mapName: "   " } },
+    media: {},
+  });
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.mapName).toBeNull();
+});
+
+test("a bare scenario document (no export wrapper) still names its map", () => {
+  const code = encodeContainerCode("scenario", SUPPORTED_KIND_VERSIONS.scenario, {
+    triggers: [],
+    zones: [],
+    setup: { gameName: "BAR", mapName: "Delta Siege Dry" },
+  });
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.mapName).toBe("Delta Siege Dry");
+});
+
+test("a scenario payload missing setup entirely yields no map, not a throw", () => {
+  const code = encodeContainerCode("scenario", SUPPORTED_KIND_VERSIONS.scenario, {
+    scenario: { triggers: [], zones: [] },
+    media: {},
+  });
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.mapName).toBeNull();
+});
+
+test("a scenario whose setup is not an object yields no map, not a throw", () => {
+  // Standing in for a much older or malformed export: setup here is a
+  // string rather than an object, and nothing about reading it should throw.
+  const code = encodeContainerCode("scenario", SUPPORTED_KIND_VERSIONS.scenario, {
+    scenario: { triggers: [], zones: [], setup: "not an object" },
+    media: {},
+  });
+
+  const result = accept(code);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.mapName).toBeNull();
+});
+
+test("a scenario whose payload is not an object at all yields no map, not a throw", () => {
+  const mapName = describe("scenario", "not a payload at all", undefined).mapName;
+  expect(mapName).toBeNull();
 });
 
 // issue #50: a row that only ever learns the exact archive name and a row
