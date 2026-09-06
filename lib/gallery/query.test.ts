@@ -17,15 +17,36 @@ test("filters come out of the query string", () => {
     page: "3",
   });
 
-  expect(filters.kind).toBe("preset");
+  expect(filters.kind).toEqual(["preset"]);
   expect(filters.game).toBe("Beyond All Reason");
-  expect(filters.tag).toBe("eco");
+  expect(filters.tag).toEqual(["eco"]);
   expect(filters.page).toBe(3);
 });
 
 test("an unrecognised kind is dropped rather than passed to the database", () => {
-  expect(parseFilters({ kind: "campaign" }).kind).toBeNull();
-  expect(parseFilters({ kind: "'; drop table item; --" }).kind).toBeNull();
+  expect(parseFilters({ kind: "campaign" }).kind).toEqual([]);
+  expect(parseFilters({ kind: "'; drop table item; --" }).kind).toEqual([]);
+});
+
+test("more than one kind is a union, not a replacement", () => {
+  const filters = parseFilters({ kind: ["preset", "blueprint"] });
+  expect(filters.kind).toEqual(["preset", "blueprint"]);
+});
+
+test("a repeated kind is deduplicated", () => {
+  expect(parseFilters({ kind: ["preset", "preset"] }).kind).toEqual(["preset"]);
+});
+
+test("more than one tag or author is also a union", () => {
+  const filters = parseFilters({ tag: ["Eco", "pvp"], author: ["Alice", "Bob"] });
+  expect(filters.tag).toEqual(["eco", "pvp"]);
+  expect(filters.author).toEqual(["Alice", "Bob"]);
+});
+
+test("sort defaults to newest, and an unrecognised value falls back to it", () => {
+  expect(parseFilters({}).sort).toBe("newest");
+  expect(parseFilters({ sort: "oldest" }).sort).toBe("newest");
+  expect(parseFilters({ sort: "title" }).sort).toBe("title");
 });
 
 test("a nonsense page falls back to the first", () => {
@@ -53,8 +74,12 @@ function recordingQuery() {
       calls.push({ method: "eq", column, value });
       return query;
     },
-    contains(column: string, value: readonly string[]) {
-      calls.push({ method: "contains", column, value });
+    in(column: string, value: readonly string[]) {
+      calls.push({ method: "in", column, value });
+      return query;
+    },
+    overlaps(column: string, value: readonly string[]) {
+      calls.push({ method: "overlaps", column, value });
       return query;
     },
     textSearch(column: string, value: string) {
@@ -73,6 +98,29 @@ test("the game filter matches game_key, not game_name (issue #50)", () => {
 
   expect(calls).toContainEqual({ method: "eq", column: "game_key", value: "BA" });
   expect(calls.some((c) => c.column === "game_name")).toBe(false);
+});
+
+test("kind and author filter with .in(), a union even for one value", () => {
+  const { query, calls } = recordingQuery();
+  applyFilters(query, parseFilters({ kind: ["preset", "blueprint"], author: "Alice" }));
+
+  expect(calls).toContainEqual({
+    method: "in",
+    column: "kind",
+    value: ["preset", "blueprint"],
+  });
+  expect(calls).toContainEqual({ method: "in", column: "author_name", value: ["Alice"] });
+});
+
+test("tag filters with .overlaps(), matching any of the given tags", () => {
+  const { query, calls } = recordingQuery();
+  applyFilters(query, parseFilters({ tag: ["eco", "pvp"] }));
+
+  expect(calls).toContainEqual({
+    method: "overlaps",
+    column: "tags",
+    value: ["eco", "pvp"],
+  });
 });
 
 test("changing a filter keeps the others and drops the page", () => {
@@ -94,7 +142,7 @@ test("paging keeps every filter", () => {
 test("clearing everything is a bare path", () => {
   const current = parseFilters({ kind: "preset", game: "BAR" });
 
-  expect(filterHref(current, { kind: null, game: null })).toBe("/gallery");
+  expect(filterHref(current, { kind: [], game: null })).toBe("/gallery");
 });
 
 /** A fake `.range()` call over an in-memory table, standing in for the

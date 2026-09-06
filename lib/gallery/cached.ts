@@ -7,6 +7,7 @@ import {
   type Filters,
   ITEM_SUMMARY_COLUMNS,
   type ItemSummary,
+  orderBy,
   PAGE_SIZE,
 } from "./query";
 
@@ -75,12 +76,13 @@ export async function galleryPage(filters: Filters): Promise<GalleryPage> {
   cacheTag(TAGS.items);
 
   const supabase = createAnonClient();
+  const { column, ascending } = orderBy(filters.sort);
 
   const query = applyFilters(
     supabase
       .from("item")
       .select(ITEM_SUMMARY_COLUMNS, { count: "exact" })
-      .order("created_at", { ascending: false })
+      .order(column, { ascending })
       .range((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE - 1),
     filters,
   );

@@ -48,11 +48,17 @@ export default async function Gallery({
         </div>
 
         <BusyForm className="flex gap-2" action="/gallery">
-          {filters.kind ? <input type="hidden" name="kind" value={filters.kind} /> : null}
+          {filters.kind.map((kind) => (
+            <input key={kind} type="hidden" name="kind" value={kind} />
+          ))}
           {filters.game ? <input type="hidden" name="game" value={filters.game} /> : null}
           {filters.map ? <input type="hidden" name="map" value={filters.map} /> : null}
-          {filters.tag ? <input type="hidden" name="tag" value={filters.tag} /> : null}
-          {filters.author ? <input type="hidden" name="author" value={filters.author} /> : null}
+          {filters.tag.map((tag) => (
+            <input key={tag} type="hidden" name="tag" value={tag} />
+          ))}
+          {filters.author.map((author) => (
+            <input key={author} type="hidden" name="author" value={author} />
+          ))}
           <input
             type="search"
             name="q"
@@ -74,9 +80,9 @@ export default async function Gallery({
               <Chip
                 key={kind}
                 href={filterHref(filters, {
-                  kind: filters.kind === kind ? null : kind,
+                  kind: filters.kind.includes(kind) ? [] : [kind],
                 })}
-                active={filters.kind === kind}
+                active={filters.kind.includes(kind)}
               >
                 {kindLabelPlural(kind)}
               </Chip>
@@ -115,19 +121,35 @@ export default async function Gallery({
             </FilterRow>
           ) : null}
 
-          {filters.tag ? (
+          {filters.tag.length > 0 ? (
             <FilterRow label="Tag">
-              <Chip href={filterHref(filters, { tag: null })} active>
-                {filters.tag}
-              </Chip>
+              {filters.tag.map((tag) => (
+                <Chip
+                  key={tag}
+                  href={filterHref(filters, {
+                    tag: filters.tag.filter((t) => t !== tag),
+                  })}
+                  active
+                >
+                  {tag}
+                </Chip>
+              ))}
             </FilterRow>
           ) : null}
 
-          {filters.author ? (
+          {filters.author.length > 0 ? (
             <FilterRow label="By">
-              <Chip href={filterHref(filters, { author: null })} active>
-                {filters.author}
-              </Chip>
+              {filters.author.map((author) => (
+                <Chip
+                  key={author}
+                  href={filterHref(filters, {
+                    author: filters.author.filter((a) => a !== author),
+                  })}
+                  active
+                >
+                  {author}
+                </Chip>
+              ))}
             </FilterRow>
           ) : null}
         </nav>
@@ -137,7 +159,16 @@ export default async function Gallery({
             The gallery could not be read just now. Try again in a moment.
           </p>
         ) : items.length === 0 ? (
-          <Empty filtered={Boolean(filters.kind || filters.game || filters.map || filters.tag || filters.author || filters.q)} />
+          <Empty
+            filtered={Boolean(
+              filters.kind.length ||
+                filters.game ||
+                filters.map ||
+                filters.tag.length ||
+                filters.author.length ||
+                filters.q,
+            )}
+          />
         ) : (
           <>
             <ul className="grid gap-4 sm:grid-cols-2">
