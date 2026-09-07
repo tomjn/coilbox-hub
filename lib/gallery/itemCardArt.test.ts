@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { MAP_MINIMAP_VARIANT } from "@/lib/assets/asset";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
+import type { CardShape } from "./cardShapes";
 import { chooseItemCardArt, itemNamesItsMap } from "./itemCardArt";
 
 const PICTURE: ResolvedAsset = {
@@ -77,4 +78,65 @@ test("a row nothing was looked up for falls back to the plate rather than throwi
   expect(chooseItemCardArt({ kind: "scenario", map_name: "Comet Catcher" }, undefined)).toEqual({
     type: "plate",
   });
+});
+
+const GALAXY_SHAPE: CardShape = {
+  type: "galaxy",
+  galaxy: {
+    systems: [{ x: 0.5, y: 0.5, faction: 0, capital: true }],
+    lanes: [],
+    factionColors: ["#ffffff"],
+  },
+};
+
+const RUN_SHAPE: CardShape = {
+  type: "run",
+  run: {
+    steps: [{ x: 0, y: 0.5, type: "start" }],
+    routes: [],
+    columns: 1,
+  },
+};
+
+const BLUEPRINT_SHAPE: CardShape = {
+  type: "blueprint",
+  layout: {
+    width: 1,
+    height: 1,
+    squares: [],
+    ordered: false,
+  },
+};
+
+test("a conquest challenge whose shape rebuilt to a galaxy draws it", () => {
+  expect(
+    chooseItemCardArt({ kind: "challenge", map_name: null }, undefined, GALAXY_SHAPE),
+  ).toEqual({ type: "art", shape: GALAXY_SHAPE });
+});
+
+test("a warpath challenge whose shape rebuilt to a run draws it", () => {
+  expect(
+    chooseItemCardArt({ kind: "challenge", map_name: null }, undefined, RUN_SHAPE),
+  ).toEqual({ type: "art", shape: RUN_SHAPE });
+});
+
+test("a challenge with no shape, because its mode could not be rebuilt, keeps the plate", () => {
+  expect(
+    chooseItemCardArt({ kind: "challenge", map_name: null }, undefined, undefined),
+  ).toEqual({ type: "plate" });
+});
+
+test("a blueprint's own shape is left for #310: the card still gets the plate", () => {
+  expect(
+    chooseItemCardArt({ kind: "blueprint", map_name: null }, undefined, BLUEPRINT_SHAPE),
+  ).toEqual({ type: "plate" });
+});
+
+test("a galaxy or run shape on a row that is not a challenge is not drawn as art", () => {
+  // Belt and braces: `cardShapes()` never actually produces a galaxy or a run
+  // for anything but a challenge, but the plate is still the right fallback
+  // if it ever did.
+  expect(
+    chooseItemCardArt({ kind: "scenario", map_name: null }, undefined, GALAXY_SHAPE),
+  ).toEqual({ type: "plate" });
 });
