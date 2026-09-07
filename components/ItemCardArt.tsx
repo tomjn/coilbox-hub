@@ -1,4 +1,5 @@
 import { AssetPlaceholder } from "@/components/AssetPlaceholder";
+import { ConquestGalaxyArt, WarpathRunArt } from "@/components/ItemPreview";
 import { KindIcon } from "@/components/KindIcon";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import type { CardShape } from "@/lib/gallery/cardShapes";
@@ -9,11 +10,11 @@ import type { ItemSummary } from "@/lib/gallery/query";
  * The art slot at the top of every gallery card (issue #308).
  *
  * A small component of its own rather than branches inlined into
- * `components/ItemCard.tsx`, because two sibling issues (#309 for a challenge,
- * #310 for a blueprint) are going to widen what draws here, and neither should
- * have to touch the card's own layout to do it. `lib/gallery/itemCardArt.ts`
- * carries the pure "which art does this row get" decision, so this component
- * only has to turn that decision into markup.
+ * `components/ItemCard.tsx`, because sibling issues (#309 for a challenge,
+ * #310 for a blueprint) were always going to widen what draws here, and
+ * neither should have to touch the card's own layout to do it.
+ * `lib/gallery/itemCardArt.ts` carries the pure "which art does this row get"
+ * decision, so this component only has to turn that decision into markup.
  *
  * ## Every card is the same box
  *
@@ -34,6 +35,7 @@ const FRAME =
 export function ItemCardArt({
   item,
   picture,
+  shape,
 }: {
   item: Pick<ItemSummary, "kind" | "mode" | "map_name">;
   /** The map's picture keyed on `item.map_name`, from a page level batched
@@ -45,14 +47,13 @@ export function ItemCardArt({
    * lookup (`lib/gallery/cardShapes.ts`). Undefined for a kind that has no
    * drawing and for one that could not be rebuilt.
    *
-   * Deliberately not read yet. #307 settled how a card reaches a drawing and
-   * carried the data as far as here, so #309 and #310 are a branch in
-   * `chooseItemCardArt` and a drawing in this file, with nothing to fetch. A
-   * challenge and a blueprint keep the kind plate until then.
+   * A challenge's galaxy or run is drawn below (issue #309). A blueprint's
+   * layout is still unread: #310 is what adds that branch, the same way this
+   * one was added to `chooseItemCardArt` rather than here.
    */
   shape?: CardShape;
 }) {
-  const choice = chooseItemCardArt(item, picture);
+  const choice = chooseItemCardArt(item, picture, shape);
 
   if (choice.type === "map") {
     if (choice.picture.from === "placeholder") {
@@ -76,6 +77,24 @@ export function ItemCardArt({
           decoding="async"
           className="size-full object-cover"
         />
+      </div>
+    );
+  }
+
+  if (choice.type === "art") {
+    // Decorative for the same reason the plate below is: the badge elsewhere
+    // on the card already says "Conquest" or "Warpath" in words
+    // (`components/ItemCard.tsx`), so the drawing has nothing left to
+    // announce. `size-full` fills the same fixed frame every other card art
+    // fills, so the grid does not reflow between a map, a galaxy, a run and a
+    // plate.
+    return (
+      <div aria-hidden className={FRAME}>
+        {choice.shape.type === "galaxy" ? (
+          <ConquestGalaxyArt shape={choice.shape.galaxy} className="size-full" decorative />
+        ) : (
+          <WarpathRunArt shape={choice.shape.run} className="size-full" decorative />
+        )}
       </div>
     );
   }

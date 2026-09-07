@@ -22,6 +22,7 @@
  */
 
 import Link from "next/link";
+import { useId } from "react";
 import type { ServedAsset } from "@/lib/assets/resolve";
 import type { PayloadFootprint } from "@/lib/blueprint/payload";
 import {
@@ -111,9 +112,6 @@ function count(value: unknown): number {
 /** Neutral territory. Dimmer than any faction, so held space reads first. */
 const UNCLAIMED = "#6b7280";
 
-/** One preview renders per page, so a fixed filter id is safe. */
-const GLOW = "system-glow";
-
 /**
  * The galaxy itself, rebuilt from the seed (see `lib/gallery/conquestGalaxy`).
  *
@@ -123,33 +121,57 @@ const GLOW = "system-glow";
  * drawn: names and maps come from installed content the hub does not have.
  *
  * The `viewBox` is the unit square the shape was fitted to, scaled up and
- * inset so a capital's ring at the edge is not clipped.
+ * inset so a capital's ring at the edge is not clipped. Stroke widths and
+ * node radii are set in those same viewBox units, so they scale with
+ * whatever box `className` gives this: a card's smaller frame draws the same
+ * galaxy proportionally smaller rather than needing its own numbers (issue
+ * #309).
+ *
+ * Exported so a gallery card (`components/ItemCardArt.tsx`) can draw the same
+ * galaxy the item page does, without its own copy of the geometry. The item
+ * page's own `ConquestGalaxy` below is the only other caller, and is what
+ * gives this its `role="img"` label. A card marks it `decorative` instead,
+ * because the card's kind badge already says "Conquest" in words.
+ *
+ * The glow filter's id comes from `useId` rather than a fixed string, because
+ * a gallery page can draw many of these in one document, and two `<filter>`
+ * elements sharing an id is invalid SVG.
  */
-function ConquestGalaxy({ shape }: { shape: GalaxyShape }) {
+export function ConquestGalaxyArt({
+  shape,
+  className,
+  decorative = false,
+}: {
+  shape: GalaxyShape;
+  className: string;
+  /** True for a card, where the kind badge already names the thing in
+   *  words and the drawing itself has nothing left to announce. */
+  decorative?: boolean;
+}) {
   const inset = 4;
   const scale = 100 - inset * 2;
   const at = (v: number) => inset + v * scale;
   const colorOf = (faction: number | null) =>
     faction === null ? UNCLAIMED : (shape.factionColors[faction] ?? UNCLAIMED);
   const held = shape.systems.filter((s) => s.faction !== null).length;
+  const glow = useId();
 
   return (
     <svg
       viewBox="0 0 100 100"
-      // Capped rather than full width. The shape is square, so at the page's
-      // own width it would be taller than the screen and read as a diagram
-      // rather than an illustration of the thing being shared. No frame and no
-      // fill: the page's own starfield is a better backdrop than a black box,
-      // and a box around it made it read as a chart.
-      className="mx-auto w-full max-w-md"
-      role="img"
-      aria-label={`${shape.systems.length} systems joined by ${shape.lanes.length} jump lanes, ${held} of them held at the start`}
+      className={className}
+      {...(decorative
+        ? { "aria-hidden": true as const }
+        : {
+            role: "img" as const,
+            "aria-label": `${shape.systems.length} systems joined by ${shape.lanes.length} jump lanes, ${held} of them held at the start`,
+          })}
     >
       <defs>
         {/* Each node is a star, so it glows. The blurred copies go under the
             original rather than replacing it, which keeps a hard point of
             light in a soft halo instead of a smudge. */}
-        <filter id={GLOW} x="-50%" y="-50%" width="200%" height="200%">
+        <filter id={glow} x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation={1.6} result="halo" />
           <feMerge>
             <feMergeNode in="halo" />
@@ -169,7 +191,7 @@ function ConquestGalaxy({ shape }: { shape: GalaxyShape }) {
           strokeWidth={0.4}
         />
       ))}
-      <g filter={`url(#${GLOW})`}>
+      <g filter={`url(#${glow})`}>
         {shape.systems.map((system, i) => (
           <circle
             key={i}
@@ -184,6 +206,20 @@ function ConquestGalaxy({ shape }: { shape: GalaxyShape }) {
       </g>
     </svg>
   );
+}
+
+/**
+ * The item page's own galaxy: {@link ConquestGalaxyArt}, capped to a
+ * comfortable reading width rather than the card's fixed frame.
+ *
+ * Capped rather than full width. The shape is square, so at the page's own
+ * width it would be taller than the screen and read as a diagram rather than
+ * an illustration of the thing being shared. No frame and no fill: the
+ * page's own starfield is a better backdrop than a black box, and a box
+ * around it made it read as a chart.
+ */
+function ConquestGalaxy({ shape }: { shape: GalaxyShape }) {
+  return <ConquestGalaxyArt shape={shape} className="mx-auto w-full max-w-md" />;
 }
 
 /**
@@ -207,67 +243,108 @@ const RUN_NODE_KINDS: { type: RunNodeType; label: string; color: string }[] = [
 const RUN_COLORS = new Map(RUN_NODE_KINDS.map((k) => [k.type, k.color]));
 
 /**
- * The run map, rebuilt from the seed (see `lib/gallery/warpathRun`).
+ * The run map itself, rebuilt from the seed (see `lib/gallery/warpathRun`).
  *
  * Read left to right. Every route runs forward, so where the map widens you
  * have a choice and where it narrows you do not. The boss is the last stop and
  * is drawn largest.
  *
+ * No legend here: the seven node colours only mean something once they are
+ * named, and the legend is what does that. The item page's `WarpathRunMap`
+ * below draws one underneath. A card has no room for it and names the
+ * challenge as "Warpath" in words instead, which is the same call coilbox's
+ * own card art makes for the same reason.
+ *
+ * Exported so a gallery card (`components/ItemCardArt.tsx`) can draw the same
+ * run the item page does. `className` decides the box: the item page gives it
+ * a wide strip, a card gives it its fixed frame, and the geometry stays the
+ * same either way because it is set in the `viewBox`'s own units.
+ *
+ * The glow filter's id comes from `useId` rather than a fixed string, for the
+ * same reason {@link ConquestGalaxyArt} does: a gallery page can draw many of
+ * these in one document.
+ */
+export function WarpathRunArt({
+  shape,
+  className,
+  decorative = false,
+}: {
+  shape: RunShape;
+  className: string;
+  /** True for a card, where the kind badge already names the thing in
+   *  words and the drawing itself has nothing left to announce. */
+  decorative?: boolean;
+}) {
+  const inset = 4;
+  const atX = (v: number) => inset + v * (100 - inset * 2);
+  const atY = (v: number) => inset + v * (40 - inset * 2);
+  const fights = shape.steps.filter(
+    (s) => s.type === "battle" || s.type === "elite" || s.type === "boss",
+  ).length;
+  const glow = useId();
+
+  return (
+    <svg
+      viewBox="0 0 100 40"
+      className={className}
+      {...(decorative
+        ? { "aria-hidden": true as const }
+        : {
+            role: "img" as const,
+            "aria-label": `${shape.columns} stops from the start to the boss, ${shape.steps.length} nodes in all, ${fights} of them fights`,
+          })}
+    >
+      <defs>
+        <filter id={glow} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation={1.1} result="halo" />
+          <feMerge>
+            <feMergeNode in="halo" />
+            <feMergeNode in="halo" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      {shape.routes.map(([a, b]) => (
+        <line
+          key={`${a}-${b}`}
+          x1={atX(shape.steps[a].x)}
+          y1={atY(shape.steps[a].y)}
+          x2={atX(shape.steps[b].x)}
+          y2={atY(shape.steps[b].y)}
+          stroke="#404040"
+          strokeWidth={0.3}
+        />
+      ))}
+      <g filter={`url(#${glow})`}>
+        {shape.steps.map((step, i) => (
+          <circle
+            key={i}
+            cx={atX(step.x)}
+            cy={atY(step.y)}
+            r={step.type === "boss" ? 1.8 : 1.1}
+            fill={RUN_COLORS.get(step.type) ?? UNCLAIMED}
+          />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * The item page's run map: {@link WarpathRunArt} plus the legend naming its
+ * seven node colours, which only the item page has room for.
+ *
  * Wide rather than square, because a run is up to thirteen columns of at most
  * four, and squaring it would leave the map a thin line in a tall box.
  */
 function WarpathRunMap({ shape }: { shape: RunShape }) {
-  const inset = 4;
-  const atX = (v: number) => inset + v * (100 - inset * 2);
-  const atY = (v: number) => inset + v * (40 - inset * 2);
   const kinds = RUN_NODE_KINDS.filter((k) =>
     shape.steps.some((s) => s.type === k.type),
   );
-  const fights = shape.steps.filter(
-    (s) => s.type === "battle" || s.type === "elite" || s.type === "boss",
-  ).length;
 
   return (
     <div className="flex flex-col gap-3">
-      <svg
-        viewBox="0 0 100 40"
-        className="w-full"
-        role="img"
-        aria-label={`${shape.columns} stops from the start to the boss, ${shape.steps.length} nodes in all, ${fights} of them fights`}
-      >
-        <defs>
-          <filter id={GLOW} x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation={1.1} result="halo" />
-            <feMerge>
-              <feMergeNode in="halo" />
-              <feMergeNode in="halo" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        {shape.routes.map(([a, b]) => (
-          <line
-            key={`${a}-${b}`}
-            x1={atX(shape.steps[a].x)}
-            y1={atY(shape.steps[a].y)}
-            x2={atX(shape.steps[b].x)}
-            y2={atY(shape.steps[b].y)}
-            stroke="#404040"
-            strokeWidth={0.3}
-          />
-        ))}
-        <g filter={`url(#${GLOW})`}>
-          {shape.steps.map((step, i) => (
-            <circle
-              key={i}
-              cx={atX(step.x)}
-              cy={atY(step.y)}
-              r={step.type === "boss" ? 1.8 : 1.1}
-              fill={RUN_COLORS.get(step.type) ?? UNCLAIMED}
-            />
-          ))}
-        </g>
-      </svg>
+      <WarpathRunArt shape={shape} className="w-full" />
       <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5">
         {kinds.map((kind) => (
           <li
