@@ -53,7 +53,9 @@ export interface NewestItems {
   shapes: CardShapeEntries;
 }
 
-/** The newest few, for the landing page. */
+/** The newest few, for the landing page. Six fills two full rows of three at
+ *  the desktop grid `app/page.tsx` uses, and three full rows of two at the
+ *  tablet step, so the section is full rows at every width (issue #321). */
 export async function newestItems(): Promise<NewestItems> {
   "use cache";
   cacheLife(LISTING_LIFE);
@@ -64,7 +66,7 @@ export async function newestItems(): Promise<NewestItems> {
     .from("item")
     .select(ITEM_SUMMARY_COLUMNS)
     .order("created_at", { ascending: false })
-    .limit(4);
+    .limit(6);
 
   const items = (data ?? []) as unknown as ItemSummary[];
   // Two batched lookups over the same rows, neither depending on the other.

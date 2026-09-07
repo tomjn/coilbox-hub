@@ -26,7 +26,7 @@ export default async function Home() {
   const { items, pictures: entries, shapes: shapeEntries } = await newestItems();
   const pictures = cardPicturesFromEntries(entries);
   const shapes = cardShapesFromEntries(shapeEntries);
-  // Computed over these four rather than globally: a duplicate two pages
+  // Computed over these six rather than globally: a duplicate two pages
   // into the gallery is not visible here, so it earns no tail here (#311).
   const titles = cardTitles(items);
   const filters = parseFilters({});
