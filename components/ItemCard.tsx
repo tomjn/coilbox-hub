@@ -4,6 +4,7 @@ import { ItemCardArt } from "@/components/ItemCardArt";
 import { KindIcon } from "@/components/KindIcon";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import type { CardShape } from "@/lib/gallery/cardShapes";
+import type { CardTitle } from "@/lib/gallery/cardTitles";
 import { itemLabel } from "@/lib/gallery/label";
 import type { Filters, ItemSummary } from "@/lib/gallery/query";
 import { filterHref } from "@/lib/gallery/query";
@@ -31,6 +32,7 @@ export function ItemCard({
   origin,
   picture,
   shape,
+  title,
 }: {
   item: ItemSummary;
   filters: Filters;
@@ -47,7 +49,14 @@ export function ItemCard({
    *  and for one that could not be rebuilt. Drawn by `ItemCardArt`: a
    *  challenge's galaxy or run (#309), and a blueprint's layout (#310). */
   shape?: CardShape;
+  /** What to show in place of `item.title`, worked out for the whole page at
+   *  once against every other title on it (`lib/gallery/cardTitles.ts`,
+   *  issue #311). Falls back to `item.title` with no tail when a caller has
+   *  not computed one, which is only ever a page that has no duplicate to
+   *  worry about in the first place. */
+  title?: CardTitle;
 }) {
+  const cardTitle = title ?? { title: item.title, tail: null };
   return (
     <article className="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-5">
       <ItemCardArt item={item} picture={picture} shape={shape} />
@@ -56,7 +65,13 @@ export function ItemCard({
             120 character word, which without this drags the whole grid sideways. */}
         <h2 className="min-w-0 break-words text-base font-medium leading-snug">
           <Link href={`/item/${item.id}`} className="hover:underline active:underline">
-            {item.title}
+            {cardTitle.title}
+            {/* Only present when a twin on this page shares the title above, so
+                a screen reader hears the same distinction a sighted reader sees,
+                rather than two links both announced as the same text (#311). */}
+            {cardTitle.tail ? (
+              <span className="text-neutral-500"> #{cardTitle.tail}</span>
+            ) : null}
           </Link>
         </h2>
         <Link
