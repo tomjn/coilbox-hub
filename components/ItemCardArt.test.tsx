@@ -173,4 +173,6 @@ test("a blueprint with a layout shape draws one rect per building, aria-hidden, 
   // No per-building picture lookups on a card: `lib/gallery/itemCardArt.ts`
   // passes no `units` map, so `BlueprintLayoutArt` draws every square plain.
   expect(html).not.toContain("<img");
+  // The plan fixes its own colour (issue #318), so a card cannot draw it grey.
+  expect(html).toContain("text-blue-500");
 });

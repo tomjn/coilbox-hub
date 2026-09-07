@@ -598,9 +598,22 @@ function BuildOrder({
  * author put it, on the build grid it was drawn against.
  *
  * This is coilbox's `src/blueprint/LayoutPlan.tsx` drawn the same way, down to
- * the grid and the weight of every mark (tomjn/coilbox#1506). The site has no
- * theme colour where the launcher does, so the plan is drawn in graphite here,
- * which is what the launcher's own art does when a theme has no hue to take.
+ * the grid and the weight of every mark (tomjn/coilbox#1506). The launcher
+ * takes its hue from the player's own theme accent through `text-primary`,
+ * which the site has no equivalent of, so this plan draws in a single fixed
+ * hue instead: `text-blue-500` (issue #318). Coilbox's own strict default
+ * accent is `neutral`, which carries no hue at all (`--primary: 0 0% 95%` in
+ * the dark scheme, documented as "the default, no hue, the plain grey shell"
+ * in coilbox's `docs/distribution-profile.md`), so taking that default
+ * literally would leave the plan exactly as grey as it is today. `blue` is
+ * coilbox's first named hue, the one every accent swatch list leads with
+ * (`node_modules/@picoframe/frame/dist/context/themeConfig.d.ts`), and its
+ * dark-scheme `--primary` (`217.2 91.2% 59.8%` in `@picoframe/frame`'s
+ * `theme.css`) is byte-for-byte Tailwind's stock `blue-500` (`#3b82f6`), so no
+ * arbitrary value is needed. Fixed on the plan itself rather than per caller,
+ * so a card and the item page cannot drift apart. The grid stays
+ * `text-neutral-400` below, matching coilbox's own plan, which draws its grid
+ * from `text-muted-foreground` rather than from the accent.
  *
  * The `viewBox` is the whole sheet, of fixed proportions, with the base centred
  * on it and a build square of clear ground round it at the least. A base can be
@@ -655,7 +668,10 @@ export function BlueprintLayoutArt({
   return (
     <svg
       viewBox={`${sheet.left} ${sheet.top} ${sheet.width} ${sheet.height}`}
-      className={className}
+      // `text-blue-500` here rather than left to the caller, so the card and
+      // the item page always draw the same plan colour: see the doc comment
+      // above.
+      className={`${className} text-blue-500`}
       {...(decorative
         ? { "aria-hidden": true as const }
         : { role: "img" as const, "aria-label": planLabel(shape) })}
@@ -787,7 +803,8 @@ function BlueprintLayout({
         shape={shape}
         box={PAGE_BOX}
         // The size {@link PAGE_BOX} describes, so the sheet is the whole of it.
-        className="mx-auto aspect-[4/3] w-full max-w-md text-neutral-300"
+        // No colour class here: BlueprintLayoutArt fixes its own now.
+        className="mx-auto aspect-[4/3] w-full max-w-md"
         units={units}
       />
       <p className="text-xs text-neutral-400">
