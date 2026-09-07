@@ -1,7 +1,8 @@
 import { AssetPlaceholder } from "@/components/AssetPlaceholder";
-import { ConquestGalaxyArt, WarpathRunArt } from "@/components/ItemPreview";
+import { BlueprintLayoutArt, ConquestGalaxyArt, WarpathRunArt } from "@/components/ItemPreview";
 import { KindIcon } from "@/components/KindIcon";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
+import type { PlanBox } from "@/lib/gallery/blueprintPreview";
 import type { CardShape } from "@/lib/gallery/cardShapes";
 import { chooseItemCardArt } from "@/lib/gallery/itemCardArt";
 import type { ItemSummary } from "@/lib/gallery/query";
@@ -32,6 +33,19 @@ import type { ItemSummary } from "@/lib/gallery/query";
 const FRAME =
   "aspect-[3/2] w-full shrink-0 overflow-hidden rounded-md border border-neutral-800 bg-black";
 
+/**
+ * The box a blueprint's layout is drawn in, in CSS pixels, matching
+ * `FRAME`'s own 3:2 ratio. `lib/gallery/blueprintPreview.ts` scales the grid,
+ * the corner radius and the start mark against whatever box it is given, so
+ * this only has to be a plausible rendered size for a card rather than exact:
+ * a card in the two column gallery grid (`max-w-5xl` minus its padding and
+ * gap, halved) comes out close to 480 pixels wide, which is what this uses
+ * rather than the item page's own, larger box. Drawing at the card's own,
+ * smaller box keeps the grid and the start mark legible at card size instead
+ * of over-darkening a card at the weights tuned for the item page.
+ */
+const CARD_BOX: PlanBox = { width: 480, height: 320 };
+
 export function ItemCardArt({
   item,
   picture,
@@ -47,9 +61,8 @@ export function ItemCardArt({
    * lookup (`lib/gallery/cardShapes.ts`). Undefined for a kind that has no
    * drawing and for one that could not be rebuilt.
    *
-   * A challenge's galaxy or run is drawn below (issue #309). A blueprint's
-   * layout is still unread: #310 is what adds that branch, the same way this
-   * one was added to `chooseItemCardArt` rather than here.
+   * A challenge's galaxy or run is drawn below (issue #309), and so is a
+   * blueprint's layout (issue #310).
    */
   shape?: CardShape;
 }) {
@@ -83,17 +96,29 @@ export function ItemCardArt({
 
   if (choice.type === "art") {
     // Decorative for the same reason the plate below is: the badge elsewhere
-    // on the card already says "Conquest" or "Warpath" in words
+    // on the card already says "Conquest", "Warpath" or "Blueprint" in words
     // (`components/ItemCard.tsx`), so the drawing has nothing left to
     // announce. `size-full` fills the same fixed frame every other card art
-    // fills, so the grid does not reflow between a map, a galaxy, a run and a
-    // plate.
+    // fills, so the grid does not reflow between a map, a galaxy, a run, a
+    // layout and a plate.
     return (
       <div aria-hidden className={FRAME}>
         {choice.shape.type === "galaxy" ? (
           <ConquestGalaxyArt shape={choice.shape.galaxy} className="size-full" decorative />
-        ) : (
+        ) : choice.shape.type === "run" ? (
           <WarpathRunArt shape={choice.shape.run} className="size-full" decorative />
+        ) : (
+          // No `units`: a page of a dozen cards drawing a picture per
+          // building would turn one fetch into one per building per card,
+          // which is the exact cost `lib/gallery/cardShapes.ts` was built to
+          // avoid. Every square is drawn plain, the way the item page itself
+          // draws a building it holds no buildpic for.
+          <BlueprintLayoutArt
+            shape={choice.shape.layout}
+            box={CARD_BOX}
+            className="size-full"
+            decorative
+          />
         )}
       </div>
     );

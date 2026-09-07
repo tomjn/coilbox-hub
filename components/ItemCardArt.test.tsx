@@ -144,3 +144,33 @@ test("a challenge with no shape keeps the kind plate rather than an empty box", 
   expect(html).toContain('viewBox="0 0 24 24"');
   expect(html).not.toContain('viewBox="0 0 100 100"');
 });
+
+const BLUEPRINT_SHAPE: CardShape = {
+  type: "blueprint",
+  layout: {
+    width: 8,
+    height: 3,
+    ordered: false,
+    squares: [
+      { def: "armsolar", sized: true, x: 0, y: 0, width: 1, height: 1 },
+      { def: "armsolar", sized: true, x: 2, y: 0, width: 1, height: 1 },
+      { def: "armlab", sized: true, x: 4, y: 0, width: 3, height: 3 },
+    ],
+  },
+};
+
+test("a blueprint with a layout shape draws one rect per building, aria-hidden, with no pictures", () => {
+  const html = renderToStaticMarkup(
+    <ItemCardArt
+      item={{ kind: "blueprint", mode: null, map_name: null }}
+      picture={undefined}
+      shape={BLUEPRINT_SHAPE}
+    />,
+  );
+
+  expect(html).toContain("aria-hidden");
+  expect(html.match(/<rect/g)).toHaveLength(BLUEPRINT_SHAPE.layout.squares.length);
+  // No per-building picture lookups on a card: `lib/gallery/itemCardArt.ts`
+  // passes no `units` map, so `BlueprintLayoutArt` draws every square plain.
+  expect(html).not.toContain("<img");
+});

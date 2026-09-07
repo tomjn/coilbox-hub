@@ -44,8 +44,8 @@ export function ItemCard({
   picture?: ResolvedAsset;
   /** This card's galaxy, run or layout, rebuilt for the whole page at once
    *  (`lib/gallery/cardShapes.ts`). Undefined for a kind that has no drawing
-   *  and for one that could not be rebuilt. Nothing draws it yet: #309 and
-   *  #310 are what turn it into a picture. */
+   *  and for one that could not be rebuilt. Drawn by `ItemCardArt`: a
+   *  challenge's galaxy or run (#309), and a blueprint's layout (#310). */
   shape?: CardShape;
 }) {
   return (
