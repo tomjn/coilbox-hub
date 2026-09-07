@@ -38,13 +38,13 @@ const FRAME =
  * `FRAME`'s own 3:2 ratio. `lib/gallery/blueprintPreview.ts` scales the grid,
  * the corner radius and the start mark against whatever box it is given, so
  * this only has to be a plausible rendered size for a card rather than exact:
- * a card in the two column gallery grid (`max-w-5xl` minus its padding and
- * gap, halved) comes out close to 480 pixels wide, which is what this uses
+ * a card in the three column gallery grid (`max-w-5xl` minus its padding and
+ * gaps, thirded) comes out close to 315 pixels wide, which is what this uses
  * rather than the item page's own, larger box. Drawing at the card's own,
  * smaller box keeps the grid and the start mark legible at card size instead
  * of over-darkening a card at the weights tuned for the item page.
  */
-const CARD_BOX: PlanBox = { width: 480, height: 320 };
+const CARD_BOX: PlanBox = { width: 315, height: 210 };
 
 export function ItemCardArt({
   item,

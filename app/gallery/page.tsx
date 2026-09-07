@@ -187,7 +187,7 @@ export default async function Gallery({
           />
         ) : (
           <>
-            <ul className="grid gap-4 sm:grid-cols-2">
+            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((item) => (
                 <li key={item.id}>
                   <ItemCard
