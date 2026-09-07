@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { TAGS } from "@/lib/cache/tags";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { type CardPictureEntries, cardMapPictures } from "./cardPictures";
+import { type CardShapeEntries, cardShapes } from "./cardShapes";
 import {
   applyFilters,
   fetchPage,
@@ -45,6 +46,11 @@ export interface NewestItems {
    *  entries. `lib/gallery/cardPictures.ts` says why a footprint-less lookup is
    *  enough here and why a `Map` cannot cross this boundary directly. */
   pictures: CardPictureEntries;
+  /** A drawing per challenge or blueprint among `items`, keyed on the item id
+   *  and travelling as entries for the same reason. Rebuilt here rather than at
+   *  render time so a page of two dozen costs one set of generator runs per
+   *  cache fill: `lib/gallery/cardShapes.ts` has the numbers. */
+  shapes: CardShapeEntries;
 }
 
 /** The newest few, for the landing page. */
@@ -61,9 +67,13 @@ export async function newestItems(): Promise<NewestItems> {
     .limit(4);
 
   const items = (data ?? []) as unknown as ItemSummary[];
-  const pictures = await cardMapPictures(supabase, items);
+  // Two batched lookups over the same rows, neither depending on the other.
+  const [pictures, shapes] = await Promise.all([
+    cardMapPictures(supabase, items),
+    cardShapes(supabase, items),
+  ]);
 
-  return { items, pictures: [...pictures] };
+  return { items, pictures: [...pictures], shapes: [...shapes] };
 }
 
 export interface GalleryPage {
@@ -77,6 +87,8 @@ export interface GalleryPage {
   /** A map picture per scenario or preset among `items` that names one, the
    *  same shape `newestItems` returns and for the same reason. */
   pictures: CardPictureEntries;
+  /** A drawing per challenge or blueprint among `items`, the same. */
+  shapes: CardShapeEntries;
 }
 
 /**
@@ -125,8 +137,12 @@ export async function galleryPage(filters: Filters): Promise<GalleryPage> {
   ]);
 
   const items = data as unknown as ItemSummary[];
-  // One more batched lookup for the whole page rather than one per card.
-  const pictures = await cardMapPictures(supabase, items);
+  // Two more batched lookups for the whole page rather than one per card. Both
+  // read the rows the page already has, so neither waits on the other.
+  const [pictures, shapes] = await Promise.all([
+    cardMapPictures(supabase, items),
+    cardShapes(supabase, items),
+  ]);
 
   return {
     items,
@@ -135,6 +151,7 @@ export async function galleryPage(filters: Filters): Promise<GalleryPage> {
     games: distinct(facetRows?.map((row) => row.game_key)),
     maps: distinct(facetRows?.map((row) => row.map_name)),
     pictures: [...pictures],
+    shapes: [...shapes],
   };
 }
 

@@ -3,6 +3,7 @@ import { ImportLink } from "@/components/ImportLink";
 import { ItemCardArt } from "@/components/ItemCardArt";
 import { KindIcon } from "@/components/KindIcon";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
+import type { CardShape } from "@/lib/gallery/cardShapes";
 import { itemLabel } from "@/lib/gallery/label";
 import type { Filters, ItemSummary } from "@/lib/gallery/query";
 import { filterHref } from "@/lib/gallery/query";
@@ -29,6 +30,7 @@ export function ItemCard({
   filters,
   origin,
   picture,
+  shape,
 }: {
   item: ItemSummary;
   filters: Filters;
@@ -40,10 +42,15 @@ export function ItemCard({
    *  nothing was looked up for, which `ItemCardArt` treats as "no picture"
    *  rather than an error. */
   picture?: ResolvedAsset;
+  /** This card's galaxy, run or layout, rebuilt for the whole page at once
+   *  (`lib/gallery/cardShapes.ts`). Undefined for a kind that has no drawing
+   *  and for one that could not be rebuilt. Nothing draws it yet: #309 and
+   *  #310 are what turn it into a picture. */
+  shape?: CardShape;
 }) {
   return (
     <article className="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-5">
-      <ItemCardArt item={item} picture={picture} />
+      <ItemCardArt item={item} picture={picture} shape={shape} />
       <div className="flex items-start justify-between gap-3">
         {/* A title is one field of free text and nothing stops it being a single
             120 character word, which without this drags the whole grid sideways. */}
