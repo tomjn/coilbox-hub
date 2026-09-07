@@ -1,9 +1,20 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MapPlayedOn } from "@/components/MapPlayedOn";
+import { MAP_MINIMAP_VARIANT } from "@/lib/assets/asset";
+import type { ResolvedAsset } from "@/lib/assets/resolve";
 import type { ItemSummary } from "@/lib/gallery/query";
 
 const COMET = "Comet Catcher Remake 1.8";
+
+const PICTURE: ResolvedAsset = {
+  from: "static",
+  url: "https://example.test/comet.webp",
+  served: { keyedOn: "map", mapName: COMET, variant: MAP_MINIMAP_VARIANT },
+  substituted: false,
+  width: 512,
+  height: 512,
+};
 
 function item(overrides: Partial<ItemSummary> = {}): ItemSummary {
   return {
@@ -28,13 +39,15 @@ function item(overrides: Partial<ItemSummary> = {}): ItemSummary {
  */
 test("a map nothing has been published for renders no section at all", () => {
   expect(
-    renderToStaticMarkup(<MapPlayedOn mapName={COMET} items={[]} origin="https://example.test" />),
+    renderToStaticMarkup(
+      <MapPlayedOn mapName={COMET} items={[]} picture={PICTURE} origin="https://example.test" />,
+    ),
   ).toBe("");
 });
 
 test("a map with items renders them as the cards the gallery draws", () => {
   const html = renderToStaticMarkup(
-    <MapPlayedOn mapName={COMET} items={[item()]} origin="https://example.test" />,
+    <MapPlayedOn mapName={COMET} items={[item()]} picture={PICTURE} origin="https://example.test" />,
   );
 
   expect(html).toContain("Played on this map");
@@ -45,7 +58,7 @@ test("a map with items renders them as the cards the gallery draws", () => {
 /** A card's own links land back in a gallery already filtered to this map. */
 test("the cards carry this map's filter with them", () => {
   const html = renderToStaticMarkup(
-    <MapPlayedOn mapName={COMET} items={[item()]} origin="https://example.test" />,
+    <MapPlayedOn mapName={COMET} items={[item()]} picture={PICTURE} origin="https://example.test" />,
   );
 
   expect(html).toContain("map=Comet+Catcher+Remake+1.8");

@@ -193,7 +193,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
 
           <MapMirrors links={mirrors} />
 
-          <MapPlayedOn mapName={mapName} items={played} origin={origin} />
+          <MapPlayedOn mapName={mapName} items={played} picture={picture} origin={origin} />
         </div>
       </div>
     </main>

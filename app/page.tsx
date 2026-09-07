@@ -3,6 +3,7 @@ import { CoilLogo } from "@/components/CoilLogo";
 import { HubArt } from "@/components/HubArt";
 import { ItemCard } from "@/components/ItemCard";
 import { COILBOX_URL } from "@/lib/coilbox";
+import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
 import { newestItems } from "@/lib/gallery/cached";
 import { kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
@@ -20,7 +21,8 @@ const outlineButton =
 
 export default async function Home() {
   const origin = await requestOrigin();
-  const items = await newestItems();
+  const { items, pictures: entries } = await newestItems();
+  const pictures = cardPicturesFromEntries(entries);
   const filters = parseFilters({});
 
   return (
@@ -93,7 +95,12 @@ export default async function Home() {
           <ul className="grid gap-4 sm:grid-cols-2">
             {items.map((item) => (
               <li key={item.id}>
-                <ItemCard item={item} filters={filters} origin={origin} />
+                <ItemCard
+                  item={item}
+                  filters={filters}
+                  origin={origin}
+                  picture={item.map_name ? pictures.get(item.map_name) : undefined}
+                />
               </li>
             ))}
           </ul>
