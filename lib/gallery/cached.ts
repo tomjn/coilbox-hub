@@ -1,6 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { TAGS } from "@/lib/cache/tags";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { type CardPictureEntries, cardMapPictures } from "./cardPictures";
 import {
   applyFilters,
   fetchPage,
@@ -38,19 +39,31 @@ import {
  *  a write nobody made, such as a row changed straight in the database. */
 const LISTING_LIFE = "hours";
 
+export interface NewestItems {
+  items: ItemSummary[];
+  /** A map picture per scenario or preset among `items` that names one, as
+   *  entries. `lib/gallery/cardPictures.ts` says why a footprint-less lookup is
+   *  enough here and why a `Map` cannot cross this boundary directly. */
+  pictures: CardPictureEntries;
+}
+
 /** The newest few, for the landing page. */
-export async function newestItems(): Promise<ItemSummary[]> {
+export async function newestItems(): Promise<NewestItems> {
   "use cache";
   cacheLife(LISTING_LIFE);
-  cacheTag(TAGS.items);
+  cacheTag(TAGS.items, TAGS.assets);
 
-  const { data } = await createAnonClient()
+  const supabase = createAnonClient();
+  const { data } = await supabase
     .from("item")
     .select(ITEM_SUMMARY_COLUMNS)
     .order("created_at", { ascending: false })
     .limit(4);
 
-  return (data ?? []) as unknown as ItemSummary[];
+  const items = (data ?? []) as unknown as ItemSummary[];
+  const pictures = await cardMapPictures(supabase, items);
+
+  return { items, pictures: [...pictures] };
 }
 
 export interface GalleryPage {
@@ -61,6 +74,9 @@ export interface GalleryPage {
   games: string[];
   /** The map names behind the chips, the same. */
   maps: string[];
+  /** A map picture per scenario or preset among `items` that names one, the
+   *  same shape `newestItems` returns and for the same reason. */
+  pictures: CardPictureEntries;
 }
 
 /**
@@ -73,7 +89,7 @@ export interface GalleryPage {
 export async function galleryPage(filters: Filters): Promise<GalleryPage> {
   "use cache";
   cacheLife(LISTING_LIFE);
-  cacheTag(TAGS.items);
+  cacheTag(TAGS.items, TAGS.assets);
 
   const supabase = createAnonClient();
   const { column, ascending } = orderBy(filters.sort);
@@ -108,12 +124,17 @@ export async function galleryPage(filters: Filters): Promise<GalleryPage> {
     supabase.from("item").select("game_key,map_name").limit(1000),
   ]);
 
+  const items = data as unknown as ItemSummary[];
+  // One more batched lookup for the whole page rather than one per card.
+  const pictures = await cardMapPictures(supabase, items);
+
   return {
-    items: data as unknown as ItemSummary[],
+    items,
     count,
     error,
     games: distinct(facetRows?.map((row) => row.game_key)),
     maps: distinct(facetRows?.map((row) => row.map_name)),
+    pictures: [...pictures],
   };
 }
 

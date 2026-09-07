@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ItemCard } from "@/components/ItemCard";
+import type { ResolvedAsset } from "@/lib/assets/resolve";
 import type { Filters, ItemSummary } from "@/lib/gallery/query";
 
 /**
@@ -14,14 +15,22 @@ import type { Filters, ItemSummary } from "@/lib/gallery/query";
  * the gallery draws. The filters it is handed are this map's, which is what
  * makes a card's own links land back in a gallery already filtered to the map
  * the reader came from.
+ *
+ * `picture` is the map's own, already resolved for the figure above this
+ * section (issue #308), and every item here has this map's name on its own
+ * row, so it is handed to every card rather than looked up again. A card whose
+ * kind does not draw a map at all, a setup pack among them, simply does not
+ * use it: `lib/gallery/itemCardArt.ts` makes that call, not this component.
  */
 export function MapPlayedOn({
   mapName,
   items,
+  picture,
   origin,
 }: {
   mapName: string;
   items: ItemSummary[];
+  picture: ResolvedAsset;
   /** Absolute, because coilbox will only fetch an https URL. `ItemCard` builds
    *  an import link out of it. */
   origin: string;
@@ -53,7 +62,7 @@ export function MapPlayedOn({
       <ul className="grid gap-4 sm:grid-cols-2">
         {items.map((item) => (
           <li key={item.id}>
-            <ItemCard item={item} filters={filters} origin={origin} />
+            <ItemCard item={item} filters={filters} origin={origin} picture={picture} />
           </li>
         ))}
       </ul>
