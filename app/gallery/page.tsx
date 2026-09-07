@@ -6,6 +6,7 @@ import { BusyForm } from "@/components/BusyForm";
 import { ItemCard } from "@/components/ItemCard";
 import { LinkPending } from "@/components/LinkPending";
 import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
+import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
 import { galleryPage } from "@/lib/gallery/cached";
 import { GALLERY_KINDS } from "@/lib/container";
 import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
@@ -34,8 +35,17 @@ export default async function Gallery({
   // The rows, the count and the chips, all held between requests. The filters
   // are the cache key, so a filtered view is held separately from a bare one.
   // `lib/gallery/cached.ts` says why the reads moved out of the page.
-  const { items, count, error, games, maps, pictures: entries } = await galleryPage(filters);
+  const {
+    items,
+    count,
+    error,
+    games,
+    maps,
+    pictures: entries,
+    shapes: shapeEntries,
+  } = await galleryPage(filters);
   const pictures = cardPicturesFromEntries(entries);
+  const shapes = cardShapesFromEntries(shapeEntries);
   const lastPage = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
   return (
@@ -181,6 +191,7 @@ export default async function Gallery({
                     filters={filters}
                     origin={origin}
                     picture={item.map_name ? pictures.get(item.map_name) : undefined}
+                    shape={shapes.get(item.id)}
                   />
                 </li>
               ))}

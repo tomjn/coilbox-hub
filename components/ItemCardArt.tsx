@@ -1,6 +1,7 @@
 import { AssetPlaceholder } from "@/components/AssetPlaceholder";
 import { KindIcon } from "@/components/KindIcon";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
+import type { CardShape } from "@/lib/gallery/cardShapes";
 import { chooseItemCardArt } from "@/lib/gallery/itemCardArt";
 import type { ItemSummary } from "@/lib/gallery/query";
 
@@ -39,6 +40,17 @@ export function ItemCardArt({
    *  lookup (`lib/gallery/cardPictures.ts`), or `undefined` for a row nothing
    *  was looked up for. */
   picture: ResolvedAsset | undefined;
+  /**
+   * This card's galaxy, run or layout, from the other page level batched
+   * lookup (`lib/gallery/cardShapes.ts`). Undefined for a kind that has no
+   * drawing and for one that could not be rebuilt.
+   *
+   * Deliberately not read yet. #307 settled how a card reaches a drawing and
+   * carried the data as far as here, so #309 and #310 are a branch in
+   * `chooseItemCardArt` and a drawing in this file, with nothing to fetch. A
+   * challenge and a blueprint keep the kind plate until then.
+   */
+  shape?: CardShape;
 }) {
   const choice = chooseItemCardArt(item, picture);
 

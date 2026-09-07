@@ -4,6 +4,7 @@ import { HubArt } from "@/components/HubArt";
 import { ItemCard } from "@/components/ItemCard";
 import { COILBOX_URL } from "@/lib/coilbox";
 import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
+import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
 import { newestItems } from "@/lib/gallery/cached";
 import { kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
@@ -21,8 +22,9 @@ const outlineButton =
 
 export default async function Home() {
   const origin = await requestOrigin();
-  const { items, pictures: entries } = await newestItems();
+  const { items, pictures: entries, shapes: shapeEntries } = await newestItems();
   const pictures = cardPicturesFromEntries(entries);
+  const shapes = cardShapesFromEntries(shapeEntries);
   const filters = parseFilters({});
 
   return (
@@ -100,6 +102,7 @@ export default async function Home() {
                   filters={filters}
                   origin={origin}
                   picture={item.map_name ? pictures.get(item.map_name) : undefined}
+                  shape={shapes.get(item.id)}
                 />
               </li>
             ))}
