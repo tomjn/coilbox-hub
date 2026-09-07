@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ItemCardArt } from "@/components/ItemCardArt";
 import { MAP_MINIMAP_VARIANT } from "@/lib/assets/asset";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
+import type { CardShape } from "@/lib/gallery/cardShapes";
 
 const PICTURE: ResolvedAsset = {
   from: "static",
@@ -61,4 +62,85 @@ test("a scenario naming a map nothing was looked up for still falls back to the 
 
   expect(html).toContain("aria-hidden");
   expect(html).not.toContain(PICTURE.url);
+});
+
+const GALAXY_SHAPE: CardShape = {
+  type: "galaxy",
+  galaxy: {
+    systems: [
+      { x: 0.2, y: 0.2, faction: 0, capital: true },
+      { x: 0.5, y: 0.5, faction: null, capital: false },
+      { x: 0.8, y: 0.3, faction: 1, capital: false },
+    ],
+    lanes: [
+      [0, 1],
+      [1, 2],
+    ],
+    factionColors: ["#ffffff", "#ff0000"],
+  },
+};
+
+const RUN_SHAPE: CardShape = {
+  type: "run",
+  run: {
+    steps: [
+      { x: 0, y: 0.5, type: "start" },
+      { x: 0.5, y: 0.3, type: "battle" },
+      { x: 0.5, y: 0.7, type: "shop" },
+      { x: 1, y: 0.5, type: "boss" },
+    ],
+    routes: [
+      [0, 1],
+      [0, 2],
+      [1, 3],
+      [2, 3],
+    ],
+    columns: 3,
+  },
+};
+
+test("a conquest challenge with a galaxy shape draws an SVG with one circle per system, aria-hidden", () => {
+  const html = renderToStaticMarkup(
+    <ItemCardArt
+      item={{ kind: "challenge", mode: "conquest", map_name: null }}
+      picture={undefined}
+      shape={GALAXY_SHAPE}
+    />,
+  );
+
+  expect(html).toContain("aria-hidden");
+  expect(html.match(/<circle/g)).toHaveLength(GALAXY_SHAPE.galaxy.systems.length);
+});
+
+test("a warpath challenge with a run shape draws an SVG with one circle per step, aria-hidden", () => {
+  const html = renderToStaticMarkup(
+    <ItemCardArt
+      item={{ kind: "challenge", mode: "warpath", map_name: null }}
+      picture={undefined}
+      shape={RUN_SHAPE}
+    />,
+  );
+
+  expect(html).toContain("aria-hidden");
+  expect(html.match(/<circle/g)).toHaveLength(RUN_SHAPE.run.steps.length);
+  // No legend on a card: the seven warpath node type names stay on the item
+  // page (issue #309).
+  expect(html).not.toContain("Battle");
+  expect(html).not.toContain("Boss");
+});
+
+test("a challenge with no shape keeps the kind plate rather than an empty box", () => {
+  const html = renderToStaticMarkup(
+    <ItemCardArt
+      item={{ kind: "challenge", mode: "conquest", map_name: null }}
+      picture={undefined}
+      shape={undefined}
+    />,
+  );
+
+  expect(html).toContain("aria-hidden");
+  // The plate's own glyph, not the galaxy: `KindIcon` draws a few circles of
+  // its own (24 unit viewBox), which is not the 100 unit galaxy viewBox.
+  expect(html).toContain('viewBox="0 0 24 24"');
+  expect(html).not.toContain('viewBox="0 0 100 100"');
 });
