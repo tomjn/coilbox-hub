@@ -5,6 +5,7 @@ import { ItemCard } from "@/components/ItemCard";
 import { COILBOX_URL } from "@/lib/coilbox";
 import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
 import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
+import { cardTitles } from "@/lib/gallery/cardTitles";
 import { newestItems } from "@/lib/gallery/cached";
 import { kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
@@ -25,6 +26,9 @@ export default async function Home() {
   const { items, pictures: entries, shapes: shapeEntries } = await newestItems();
   const pictures = cardPicturesFromEntries(entries);
   const shapes = cardShapesFromEntries(shapeEntries);
+  // Computed over these four rather than globally: a duplicate two pages
+  // into the gallery is not visible here, so it earns no tail here (#311).
+  const titles = cardTitles(items);
   const filters = parseFilters({});
 
   return (
@@ -103,6 +107,7 @@ export default async function Home() {
                   origin={origin}
                   picture={item.map_name ? pictures.get(item.map_name) : undefined}
                   shape={shapes.get(item.id)}
+                  title={titles.get(item.id)}
                 />
               </li>
             ))}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ItemCard } from "@/components/ItemCard";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
+import { cardTitles } from "@/lib/gallery/cardTitles";
 import type { Filters, ItemSummary } from "@/lib/gallery/query";
 
 /**
@@ -37,6 +38,11 @@ export function MapPlayedOn({
 }) {
   if (items.length === 0) return null;
 
+  // Computed over this map's own items rather than globally: two of them
+  // sharing a title only matter when this section shows them side by side
+  // (#311).
+  const titles = cardTitles(items);
+
   const filters: Filters = {
     kind: [],
     game: null,
@@ -62,7 +68,13 @@ export function MapPlayedOn({
       <ul className="grid gap-4 sm:grid-cols-2">
         {items.map((item) => (
           <li key={item.id}>
-            <ItemCard item={item} filters={filters} origin={origin} picture={picture} />
+            <ItemCard
+              item={item}
+              filters={filters}
+              origin={origin}
+              picture={picture}
+              title={titles.get(item.id)}
+            />
           </li>
         ))}
       </ul>

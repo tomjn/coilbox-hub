@@ -7,6 +7,7 @@ import { ItemCard } from "@/components/ItemCard";
 import { LinkPending } from "@/components/LinkPending";
 import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
 import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
+import { cardTitles } from "@/lib/gallery/cardTitles";
 import { galleryPage } from "@/lib/gallery/cached";
 import { GALLERY_KINDS } from "@/lib/container";
 import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
@@ -46,6 +47,9 @@ export default async function Gallery({
   } = await galleryPage(filters);
   const pictures = cardPicturesFromEntries(entries);
   const shapes = cardShapesFromEntries(shapeEntries);
+  // Computed here rather than in `galleryPage()`: two titles only collide on
+  // the page a reader can see, and this page's rows are exactly that (#311).
+  const titles = cardTitles(items);
   const lastPage = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
   return (
@@ -192,6 +196,7 @@ export default async function Gallery({
                     origin={origin}
                     picture={item.map_name ? pictures.get(item.map_name) : undefined}
                     shape={shapes.get(item.id)}
+                    title={titles.get(item.id)}
                   />
                 </li>
               ))}
