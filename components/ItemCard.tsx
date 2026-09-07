@@ -1,34 +1,49 @@
 import Link from "next/link";
 import { ImportLink } from "@/components/ImportLink";
+import { ItemCardArt } from "@/components/ItemCardArt";
 import { KindIcon } from "@/components/KindIcon";
+import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { itemLabel } from "@/lib/gallery/label";
 import type { Filters, ItemSummary } from "@/lib/gallery/query";
 import { filterHref } from "@/lib/gallery/query";
 
 /**
- * A card is text only, on purpose (issue #68 looked again and kept it this way).
- * The per-kind backdrop `app/item/[id]/page.tsx` now shows is authored for one
- * drawing full-bleed behind running text on a page nobody else is competing
- * with. A grid can hold two dozen cards at once, each a fraction of the size,
- * so two dozen different low-opacity drawings would fight each other and the
- * `KindIcon` glyph already sitting on every card - more noise, not more
- * signal, on the one surface built to be scanned fast. The glyph plus the
- * label is the "what kind is this at a glance" job a card actually needs, and
- * it already does it without a repaint per card.
+ * A card carries a small picture now (issue #308), reversing #68's "text only"
+ * call for the reason #68 itself gave: a card is read at a fraction of a
+ * page's size, in a grid of two dozen at once, so anything drawn on it has to
+ * survive being small and being one of many.
+ *
+ * What changed is what gets drawn. #68 was about the per-kind backdrop
+ * `app/item/[id]/page.tsx` still shows: one full bleed drawing behind running
+ * text on a page nobody else is competing with, and a grid of two dozen of
+ * those really would fight each other and the `KindIcon` glyph already on
+ * every card. `components/ItemCardArt.tsx` is a different thing: a single
+ * picture in a fixed slot, of the actual map a scenario or preset was played
+ * on where the hub has one, or a small tinted plate carrying the same
+ * `KindIcon` glyph otherwise. That reads as identity rather than as
+ * decoration, which is the distinction #68 was drawing, and this issue does
+ * not undo it.
  */
 export function ItemCard({
   item,
   filters,
   origin,
+  picture,
 }: {
   item: ItemSummary;
   filters: Filters;
   /** Absolute, because coilbox will only fetch an https URL. A relative path
    * here silently produces a link that cannot be opened. */
   origin: string;
+  /** This card's map picture, keyed on `item.map_name`, from a page level
+   *  batched lookup (`lib/gallery/cardPictures.ts`). Undefined for a row
+   *  nothing was looked up for, which `ItemCardArt` treats as "no picture"
+   *  rather than an error. */
+  picture?: ResolvedAsset;
 }) {
   return (
     <article className="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-5">
+      <ItemCardArt item={item} picture={picture} />
       <div className="flex items-start justify-between gap-3">
         {/* A title is one field of free text and nothing stops it being a single
             120 character word, which without this drags the whole grid sideways. */}
