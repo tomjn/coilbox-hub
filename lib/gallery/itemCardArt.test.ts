@@ -126,9 +126,15 @@ test("a challenge with no shape, because its mode could not be rebuilt, keeps th
   ).toEqual({ type: "plate" });
 });
 
-test("a blueprint's own shape is left for #310: the card still gets the plate", () => {
+test("a blueprint whose shape rebuilt to a layout draws it", () => {
   expect(
     chooseItemCardArt({ kind: "blueprint", map_name: null }, undefined, BLUEPRINT_SHAPE),
+  ).toEqual({ type: "art", shape: BLUEPRINT_SHAPE });
+});
+
+test("a blueprint with no shape, because it has no buildings or its container did not read, keeps the plate", () => {
+  expect(
+    chooseItemCardArt({ kind: "blueprint", map_name: null }, undefined, undefined),
   ).toEqual({ type: "plate" });
 });
 
@@ -138,5 +144,13 @@ test("a galaxy or run shape on a row that is not a challenge is not drawn as art
   // if it ever did.
   expect(
     chooseItemCardArt({ kind: "scenario", map_name: null }, undefined, GALAXY_SHAPE),
+  ).toEqual({ type: "plate" });
+});
+
+test("a blueprint shape on a row that is not a blueprint is not drawn as art", () => {
+  // Belt and braces, the same reason as above: `cardShapes()` never produces
+  // a blueprint shape for anything but a blueprint.
+  expect(
+    chooseItemCardArt({ kind: "scenario", map_name: null }, undefined, BLUEPRINT_SHAPE),
   ).toEqual({ type: "plate" });
 });
