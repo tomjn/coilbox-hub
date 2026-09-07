@@ -13,17 +13,23 @@ import type { ItemSummary } from "./query";
  * Only a scenario or a preset draws the map it names. A setup pack's `map_name`
  * is only the first of however many maps it installs (`lib/gallery/publish.ts`
  * `describe()`), so drawing it here would claim the pack is about that one map
- * when it may install four. A blueprint names no map on the row at all today.
- * Sibling issue #310 is what widens this for a blueprint, and adds a branch
- * here rather than touching the card.
+ * when it may install four. A blueprint names no map on the row at all: what it
+ * draws instead is its own layout, below.
  *
  * A challenge draws the galaxy or run its `shape` carries (issue #309): a
  * conquest challenge whose shape rebuilt is a `"galaxy"`, a warpath challenge
  * whose shape rebuilt is a `"run"`. Nothing else qualifies, which already
  * covers every way a challenge card can miss out on a drawing: a mode a newer
- * coilbox introduced that this hub cannot generate, a challenge whose
- * settings would not rebuild, and a blueprint's own `"blueprint"` shape, which
- * stays on the kind plate until #310. `shape` comes from a page level batched
+ * coilbox introduced that this hub cannot generate, and a challenge whose
+ * settings would not rebuild.
+ *
+ * A blueprint draws its layout the same way (issue #310): its `shape`, when
+ * one rebuilt, is always `"blueprint"`, so unlike a challenge there is no
+ * second kind of shape to exclude. A blueprint with no buildings, or one
+ * PostgREST could not read the container for, has no `shape` at all and
+ * falls to the plate like every other empty case here.
+ *
+ * `shape` comes from a page level batched
  * lookup (`lib/gallery/cardShapes.ts`) and is `undefined` for a kind with
  * nothing to draw and for one that could not be rebuilt, either of which
  * falls back to the plate the same as a picture nothing was looked up for.
@@ -49,13 +55,14 @@ export function itemNamesItsMap(
 
 export type ItemCardArtChoice =
   | { type: "map"; picture: ResolvedAsset }
-  | { type: "art"; shape: Extract<CardShape, { type: "galaxy" | "run" }> }
+  | { type: "art"; shape: Extract<CardShape, { type: "galaxy" | "run" | "blueprint" }> }
   | { type: "plate" };
 
 /**
  * The art a card draws: the map's picture (or the placeholder standing in for
  * it, which is still `type: "map"` since either one is a picture of the actual
- * map), a challenge's galaxy or run, or the plate every other row gets.
+ * map), a challenge's galaxy or run, a blueprint's layout, or the plate every
+ * other row gets.
  */
 export function chooseItemCardArt(
   item: Pick<ItemSummary, "kind" | "map_name">,
@@ -64,6 +71,9 @@ export function chooseItemCardArt(
 ): ItemCardArtChoice {
   if (itemNamesItsMap(item) && picture) return { type: "map", picture };
   if (item.kind === "challenge" && (shape?.type === "galaxy" || shape?.type === "run")) {
+    return { type: "art", shape };
+  }
+  if (item.kind === "blueprint" && shape?.type === "blueprint") {
     return { type: "art", shape };
   }
   return { type: "plate" };

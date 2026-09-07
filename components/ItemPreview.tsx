@@ -34,6 +34,7 @@ import {
   type BuildingKind,
   type BuildingRun,
   planLabel,
+  type PlanBox,
 } from "@/lib/gallery/blueprintPreview";
 import { conquestGalaxy, type GalaxyShape } from "@/lib/gallery/conquestGalaxy";
 import { type RunShape, warpathRun } from "@/lib/gallery/warpathRun";
@@ -592,19 +593,9 @@ function BuildOrder({
 }
 
 /**
- * A layout of buildings, seen from above (see `lib/gallery/blueprintPreview`).
- *
- * One rounded square per building, each as big as the ground that building
- * stands on, laid out where the author put it, on the build grid it was drawn
- * against.
- *
- * A building the hub holds a buildpic of is drawn as that unit (issue #109).
- * The picture sits inside the ground the building stands on and the outline
- * stays over it, so a plan with pictures in it is still a plan and still reads
- * against the grid. A building with no picture keeps its tinted square, which is
- * what every building was before this and is a better answer than a row of
- * dashed boxes: the shape of the base and the relative size of the things in it
- * are most of what a person recognises a base by, and the square says both.
+ * A layout of buildings, seen from above: one rounded square per building,
+ * each as big as the ground that building stands on, laid out where the
+ * author put it, on the build grid it was drawn against.
  *
  * This is coilbox's `src/blueprint/LayoutPlan.tsx` drawn the same way, down to
  * the grid and the weight of every mark (tomjn/coilbox#1506). The site has no
@@ -616,6 +607,163 @@ function BuildOrder({
  * a long thin wall or a tall narrow column, and a box the shape of the base is
  * one nobody can take in at a glance, so the sheet keeps its shape and the base
  * sits on it (tomjn/coilbox#1508).
+ *
+ * `box` is what {@link blueprintSheet} fits the sheet to, and also what the
+ * scale-dependent weights above (grid opacity, corner radius, the start mark)
+ * are tuned against. The item page passes {@link PAGE_BOX}, its own declared
+ * size. A gallery card (`components/ItemCardArt.tsx`, issue #310) passes a
+ * box of its own, smaller and a different shape, so a thirty building base
+ * inside a card's fixed frame gets a grid and a start mark scaled to that
+ * frame rather than to the page's.
+ *
+ * `units` labels a building the hub holds a buildpic of, as that unit's
+ * picture rather than its tinted square (issue #109). Left at the default
+ * empty map, every building draws as a square: what the card wants, since
+ * pairing every building on a page of a dozen cards with a picture lookup
+ * would turn one fetch into one per building per card, the exact cost issue
+ * #310 exists to avoid. The item page passes the map it looked up.
+ *
+ * Exported so the card can draw the same geometry the item page does, the
+ * same split issue #309 made for {@link ConquestGalaxyArt} and
+ * {@link WarpathRunArt}. A card marks it `decorative`, because its kind badge
+ * already says "Blueprint" in words.
+ */
+export function BlueprintLayoutArt({
+  shape,
+  box,
+  className,
+  units = EMPTY,
+  decorative = false,
+}: {
+  shape: BlueprintShape;
+  box: PlanBox;
+  className: string;
+  units?: ReadonlyMap<string, ServedAsset>;
+  /** True for a card, where the kind badge already names the thing in
+   *  words and the drawing itself has nothing left to announce. */
+  decorative?: boolean;
+}) {
+  const sheet = blueprintSheet(shape, box);
+  const centres = shape.squares.map(
+    (square) =>
+      [square.x + square.width / 2, square.y + square.height / 2] as const,
+  );
+  // A thread needs somewhere to go, and one building in build order is a
+  // sequence of one.
+  const thread = shape.ordered && centres.length > 1 ? centres : null;
+
+  return (
+    <svg
+      viewBox={`${sheet.left} ${sheet.top} ${sheet.width} ${sheet.height}`}
+      className={className}
+      {...(decorative
+        ? { "aria-hidden": true as const }
+        : { role: "img" as const, "aria-label": planLabel(shape) })}
+    >
+      <g
+        className="text-neutral-400"
+        stroke="currentColor"
+        strokeOpacity={gridOpacity(sheet.scale)}
+      >
+        {sheet.verticals.map((x) => (
+          <line
+            key={`v${x}`}
+            x1={x}
+            y1={sheet.top}
+            x2={x}
+            y2={sheet.top + sheet.height}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+        {sheet.horizontals.map((y) => (
+          <line
+            key={`h${y}`}
+            x1={sheet.left}
+            y1={y}
+            x2={sheet.left + sheet.width}
+            y2={y}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+      </g>
+      {thread ? (
+        // Under the buildings. Over the top it reads as a route on a three
+        // building opening and as a scribble on a base with thirty stops.
+        <path
+          d={`M${thread.map(([x, y]) => `${x} ${y}`).join(" L")}`}
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity={threadOpacity(thread.length)}
+          strokeWidth={1.5}
+          strokeDasharray="3 5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      ) : null}
+      {shape.squares.map((square, i) => {
+        const picture = units.get(square.def.toLowerCase());
+        return (
+          <g key={i}>
+            {picture ? (
+              // Fitted inside the ground rather than filling it, so a square
+              // buildpic on a 3 by 5 building is not stretched into the wrong
+              // shape. Nothing here goes through `next/image`: these are
+              // already encoded at the size they are shown, and a Hobby plan
+              // gets around 5,000 transformations a month metered per unique
+              // source image, which is one per unit in the game.
+              <image
+                href={picture.url}
+                x={square.x}
+                y={square.y}
+                width={square.width}
+                height={square.height}
+                preserveAspectRatio="xMidYMid meet"
+              />
+            ) : null}
+            <rect
+              x={square.x}
+              y={square.y}
+              width={square.width}
+              height={square.height}
+              rx={corner(sheet.scale, square.width, square.height)}
+              fill="currentColor"
+              // A building the payload never sized is left an outline, so a
+              // guess at one square does not read as a measurement, and a
+              // building showing its own picture needs no tint under it.
+              fillOpacity={picture || !square.sized ? 0 : FILL}
+              stroke="currentColor"
+              strokeOpacity={OUTLINE}
+              // Strokes in pixels rather than build squares, so a big base
+              // gets the same hairline as a small one instead of a line
+              // thinner than the screen can draw.
+              strokeWidth={1.25}
+              strokeDasharray={square.sized ? undefined : "2 2"}
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        );
+      })}
+      {thread ? (
+        // Where the build order starts, drawn over the building it starts on.
+        <circle
+          cx={thread[0][0]}
+          cy={thread[0][1]}
+          r={startMark(sheet.scale)}
+          fill="currentColor"
+          fillOpacity={START}
+        />
+      ) : null}
+    </svg>
+  );
+}
+
+/**
+ * The item page's own plan: {@link BlueprintLayoutArt} at {@link PAGE_BOX},
+ * with pictures and unit names, plus the count of buildings and the roster or
+ * build order underneath.
  */
 function BlueprintLayout({
   shape,
@@ -632,121 +780,16 @@ function BlueprintLayout({
   names: ReadonlyMap<string, UnitNameLink>;
 }) {
   const buildings = shape.squares.length;
-  const sheet = blueprintSheet(shape, PAGE_BOX);
-  const centres = shape.squares.map(
-    (square) =>
-      [square.x + square.width / 2, square.y + square.height / 2] as const,
-  );
-  // A thread needs somewhere to go, and one building in build order is a
-  // sequence of one.
-  const thread = shape.ordered && centres.length > 1 ? centres : null;
 
   return (
     <div className="flex flex-col gap-3">
-      <svg
-        viewBox={`${sheet.left} ${sheet.top} ${sheet.width} ${sheet.height}`}
+      <BlueprintLayoutArt
+        shape={shape}
+        box={PAGE_BOX}
         // The size {@link PAGE_BOX} describes, so the sheet is the whole of it.
         className="mx-auto aspect-[4/3] w-full max-w-md text-neutral-300"
-        role="img"
-        aria-label={planLabel(shape)}
-      >
-        <g
-          className="text-neutral-400"
-          stroke="currentColor"
-          strokeOpacity={gridOpacity(sheet.scale)}
-        >
-          {sheet.verticals.map((x) => (
-            <line
-              key={`v${x}`}
-              x1={x}
-              y1={sheet.top}
-              x2={x}
-              y2={sheet.top + sheet.height}
-              strokeWidth={1}
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-          {sheet.horizontals.map((y) => (
-            <line
-              key={`h${y}`}
-              x1={sheet.left}
-              y1={y}
-              x2={sheet.left + sheet.width}
-              y2={y}
-              strokeWidth={1}
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-        </g>
-        {thread ? (
-          // Under the buildings. Over the top it reads as a route on a three
-          // building opening and as a scribble on a base with thirty stops.
-          <path
-            d={`M${thread.map(([x, y]) => `${x} ${y}`).join(" L")}`}
-            fill="none"
-            stroke="currentColor"
-            strokeOpacity={threadOpacity(thread.length)}
-            strokeWidth={1.5}
-            strokeDasharray="3 5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        ) : null}
-        {shape.squares.map((square, i) => {
-          const picture = units.get(square.def.toLowerCase());
-          return (
-            <g key={i}>
-              {picture ? (
-                // Fitted inside the ground rather than filling it, so a square
-                // buildpic on a 3 by 5 building is not stretched into the wrong
-                // shape. Nothing here goes through `next/image`: these are
-                // already encoded at the size they are shown, and a Hobby plan
-                // gets around 5,000 transformations a month metered per unique
-                // source image, which is one per unit in the game.
-                <image
-                  href={picture.url}
-                  x={square.x}
-                  y={square.y}
-                  width={square.width}
-                  height={square.height}
-                  preserveAspectRatio="xMidYMid meet"
-                />
-              ) : null}
-              <rect
-                x={square.x}
-                y={square.y}
-                width={square.width}
-                height={square.height}
-                rx={corner(sheet.scale, square.width, square.height)}
-                fill="currentColor"
-                // A building the payload never sized is left an outline, so a
-                // guess at one square does not read as a measurement, and a
-                // building showing its own picture needs no tint under it.
-                fillOpacity={picture || !square.sized ? 0 : FILL}
-                stroke="currentColor"
-                strokeOpacity={OUTLINE}
-                // Strokes in pixels rather than build squares, so a big base
-                // gets the same hairline as a small one instead of a line
-                // thinner than the screen can draw.
-                strokeWidth={1.25}
-                strokeDasharray={square.sized ? undefined : "2 2"}
-                vectorEffect="non-scaling-stroke"
-              />
-            </g>
-          );
-        })}
-        {thread ? (
-          // Where the build order starts, drawn over the building it starts on.
-          <circle
-            cx={thread[0][0]}
-            cy={thread[0][1]}
-            r={startMark(sheet.scale)}
-            fill="currentColor"
-            fillOpacity={START}
-          />
-        ) : null}
-      </svg>
+        units={units}
+      />
       <p className="text-xs text-neutral-400">
         {buildings} {buildings === 1 ? "building" : "buildings"}
         {shape.ordered ? ", in build order" : ""}
