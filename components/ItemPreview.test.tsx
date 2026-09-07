@@ -77,3 +77,11 @@ test("a build order line is linked the same way a roster line is", () => {
   expect(html.match(new RegExp(SOLAR, "g"))).toHaveLength(1);
   expect(html).toContain("2 ");
 });
+
+test("the plan draws in its own fixed colour, not grey (issue #318)", () => {
+  const html = render(
+    payload({ buildings: [{ def: "armsolar", offset: { x: 0, z: 0 }, facing: 0 }] }),
+    names(),
+  );
+  expect(html).toContain("text-blue-500");
+});
