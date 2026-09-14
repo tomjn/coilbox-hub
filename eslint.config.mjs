@@ -53,11 +53,29 @@ const eslintConfig = defineConfig([
           ],
         },
       ],
+      // `supabase.storage` is a property access rather than an import, so it
+      // needs its own rule alongside the one above rather than reuse of it.
+      // Same reasoning as @vercel/blob (#331): the staging bucket is private
+      // and content addressed, and `lib/assets/staging.ts` is the only place
+      // that is allowed to know that, or to reach for a listing call nothing
+      // here should ever make.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[property.name='storage']",
+          message:
+            "Use @/lib/assets/staging instead of supabase.storage directly. It is the only place the staging bucket's Storage client is allowed.",
+        },
+      ],
     },
   },
   {
     files: ["lib/assets/blob.ts"],
     rules: { "no-restricted-imports": "off" },
+  },
+  {
+    files: ["lib/assets/staging.ts"],
+    rules: { "no-restricted-syntax": "off" },
   },
 ]);
 
