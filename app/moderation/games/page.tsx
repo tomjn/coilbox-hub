@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ModerationNav } from "@/components/ModerationNav";
+import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { decideRequest, setGameVisibility, setVersionVisibility } from "@/app/games/actions";
 import { createClient } from "@/lib/supabase/server";
 
@@ -115,8 +116,14 @@ export default async function ModerationGames() {
             Visibility
           </h2>
 
-          <form action={setGameVisibility} className="flex items-end gap-2">
-            <input type="hidden" name="hidden" value="true" />
+          <VisibilityToggleForm
+            action={setGameVisibility}
+            fields={{ hidden: "true" }}
+            label="Hide"
+            pendingLabel="Hiding…"
+            formClassName="flex flex-wrap items-end gap-2"
+            buttonClassName="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+          >
             <div className="flex flex-col gap-1.5">
               <label htmlFor="hide-shortname" className="text-xs uppercase tracking-wide text-neutral-500">
                 Hide a game
@@ -130,16 +137,16 @@ export default async function ModerationGames() {
                 className="w-48 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
               />
             </div>
-            <button
-              type="submit"
-              className="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-            >
-              Hide
-            </button>
-          </form>
+          </VisibilityToggleForm>
 
-          <form action={setVersionVisibility} className="flex items-end gap-2">
-            <input type="hidden" name="hidden" value="true" />
+          <VisibilityToggleForm
+            action={setVersionVisibility}
+            fields={{ hidden: "true" }}
+            label="Hide"
+            pendingLabel="Hiding…"
+            formClassName="flex flex-wrap items-end gap-2"
+            buttonClassName="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+          >
             <div className="flex flex-col gap-1.5">
               <label htmlFor="hide-version-game" className="text-xs uppercase tracking-wide text-neutral-500">
                 Hide a release
@@ -163,13 +170,7 @@ export default async function ModerationGames() {
                 />
               </div>
             </div>
-            <button
-              type="submit"
-              className="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-            >
-              Hide
-            </button>
-          </form>
+          </VisibilityToggleForm>
 
           {hiddenGameRows.length > 0 || hiddenVersionRows.length > 0 ? (
             <div className="flex flex-col gap-3 pt-2">
@@ -180,16 +181,13 @@ export default async function ModerationGames() {
                     {hiddenGameRows.map((row) => (
                       <li key={row.shortname} className="flex items-center justify-between gap-3 text-sm">
                         <span className="font-mono text-neutral-300">{row.shortname}</span>
-                        <form action={setGameVisibility}>
-                          <input type="hidden" name="shortname" value={row.shortname} />
-                          <input type="hidden" name="hidden" value="false" />
-                          <button
-                            type="submit"
-                            className="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
-                          >
-                            Unhide
-                          </button>
-                        </form>
+                        <VisibilityToggleForm
+                          action={setGameVisibility}
+                          fields={{ shortname: row.shortname, hidden: "false" }}
+                          label="Unhide"
+                          pendingLabel="Unhiding…"
+                          buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                        />
                       </li>
                     ))}
                   </ul>
@@ -208,17 +206,13 @@ export default async function ModerationGames() {
                         <span className="font-mono text-neutral-300">
                           {row.game.shortname} {row.version}
                         </span>
-                        <form action={setVersionVisibility}>
-                          <input type="hidden" name="shortname" value={row.game.shortname} />
-                          <input type="hidden" name="version" value={row.version} />
-                          <input type="hidden" name="hidden" value="false" />
-                          <button
-                            type="submit"
-                            className="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
-                          >
-                            Unhide
-                          </button>
-                        </form>
+                        <VisibilityToggleForm
+                          action={setVersionVisibility}
+                          fields={{ shortname: row.game.shortname, version: row.version, hidden: "false" }}
+                          label="Unhide"
+                          pendingLabel="Unhiding…"
+                          buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                        />
                       </li>
                     ))}
                   </ul>
