@@ -268,7 +268,7 @@ test("an unhide from the moderation queue redirects there with the message", asy
   const attempt = setGameVisibility(null, form({ shortname: "BA", hidden: "false", onSuccess: "moderation" }));
 
   await expect(attempt).rejects.toMatchObject({
-    digest: "NEXT_REDIRECT;replace;/moderation/games?visibility=Game%20shown%20again.;307;",
+    digest: "NEXT_REDIRECT;replace;/moderation/games?visibility=game-shown;307;",
   });
 });
 
@@ -276,7 +276,7 @@ test("hiding a game from its own page redirects to its edit page with the messag
   const attempt = setGameVisibility(null, form({ shortname: "BA", hidden: "true", onSuccess: "edit" }));
 
   await expect(attempt).rejects.toMatchObject({
-    digest: "NEXT_REDIRECT;replace;/games/BA/edit?visibility=Game%20hidden.;307;",
+    digest: "NEXT_REDIRECT;replace;/games/BA/edit?visibility=game-hidden;307;",
   });
 });
 
@@ -355,6 +355,6 @@ test("unhiding a release from the moderation queue redirects there with the mess
   );
 
   await expect(attempt).rejects.toMatchObject({
-    digest: "NEXT_REDIRECT;replace;/moderation/games?visibility=Release%20shown%20again.;307;",
+    digest: "NEXT_REDIRECT;replace;/moderation/games?visibility=release-shown;307;",
   });
 });

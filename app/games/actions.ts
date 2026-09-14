@@ -10,7 +10,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { GameLink } from "@/lib/games/catalog";
 import { editableGame } from "@/lib/games/editor";
-import { EDIT_MESSAGES, type GameFormState, SNIPPET_MESSAGES, VISIBILITY_MESSAGES } from "@/lib/games/formState";
+import {
+  EDIT_MESSAGES,
+  type GameFormState,
+  SNIPPET_MESSAGES,
+  VISIBILITY_FLASH_MESSAGES,
+  VISIBILITY_MESSAGES,
+  type VisibilityFlashKey,
+} from "@/lib/games/formState";
 import {
   type GameImageUploadState,
   REMOVE_MESSAGES,
@@ -294,10 +301,10 @@ export async function setGameVisibility(
   revalidatePath(`/games/${shortname}`);
   revalidatePath("/moderation/games");
 
-  const message = hidden ? "Game hidden." : "Game shown again.";
+  const flashKey: VisibilityFlashKey = hidden ? "game-hidden" : "game-shown";
   const destination = visibilitySuccessDestination(String(form.get("onSuccess") ?? ""), shortname);
-  if (destination) redirect(`${destination}?visibility=${encodeURIComponent(message)}`);
-  return { ok: true, message };
+  if (destination) redirect(`${destination}?visibility=${flashKey}`);
+  return { ok: true, message: VISIBILITY_FLASH_MESSAGES[flashKey] };
 }
 
 /** Hide or show one release, on its game's edit page or the moderation queue
@@ -343,10 +350,10 @@ export async function setVersionVisibility(
   revalidatePath(`/games/${shortname}`);
   revalidatePath("/moderation/games");
 
-  const message = hidden ? "Release hidden." : "Release shown again.";
+  const flashKey: VisibilityFlashKey = hidden ? "release-hidden" : "release-shown";
   const destination = visibilitySuccessDestination(String(form.get("onSuccess") ?? ""), shortname);
-  if (destination) redirect(`${destination}?visibility=${encodeURIComponent(message)}`);
-  return { ok: true, message };
+  if (destination) redirect(`${destination}?visibility=${flashKey}`);
+  return { ok: true, message: VISIBILITY_FLASH_MESSAGES[flashKey] };
 }
 
 /**

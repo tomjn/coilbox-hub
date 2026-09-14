@@ -40,3 +40,24 @@ export const VISIBILITY_MESSAGES = {
   notSaved: "That could not be saved. Try again in a few minutes.",
   notSent: "The form did not reach the hub. Reload the page and try again.",
 } as const;
+
+/**
+ * The four confirmations a hide or show control's redirect can carry (#374).
+ * `setGameVisibility` and `setVersionVisibility` send the visitor on to a
+ * page that survives their own write, with one of these keys on the
+ * `visibility` search param rather than the message text itself - a URL
+ * param is visitor-controlled, and rendering whatever text arrived on it
+ * would let anyone hand a moderator a link that puts words on the hub's own
+ * page that were never the hub's (`VisibilityFlash`, `components/`). Every
+ * message here is one `VisibilityToggleForm` already shows inline, on a
+ * control that never redirects, so nothing here is new: the key only
+ * survives past the redirect the message text could not.
+ */
+export const VISIBILITY_FLASH_MESSAGES = {
+  "game-hidden": "Game hidden.",
+  "game-shown": "Game shown again.",
+  "release-hidden": "Release hidden.",
+  "release-shown": "Release shown again.",
+} as const;
+
+export type VisibilityFlashKey = keyof typeof VISIBILITY_FLASH_MESSAGES;

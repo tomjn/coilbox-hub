@@ -92,7 +92,7 @@ export default async function EditGame({
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Visibility</h2>
-          <VisibilityFlash message={flash} />
+          <VisibilityFlash flashKey={flash} />
           <p className="text-sm text-neutral-500">
             Hidden means off the site for everybody but the owner and moderators. Facts keep flowing; unhiding brings
             everything back.

@@ -119,7 +119,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
           <h2 id="mod-visibility" className="text-sm uppercase tracking-wide text-neutral-400">
             Visibility
           </h2>
-          <VisibilityFlash message={flash} />
+          <VisibilityFlash flashKey={flash} />
 
           <VisibilityToggleForm
             action={setGameVisibility}
