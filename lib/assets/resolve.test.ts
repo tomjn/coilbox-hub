@@ -141,11 +141,44 @@ test("a blob row resolves to the staging store and a static row to the durable t
   );
 });
 
-test("both tiers are sources a caller has to handle, alongside the placeholder", () => {
-  for (const tier of ASSET_TIERS) {
+test("both reachable tiers are sources a caller has to handle, alongside the placeholder", () => {
+  for (const tier of ASSET_TIERS.filter((tier) => tier !== "bucket")) {
     expect(ASSET_SOURCES).toContain(tier);
   }
   expect(ASSET_SOURCES).toContain("placeholder");
+});
+
+// The bucket is private, and nothing serves it to a browser until #334.
+
+test("a bucket row has no URL, rather than a Blob URL built out of its path", () => {
+  expect(assetTierUrl("bucket", "units/bar/buildpic/abc.webp")).toBeNull();
+});
+
+test("an approved row in the bucket draws the placeholder and never names its path", () => {
+  const held = heldOf([
+    BUILDPIC,
+    { tier: "bucket", path: "units/bar/buildpic/abc.webp", width: 256, height: 256, moderation: "approved" },
+  ]);
+
+  const resolved = resolveAsset(BUILDPIC, held, { width: 4, height: 4 });
+
+  expect(resolved.from).toBe("placeholder");
+  expect(JSON.stringify(resolved)).not.toContain("abc.webp");
+  expect(servable(held, BUILDPIC)).toBeNull();
+});
+
+test("a render in the bucket falls through to a buildpic the hub can serve", () => {
+  const held = heldOf(
+    [RENDER, { tier: "bucket", path: "units/bar/render/270/ghi.webp", width: 256, height: 192, moderation: "approved" }],
+    [BUILDPIC, { tier: "blob", path: "units/bar/buildpic/abc-Xy9.webp", width: 256, height: 256, moderation: "approved" }],
+  );
+
+  expect(resolveAsset(RENDER, held)).toMatchObject({
+    from: "blob",
+    served: BUILDPIC,
+    substituted: true,
+    url: `${BLOB_TIER_BASE}units/bar/buildpic/abc-Xy9.webp`,
+  });
 });
 
 // The rung that matters today: there are no asset rows anywhere, so this is what

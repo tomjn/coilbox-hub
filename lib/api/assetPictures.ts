@@ -7,7 +7,7 @@ import {
   UNIT_RENDER_VARIANT_PREFIX,
 } from "@/lib/assets/asset";
 import { identityKey } from "@/lib/assets/have";
-import { assetTierUrl, type HeldAssets, resolveAsset } from "@/lib/assets/resolve";
+import { type HeldAssets, resolveAsset } from "@/lib/assets/resolve";
 
 /**
  * The wire shape of the batch picture lookup (issue #171), the question
@@ -314,7 +314,7 @@ function pictureFor(identity: AssetIdentity, held: HeldAssets): AssetPicture | n
   return {
     tier: row.tier,
     path: row.path,
-    url: assetTierUrl(row.tier, row.path),
+    url: resolved.url,
     width: resolved.width,
     height: resolved.height,
     served_variant: resolved.served.variant,

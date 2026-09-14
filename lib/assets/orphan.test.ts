@@ -111,6 +111,10 @@ function fakeSupabase(world: World): SupabaseClient {
         matching = matching.filter((row) => row[column] === value);
         return builder;
       },
+      neq: (column: string, value: unknown) => {
+        matching = matching.filter((row) => row[column] !== value);
+        return builder;
+      },
       is: (column: string, value: unknown) => {
         matching = matching.filter((row) => row[column] === value);
         return builder;
@@ -227,6 +231,18 @@ test("an object a row names again is kept, whatever the queue says", async () =>
   expect(world.discarded).toEqual([]);
   expect(world.said).toEqual(["keep recycled.webp: a row names it, so it is not an orphan."]);
   invariant(world);
+});
+
+test("a path a bucket row names is never swept, even if the queue somehow holds it", async () => {
+  // Nothing queues a bucket path today: the trigger only records Blob paths.
+  // This is the backstop for whichever store the sweep deletes from after #335.
+  world.assets.push({ path: "units/bar/buildpic/enc-a.webp", tier: "bucket", blob_path: null });
+  world.orphan("units/bar/buildpic/enc-a.webp");
+
+  const result = await sweepOrphans(fakeSupabase(world), fakePorts(world));
+
+  expect(result).toEqual({ deleted: 0, kept: 1 });
+  expect(world.discarded).toEqual([]);
 });
 
 test("promotion's own drain queue is left to promotion", async () => {

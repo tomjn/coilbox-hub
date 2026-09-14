@@ -52,6 +52,8 @@ interface GameImagePaths {
   banner_path: string | null;
   logo_hash: string | null;
   banner_hash: string | null;
+  logo_staged_tier: string | null;
+  banner_staged_tier: string | null;
 }
 
 /** One picture a row names: the shared path and the hash that vouches for the
@@ -65,7 +67,12 @@ export interface GameImage {
 }
 
 /**
- * Every staging-tier picture a game row names, oldest row first.
+ * Every picture a game row says is staged in Blob, oldest row first.
+ *
+ * Only Blob. A picture staged in the Supabase bucket (#332) is not in Blob, and
+ * reading Blob at its path could find an older upload with the same bytes and
+ * delete it, leaving the bucket copy nothing will ever promote. #335 reads the
+ * bucket.
  *
  * Wants the secret key, for the reason the asset run gives: a staging pathname
  * is a working public URL and stays on the server.
@@ -75,16 +82,16 @@ export async function fetchStagedGameImages(
 ): Promise<GameImage[]> {
   const { data, error } = await supabase
     .from("game")
-    .select("shortname,logo_path,banner_path,logo_hash,banner_hash");
+    .select("shortname,logo_path,banner_path,logo_hash,banner_hash,logo_staged_tier,banner_staged_tier");
 
   if (error) throw new Error(`Could not read the game rows: ${error.message}`);
 
   const out: GameImage[] = [];
   for (const row of (data ?? []) as unknown as GameImagePaths[]) {
-    if (row.logo_path && row.logo_hash) {
+    if (row.logo_path && row.logo_hash && row.logo_staged_tier === "blob") {
       out.push({ shortname: row.shortname, kind: "logo", path: row.logo_path, hash: row.logo_hash });
     }
-    if (row.banner_path && row.banner_hash) {
+    if (row.banner_path && row.banner_hash && row.banner_staged_tier === "blob") {
       out.push({
         shortname: row.shortname,
         kind: "banner",

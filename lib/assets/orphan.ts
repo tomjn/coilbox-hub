@@ -119,8 +119,14 @@ export async function fetchOrphans(
  * it. Postgres holds every reference, so it is the one asked, rather than a
  * count kept alongside that could drift.
  *
- * Only `path`, and only on the staging tier. `blob_path` is a queued deletion
+ * Only `path`, and only on a staging tier. `blob_path` is a queued deletion
  * rather than a picture being served, and deleting an object twice is free.
+ *
+ * Both staging tiers, Blob and the bucket (#332). The sweep and the drain only
+ * delete from Blob today, and no bucket path is ever queued, so a bucket row
+ * cannot collide with anything they delete. Counting it anyway means no
+ * deletion can take a path a bucket row names, whichever store #335 points
+ * the deleters at.
  */
 export async function stagingPathsInUse(
   supabase: SupabaseClient,
@@ -134,7 +140,7 @@ export async function stagingPathsInUse(
     const { data, error } = await supabase
       .from("asset")
       .select("path")
-      .eq("tier", "blob")
+      .neq("tier", "static")
       .in("path", batch);
 
     if (error) {

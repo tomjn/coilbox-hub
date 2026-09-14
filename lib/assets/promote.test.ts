@@ -149,6 +149,10 @@ function fakeSupabase(world: World): SupabaseClient {
         matching = matching.filter((row) => row[col] === value);
         return builder;
       },
+      neq: (col: keyof Row, value: unknown) => {
+        matching = matching.filter((row) => row[col] !== value);
+        return builder;
+      },
       not: (col: keyof Row, _op: string, value: unknown) => {
         matching = matching.filter((row) => row[col] !== value);
         return builder;
@@ -321,6 +325,54 @@ test("nothing approved in the last day moves", async () => {
   expect(await run()).toEqual({ drained: 0, promoted: 0, skipped: 0, deleted: 0, unreadable: 0 });
   expect(world.rows[0].tier).toBe("blob");
   expect(world.discarded).toEqual([]);
+});
+
+// ## Rows in the Supabase bucket, which this run cannot read until #335
+
+test("an approved row in the bucket is not read, moved or deleted, and the Blob row beside it still moves", async () => {
+  world = new World([
+    unit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1", {
+      tier: "bucket",
+      path: "units/bar/buildpic/aaa1.webp",
+    }),
+    unit("00000000-0000-4000-8000-000000000002", "armllt", "bbb2"),
+  ]);
+  const read: string[] = [];
+  const ports = fakePorts(world);
+  const reading = ports.read;
+  ports.read = async (url) => {
+    read.push(url);
+    return reading(url);
+  };
+
+  const result = await runPromotion(fakeSupabase(world), ports, { now: NOW });
+
+  expect(result).toMatchObject({ promoted: 1, skipped: 0, unreadable: 0 });
+  expect(read).toEqual([`${BLOB_TIER_BASE}units/bar/buildpic/bbb2-Hn4vQ2rT.webp`]);
+  expect(world.rows[0]).toMatchObject({
+    tier: "bucket",
+    path: "units/bar/buildpic/aaa1.webp",
+    blob_path: null,
+    promoted_at: null,
+  });
+  expect(world.discarded).toEqual(["units/bar/buildpic/bbb2-Hn4vQ2rT.webp"]);
+});
+
+test("a promoted row replaced by a bucket upload drains its old Blob copy and nothing in the bucket", async () => {
+  world = new World([
+    unit("00000000-0000-4000-8000-000000000001", "armsolar", "ccc3", {
+      tier: "bucket",
+      path: "units/bar/buildpic/ccc3.webp",
+      blob_path: "units/bar/buildpic/aaa1-Hn4vQ2rT.webp",
+      moderation: "pending",
+    }),
+  ]);
+
+  const result = await run();
+
+  expect(result).toMatchObject({ drained: 1, promoted: 0 });
+  expect(world.discarded).toEqual(["units/bar/buildpic/aaa1-Hn4vQ2rT.webp"]);
+  expect(world.rows[0]).toMatchObject({ tier: "bucket", path: "units/bar/buildpic/ccc3.webp", blob_path: null });
 });
 
 // ## Killed at each step in turn
