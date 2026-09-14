@@ -9,6 +9,7 @@ import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
 import { StageStats, StageStrip } from "@/components/UnitStages";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { unitPageCached } from "@/lib/games/cached";
+import { editableGame } from "@/lib/games/editor";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -97,23 +98,14 @@ export default async function Unit({
   const { page, renders, buildpic, buildPictures } = loaded;
   const label = page.full_name ?? page.unit_name;
 
-  // The snippet form is the owner's alone, and the check is one read: the
-  // policy on the write would refuse anybody else anyway, but a form that can
-  // never succeed should not be on the page.
+  // The snippet form is for the owner or a moderator (#350): the policy on the
+  // write would refuse anybody else anyway, but a form that can never succeed
+  // should not be on the page.
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  let isOwner = false;
-  if (user) {
-    const { data: owned } = await supabase
-      .from("game")
-      .select("owner_user_id")
-      .eq("shortname", shortname)
-      .eq("owner_user_id", user.id)
-      .maybeSingle();
-    isOwner = owned !== null;
-  }
+  const mayEdit = user !== null && (await editableGame(supabase, user.id, shortname)) !== null;
 
   const versionQuery = (version?: string) =>
     version ? `?v=${encodeURIComponent(version)}` : "";
@@ -216,7 +208,7 @@ export default async function Unit({
           </section>
         ) : null}
 
-        {isOwner ? (
+        {mayEdit ? (
           <section className="flex flex-col gap-3" aria-labelledby="unit-snippet-edit">
             <h2 id="unit-snippet-edit" className="text-sm uppercase tracking-wide text-neutral-400">
               Author snippet

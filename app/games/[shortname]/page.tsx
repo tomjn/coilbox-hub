@@ -8,6 +8,7 @@ import { games } from "@/components/art/drawings";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { gameCountLabel, gameTitle, itemCountLabel } from "@/lib/games/labels";
 import { gamePageCached } from "@/lib/games/cached";
+import { editableGame } from "@/lib/games/editor";
 import type { GamePageFaction } from "@/lib/games/page";
 import { createClient } from "@/lib/supabase/server";
 
@@ -91,24 +92,15 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
 
   const title = gameTitle(page);
 
-  // The session decides which of the three ownership states the visitor sees:
-  // an unowned game asks for somebody to take it, the owner's own game offers
-  // the pen, and a game owned by somebody else says nothing, because who owns a
-  // game is not a fact a visitor needs.
+  // The session decides what the visitor sees: an unowned game asks for
+  // somebody to take it, the owner or a moderator (#350) gets the pen and the
+  // hide switch, and anybody else sees neither, because who owns a game is not
+  // a fact a visitor needs.
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const isOwner = user !== null && page.owner_user_id === user.id;
-  let mayHide = false;
-  if (user) {
-    if (isOwner) {
-      mayHide = true;
-    } else {
-      const { data: allowed } = await supabase.rpc("is_moderator");
-      mayHide = allowed === true;
-    }
-  }
+  const mayEdit = user !== null && (await editableGame(supabase, user.id, shortname)) !== null;
 
   return (
     <main className="relative flex-1">
@@ -147,7 +139,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           {page.release ? (
             <p className="text-sm text-neutral-500">Facts as of release {page.release}.</p>
           ) : null}
-          {isOwner ? (
+          {mayEdit ? (
             <p className="text-sm">
               <Link
                 href={`/games/${shortname}/edit`}
@@ -158,7 +150,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
               .
             </p>
           ) : null}
-          {mayHide ? (
+          {mayEdit ? (
             <form action={setGameVisibility} className="pt-1">
               <input type="hidden" name="shortname" value={shortname} />
               <input type="hidden" name="hidden" value="true" />
