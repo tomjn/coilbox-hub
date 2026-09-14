@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAssetMime } from "@/lib/assets/path";
-import { fetchAssetObject } from "@/lib/assets/queue";
+import { type AssetObject, fetchAssetObject } from "@/lib/assets/queue";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -56,15 +56,29 @@ export async function GET(
   if (!allowed) return new NextResponse(null, { status: 404 });
 
   const { id } = await ctx.params;
-  const object = await fetchAssetObject(createAdminClient(), id);
-  if (!object) return new NextResponse(null, { status: 404 });
-
-  const upstream = await fetch(object.url);
-  if (!upstream.ok || !upstream.body) {
+  let object: AssetObject | null;
+  try {
+    object = await fetchAssetObject(createAdminClient(), id);
+  } catch {
+    // A storage failure that was not a missing object (`fetchAssetObject`
+    // already turns that into null). The bucket is down or refused the read,
+    // and the browser gets a clean 502 rather than the raw storage error.
     return new NextResponse(null, { status: 502 });
   }
+  if (!object) return new NextResponse(null, { status: 404 });
 
-  return new NextResponse(upstream.body, {
+  let body: ReadableStream | Blob;
+  if (object.source === "bytes") {
+    body = object.bytes;
+  } else {
+    const upstream = await fetch(object.url);
+    if (!upstream.ok || !upstream.body) {
+      return new NextResponse(null, { status: 502 });
+    }
+    body = upstream.body;
+  }
+
+  return new NextResponse(body, {
     headers: {
       // The row's own type, but only when it is one the hub stores at all. A
       // pending row is whatever an untrusted client declared, and this response
