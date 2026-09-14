@@ -44,6 +44,7 @@ interface Row {
   moderation: string;
   world_height_min?: number | null;
   world_height_max?: number | null;
+  bytes_missing_at?: string | null;
 }
 
 function unitRow(overrides: Partial<Row> = {}): Row {
@@ -389,6 +390,26 @@ test("the query asks for approved rows and keys the answer by identity", async (
   expect(held.get(identityKey(MINIMAP))?.tier).toBe("blob");
 });
 
+/** #336. The suspended Blob store answers 403 for these, so a page given the
+ * URL would draw a broken image. The render falls back to its buildpic, and a
+ * minimap with no substitute to the placeholder. */
+test("a row whose bytes the store lost is never served, so the fallback shows", async () => {
+  const lost = "2026-09-14T12:00:00Z";
+  const held = await fetchHeldAssets(
+    fakeSupabase([
+      unitRow({ variant: "render:270", tier: "blob", path: "units/bar/render/270/r-Ab1.webp", bytes_missing_at: lost }),
+      unitRow(),
+      mapRow({ bytes_missing_at: lost }),
+    ]),
+    [RENDER, MINIMAP],
+  );
+
+  const render = resolveAsset(RENDER, held);
+  expect(render.from).toBe("static");
+  if (render.from !== "placeholder") expect(render.served).toEqual(BUILDPIC);
+  expect(resolveAsset(MINIMAP, held).from).toBe("placeholder");
+});
+
 /** The select list is the disclosure list on the public path, so it is asserted
  * rather than left to whoever edits it next. `path` is on it because a URL
  * cannot be built without one, and every row that reaches this query is approved
@@ -398,6 +419,7 @@ test("the query reads only the columns serving needs", async () => {
   await fetchHeldAssets(fakeSupabase([], queries), [BUILDPIC]);
 
   expect(queries[0].columns.split(", ").sort()).toEqual([
+    "bytes_missing_at",
     "game",
     "height",
     "map_name",

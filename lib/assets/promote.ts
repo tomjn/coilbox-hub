@@ -32,8 +32,9 @@ import { assetObjectPath } from "./path";
  * 1. Drain. Delete any staging object a previous run promoted and did not get
  *    round to deleting. Fails here: said out loud and carried on past, because
  *    nothing has changed and the next run drains it.
- * 2. Select. Approved, on the staging tier, untouched for a day. Dies
- *    here: nothing has changed.
+ * 2. Select. Approved, on the staging tier, untouched for a day, and not
+ *    marked as holding bytes the store lost (#336). Dies here: nothing has
+ *    changed.
  * 3. Read the bytes out of whichever store the row's `tier` names, Blob or the
  *    Supabase bucket (#335), and write them into the assets checkout under
  *    the content addressed path, which is recomputed from the row because a
@@ -185,6 +186,10 @@ export interface PromotionStatus {
   stalled: boolean;
   /** Uploads on the staging tier nobody has reviewed. */
   pending: number | null;
+  /** Rows whose bytes the Blob store would not return (#336). Promotion skips
+   *  them, so they are counted here rather than as due, and each one waits for
+   *  Coilbox to upload it again. */
+  missing: number | null;
   /** Staging objects promoted and not deleted yet. */
   leftover: number | null;
   /** Rows moved to the durable tier in the last 30 days. */
@@ -214,13 +219,14 @@ export async function fetchPromotionStatus(
   };
   const assets = () => supabase.from("asset").select("id", { count: "exact", head: true });
 
-  const [waiting, due, oldestDue, pending, leftover, promotedRecently, lastPromoted] =
+  const [waiting, due, oldestDue, pending, missing, leftover, promotedRecently, lastPromoted] =
     await Promise.all([
       count(
         assets()
           .in("tier", STAGING_TIERS)
           .eq("moderation", "approved")
           .is("blob_path", null)
+          .is("bytes_missing_at", null)
           .gt("updated_at", cutoff),
       ),
       count(
@@ -228,6 +234,7 @@ export async function fetchPromotionStatus(
           .in("tier", STAGING_TIERS)
           .eq("moderation", "approved")
           .is("blob_path", null)
+          .is("bytes_missing_at", null)
           .lte("updated_at", cutoff),
       ),
       supabase
@@ -236,10 +243,12 @@ export async function fetchPromotionStatus(
         .in("tier", STAGING_TIERS)
         .eq("moderation", "approved")
         .is("blob_path", null)
+        .is("bytes_missing_at", null)
         .lte("updated_at", cutoff)
         .order("updated_at", { ascending: true })
         .limit(1),
       count(assets().in("tier", STAGING_TIERS).eq("moderation", "pending")),
+      count(assets().not("bytes_missing_at", "is", null)),
       count(assets().not("blob_path", "is", null)),
       count(assets().gte("promoted_at", since)),
       supabase
@@ -265,6 +274,7 @@ export async function fetchPromotionStatus(
       dueSince !== null &&
       now.getTime() - new Date(dueSince).getTime() > PROMOTION_STALL_HOURS * 60 * 60 * 1000,
     pending,
+    missing,
     leftover,
     promotedRecently,
     lastPromotedAt: lastPromoted.error
@@ -289,6 +299,10 @@ export function durablePath(row: PromotableRow): string | null {
 /**
  * The rows due to move, oldest approval first.
  *
+ * Not a row marked as holding bytes the store lost (#336). Reading it would only
+ * fail, and the oldest rows are the ones a suspended store took, so enough of
+ * them would fill every batch and nothing staged since would ever move.
+ *
  * Wants the secret key. The read is narrowed to approved rows anyway, so row
  * level security would not hide anything this needs, but `path` on a staging
  * row is a working public URL and the rule in `./queue` is that it stays on the
@@ -305,6 +319,7 @@ export async function fetchPromotable(
     .in("tier", STAGING_TIERS)
     .eq("moderation", "approved")
     .is("blob_path", null)
+    .is("bytes_missing_at", null)
     .lte("updated_at", promotionCutoff(now))
     .order("updated_at", { ascending: true })
     .limit(limit);
@@ -340,7 +355,8 @@ export async function stillPromotable(
     .select("id")
     .in("id", ids)
     .in("tier", STAGING_TIERS)
-    .eq("moderation", "approved");
+    .eq("moderation", "approved")
+    .is("bytes_missing_at", null);
 
   if (error) throw new Error(`Could not re-check the batch before pushing: ${error.message}`);
 

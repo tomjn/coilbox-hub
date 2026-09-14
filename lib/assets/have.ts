@@ -11,10 +11,13 @@ import type { AssetIdentity } from "./asset";
  * live on. `lib/assets/blob.ts` does not export either one.
  */
 
-/** The five columns an answer needs. Not `hash`, which is over the encoded
- * bytes and differs between Coilbox releases and libwebp builds, so comparing
- * on it would report the whole corpus as changed after any encoder upgrade. */
-const HAVE_COLUMNS = "game, unit_name, map_name, variant, source_hash";
+/** The columns an answer needs. Not `hash`, which is over the encoded bytes and
+ * differs between Coilbox releases and libwebp builds, so comparing on it would
+ * report the whole corpus as changed after any encoder upgrade.
+ *
+ * `moderation` and `bytes_missing_at` decide whether a row counts as held at
+ * all. See {@link heldForHave}. */
+const HAVE_COLUMNS = "game, unit_name, map_name, variant, source_hash, moderation, bytes_missing_at";
 
 /**
  * How many identity keys go into one PostgREST request.
@@ -34,6 +37,24 @@ interface AssetHaveRow {
   map_name: string | null;
   variant: string;
   source_hash: string;
+  moderation: string;
+  bytes_missing_at: string | null;
+}
+
+/**
+ * Whether a row means the hub holds the picture, for the have check.
+ *
+ * Not when the store it names has lost the bytes (#336). The row stays for its
+ * history, but answering `have` for it would stop the one client that still has
+ * the file from ever offering it again, and the upload rules take the bytes back
+ * even with the same `source_hash`.
+ *
+ * Except when it is rejected. An upload cannot undo a rejection, so answering
+ * missing would have a client send it again on every run and be refused every
+ * time.
+ */
+export function heldForHave(row: { moderation: string; bytes_missing_at: string | null }): boolean {
+  return row.bytes_missing_at === null || row.moderation === "rejected";
 }
 
 /**
@@ -153,6 +174,7 @@ export async function fetchAssetSourceHashes(
   for (const { data, error } of responses) {
     if (error || !data) return { ok: false };
     for (const row of data as unknown as AssetHaveRow[]) {
+      if (!heldForHave(row)) continue;
       sourceHashes.set(identityKey(rowIdentity(row)), row.source_hash);
     }
   }

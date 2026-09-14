@@ -138,9 +138,12 @@ export type ResolvedAsset = ServedAsset | PlaceholderAsset;
  * They disclose nothing new. They are null on every row but an `overlay:height`
  * one, and on that row they are heights of a map whose own span `public.map`
  * already publishes to everybody through `/api/v1/maps/lookup`.
+ *
+ * `bytes_missing_at` is read to drop a row and never kept. See
+ * {@link fetchHeldAssets}.
  */
 const SERVE_COLUMNS =
-  "game, unit_name, map_name, variant, tier, path, width, height, moderation, world_height_min, world_height_max";
+  "game, unit_name, map_name, variant, tier, path, width, height, moderation, world_height_min, world_height_max, bytes_missing_at";
 
 /** A row as far as serving is concerned. */
 export interface HeldRow {
@@ -257,7 +260,13 @@ export async function fetchHeldAssets(
   for (const { data, error } of responses) {
     if (error || !data) continue;
 
-    for (const row of data as unknown as (HeldRow & Parameters<typeof rowIdentity>[0])[]) {
+    for (const row of data as unknown as (HeldRow &
+      Parameters<typeof rowIdentity>[0] & { bytes_missing_at?: string | null })[]) {
+      // A row whose bytes the Blob store would not return (#336) is served as
+      // if there were no row. Its URL answers 403, and the buildpic or the
+      // placeholder is a picture where a broken image is not.
+      if (row.bytes_missing_at) continue;
+
       held.set(identityKey(rowIdentity(row)), {
         tier: row.tier,
         path: row.path,

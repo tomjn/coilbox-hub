@@ -62,6 +62,7 @@ interface ExistingRow {
   uploaded_by: string | null;
   moderation: string;
   bytes: number;
+  bytes_missing_at: string | null;
 }
 
 /** The row this identity already has, owned by the caller and holding source
@@ -76,6 +77,7 @@ function held(overrides: Partial<ExistingRow> = {}): ExistingRow {
     uploaded_by: USER,
     moderation: "approved",
     bytes: 4096,
+    bytes_missing_at: null,
     ...overrides,
   };
 }
@@ -422,6 +424,40 @@ test("the same source bytes again are refused rather than stored twice", async (
   expect(result.error).toContain("/api/v1/assets/have");
 });
 
+/** #336. The store the row names will not return the bytes, so `have` answered
+ * missing and the client is sending the very bytes the hub lost. */
+test("the same source bytes are taken when the hub has lost the row's bytes", async () => {
+  const result = await check(
+    world({ existing: held({ source_hash: "raw-abc", bytes_missing_at: "2026-09-14T12:00:00Z" }) }),
+  );
+
+  expect(result).toEqual({ ok: true, path: expect.any(String), replacing: "held" });
+});
+
+test("a rejected row stays rejected when its bytes are lost", async () => {
+  const result = await check(
+    world({
+      existing: held({ source_hash: "raw-abc", moderation: "rejected", bytes_missing_at: "2026-09-14T12:00:00Z" }),
+    }),
+  );
+
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.error).toContain("rejected");
+});
+
+test("another account still cannot replace a row whose bytes are lost", async () => {
+  const result = await check(
+    world({
+      existing: held({ source_hash: "raw-abc", uploaded_by: "someone-else", bytes_missing_at: "2026-09-14T12:00:00Z" }),
+    }),
+  );
+
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.status).toBe(409);
+});
+
 /**
  * #332. The bucket path is content addressed and has no suffix, so identical
  * bytes land at the path this answers with and the route reuses the object it
@@ -705,4 +741,6 @@ test("an upload's row says its bytes are in the bucket, at the path the hub comp
     ["bucket", path],
     ["bucket", path],
   ]);
+  // A replacement has the bytes the row was missing (#336).
+  expect(written[1].bytes_missing_at).toBeNull();
 });
