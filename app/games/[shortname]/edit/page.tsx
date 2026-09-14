@@ -5,6 +5,7 @@ import { editableGame } from "@/lib/games/editor";
 import { loadGamePage } from "@/lib/games/page";
 import { createClient } from "@/lib/supabase/server";
 import { GameImageForm } from "./GameImageForm";
+import { GameImageRemoveForm } from "./GameImageRemoveForm";
 
 /**
  * The edit page for a game's owner or a moderator (#229, #350).
@@ -15,7 +16,8 @@ import { GameImageForm } from "./GameImageForm";
  * description with it.
  *
  * Everything here is ordinary forms posting to server actions, except the two
- * uploads, which check a file's size in the browser first (`GameImageForm`).
+ * uploads, which check a file's size in the browser first (`GameImageForm`),
+ * and the controls that remove a logo or banner (`GameImageRemoveForm`, #360).
  * The links rows are a fixed set of five pairs rather than a dynamic add
  * button, because a button that needs a bundle to work is a worse trade than
  * five rows nobody has to fill in.
@@ -184,12 +186,14 @@ export default async function EditGame({
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Logo</h2>
           <p className="text-sm text-neutral-500">Square, PNG or WebP, up to 512 KB.</p>
           <GameImageForm shortname={shortname} kind="logo" />
+          <GameImageRemoveForm shortname={shortname} kind="logo" present={page.logo_path !== null} />
         </section>
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Banner</h2>
           <p className="text-sm text-neutral-500">Wide, PNG or WebP, up to 512 KB.</p>
           <GameImageForm shortname={shortname} kind="banner" />
+          <GameImageRemoveForm shortname={shortname} kind="banner" present={page.banner_path !== null} />
         </section>
       </div>
     </main>
