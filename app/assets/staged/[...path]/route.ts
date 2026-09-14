@@ -23,8 +23,8 @@ import { createAnonClient } from "@/lib/supabase/anon";
  * The path is a hash of the bytes, so a served response is marked immutable for
  * a year. Vercel's CDN caches it and so does the visitor's browser.
  *
- * The cost is that a rejection or a licence withdrawal after approval cannot
- * recall copies already handed out. The route refuses the next request that
+ * The cost is that a rejection after approval cannot recall copies already
+ * handed out. The route refuses the next request that
  * reaches it, and the pages stop naming the URL as their caches refresh. But
  * the CDN keeps serving its copy until the next deployment, which is when
  * Vercel drops a deployment's cache, and a browser that already loaded the
