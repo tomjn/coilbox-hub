@@ -11,6 +11,7 @@ import {
 import { apiError } from "@/lib/api/response";
 import { TAGS } from "@/lib/cache/tags";
 import { encodedHash } from "@/lib/assets/hash";
+import { editableGame } from "@/lib/games/editor";
 import { readImageHeader } from "@/lib/assets/imageHeader";
 import { putStagedGameImage } from "@/lib/assets/staging";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -19,7 +20,7 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
 
 /**
  * Where a game's own art arrives (#285): one logo or banner per request, from
- * an account the game row names as its owner.
+ * the account the game row names as its owner, or from a moderator (#350).
  *
  * This is the API twin of `uploadGameImage` (`app/games/actions.ts`), which is
  * the same write for a browser form. Both exist because the branding catalog
@@ -34,8 +35,10 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * are measurements off an archive: wrong ones are wrong data. A picture on a
  * game row is a voice, and #229 settled that voices belong to owners - the
  * owner update policy writes everything about a game except its identity,
- * images and ownership, and images get their own gate rather than none. The
- * web action checks the same thing through the visitor's own client.
+ * images and ownership, and images get their own gate rather than none. A
+ * moderator may do anything an owner may, on any game, so the gate lets them
+ * through too. The web action asks the same question, `editableGame`, through
+ * the visitor's own client.
  *
  * ## Why it needs no moderation queue
  *
@@ -107,18 +110,14 @@ export async function POST(request: Request) {
     return apiError(SUPABASE_SERVICE_ROLE_ERROR, 503);
   }
 
-  // Ownership through the visitor's own client, so row level security answers
-  // rather than a service role that bypasses it. The secret key below earns its
-  // place only after this check came back with the game.
-  const { data: owned } = await auth.supabase
-    .from("game")
-    .select("id")
-    .eq("shortname", parsed.shortname)
-    .eq("owner_user_id", auth.user.id)
-    .maybeSingle();
+  // The owner or a moderator (#350), asked through the visitor's own client, so
+  // row level security answers rather than a service role that bypasses it.
+  // The secret key below earns its place only after this check came back with
+  // the game.
+  const owned = await editableGame(auth.supabase, auth.user.id, parsed.shortname);
 
   if (!owned) {
-    return apiError("Only the account the game row names as its owner may send its art.", 403);
+    return apiError("Only the game's owner or a moderator may send its art.", 403);
   }
 
   // The hash over the encoded bytes decides whether anything changes at all,
