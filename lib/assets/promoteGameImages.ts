@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { blobTierUrl } from "./blob";
-import type { PromotionPorts } from "./promote";
+import { type PromotionPorts, StagingReadError } from "./promote";
 
 /**
  * Moving a game's own art out of the staging tier and into the durable one
@@ -28,9 +28,10 @@ import type { PromotionPorts } from "./promote";
  * The same direction every step fails in as the asset run: a picture may end up
  * in both tiers, never in neither.
  *
- * 1. Read the staging bytes for each path a row names. Absent means already
+ * 1. Read the staging bytes for each path a row names. A 404 means already
  *    promoted, or written straight to the durable tier by the import script,
- *    or never uploaded at all - all ordinary, all skipped here.
+ *    or never uploaded at all - all ordinary, all skipped quietly. Any other
+ *    answer is the store refusing, which is said out loud and counted.
  * 2. Hash what arrived against the row. Mismatch means a newer upload replaced
  *    the object between the row's write and this read; skip rather than commit
  *    bytes nobody asked for.
@@ -104,6 +105,8 @@ export interface GameImagePromotionResult {
   /** Pictures the run looked at and left alone, each of which was said out
    *  loud. */
   skipped: number;
+  /** Of the skipped, the ones the store would not return. */
+  unreadable: number;
 }
 
 /**
@@ -118,6 +121,7 @@ export async function runGameImagePromotion(
   const seen = new Set<string>();
   const pushing: GameImage[] = [];
   let skipped = 0;
+  let unreadable = 0;
 
   for (const image of images) {
     if (seen.has(image.path)) continue;
@@ -125,9 +129,21 @@ export async function runGameImagePromotion(
     let bytes: Uint8Array;
     try {
       bytes = await ports.read(blobTierUrl(image.path));
-    } catch {
+    } catch (error) {
       // Not on the staging tier: promoted by an earlier run, written straight
       // to the durable one by the import script, or simply never uploaded.
+      if (error instanceof StagingReadError && error.status === 404) continue;
+
+      // Anything else is not an absence. A suspended store answers 403 for
+      // every path, and reading that as "already promoted" hides the outage.
+      seen.add(image.path);
+      ports.say(
+        `skip ${image.path}: the store would not return it: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      skipped++;
+      unreadable++;
       continue;
     }
     seen.add(image.path);
@@ -150,7 +166,7 @@ export async function runGameImagePromotion(
 
   if (pushing.length === 0) {
     ports.say("No game pictures are waiting on the staging tier.");
-    return { promoted: 0, skipped };
+    return { promoted: 0, skipped, unreadable };
   }
 
   await ports.publish(pushing.map((image) => image.path));
@@ -170,5 +186,5 @@ export async function runGameImagePromotion(
   await ports.discard(pushing.map((image) => image.path));
   ports.say(`Promoted ${pushing.length} game picture(s) and cleared their staging copies.`);
 
-  return { promoted: pushing.length, skipped };
+  return { promoted: pushing.length, skipped, unreadable };
 }

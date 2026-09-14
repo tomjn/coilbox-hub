@@ -60,7 +60,12 @@ import { dirname, join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { blobTierUrl, deleteBlobAssets } from "@/lib/assets/blob";
 import { staticTierUrl } from "@/lib/assets/cdn";
-import { PROMOTION_BATCH, type PromotionPorts, runPromotion } from "@/lib/assets/promote";
+import {
+  PROMOTION_BATCH,
+  type PromotionPorts,
+  runPromotion,
+  StagingReadError,
+} from "@/lib/assets/promote";
 import { runGameImagePromotion } from "@/lib/assets/promoteGameImages";
 import {
   fetchOutstandingWithdrawals,
@@ -205,10 +210,17 @@ async function dispatchPages(): Promise<void> {
   }
 }
 
+/** Every status the store refused a read with, so the end of the run can say
+ *  what a wall of them most likely means. */
+const refusals = new Set<number>();
+
 const ports: PromotionPorts = {
   read: async (from) => {
     const response = await fetch(from, { cache: "no-store" });
-    if (!response.ok) throw new Error(`${response.status} reading ${from}`);
+    if (!response.ok) {
+      if (response.status !== 404) refusals.add(response.status);
+      throw new StagingReadError(response.status, from);
+    }
     return new Uint8Array(await response.arrayBuffer());
   },
 
@@ -325,20 +337,47 @@ if (withdrawn) {
       `Dry run only. Re-run with --write to apply.`,
   );
 } else {
-  const result = await runPromotion(supabase, ports, { limit });
+  // Both passes run whatever the other did, and the job fails at the end if
+  // either needs a person. One pass throwing used to take the other with it,
+  // which is how a single unreadable minimap stopped every game picture too.
+  let failed = false;
 
-  console.log(
-    `${result.drained} drained, ${result.promoted} promoted, ${result.deleted} deleted, ${result.skipped} skipped.`,
-  );
+  try {
+    const result = await runPromotion(supabase, ports, { limit });
 
-  // A skip is a row the run read and did not move, which is normal once
-  // (something changed underneath it) and a fault if it keeps happening. It is
-  // not a reason to fail the run: the rows that did move, moved.
+    console.log(
+      `${result.drained} drained, ${result.promoted} promoted, ${result.deleted} deleted, ${result.skipped} skipped.`,
+    );
+
+    // A skip is a row the run read and did not move, which is normal once
+    // (something changed underneath it) and a fault if it keeps happening. It is
+    // not a reason to fail the run: the rows that did move, moved. A row whose
+    // bytes the store would not return is, because nothing will change until
+    // somebody looks.
+    if (result.skipped > 0) console.log("Skipped rows are listed above with the reason.");
+    if (result.unreadable > 0) failed = true;
+  } catch (error) {
+    console.error("The asset pass stopped:", error);
+    failed = true;
+  }
 
   // The game pictures ride the same run and the same ports. After the asset
   // pass, so their files join whatever commit it made or start their own.
-  const images = await runGameImagePromotion(supabase, ports);
-  if (images.skipped > 0) console.log(`${images.skipped} game picture(s) skipped, listed above.`);
+  try {
+    const images = await runGameImagePromotion(supabase, ports);
+    if (images.skipped > 0) console.log(`${images.skipped} game picture(s) skipped, listed above.`);
+    if (images.unreadable > 0) failed = true;
+  } catch (error) {
+    console.error("The game picture pass stopped:", error);
+    failed = true;
+  }
 
-  if (result.skipped > 0) console.log("Skipped rows are listed above with the reason.");
+  if (refusals.has(403)) {
+    console.error(
+      "The staging store answered 403. That is what Vercel Blob returns for every object while " +
+        "a store is suspended for going over an allowance. Check the store's usage page.",
+    );
+  }
+
+  if (failed) process.exitCode = 1;
 }
