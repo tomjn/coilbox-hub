@@ -10,6 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { GameLink } from "@/lib/games/catalog";
 import { editableGame } from "@/lib/games/editor";
+import { EDIT_MESSAGES, type GameFormState, SNIPPET_MESSAGES, VISIBILITY_MESSAGES } from "@/lib/games/formState";
 import {
   type GameImageUploadState,
   REMOVE_MESSAGES,
@@ -136,15 +137,25 @@ export async function decideRequest(form: FormData): Promise<void> {
   if (shortname) revalidatePath(`/games/${shortname}`);
 }
 
-export async function editGameDetails(form: FormData): Promise<void> {
+/**
+ * The words form on a game's edit page: display name, description, links
+ * (#362). Answered the way an image upload is (#354), because a save that
+ * silently touched nothing was the same bug: the owner or moderator who lost
+ * their grant while the page sat open had no way to tell a refused save from
+ * a successful one.
+ */
+export async function editGameDetails(
+  _previous: GameFormState | null,
+  form: FormData,
+): Promise<GameFormState> {
   const shortname = String(form.get("shortname") ?? "");
-  if (!shortname) return;
+  if (!shortname) return { ok: false, message: EDIT_MESSAGES.notSent };
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/sign-in");
+  if (!user) return { ok: false, message: EDIT_MESSAGES.signedOut };
 
   const displayName = String(form.get("display_name") ?? "").trim().slice(0, 256);
 
@@ -152,7 +163,7 @@ export async function editGameDetails(form: FormData): Promise<void> {
   // change, so a stranger's edit succeeds over nothing. Returning the rows is
   // how the action knows whether it was the owner or a moderator writing, or a
   // passer-by.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("game")
     .update({
       display_name: displayName || null,
@@ -162,22 +173,35 @@ export async function editGameDetails(form: FormData): Promise<void> {
     .eq("shortname", shortname)
     .select("shortname");
 
-  if (data && data.length > 0) {
-    revalidatePath(`/games/${shortname}`);
-    revalidatePath("/games");
+  if (error) {
+    console.error(`editGameDetails: ${shortname} was not updated`, error);
+    return { ok: false, message: EDIT_MESSAGES.notSaved };
   }
+  if (!data || data.length === 0) {
+    return { ok: false, message: EDIT_MESSAGES.notAllowed };
+  }
+
+  revalidatePath(`/games/${shortname}`);
+  revalidatePath("/games");
+  return { ok: true, message: EDIT_MESSAGES.saved };
 }
 
-export async function setSnippet(form: FormData): Promise<void> {
+/** A unit's author snippet, on its own page (#362). Same shape of answer as
+ *  the words form: a game that no longer exists, or a write the ownership
+ *  policy filters out, reads the same as any other refusal. */
+export async function setSnippet(
+  _previous: GameFormState | null,
+  form: FormData,
+): Promise<GameFormState> {
   const shortname = String(form.get("shortname") ?? "");
   const unitName = String(form.get("unit_name") ?? "");
-  if (!shortname || !unitName) return;
+  if (!shortname || !unitName) return { ok: false, message: SNIPPET_MESSAGES.notSent };
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/sign-in");
+  if (!user) return { ok: false, message: SNIPPET_MESSAGES.signedOut };
 
   const snippet = String(form.get("snippet") ?? "").trim().slice(0, 2000);
 
@@ -186,36 +210,51 @@ export async function setSnippet(form: FormData): Promise<void> {
     .select("id")
     .eq("shortname", shortname)
     .maybeSingle();
-  if (!game) return;
+  if (!game) return { ok: false, message: SNIPPET_MESSAGES.notAllowed };
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("game_unit")
     .update({ snippet: snippet || null })
     .eq("game_id", game.id)
     .eq("unit_name", unitName)
     .select("unit_name");
 
-  if (data && data.length > 0) {
-    revalidatePath(`/games/${shortname}/units/${unitName}`);
+  if (error) {
+    console.error(`setSnippet: ${shortname}/${unitName} was not updated`, error);
+    return { ok: false, message: SNIPPET_MESSAGES.notSaved };
   }
+  if (!data || data.length === 0) {
+    return { ok: false, message: SNIPPET_MESSAGES.notAllowed };
+  }
+
+  revalidatePath(`/games/${shortname}/units/${unitName}`);
+  return { ok: true, message: SNIPPET_MESSAGES.saved };
 }
 
-export async function setGameVisibility(form: FormData): Promise<void> {
+/** Hide or show a game, on its edit page or the moderation queue (#242, #362). */
+export async function setGameVisibility(
+  _previous: GameFormState | null,
+  form: FormData,
+): Promise<GameFormState> {
   const shortname = String(form.get("shortname") ?? "");
   const hidden = form.get("hidden") === "true";
-  if (!shortname) return;
+  if (!shortname) return { ok: false, message: VISIBILITY_MESSAGES.notSent };
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: VISIBILITY_MESSAGES.signedOut };
 
   const admin = createAdmin();
-  if (!user || !admin) return;
+  if (!admin) {
+    console.error(`setGameVisibility: no secret key, so ${shortname} was not updated`);
+    return { ok: false, message: VISIBILITY_MESSAGES.notSaved };
+  }
 
   // A moderator or the game's owner (#242), asked with the visitor's own client.
   const game = await editableGame(supabase, user.id, shortname);
-  if (!game) return;
+  if (!game) return { ok: false, message: VISIBILITY_MESSAGES.notAllowed };
 
   // The columns ride one update: who and when are part of the fact, and
   // unhiding clears both rather than leaving a stale name on a visible row.
@@ -227,29 +266,42 @@ export async function setGameVisibility(form: FormData): Promise<void> {
         : { hidden_at: null, hidden_by: null },
     )
     .eq("id", game.id);
-  if (error) return;
+  if (error) {
+    console.error(`setGameVisibility: ${shortname} was not updated`, error);
+    return { ok: false, message: VISIBILITY_MESSAGES.notSaved };
+  }
 
   revalidatePath("/games");
   revalidatePath(`/games/${shortname}`);
   revalidatePath("/moderation/games");
+  return { ok: true, message: hidden ? "Game hidden." : "Game shown again." };
 }
 
-export async function setVersionVisibility(form: FormData): Promise<void> {
+/** Hide or show one release, on its game's edit page or the moderation queue
+ *  (#242, #362). */
+export async function setVersionVisibility(
+  _previous: GameFormState | null,
+  form: FormData,
+): Promise<GameFormState> {
   const shortname = String(form.get("shortname") ?? "");
   const version = String(form.get("version") ?? "").slice(0, 64);
   const hidden = form.get("hidden") === "true";
-  if (!shortname || !version) return;
+  if (!shortname || !version) return { ok: false, message: VISIBILITY_MESSAGES.notSent };
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: VISIBILITY_MESSAGES.signedOut };
 
   const admin = createAdmin();
-  if (!user || !admin) return;
+  if (!admin) {
+    console.error(`setVersionVisibility: no secret key, so ${shortname} ${version} was not updated`);
+    return { ok: false, message: VISIBILITY_MESSAGES.notSaved };
+  }
 
   const game = await editableGame(supabase, user.id, shortname);
-  if (!game) return;
+  if (!game) return { ok: false, message: VISIBILITY_MESSAGES.notAllowed };
 
   const { error } = await admin
     .from("game_version")
@@ -260,10 +312,14 @@ export async function setVersionVisibility(form: FormData): Promise<void> {
     )
     .eq("game_id", game.id)
     .eq("version", version);
-  if (error) return;
+  if (error) {
+    console.error(`setVersionVisibility: ${shortname} ${version} was not updated`, error);
+    return { ok: false, message: VISIBILITY_MESSAGES.notSaved };
+  }
 
   revalidatePath(`/games/${shortname}`);
   revalidatePath("/moderation/games");
+  return { ok: true, message: hidden ? "Release hidden." : "Release shown again." };
 }
 
 /**

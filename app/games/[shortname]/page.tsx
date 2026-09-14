@@ -6,6 +6,7 @@ import { requestOwnership, setGameVisibility } from "@/app/games/actions";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { RichText } from "@/components/RichText";
+import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle, itemCountLabel } from "@/lib/games/labels";
@@ -166,16 +167,15 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
             </p>
           ) : null}
           {mayEdit ? (
-            <form action={setGameVisibility} className="pt-1">
-              <input type="hidden" name="shortname" value={shortname} />
-              <input type="hidden" name="hidden" value="true" />
-              <button
-                type="submit"
-                className="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
-              >
-                Hide this game
-              </button>
-            </form>
+            <div className="pt-1">
+              <VisibilityToggleForm
+                action={setGameVisibility}
+                fields={{ shortname, hidden: "true" }}
+                label="Hide this game"
+                pendingLabel="Hiding…"
+                buttonClassName="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+              />
+            </div>
           ) : null}
         </div>
 

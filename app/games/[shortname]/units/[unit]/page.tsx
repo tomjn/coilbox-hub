@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { setSnippet } from "@/app/games/actions";
 import { StatTable } from "@/components/StatTable";
 import { UnitCard } from "@/components/UnitCard";
 import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
@@ -11,6 +10,7 @@ import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { unitPageCached } from "@/lib/games/cached";
 import { editableGame } from "@/lib/games/editor";
 import { createClient } from "@/lib/supabase/server";
+import { SnippetForm } from "./SnippetForm";
 
 /**
  * One unit (#227).
@@ -213,25 +213,7 @@ export default async function Unit({
             <h2 id="unit-snippet-edit" className="text-sm uppercase tracking-wide text-neutral-400">
               Author snippet
             </h2>
-            <form action={setSnippet} className="flex flex-col gap-2">
-              <input type="hidden" name="shortname" value={shortname} />
-              <input type="hidden" name="unit_name" value={page.unit_name} />
-              <textarea
-                name="snippet"
-                rows={3}
-                maxLength={2000}
-                defaultValue={page.snippet ?? ""}
-                placeholder="A sentence about this unit, in your own words"
-                aria-label="Author snippet"
-                className="rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
-              />
-              <button
-                type="submit"
-                className="self-start rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-              >
-                Save snippet
-              </button>
-            </form>
+            <SnippetForm shortname={shortname} unitName={page.unit_name} snippet={page.snippet ?? ""} />
           </section>
         ) : null}
 
