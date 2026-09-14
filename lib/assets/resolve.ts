@@ -89,9 +89,16 @@ export const ASSET_SOURCES = ["static", "blob", "placeholder"] as const;
 
 export type AssetSource = (typeof ASSET_SOURCES)[number];
 
+/**
+ * A tier with a URL a browser can fetch. Not `bucket`: it is private, so a row
+ * there has no URL until #334 serves approved pictures through the hub, and
+ * until then the ladder treats it as no row at all.
+ */
+export type ReachableTier = Exclude<AssetTier, "bucket">;
+
 /** A picture the hub holds, at an absolute URL. */
 export interface ServedAsset {
-  from: AssetTier;
+  from: ReachableTier;
   url: string;
   /**
    * Whose bytes these actually are, which is not always what was asked for.
@@ -167,9 +174,22 @@ export type HeldAssets = ReadonlyMap<string, HeldRow>;
  * between them. `app/moderation/assets/[id]/route.ts` calls it directly through
  * `./queue`, because a moderator has to see the picture itself and every rung
  * this file adds above and below is something to show in place of one.
+ *
+ * Null for `bucket`. Building a Blob URL out of a bucket path would point a
+ * page at an object that was never in Blob, so a bucket row has no URL until
+ * #333 and #334 give it one.
  */
-export function assetTierUrl(tier: AssetTier, path: string): string {
-  return tier === "static" ? staticTierUrl(path) : blobTierUrl(path);
+export function assetTierUrl(tier: ReachableTier, path: string): string;
+export function assetTierUrl(tier: AssetTier, path: string): string | null;
+export function assetTierUrl(tier: AssetTier, path: string): string | null {
+  switch (tier) {
+    case "static":
+      return staticTierUrl(path);
+    case "blob":
+      return blobTierUrl(path);
+    case "bucket":
+      return null;
+  }
 }
 
 /** The buildpic that stands in for a missing render, or null when the identity
@@ -261,13 +281,25 @@ export async function fetchHeldAssets(
  * That caller could reach into {@link HeldAssets} itself, and going through this
  * is what keeps the approved test in one place rather than copied into whoever
  * wants a column next.
+ *
+ * A row in the bucket is not servable yet, however approved, because nothing
+ * can hand a browser its bytes (#334). It falls through the ladder the way a
+ * pending row does.
  */
-export function servable(held: HeldAssets, identity: AssetIdentity): HeldRow | null {
+export function servable(
+  held: HeldAssets,
+  identity: AssetIdentity,
+): (HeldRow & { tier: ReachableTier }) | null {
   const row = held.get(identityKey(identity));
-  return row && row.moderation === "approved" ? row : null;
+  if (!row || row.moderation !== "approved" || row.tier === "bucket") return null;
+  return { ...row, tier: row.tier };
 }
 
-function serve(asked: AssetIdentity, served: AssetIdentity, row: HeldRow): ServedAsset {
+function serve(
+  asked: AssetIdentity,
+  served: AssetIdentity,
+  row: HeldRow & { tier: ReachableTier },
+): ServedAsset {
   return {
     from: row.tier,
     url: assetTierUrl(row.tier, row.path),

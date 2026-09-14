@@ -315,10 +315,11 @@ if (withdrawn) {
     console.log(`would promote ${row.id}: ${row.path} -> ${durablePath(row) ?? "(unstorable)"}`);
   }
 
-  // A game picture's tier is not recorded on its row - the path means the same
-  // file on either tier - so the dry run asks the store directly. A HEAD is
-  // data transfer, not an operation, and a path that answers is one this run
-  // would have moved.
+  // A game row says which store its staged copy is in, and this lists only the
+  // Blob ones. It cannot say whether a Blob copy is still there, because a
+  // promoted picture keeps the value, so the dry run asks the store directly. A
+  // HEAD is data transfer, not an operation, and a path that answers is one
+  // this run would have moved.
   const staged = await fetchStagedGameImages(supabase);
   let waiting = 0;
   const seen = new Set<string>();

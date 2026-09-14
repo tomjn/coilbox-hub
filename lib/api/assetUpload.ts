@@ -25,9 +25,11 @@ export const ASSET_UPLOAD_VERSION = 1;
 /**
  * What the hub decided to do with the bytes.
  *
- * Deliberately does not say where they went. The staging tier is public, so a
- * pending upload's path is its URL, and the queue's whole authority is that the
- * hub does not hand that out before a reviewer has seen it (#131). Replying
+ * Deliberately does not say where they went. When the staging tier was a public
+ * Blob store a pending upload's path was its URL, and the queue's whole
+ * authority was that the hub did not hand that out before a reviewer had seen
+ * it (#131). The bucket that replaced it (#332) is private, and the rule stays
+ * because the path is still nothing the caller needs. Replying
  * with it would hand it to the one party the queue is holding the picture back
  * from, since the uploader is who a modified client is. The path is on the row
  * and reaches the caller when the row is approved and resolvable.

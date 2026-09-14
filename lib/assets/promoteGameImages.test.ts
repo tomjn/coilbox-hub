@@ -29,6 +29,8 @@ interface GameRow {
   banner_path: string | null;
   logo_hash: string | null;
   banner_hash: string | null;
+  logo_staged_tier: string | null;
+  banner_staged_tier: string | null;
 }
 
 const HASH = (seed: string) => createHash("sha256").update(seed).digest("hex");
@@ -37,7 +39,15 @@ const HASH = (seed: string) => createHash("sha256").update(seed).digest("hex");
 function stagedLogo(shortname: string, seed = `${shortname}-logo-bytes`): Fixture {
   const path = `games/${shortname}/logo.webp`;
   return {
-    row: { shortname, logo_path: path, logo_hash: HASH(seed), banner_path: null, banner_hash: null },
+    row: {
+      shortname,
+      logo_path: path,
+      logo_hash: HASH(seed),
+      logo_staged_tier: "blob",
+      banner_path: null,
+      banner_hash: null,
+      banner_staged_tier: null,
+    },
     staged: { [path]: seed },
   };
 }
@@ -231,11 +241,37 @@ test("rows with paths but no hashes are not offered for promotion", async () => 
         shortname: "EE",
         logo_path: "games/EE/logo.png",
         logo_hash: null,
+        logo_staged_tier: "blob",
         banner_path: null,
         banner_hash: null,
+        banner_staged_tier: null,
       },
     },
   ]);
   const images = await fetchStagedGameImages(fakeSupabase(world));
   expect(images).toEqual([]);
+});
+
+test("a picture staged in the bucket is not read from Blob or deleted there, even when Blob holds the same bytes", async () => {
+  // The worst case for reading Blob at a bucket row's path: an older upload of
+  // identical bytes is still in Blob, so the hash matches and the old code
+  // would promote it and delete it, leaving the bucket copy behind for good.
+  const bucket = stagedLogo("SF");
+  bucket.row.logo_staged_tier = "bucket";
+  world = new World([bucket, stagedLogo("BA")]);
+
+  const result = await run();
+
+  expect(result).toEqual({ promoted: 1, skipped: 0, unreadable: 0 });
+  expect(world.discarded).toEqual(["games/BA/logo.webp"]);
+  expect(world.blob.has("games/SF/logo.webp")).toBe(true);
+  expect(world.served.has("games/SF/logo.webp")).toBe(false);
+});
+
+test("a row that records no staged copy is not offered for promotion", async () => {
+  const imported = stagedLogo("EE");
+  imported.row.logo_staged_tier = null;
+  world = new World([imported]);
+
+  expect(await fetchStagedGameImages(fakeSupabase(world))).toEqual([]);
 });

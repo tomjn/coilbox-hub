@@ -21,12 +21,14 @@
 import vocabulary from "./vendor/asset-vocabulary.json";
 
 /**
- * Where the bytes actually live. `blob` is Vercel Blob, the staging tier
- * everything uploaded lands in. `static` is the durable tier served from the
- * assets repo, which the seed writes to directly and which promotion moves rows
- * to later.
+ * Where the bytes actually live. `bucket` is the private `staged-pictures`
+ * Supabase Storage bucket, the staging tier every new upload lands in (#332).
+ * `blob` is Vercel Blob, the staging tier before it, which still holds the
+ * rows uploaded there until they drain (#335, #336). `static` is the durable
+ * tier served from the assets repo, which the seed writes to directly and
+ * which promotion moves rows to later.
  */
-export const ASSET_TIERS = ["blob", "static"] as const;
+export const ASSET_TIERS = ["blob", "bucket", "static"] as const;
 
 export type AssetTier = (typeof ASSET_TIERS)[number];
 

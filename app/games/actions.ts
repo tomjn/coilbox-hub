@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readImageHeader, IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
-import { putBlobGameImage } from "@/lib/assets/blob";
 import { encodedHash } from "@/lib/assets/hash";
+import { putStagedGameImage } from "@/lib/assets/staging";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { GameLink } from "@/lib/games/catalog";
@@ -316,8 +316,9 @@ export async function uploadGameImage(form: FormData): Promise<void> {
   if (!user) redirect("/auth/sign-in");
 
   // Ownership is checked with the visitor's own client, so the answer is what
-  // row level security sees. The write below needs the secret key for Blob, and
-  // it earns that only after this check came back with the game.
+  // row level security sees. The write below needs the secret key for the
+  // staging bucket, and it earns that only after this check came back with the
+  // game.
   const { data: owned } = await supabase
     .from("game")
     .select("id")
@@ -336,10 +337,11 @@ export async function uploadGameImage(form: FormData): Promise<void> {
   const admin = createAdmin();
   if (!admin) return;
 
-  // Null on a used up allowance or a suspended store as well as on a store
-  // that would not take it. The form has no error state to say which.
-  const stored = await putBlobGameImage(admin, path, bytes.buffer as ArrayBuffer, header.mime).catch(
-    () => null,
+  // The form has no error state, so a store that would not take it is a form
+  // that did nothing.
+  const stored = await putStagedGameImage(admin, path, bytes.buffer as ArrayBuffer, header.mime).then(
+    () => true,
+    () => false,
   );
   if (!stored) return;
 
@@ -348,9 +350,11 @@ export async function uploadGameImage(form: FormData): Promise<void> {
   const hash = await encodedHash(bytes.buffer as ArrayBuffer);
   const column = kind === "logo" ? "logo_path" : "banner_path";
   const hashColumn = kind === "logo" ? "logo_hash" : "banner_hash";
+  // Which store holds the staged copy, so promotion reads the bucket (#332).
+  const stagedColumn = kind === "logo" ? "logo_staged_tier" : "banner_staged_tier";
   await admin
     .from("game")
-    .update({ [column]: stored, [hashColumn]: hash })
+    .update({ [column]: path, [hashColumn]: hash, [stagedColumn]: "bucket" })
     .eq("id", owned.id);
 
   revalidatePath(`/games/${shortname}`);

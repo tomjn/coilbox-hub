@@ -19,7 +19,7 @@
  *    and a collision is worth telling apart from any other failure
  *    ({@link StagedAssetExistsError}).
  * 2. `putStagedGameImage` uploads with `upsert: true`, the one write that
- *    overwrites, mirroring `putBlobGameImage` in `./blob`: a game's logo or
+ *    overwrites, as `putBlobGameImage` in `./blob` did before #332: a game's logo or
  *    banner has a deterministic path and a replacement is meant to replace.
  * 3. `downloadStagedAsset` reads the bytes back, for moderation and
  *    promotion.
@@ -113,7 +113,7 @@ export async function putStagedAsset(
 
 /**
  * Write a game's logo or banner to the staging bucket, overwriting whatever
- * was at that path. The mirror of `putBlobGameImage` in `./blob`: the path is
+ * was at that path. It replaced `putBlobGameImage` in `./blob` (#332): the path is
  * deterministic (`games/BA/logo.webp`) rather than content addressed, so a
  * new upload is meant to replace the old bytes rather than collide with them.
  */

@@ -10,10 +10,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *    module, via the `asset_record_superseded_object` trigger in
  *    `20260814250000_asset_orphan.sql`, which copies the name out in the same
  *    statement that loses it.
- * 2. An upload stored its bytes and its row was never written. The upload route
- *    deletes the object itself, which is free, and calls
- *    {@link recordUnclaimedObject} when that delete fails too. Partly this
- *    module: see the honest limit below.
+ * 2. An upload stored its bytes and its row was never written. Not this module
+ *    any more: uploads go to the Supabase bucket (#332), which the route leaves
+ *    such an object in for #335 to sweep. Entries already queued with the
+ *    reason `unclaimed` are still swept here.
  * 3. A promoted picture whose staging copy has not been deleted yet. Not this
  *    module. `lib/assets/promote.ts` already drains those from `asset.blob_path`
  *    at the top of every run, gated on the durable tier actually serving the
@@ -29,10 +29,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * heard of. No query can find it, this module will never delete it, and it sits
  * in the store until somebody spends an advanced operation to look.
  *
- * That is the whole residue, and it is small. The route writes the row in the
- * same request as the `put()`, and when that write fails it deletes the object
- * before answering. Case 2 above is only the narrower failure where the delete
- * fails as well, which is what leaves something worth recording.
+ * That is the whole residue, and it is small. It stopped growing when uploads
+ * moved to the Supabase bucket (#332), which can be listed from Postgres.
  *
  * ## The check before every deletion
  *
@@ -119,8 +117,14 @@ export async function fetchOrphans(
  * it. Postgres holds every reference, so it is the one asked, rather than a
  * count kept alongside that could drift.
  *
- * Only `path`, and only on the staging tier. `blob_path` is a queued deletion
+ * Only `path`, and only on a staging tier. `blob_path` is a queued deletion
  * rather than a picture being served, and deleting an object twice is free.
+ *
+ * Both staging tiers, Blob and the bucket (#332). The sweep and the drain only
+ * delete from Blob today, and no bucket path is ever queued, so a bucket row
+ * cannot collide with anything they delete. Counting it anyway means no
+ * deletion can take a path a bucket row names, whichever store #335 points
+ * the deleters at.
  */
 export async function stagingPathsInUse(
   supabase: SupabaseClient,
@@ -134,7 +138,7 @@ export async function stagingPathsInUse(
     const { data, error } = await supabase
       .from("asset")
       .select("path")
-      .eq("tier", "blob")
+      .neq("tier", "static")
       .in("path", batch);
 
     if (error) {
@@ -192,26 +196,6 @@ export async function forgetOrphans(
   if (error) throw new Error(`Could not settle the swept objects: ${error.message}`);
 
   return typeof data === "number" ? data : 0;
-}
-
-/**
- * Record an object the store took and no row ever claimed.
- *
- * Best effort from the caller's point of view: the upload has already failed by
- * the time this runs, and a leaked object is worth less than a second error in
- * the reply. Answers whether the queue gained an entry.
- */
-export async function recordUnclaimedObject(
-  supabase: SupabaseClient,
-  path: string,
-  bytes: number,
-): Promise<boolean> {
-  const { data, error } = await supabase.rpc("record_unclaimed_object", {
-    object_path: path,
-    object_bytes: bytes,
-  });
-
-  return !error && data === true;
 }
 
 /** The one side effect a sweep has, injected for the same reason

@@ -10,15 +10,9 @@ import {
 } from "@/lib/api/gameBranding";
 import { apiError } from "@/lib/api/response";
 import { TAGS } from "@/lib/cache/tags";
-import {
-  BLOB_BUDGET_ERROR,
-  BLOB_LEDGER_ERROR,
-  BLOB_SUSPENDED_ERROR,
-  BLOB_TOKEN_ERROR,
-  putBlobGameImage,
-} from "@/lib/assets/blob";
 import { encodedHash } from "@/lib/assets/hash";
 import { readImageHeader } from "@/lib/assets/imageHeader";
+import { putStagedGameImage } from "@/lib/assets/staging";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticateBearer } from "@/lib/supabase/bearer";
 import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
@@ -129,19 +123,29 @@ export async function POST(request: Request) {
 
   // The hash over the encoded bytes decides whether anything changes at all,
   // before the store is asked for anything: a repeat of the bytes already on
-  // the row costs no advanced operation, which matters on a Hobby tier.
+  // the row writes nothing.
+  //
+  // Except when the row's staged copy is still in Blob (#332). That store may
+  // be suspended and unreadable, so the same bytes sent again go to the bucket
+  // and the row moves with them, rather than being told nothing changed.
   const hash = await encodedHash(bytes);
 
   const hashColumn = parsed.kind === "logo" ? "logo_hash" : "banner_hash";
   const pathColumn = parsed.kind === "logo" ? "logo_path" : "banner_path";
+  const stagedColumn = parsed.kind === "logo" ? "logo_staged_tier" : "banner_staged_tier";
   const { data: current } = await admin
     .from("game")
-    .select(`${pathColumn},${hashColumn}`)
+    .select(`${pathColumn},${hashColumn},${stagedColumn}`)
     .eq("id", owned.id)
     .maybeSingle();
 
   const held = current as Record<string, unknown> | null;
-  if (held && held[hashColumn] === hash && held[pathColumn] !== null) {
+  if (
+    held &&
+    held[hashColumn] === hash &&
+    held[pathColumn] !== null &&
+    held[stagedColumn] !== "blob"
+  ) {
     const answer: GameBrandingResponseBody = {
       format: GAME_BRANDING_FORMAT,
       version: GAME_BRANDING_VERSION,
@@ -153,27 +157,17 @@ export async function POST(request: Request) {
     );
   }
 
-  let stored: string | null;
   try {
-    stored = await putBlobGameImage(admin, path, bytes, image.mime);
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      [BLOB_TOKEN_ERROR, BLOB_BUDGET_ERROR, BLOB_LEDGER_ERROR, BLOB_SUSPENDED_ERROR].includes(
-        error.message,
-      )
-    ) {
-      return apiError(error.message, 503);
-    }
-    return apiError("The asset store would not accept that upload just now.", 502);
-  }
-  if (!stored) {
+    await putStagedGameImage(admin, path, bytes, image.mime);
+  } catch {
     return apiError("The asset store would not accept that upload just now.", 502);
   }
 
+  // The row records that the staged copy is in the bucket, so promotion reads
+  // it from there and not from Blob at the same path.
   const { error: writeError } = await admin
     .from("game")
-    .update({ [pathColumn]: stored, [hashColumn]: hash })
+    .update({ [pathColumn]: path, [hashColumn]: hash, [stagedColumn]: "bucket" })
     .eq("id", owned.id);
 
   if (writeError) {

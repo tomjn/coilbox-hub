@@ -36,9 +36,10 @@
  * what makes the row readable afterwards. A mapping that names an unknown
  * shortname or entry ends the run rather than being skipped over.
  *
- * ## Why the durable tier rather than Blob
+ * ## Why the durable tier rather than staging
  *
- * An owner upload goes through Blob because it happens at runtime, where there
+ * An owner upload is staged, in the Supabase bucket since #332, because it
+ * happens at runtime, where there
  * is no assets checkout. This script runs beside one, and seed-assets.ts
  * explains at length why these files go into it directly: fewer metered
  * operations, and the picture is being served the moment the row lands.
@@ -435,10 +436,13 @@ for (const rename of renames) {
 
 let writtenRows = 0;
 for (const item of wanted) {
+  // The picture is on the durable tier already, so the row records no staged
+  // copy. Leaving an owner upload's value would send promotion to a staged
+  // object that is not this picture.
   const patch =
     item.kind === "logo"
-      ? { logo_path: item.path, logo_hash: item.hash }
-      : { banner_path: item.path, banner_hash: item.hash };
+      ? { logo_path: item.path, logo_hash: item.hash, logo_staged_tier: null }
+      : { banner_path: item.path, banner_hash: item.hash, banner_staged_tier: null };
   const { error } = await supabase.from("game").update(patch).eq("id", item.row.id);
   if (error) {
     console.error(`Could not brand ${item.row.shortname} ${item.kind}: ${error.message}`);

@@ -9,9 +9,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * (`20260914120000_blob_put_ledger.sql`) says why each of those choices is the
  * one that does not end in a suspension.
  *
- * Only `./blob` reserves. A put that could skip the reservation is the kind of
- * operation the hub could not see in August, so the reservation lives inside
- * the function that makes the put rather than at its call sites.
+ * Nothing reserves any more. New uploads go to the Supabase bucket (#332), so
+ * the hub makes no `put()` at all, and what is left here reads the ledger back
+ * for the allowances page until the last reservation ages out and #338
+ * removes it.
  */
 
 /**
@@ -34,44 +35,6 @@ export const BLOB_ADVANCED_OPERATIONS_ALLOWANCE = 2000;
 export const BLOB_PUT_BUDGET = BLOB_ADVANCED_OPERATIONS_ALLOWANCE - 100;
 
 export type BlobPutKind = "asset" | "game_image";
-
-export type BlobPutReservation =
-  | { ok: true; id: number }
-  | { ok: false; reason: "full" | "unavailable" };
-
-/**
- * Reserve one `put()`. `supabase` must be the secret key client.
- *
- * `unavailable` when the database could not answer. That is a refusal too:
- * writing without a reservation is exactly the uncounted put this exists to
- * stop.
- */
-export async function reserveBlobPut(
-  supabase: SupabaseClient,
-  kind: BlobPutKind,
-): Promise<BlobPutReservation> {
-  const { data, error } = await supabase.rpc("reserve_blob_put", {
-    put_kind: kind,
-    budget: BLOB_PUT_BUDGET,
-  });
-
-  if (error) return { ok: false, reason: "unavailable" };
-  if (data === null) return { ok: false, reason: "full" };
-  return { ok: true, id: Number(data) };
-}
-
-/**
- * Give a reservation back, for a put the store refused outright.
- *
- * Best effort. A reservation that stays is one operation over-counted for 30
- * days, which is the safe direction to be wrong in.
- */
-export async function releaseBlobPut(supabase: SupabaseClient, id: number): Promise<void> {
-  await supabase.rpc("release_blob_put", { put_id: id }).then(
-    () => undefined,
-    () => undefined,
-  );
-}
 
 /** The start of the window, as PostgREST wants it. */
 export function blobWindowStart(now: Date): string {

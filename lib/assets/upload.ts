@@ -13,9 +13,9 @@ import vocabulary from "./vendor/asset-vocabulary.json";
  *
  * It was written for two upload paths, so that a check could not exist on one
  * and not the other. There is one now: everything posts the bytes to
- * `POST /api/v1/assets/upload` and the route calls `put()`. The client direct
- * path went in #133, because the browser SDK hands the uploader the finished
- * URL of its own unreviewed picture.
+ * `POST /api/v1/assets/upload` and the route writes the bytes to the staging
+ * bucket. The client direct path went in #133, because the browser SDK hands
+ * the uploader the finished URL of its own unreviewed picture.
  *
  * It stays a module anyway. The route reads as a sequence of refusals with the
  * write at the end, and {@link checkAssetUpload} is where the reason for each
@@ -23,12 +23,13 @@ import vocabulary from "./vendor/asset-vocabulary.json";
  *
  * ## Why every check is before the write
  *
- * `put()` is an advanced operation. A Hobby Blob store gets 2,000 a month,
- * exceeding that removes Blob access for 30 days, and there is no overage
- * billing, so it cannot be paid through. A rejected upload therefore has to
- * cost nothing at all, which means nothing here may run after the write and the
- * checks are ordered cheapest first: everything answerable from the request
- * alone before anything that asks the database.
+ * The rule dates from Vercel Blob, where every `put()` spent one of 2,000
+ * advanced operations a month and going over suspended the store for 30 days,
+ * which happened in September 2026. The bucket (#332) has no operation
+ * allowance, but it has 1 GB, and a rejected upload should still cost nothing
+ * at all. So nothing here may run after the write and the checks are ordered
+ * cheapest first: everything answerable from the request alone before anything
+ * that asks the database.
  *
  * The database checks are issued together and read in a fixed order afterwards.
  * That keeps one round trip's latency while keeping the answer deterministic,
@@ -187,15 +188,6 @@ export type AssetUploadCheck =
       path: string;
       /** The row a newer archive is replacing, or null on a first upload. */
       replacing: string | null;
-      /**
-       * The staging object that already holds these exact bytes, when the store
-       * has one (#132). Present means the caller writes nothing and puts this
-       * pathname on the row, which is an advanced operation saved.
-       *
-       * Absent on almost every upload, so it is optional in the same way
-       * `conflict` is rather than a null the caller has to read past.
-       */
-      stored?: string;
       conflict?: SourceConflict;
     }
   | { ok: false; error: string; status: number; conflict?: SourceConflict };
@@ -226,31 +218,6 @@ async function countRows(
 ): Promise<number | null> {
   const { count, error } = await query;
   return error ? null : (count ?? 0);
-}
-
-/**
- * The staging object already holding these bytes, or null when there is none.
- *
- * The whole of #132's saving. Paths are content addressed on the hash of the
- * encoded bytes and the hub computes that hash (#154), so a match here is an
- * object byte for byte identical to the one this upload is about to write, and
- * writing it again would spend one advanced operation out of 2,000 a month to
- * leave the store exactly as it was. Placeholder buildpics repeat across a
- * roster, so this is not a rare shape.
- *
- * A function rather than a filter, because "already holding" excludes objects
- * that are on their way out and no PostgREST query says that in one round trip.
- * `20260814260000_asset_object_reuse.sql` is where the rule is.
- *
- * Null when the query fails, which is the right way for an optimisation to fail:
- * the upload writes its own object and costs what it always cost. Nothing else
- * in this module reads a failed query as an absence, and the difference is that
- * every other one is a limit.
- */
-async function reusableObject(supabase: SupabaseClient, hash: string): Promise<string | null> {
-  const { data, error } = await supabase.rpc("reusable_staging_object", { object_hash: hash });
-
-  return !error && typeof data === "string" ? data : null;
 }
 
 /**
@@ -358,13 +325,9 @@ export async function checkAssetUpload(
           .not("map_name", "is", null)
           .gte("seen_at", since);
 
-  // The store's 30 day budget is not here. It is checked by the reservation
-  // `putBlobAsset` makes, in the same statement that spends it, and only when
-  // this upload is going to write an object at all (`./blobLedger`).
-  const [existing, stored, unitRenders, accountBytes, recent] =
+  const [existing, unitRenders, accountBytes, recent] =
     await Promise.all([
       fetchExisting(supabase, identity),
-      reusableObject(supabase, hash),
       identity.keyedOn === "unit" && identity.variant.startsWith(UNIT_RENDER_VARIANT_PREFIX)
         ? countRows(
             supabase
@@ -495,7 +458,6 @@ export async function checkAssetUpload(
     ok: true,
     path,
     replacing: replacing?.id ?? null,
-    ...(stored ? { stored } : {}),
     ...(conflict ? { conflict } : {}),
   };
 }
@@ -514,7 +476,7 @@ function assetColumns(
     encode_profile: declaration.encodeProfile,
     path,
     origin: declaration.origin,
-    tier: "blob",
+    tier: "bucket",
     mime: declaration.mime,
     bytes: declaration.bytes,
     width: measured.width,
@@ -581,8 +543,8 @@ export async function uploaderSkipsQueue(supabase: SupabaseClient): Promise<bool
  * will not have a pending row that still says what approved it, and it should
  * not, since nothing approved this.
  *
- * `tier` and `promoted_at` go back too. The new object is in Blob, so a row
- * left saying `static` would name a durable tier path the bytes are not at.
+ * `tier` and `promoted_at` go back too. The new object is in the bucket, so a
+ * row left saying `static` or `blob` would name a store the bytes are not in.
  *
  * Replacement, not accumulation. One row per identity throughout, and the
  * superseded object stays in the store as an orphan for #113 rather than being

@@ -172,7 +172,8 @@ export interface AssetObject {
 }
 
 /**
- * The object one row points at, or null when there is no such row.
+ * The object one row points at, or null when there is no such row or its bytes
+ * have no URL yet (a row in the bucket, until #333).
  *
  * Every moderation state, not just pending. A moderator looking at a picture
  * they have just approved or rejected should not get a broken image, and an
@@ -200,7 +201,11 @@ export async function fetchAssetObject(
   if (!data) return null;
 
   const row = data as unknown as { path: string; tier: AssetTier; mime: string };
-  return { url: assetTierUrl(row.tier, row.path), mime: row.mime };
+  // A row in the private bucket has no URL. Until #333 reads it through
+  // `./staging`, the thumbnail is a 404 like a missing row, rather than a fetch
+  // from Blob for a path that was never there.
+  const url = assetTierUrl(row.tier, row.path);
+  return url ? { url, mime: row.mime } : null;
 }
 
 /**
