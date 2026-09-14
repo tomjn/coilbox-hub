@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { describeConversion, fitWithinBox, IMAGE_TARGETS, planImageUpload, QUALITY_STEPS } from "./imageResize";
+import { describeConversion, fitWithinBox, IMAGE_TARGETS, planImageUpload, QUALITY_STEPS, targetFormat } from "./imageResize";
 
 // The pure maths and messages behind #356 and #359. `convertImageForUpload`
 // itself needs a real canvas and decoder, so it is exercised by hand in a
@@ -62,13 +62,25 @@ test("the quality ladder steps down and stays within canvas.toBlob's 0 to 1 rang
 });
 
 test("a WebP that only needed shrinking is told so, with its before and after size", () => {
-  expect(describeConversion("image/webp", 720_583, 12_000)).toBe("Shrunk from 704 KB to 12 KB.");
+  expect(describeConversion("image/webp", 720_583, 12_000, "image/webp")).toBe("Shrunk from 704 KB to 12 KB.");
 });
 
 test("a JPEG names the format it came from as well as the sizes", () => {
-  expect(describeConversion("image/jpeg", 5_242_880, 320_000)).toBe("Converted from JPEG (5120 KB) to WebP (313 KB).");
+  expect(describeConversion("image/jpeg", 5_242_880, 320_000, "image/webp")).toBe("Converted from JPEG (5120 KB) to WebP (313 KB).");
 });
 
 test("a PNG that needed converting, not just shrinking, is named too", () => {
-  expect(describeConversion("image/png", 900_000, 400_000)).toBe("Converted from PNG (879 KB) to WebP (391 KB).");
+  expect(describeConversion("image/png", 900_000, 400_000, "image/webp")).toBe("Converted from PNG (879 KB) to WebP (391 KB).");
+});
+
+test("a WebP logo converts to PNG, not just shrinks, and says so (#366)", () => {
+  expect(describeConversion("image/webp", 200_000, 150_000, "image/png")).toBe("Converted from WebP (196 KB) to PNG (147 KB).");
+});
+
+test("a logo always targets PNG, since the link preview renderer cannot decode WebP (#366)", () => {
+  expect(targetFormat("logo")).toBe("image/png");
+});
+
+test("a banner targets WebP, since it never reaches that renderer", () => {
+  expect(targetFormat("banner")).toBe("image/webp");
 });

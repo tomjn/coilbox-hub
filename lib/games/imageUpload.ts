@@ -106,7 +106,14 @@ export async function sendGameImage(
   const kind = (form.get("kind") === "logo" ? "logo" : "banner") as GameImageKind;
   const headerBytes = new Uint8Array(await file.slice(0, IMAGE_HEADER_BYTES).arrayBuffer());
   const header = readImageHeader(headerBytes);
-  const plan = planImageUpload(header, file.size, GAME_BRANDING_MAX_BYTES, IMAGE_TARGETS[kind]);
+  // A WebP logo always converts, even one already inside its box and under the
+  // byte limit: it feeds the link preview's renderer, which cannot decode
+  // WebP (#366), so `convert` (`./imageResize`) must turn it into PNG rather
+  // than let it upload unchanged.
+  const plan =
+    kind === "logo" && header?.mime === "image/webp"
+      ? "convert"
+      : planImageUpload(header, file.size, GAME_BRANDING_MAX_BYTES, IMAGE_TARGETS[kind]);
 
   let note = "";
   if (plan === "convert") {
