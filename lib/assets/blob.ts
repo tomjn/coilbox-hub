@@ -16,8 +16,10 @@
  * against it, so the ceiling is 2,000 uploads in any 30 days. Exceeding it
  * suspends the store for 30 days. There is no overage billing, so it cannot be
  * paid through, and a month of the hub not accepting a single picture is not a
- * bill, it is an outage. It happened in September 2026, which is why every put
- * here now reserves its operation first (`./blobLedger`).
+ * bill, it is an outage. It happened in September 2026, and new uploads have
+ * gone to the Supabase bucket in `./staging` since (#332). Nothing here writes
+ * to Blob any more. What is left builds URLs for rows still in Blob and deletes
+ * their objects as they drain, until #338 removes this file.
  *
  * That is why four rules exist, and why they are enforced by what this module
  * does and does not export rather than by a paragraph in a ticket:
@@ -53,9 +55,7 @@
  * the SDK so a missing one fails with a message that names it.
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { BlobStoreSuspendedError, del, put } from "@vercel/blob";
-import { type BlobPutKind, releaseBlobPut, reserveBlobPut } from "./blobLedger";
+import { del } from "@vercel/blob";
 
 /**
  * Where the staging tier serves from, the mirror of `DEFAULT_ASSET_CDN_BASE` in
@@ -75,26 +75,6 @@ export const BLOB_TIER_BASE = "https://eyugwjvmp953ayog.public.blob.vercel-stora
 
 export const BLOB_TOKEN_ERROR =
   "This deployment has not configured Vercel Blob. Set BLOB_READ_WRITE_TOKEN.";
-
-/** Thrown instead of a put when the last 30 days already hold the budget. */
-export const BLOB_BUDGET_ERROR =
-  "The hub has used its upload allowance for the last 30 days. Try again in a few days.";
-
-/** Thrown instead of a put when the reservation could not be written, because
- *  a put nobody counted is how the store was suspended. */
-export const BLOB_LEDGER_ERROR = "The upload allowance could not be checked just now.";
-
-/** Thrown when the store refused the put because it is suspended. */
-export const BLOB_SUSPENDED_ERROR =
-  "The staging store is suspended for going over its allowance, so it is not taking uploads.";
-
-/**
- * What an upload body may be. Narrower than the SDK's `PutBody`, which also
- * accepts a Node `Readable`: a route handler has an `ArrayBuffer`, a `File`
- * (which is a `Blob`) or `request.body`, and offering a Node stream invites
- * code that only works off the edge.
- */
-export type BlobAssetBody = ArrayBuffer | Blob | ReadableStream | string;
 
 /**
  * The object key for a tier relative `asset.path`.
@@ -136,132 +116,6 @@ function requireBlobToken(): string {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) throw new Error(BLOB_TOKEN_ERROR);
   return token;
-}
-
-/**
- * Write one object to the staging tier. Returns the path it actually landed at,
- * which is the caller's path plus a suffix Blob chose and is the value that
- * belongs on the row.
- *
- * One of the two advanced operations this codebase makes, with
- * {@link putBlobGameImage}, and both reserve the operation before making it.
- * Everything an upload can be rejected for belongs before the call, not inside
- * it: a rejected upload should spend nothing (#104). `supabase` must be the
- * secret key client, which is what the reservation is written with.
- *
- * The options are fixed rather than passed through, because each one is a
- * decision that has already been made and none of them varies per asset.
- *
- * - `access: "public"` is deliberate. It is what puts delivery on the blob data
- *   transfer meter instead of fast data transfer, and everything the hub stores
- *   here is a picture it intends to show.
- * - `addRandomSuffix: true` because the store is public and a pending upload is
- *   reachable the moment this returns, so the only thing keeping it out of
- *   sight until a reviewer has seen it is that nobody knows where it is. The
- *   caller's path is derived from the identity and the hash of the bytes, and
- *   the uploader holds the bytes, so the uploader can compute it. The suffix is
- *   Blob's and nobody can compute it, which is what makes an undisclosed URL
- *   undisclosed (#131). This is not the SDK default, so it is set here, and
- *   here is now the only place that needs it: with the client direct path gone
- *   (#133) the suffix never leaves the server.
- *
- * `allowOverwrite` is absent because with a suffix there is nothing to
- * overwrite: every call lands at a key that did not exist. The cost is that a
- * retry after a partial failure writes a second object rather than replacing
- * the first, which is an orphan for #113 rather than a stranded row.
- *
- * `cacheControlMaxAge` is left at the SDK default of one month, which already
- * outlives the object: promotion (#111) moves anything approved out a day or
- * two after approval. Asking for longer buys nothing.
- */
-export async function putBlobAsset(
-  supabase: SupabaseClient,
-  path: string,
-  body: BlobAssetBody,
-  contentType: string,
-): Promise<string> {
-  const token = requireBlobToken();
-
-  const result = await reserved(supabase, "asset", () =>
-    put(pathname(path), body, {
-      access: "public",
-      addRandomSuffix: true,
-      contentType,
-      token,
-    }),
-  );
-
-  return result.pathname;
-}
-
-/**
- * The write behind a game's logo or banner (#229), which is the one upload on
- * the hub that overwrites.
- *
- * `putBlobAsset` suffixes every key because an asset retry must not strand a
- * row pointing at half-written bytes. A game image is the other shape of
- * problem: its path is deterministic (`games/BA/logo.webp`), the row names that
- * path and nothing else, and a replacement is meant to replace. Suffixing here
- * would orphan the previous logo on every upload and leave nothing pointing at
- * it but the store's allowance.
- */
-export async function putBlobGameImage(
-  supabase: SupabaseClient,
-  path: string,
-  body: BlobAssetBody,
-  contentType: string,
-): Promise<string | null> {
-  let token: string;
-  try {
-    token = requireBlobToken();
-  } catch {
-    return null;
-  }
-
-  // Outside the catch below: an allowance that is used up, or a store that is
-  // suspended, is something the caller should say rather than a generic "the
-  // store would not accept that".
-  const result = await reserved(supabase, "game_image", () =>
-    put(pathname(path), body, {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType,
-      token,
-    }).catch((error: unknown) => {
-      if (error instanceof BlobStoreSuspendedError) throw error;
-      return null;
-    }),
-  );
-  return result?.pathname ?? null;
-}
-
-/**
- * Make one put against a reservation, which is the only way this module puts.
- *
- * The reservation stays when the put fails, because a put that timed out may
- * still have landed. It is given back only when the store says it is
- * suspended, which means it accepted nothing.
- */
-async function reserved<T>(
-  supabase: SupabaseClient,
-  kind: BlobPutKind,
-  write: () => Promise<T>,
-): Promise<T> {
-  const reservation = await reserveBlobPut(supabase, kind);
-  if (!reservation.ok) {
-    throw new Error(reservation.reason === "full" ? BLOB_BUDGET_ERROR : BLOB_LEDGER_ERROR);
-  }
-
-  try {
-    return await write();
-  } catch (error) {
-    if (error instanceof BlobStoreSuspendedError) {
-      await releaseBlobPut(supabase, reservation.id);
-      throw new Error(BLOB_SUSPENDED_ERROR);
-    }
-    throw error;
-  }
 }
 
 /**

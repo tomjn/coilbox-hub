@@ -32,7 +32,6 @@ const {
   claimedPaths,
   fetchOrphans,
   forgetOrphans,
-  recordUnclaimedObject,
   stagingPathsInUse,
   sweepOrphans,
 } = await import("./orphan");
@@ -145,16 +144,7 @@ function fakeSupabase(world: World): SupabaseClient {
           unknown
         >[],
       ),
-    rpc: (name: string, args: Record<string, unknown>) => {
-      if (name === "record_unclaimed_object") {
-        const path = args.object_path as string;
-        if (world.orphans.some((row) => row.path === path)) {
-          return Promise.resolve({ data: false, error: null });
-        }
-        world.orphan(path, { reason: "unclaimed", bytes: args.object_bytes as number });
-        return Promise.resolve({ data: true, error: null });
-      }
-
+    rpc: (_name: string, args: Record<string, unknown>) => {
       let cleared = 0;
       for (const row of world.orphans) {
         if ((args.ids as number[]).includes(row.id) && row.deleted_at === null) {
@@ -303,16 +293,6 @@ test("forgetting nothing asks the database nothing", async () => {
   expect(await forgetOrphans(supabase, [])).toBe(0);
 });
 
-test("an object nobody claimed is recorded once, however many times it is reported", async () => {
-  const supabase = fakeSupabase(world);
-
-  expect(await recordUnclaimedObject(supabase, "stranded.webp", 4096)).toBe(true);
-  expect(await recordUnclaimedObject(supabase, "stranded.webp", 4096)).toBe(false);
-  expect(world.orphans.map((row) => [row.path, row.reason])).toEqual([
-    ["stranded.webp", "unclaimed"],
-  ]);
-});
-
 test("a long list of pathnames is asked about in batches, not one request", async () => {
   // #300: a queue of 200 pending deletions was enough to trip Supabase's
   // gateway with a 400 before a single row-count answer came back. Every
@@ -340,12 +320,4 @@ test("claimedPaths batches both the live check and the queue check", async () =>
 
   expect(claimed.size).toBe(120);
   expect(world.inBatchSizes.every((size) => size <= 50)).toBe(true);
-});
-
-test("recording says no rather than throwing when the database will not have it", async () => {
-  const supabase = {
-    rpc: () => Promise.resolve({ data: null, error: { message: "no" } }),
-  } as unknown as SupabaseClient;
-
-  expect(await recordUnclaimedObject(supabase, "stranded.webp", 4096)).toBe(false);
 });
