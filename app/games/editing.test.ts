@@ -153,6 +153,7 @@ test("a moderator's banner upload lands in the bucket, marks the row staged ther
   expect(update).toHaveBeenCalledWith(
     expect.objectContaining({ banner_path: "games/BA/banner.png", banner_staged_tier: "bucket" }),
   );
+  expect(updatedTags).toHaveBeenCalledWith("games");
 });
 
 test("an upload with no file asks for one", async () => {
