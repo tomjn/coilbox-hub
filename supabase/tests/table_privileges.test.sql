@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(84);
+select plan(87);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -116,6 +116,17 @@ select table_privs_are('public', 'asset_orphan', 'authenticated', ARRAY[]::name[
   'authenticated holds no table privilege on asset_orphan');
 select table_privs_are('public', 'asset_orphan', 'service_role', ARRAY['SELECT'],
   'service_role reads the sweep queue and can neither add to it nor settle a row by hand');
+
+-- public.blob_put: one row per put() into the staging store, which is what the
+-- upload budget and the operations meter count. Select only, for the meters.
+-- public.reserve_blob_put and public.release_blob_put are the only writers, so
+-- the count cannot be edited down by hand to make room (20260914120000).
+select table_privs_are('public', 'blob_put', 'anon', ARRAY[]::name[],
+  'anon holds no table privilege on blob_put');
+select table_privs_are('public', 'blob_put', 'authenticated', ARRAY[]::name[],
+  'authenticated holds no table privilege on blob_put');
+select table_privs_are('public', 'blob_put', 'service_role', ARRAY['SELECT'],
+  'service_role reads the put() count and can neither add to it nor take from it by hand');
 
 -- public.asset_licence: recorded research a moderator can read server side, and
 -- written only by a migration, where a person reviews the finding before it
