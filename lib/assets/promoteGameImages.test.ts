@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { beforeEach, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BLOB_TIER_BASE } from "./blob";
-import type { PromotionPorts } from "./promote";
+import { type PromotionPorts, StagingReadError } from "./promote";
 
 const { runGameImagePromotion, fetchStagedGameImages } = await import("./promoteGameImages");
 
@@ -85,7 +85,7 @@ function fakePorts(world: World): PromotionPorts {
       world.trip("read");
       const path = url.slice(BLOB_TIER_BASE.length);
       const bytes = world.blob.get(path);
-      if (!bytes) throw new Error(`no object at ${path}`);
+      if (!bytes) throw new StagingReadError(404, url);
       return bytes;
     },
     held: async (path) => world.checkout.has(path),
@@ -162,6 +162,20 @@ test("a picture already off staging is skipped without a write or a delete", asy
   expect(result.promoted).toBe(0);
   expect(world.trips).not.toContain("write");
   expect(world.trips).not.toContain("discard");
+});
+
+test("a store that refuses a read is said out loud rather than read as already promoted", async () => {
+  const ports = fakePorts(world);
+  ports.read = async (url) => {
+    throw new StagingReadError(403, url);
+  };
+
+  const result = await runGameImagePromotion(fakeSupabase(world), ports);
+
+  expect(result).toEqual({ promoted: 0, skipped: 2, unreadable: 2 });
+  expect(world.said.join("\n")).toContain("403 reading");
+  expect(world.discarded).toEqual([]);
+  reachable(world);
 });
 
 test("staging bytes the row does not name are left alone and said out loud", async () => {
