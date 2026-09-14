@@ -8,7 +8,7 @@
 -- as bigger than it is on every card that shows it.
 
 begin;
-select plan(10);
+select plan(12);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -92,6 +92,24 @@ select is(
 select is(
   (select count(*) from public.item where deleted_at is not null)::int, 1,
   'the withdrawn item exists but was excluded from the count above'
+);
+
+-- A logo waiting in the staging bucket (#345). The card needs the hash and the
+-- store to name the hub's own route rather than GitHub Pages.
+update public.game
+set logo_path = 'games/BA/logo.webp', logo_hash = repeat('a', 64), logo_staged_tier = 'bucket'
+where shortname = 'BA';
+
+select is(
+  (select row(logo_path, logo_hash, logo_staged_tier)::text from public.game_browse where shortname = 'BA'),
+  row('games/BA/logo.webp', repeat('a', 64), 'bucket')::text,
+  'a staged logo passes through with its hash and the store that holds it'
+);
+
+select is(
+  (select row(logo_path, logo_hash, logo_staged_tier)::text from public.game_browse where shortname = 'XTA'),
+  row(null::text, null::text, null::text)::text,
+  'a game with no logo has no hash and no store'
 );
 
 select results_eq(
