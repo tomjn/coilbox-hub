@@ -335,6 +335,9 @@ export async function uploadGameImage(
     return { ok: false, message: UPLOAD_MESSAGES.notSaved };
   }
 
+  // The tag as well as the two paths. The link preview is a route of its own
+  // and reads the game row through the games tag.
+  updateTag(TAGS.games);
   // The listing card draws the logo too, and names it by its hash (#345).
   revalidatePath("/games");
   revalidatePath(`/games/${shortname}`);
