@@ -40,7 +40,7 @@ const { PROMOTION_AGE_DAYS, durablePath, promotionCutoff, runPromotion } =
 
 const NOW = new Date("2026-08-14T12:00:00.000Z");
 const OLD = new Date("2026-08-01T12:00:00.000Z").toISOString();
-const RECENT = new Date("2026-08-13T12:00:00.000Z").toISOString();
+const RECENT = new Date("2026-08-14T11:00:00.000Z").toISOString();
 
 interface Row {
   id: string;
@@ -283,9 +283,9 @@ beforeEach(() => {
 const run = (options: { limit?: number } = {}) =>
   runPromotion(fakeSupabase(world), fakePorts(world), { now: NOW, ...options });
 
-test("the cutoff is seven days back, on the row's own clock", () => {
-  expect(promotionCutoff(NOW)).toBe("2026-08-07T12:00:00.000Z");
-  expect(PROMOTION_AGE_DAYS).toBe(7);
+test("the cutoff is a day back, on the row's own clock", () => {
+  expect(promotionCutoff(NOW)).toBe("2026-08-13T12:00:00.000Z");
+  expect(PROMOTION_AGE_DAYS).toBe(1);
 });
 
 test("the durable path is recomputed and is not the suffixed staging one", () => {
@@ -312,7 +312,7 @@ test("a whole run moves the rows and empties the staging store", async () => {
   invariants(world);
 });
 
-test("nothing approved in the last seven days moves", async () => {
+test("nothing approved in the last day moves", async () => {
   world = new World([
     unit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1", { updated_at: RECENT }),
   ]);
@@ -510,7 +510,7 @@ test("two rows that are the same picture share one object and both move", async 
  * finishes with that object as far as the first row is concerned and puts it in
  * `blob_path`, which used to be the whole of the argument for deleting it. It is
  * not any more: the second row is still serving the picture from it and is not
- * due to move for another six days.
+ * due to move until tomorrow.
  */
 test("a shared object is kept while a second row is still serving it", async () => {
   const shared = "units/bar/buildpic/aaa1-Hn4vQ2rT.webp";
@@ -533,7 +533,7 @@ test("a shared object is kept while a second row is still serving it", async () 
   expect(world.said).toContain(`keep ${shared}: another row is still serving that object.`);
   invariants(world);
 
-  // Six days later, and the second row is due as well.
+  // A day later, and the second row is due as well.
   world.rows[1].updated_at = OLD;
   const second = await run();
 

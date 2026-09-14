@@ -167,8 +167,8 @@ function requireBlobToken(): string {
  * the first, which is an orphan for #113 rather than a stranded row.
  *
  * `cacheControlMaxAge` is left at the SDK default of one month, which already
- * outlives the object: promotion (#111) moves anything approved out after seven
- * days. Asking for longer buys nothing.
+ * outlives the object: promotion (#111) moves anything approved out a day or
+ * two after approval. Asking for longer buys nothing.
  */
 export async function putBlobAsset(
   path: string,
