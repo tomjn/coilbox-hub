@@ -5,6 +5,7 @@ import { cache } from "react";
 import { requestOwnership, setGameVisibility } from "@/app/games/actions";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
+import { GameLogo } from "@/components/GameLogo";
 import { RichText } from "@/components/RichText";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { staticTierUrl } from "@/lib/assets/cdn";
@@ -133,17 +134,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-4">
-            {logo ? (
-              // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
-              <img
-                src={logo}
-                alt={`${title} logo`}
-                width={64}
-                height={64}
-                decoding="async"
-                className="h-16 w-16 rounded object-contain"
-              />
-            ) : null}
+            {logo ? <GameLogo src={logo} alt={`${title} logo`} /> : null}
             <div className="flex flex-col">
               <p className="text-xs uppercase tracking-wide text-neutral-500">{page.shortname}</p>
               <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>

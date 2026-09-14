@@ -64,7 +64,10 @@ export default async function Games() {
             </p>
           </div>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          // Every row as tall as the tallest, so a last row holding one short
+          // card does not end the grid in a stub. Not in one column, where it
+          // would pad every card out to the longest description.
+          <ul className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2 lg:grid-cols-3">
             {rows.map((game) => (
               <GameCard key={game.shortname} game={game} />
             ))}
