@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { UNIT_RENDER_VARIANT_PREFIX } from "./asset";
-import { BLOB_ADVANCED_OPERATIONS_PER_MONTH } from "./blob";
+import {
+  BLOB_ADVANCED_OPERATIONS_ALLOWANCE,
+  BLOB_PUT_BUDGET,
+  BLOB_WINDOW_DAYS,
+  blobWindowStart,
+} from "./blobLedger";
 
 /**
  * What the hub is spending, against the allowances that can end it (issue #113).
@@ -25,13 +30,16 @@ import { BLOB_ADVANCED_OPERATIONS_PER_MONTH } from "./blob";
  *
  * ## The one that binds
  *
- * Advanced operations. Going over 2,000 in a month removes Blob access for 30
- * days, there is no overage billing, and a month of the hub refusing every
- * upload is an outage rather than a bill. The upload route already refuses at
- * {@link MONTHLY_UPLOAD_BUDGET}, which is 100 below the allowance, so the hub
- * cannot reach the lockout through its own front door. What this adds is warning
- * before that refusal starts, because a hub that has stopped taking pictures is
- * also a failure and one nobody gets an email about.
+ * Advanced operations. Going over 2,000 in any 30 days suspends the store for
+ * 30 days, there is no overage billing, and a month of the hub refusing every
+ * upload is an outage rather than a bill. Every put reserves its operation
+ * against {@link BLOB_PUT_BUDGET}, which is 100 below the allowance, so the hub
+ * cannot reach the suspension through its own front door. What this adds is
+ * warning before that refusal starts, because a hub that has stopped taking
+ * pictures is also a failure and one nobody gets an email about.
+ *
+ * Until September 2026 this counted asset rows by calendar month, and the store
+ * was suspended with this meter reading 675. `./blobLedger` says what changed.
  *
  * {@link headroomAlerts} is that warning, and the channel is a scheduled job
  * exiting non-zero. That is not elegant and it is the only alerting this project
@@ -59,8 +67,9 @@ export const PAGES_BANDWIDTH_SOFT_ALLOWANCE_BYTES = 100 * GIB;
  * How full a counted meter has to be before the daily job starts failing.
  *
  * Three quarters, so the operations meter alerts at 1,500 of 2,000. That leaves
- * 400 uploads between the first red run and the route refusing anything, which
- * at the volume this hub takes is weeks rather than hours.
+ * 400 uploads between the first red run and the budget refusing anything. It is
+ * not weeks: one release of render angles spent more than that in a day in
+ * August 2026, so treat a red run as today's problem.
  *
  * One fraction for every meter rather than a number each. They are all "this
  * ends badly at 100%" and inventing a separate threshold per meter would be
@@ -122,12 +131,6 @@ export function assetClass(variant: string): string {
   return variant.startsWith(UNIT_RENDER_VARIANT_PREFIX) ? "render" : variant;
 }
 
-/** Beginning of the current calendar month, in UTC, matching the window
- *  `checkAssetUpload` measures the monthly budget over. */
-function monthStart(now: Date): string {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-}
-
 /** A count, or null when the query failed. Null is not zero: a meter that read a
  *  broken query as an empty store would report full headroom at exactly the
  *  moment nobody can check. */
@@ -169,28 +172,14 @@ export async function fetchMeters(
   supabase: SupabaseClient,
   now: Date = new Date(),
 ): Promise<MeterReport> {
-  const since = monthStart(now);
-
-  const [usage, uploads, unclaimed] = await Promise.all([
+  const [usage, operations] = await Promise.all([
     supabase.rpc("asset_storage_usage"),
-    // One `put()` each. `uploaded_by` is null on a seeded row, which is written
-    // straight to the durable tier and spends nothing, and `seen_at` is the
-    // column a replacement moves, which is why the upload route counts the same
-    // two things the same way.
+    // One row per reserved `put()`, the same rows the budget is checked against.
     countRows(
       supabase
-        .from("asset")
+        .from("blob_put")
         .select("id", { count: "exact", head: true })
-        .not("uploaded_by", "is", null)
-        .gte("seen_at", since),
-    ),
-    // A `put()` that left no row to count. See `./orphan`.
-    countRows(
-      supabase
-        .from("asset_orphan")
-        .select("id", { count: "exact", head: true })
-        .eq("reason", "unclaimed")
-        .gte("at", since),
+        .gte("at", blobWindowStart(now)),
     ),
   ]);
 
@@ -199,25 +188,21 @@ export async function fetchMeters(
   const rows = (usage.data ?? []) as unknown as UsageRow[];
   const durable = durableClasses(rows);
 
-  const operations =
-    uploads === null || unclaimed === null ? null : uploads + unclaimed;
-
   return {
     at: now.toISOString(),
     durable,
     meters: [
       {
-        name: "Blob advanced operations this month",
+        name: `Blob advanced operations, last ${BLOB_WINDOW_DAYS} days`,
         basis: "counted",
         used: operations,
-        allowance: BLOB_ADVANCED_OPERATIONS_PER_MONTH,
+        allowance: BLOB_ADVANCED_OPERATIONS_ALLOWANCE,
         unit: "operations",
         note:
-          "Every accepted upload is one put() and the hub makes no other advanced operation. " +
-          "Counts the hub's own spend only: browsing the store in the Vercel dashboard lists " +
-          "blobs, which is an advanced operation nothing here can see. A put() whose row write " +
-          "failed and whose object was then deleted also leaves nothing to count, which is what " +
-          "the 100 operation margin below the allowance is for.",
+          `Every put() the hub makes, for a picture or a game's logo or banner, reserved before ` +
+          `it is made. Uploads stop at ${BLOB_PUT_BUDGET}. Counts the hub's own spend only: ` +
+          "browsing the store in the Vercel dashboard lists blobs, which is an advanced " +
+          "operation nothing here can see, and the margin below the allowance is for that.",
       },
       {
         name: "Blob storage",
@@ -230,7 +215,7 @@ export async function fetchMeters(
           "Excludes per object overhead the store charges and this cannot see.",
       },
       {
-        name: "Blob data transfer this month",
+        name: `Blob data transfer, last ${BLOB_WINDOW_DAYS} days`,
         basis: "dashboard",
         used: null,
         allowance: BLOB_DATA_TRANSFER_ALLOWANCE_BYTES,
@@ -241,7 +226,7 @@ export async function fetchMeters(
           "to ask. Read it off the store dashboard.",
       },
       {
-        name: "Vercel fast data transfer this month",
+        name: `Vercel fast data transfer, last ${BLOB_WINDOW_DAYS} days`,
         basis: "dashboard",
         used: null,
         allowance: VERCEL_FAST_DATA_TRANSFER_ALLOWANCE_BYTES,

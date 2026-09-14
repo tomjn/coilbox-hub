@@ -15,7 +15,7 @@
  *
  * ## What this costs
  *
- * Nothing out of the monthly allowance. Deleting is free, the queue comes from
+ * Nothing out of the allowance. Deleting is free, the queue comes from
  * Postgres, and the store is never asked what it holds. That is the whole reason
  * `lib/assets/blob.ts` does not export `list()`.
  *
@@ -61,7 +61,7 @@ import {
 } from "@/lib/assets/meters";
 import { CLEANUP_BATCH, type CleanupPorts, fetchOrphans, sweepOrphans } from "@/lib/assets/orphan";
 
-/** Deleting is free and spends none of the monthly allowance, but a batch counts
+/** Deleting is free and spends none of the allowance, but a batch counts
  *  per blob against the per minute rate limit, so a large sweep is paced rather
  *  than sent in one call. The same numbers `promote-assets.ts` uses. */
 const DELETE_CHUNK = 100;
