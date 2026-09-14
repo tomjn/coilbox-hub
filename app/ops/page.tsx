@@ -7,7 +7,6 @@ import {
   BLOB_PUT_BUDGET,
   type BlobPutDay,
   fetchBlobPutDays,
-  uploadsResume,
 } from "@/lib/assets/blobLedger";
 import {
   formatBytes,
@@ -16,7 +15,12 @@ import {
   type Meter,
   fetchMeters,
 } from "@/lib/assets/meters";
-import { fetchOrphans, type Orphan } from "@/lib/assets/orphan";
+import {
+  ABANDONED_RESERVATION_MINUTES,
+  fetchAbandonedStagedDeletions,
+  fetchOrphans,
+  type Orphan,
+} from "@/lib/assets/orphan";
 import {
   fetchPromotionStatus,
   PROMOTION_AGE_DAYS,
@@ -271,7 +275,6 @@ function OperationsPanel({ meter, days }: { meter: Meter; days: BlobPutDay[] | n
   const full = headroom(meter);
   const refusedAt = BLOB_PUT_BUDGET / BLOB_ADVANCED_OPERATIONS_ALLOWANCE;
   const state = full === null ? null : standing(full, refusedAt);
-  const resume = days ? uploadsResume(days) : null;
   const busiest = days
     ? days.reduce<BlobPutDay | null>(
         (best, day) =>
@@ -320,12 +323,14 @@ function OperationsPanel({ meter, days }: { meter: Meter; days: BlobPutDay[] | n
         </>
       )}
 
+      {/* No "uploads are refused until" line here. #332 moved uploads to the
+          Supabase bucket, so nothing the hub does today spends a Blob put,
+          and a resume date worked out from this ledger would describe a
+          refusal that cannot happen (#337). */}
       <p className="mt-4 max-w-[70ch] text-sm text-neutral-300">
-        {resume
-          ? `Uploads are refused until ${shortDate(resume)}, when enough of the oldest puts stop counting.`
-          : busiest
-            ? `The busiest day was ${shortDate(busiest.day)}, with ${number.format(busiest.asset + busiest.gameImage)} puts. Each day stops counting 30 days after it.`
-            : "Nothing has been put in the last 30 days."}
+        {busiest
+          ? `The busiest day was ${shortDate(busiest.day)}, with ${number.format(busiest.asset + busiest.gameImage)} puts. Each day stops counting 30 days after it.`
+          : "Nothing has been put in the last 30 days."}
       </p>
 
       {days ? (
@@ -339,7 +344,16 @@ function OperationsPanel({ meter, days }: { meter: Meter; days: BlobPutDay[] | n
   );
 }
 
-function PromotionPanel({ status }: { status: PromotionStatus }) {
+function PromotionPanel({
+  status,
+  stuckDeletions,
+}: {
+  status: PromotionStatus;
+  /** Bucket objects reserved for deletion more than {@link
+   *  ABANDONED_RESERVATION_MINUTES} minutes ago: a sweep that died mid delete,
+   *  rather than one still running (issue #337). The next sweep finishes them. */
+  stuckDeletions: number;
+}) {
   const figure = (value: number | null) => (value === null ? "no figure" : number.format(value));
 
   const rows: { label: string; value: string; detail?: string; alarm?: boolean }[] = [
@@ -361,6 +375,15 @@ function PromotionPanel({ status }: { status: PromotionStatus }) {
     {
       label: "Staging copies still to delete",
       value: figure(status.leftover),
+    },
+    {
+      label: "Bucket deletions stuck",
+      value: figure(stuckDeletions),
+      detail:
+        stuckDeletions > 0
+          ? `Reserved for deletion more than ${ABANDONED_RESERVATION_MINUTES} minutes ago, so the run that reserved them has died. The next sweep finishes the delete.`
+          : undefined,
+      alarm: stuckDeletions > 0,
     },
     { label: "Promoted in the last 30 days", value: figure(status.promotedRecently) },
     {
@@ -491,11 +514,12 @@ export default async function Ops() {
 
   const admin = createAdminClient();
   const now = new Date();
-  const [report, orphans, days, promotion] = await Promise.all([
+  const [report, orphans, days, promotion, stuckDeletions] = await Promise.all([
     fetchMeters(admin, now),
     fetchOrphans(admin),
     fetchBlobPutDays(admin, now),
     fetchPromotionStatus(admin, now),
+    fetchAbandonedStagedDeletions(admin, now),
   ]);
 
   const operations = report.meters.find((meter) => meter.unit === "operations");
@@ -526,7 +550,7 @@ export default async function Ops() {
 
         <div className="grid items-start gap-6 xl:grid-cols-3">
           {operations ? <OperationsPanel meter={operations} days={days} /> : null}
-          <PromotionPanel status={promotion} />
+          <PromotionPanel status={promotion} stuckDeletions={stuckDeletions.length} />
         </div>
 
         <section className="flex flex-col gap-4" aria-labelledby="storage">

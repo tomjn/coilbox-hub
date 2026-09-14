@@ -63,6 +63,16 @@ export const VERCEL_FAST_DATA_TRANSFER_ALLOWANCE_BYTES = 100 * GIB;
 export const PAGES_PUBLISHED_ALLOWANCE_BYTES = GIB;
 export const PAGES_BANDWIDTH_SOFT_ALLOWANCE_BYTES = 100 * GIB;
 
+/** Supabase's free plan file storage limit (issue #337). Source:
+ *  https://supabase.com/pricing. */
+export const SUPABASE_STORAGE_ALLOWANCE_BYTES = GIB;
+
+/** Supabase's free plan egress limit: 5 GB cached and 5 GB uncached, shared by
+ *  the database, auth and storage across the whole organisation and not just
+ *  this project (issue #337). Source: https://supabase.com/pricing and
+ *  https://supabase.com/docs/guides/storage/serving/bandwidth. */
+export const SUPABASE_EGRESS_ALLOWANCE_BYTES = 10 * GIB;
+
 /**
  * How full a counted meter has to be before the daily job starts failing.
  *
@@ -141,6 +151,15 @@ async function countRows(
   return error ? null : (count ?? 0);
 }
 
+/** A scalar bigint RPC's answer, or null when the call failed. Same reasoning
+ *  as {@link countRows}: a failed read is not a zero. */
+async function readBigint(
+  query: PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<number | null> {
+  const { data, error } = await query;
+  return error ? null : Number(data ?? 0);
+}
+
 function total(rows: UsageRow[], tier: string): number {
   return rows.filter((row) => row.tier === tier).reduce((sum, row) => sum + row.bytes, 0);
 }
@@ -172,7 +191,7 @@ export async function fetchMeters(
   supabase: SupabaseClient,
   now: Date = new Date(),
 ): Promise<MeterReport> {
-  const [usage, operations] = await Promise.all([
+  const [usage, operations, bucketBytes] = await Promise.all([
     supabase.rpc("asset_storage_usage"),
     // One row per reserved `put()`, the same rows the budget is checked against.
     countRows(
@@ -181,6 +200,7 @@ export async function fetchMeters(
         .select("id", { count: "exact", head: true })
         .gte("at", blobWindowStart(now)),
     ),
+    readBigint(supabase.rpc("staged_pictures_bucket_bytes")),
   ]);
 
   if (usage.error) throw new Error(`Could not read what the stores hold: ${usage.error.message}`);
@@ -224,6 +244,28 @@ export async function fetchMeters(
           "The store is public, so a browser fetches a staging picture straight from it and no " +
           "part of that request reaches the hub. Nothing here can count it and there is no API " +
           "to ask. Read it off the store dashboard.",
+      },
+      {
+        name: "Supabase Storage",
+        basis: "counted",
+        used: bucketBytes,
+        allowance: SUPABASE_STORAGE_ALLOWANCE_BYTES,
+        unit: "bytes",
+        note:
+          "Every object in the staged-pictures bucket, summed by storage.get_size_by_bucket(). " +
+          "Every upload counts here whatever its moderation state: a rejected picture (#348) is " +
+          "still bytes in the bucket until somebody decides what happens to it.",
+      },
+      {
+        name: "Supabase egress this month",
+        basis: "dashboard",
+        used: null,
+        allowance: SUPABASE_EGRESS_ALLOWANCE_BYTES,
+        unit: "bytes",
+        note:
+          "5 GB cached and 5 GB uncached, shared by the database, auth and storage across the " +
+          "whole organisation and not just this project. Not exposed to the application. Read it " +
+          "off the project dashboard.",
       },
       {
         name: `Vercel fast data transfer, last ${BLOB_WINDOW_DAYS} days`,
