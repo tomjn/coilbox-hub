@@ -8,7 +8,7 @@
 -- nothing else.
 
 begin;
-select plan(20);
+select plan(35);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -181,6 +181,116 @@ select is(
   (select snippet from public.game_unit where unit_name = 'armcom'),
   'The commander. Everything starts here.',
   'and the owner''s words are still there'
+);
+
+-- A moderator may do anything an owner may, on any game (#350): a game owned
+-- by somebody else, and a hidden game nobody owns. Only the columns an owner
+-- holds, because the grant is the same grant.
+reset role;
+set local role service_role;
+insert into public.game (id, shortname, hidden_at)
+values ('0f8fad5b-0006-4000-8000-000000000002', 'ZK', now());
+insert into public.game_unit (game_id, unit_name, facts_digest)
+values ('0f8fad5b-0006-4000-8000-000000000002', 'cloakcon', 'd2');
+
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"cccccccc-cccc-cccc-cccc-cccccccccccc","role":"authenticated"}';
+
+select lives_ok(
+  $$update public.game set display_name = 'BA, edited', description = 'A moderator wrote this.' where shortname = 'BA'$$,
+  'a moderator edits the words on a game somebody else owns'
+);
+
+select is(
+  (select row(display_name::text, description::text) from public.game where shortname = 'BA'),
+  row('BA, edited'::text, 'A moderator wrote this.'::text),
+  'and the words changed'
+);
+
+select throws_ok(
+  $$update public.game set shortname = 'XX' where shortname = 'BA'$$,
+  '42501',
+  null,
+  'but a moderator cannot change identity through the grant'
+);
+
+select throws_ok(
+  $$update public.game set owner_user_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc' where shortname = 'BA'$$,
+  '42501',
+  null,
+  'nor who owns it'
+);
+
+select throws_ok(
+  $$update public.game set logo_path = 'games/BA/logo.png' where shortname = 'BA'$$,
+  '42501',
+  null,
+  'nor the image columns, which only the secret key writes'
+);
+
+select lives_ok(
+  $$update public.game_unit set snippet = 'A moderator''s snippet.' where unit_name = 'armcom'$$,
+  'a moderator writes a snippet on a game somebody else owns'
+);
+
+select is(
+  (select snippet from public.game_unit where unit_name = 'armcom'),
+  'A moderator''s snippet.',
+  'and the snippet changed'
+);
+
+select lives_ok(
+  $$update public.game set description = 'Hidden, unowned, described.' where shortname = 'ZK'$$,
+  'a moderator edits a hidden game nobody owns'
+);
+
+select is(
+  (select description from public.game where shortname = 'ZK'),
+  'Hidden, unowned, described.',
+  'and reads the change back'
+);
+
+select lives_ok(
+  $$update public.game_unit set snippet = 'Cloaks.' where unit_name = 'cloakcon'$$,
+  'a moderator writes a snippet on that hidden game'
+);
+
+select is(
+  (select snippet from public.game_unit where unit_name = 'cloakcon'),
+  'Cloaks.',
+  'and the snippet is there'
+);
+
+-- A signed in account that is neither owner nor moderator still changes
+-- nothing on either game.
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","role":"authenticated"}';
+
+select lives_ok(
+  $$update public.game set description = 'stranger' where shortname in ('BA', 'ZK')$$,
+  'a stranger''s edit after a moderator''s touches no rows'
+);
+
+select lives_ok(
+  $$update public.game_unit set snippet = 'stranger' where unit_name in ('armcom', 'cloakcon')$$,
+  'nor does a stranger''s snippet edit'
+);
+
+reset role;
+set local role service_role;
+
+select is(
+  (select array_agg(description order by shortname) from public.game where shortname in ('BA', 'ZK')),
+  array['A moderator wrote this.', 'Hidden, unowned, described.'],
+  'both games keep the moderator''s words'
+);
+
+select is(
+  (select array_agg(snippet order by unit_name) from public.game_unit where unit_name in ('armcom', 'cloakcon')),
+  array['A moderator''s snippet.', 'Cloaks.'],
+  'and both snippets'
 );
 
 -- An anonymous visitor holds nothing at all on the new table.
