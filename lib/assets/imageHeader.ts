@@ -32,8 +32,19 @@
  * is for extended WebP, where the image chunk sits after whatever metadata
  * chunks came first, and it bounds the scan: a file whose image chunk is past
  * this is unreadable rather than worth streaming more of.
+ *
+ * 4096 was enough while every WebP here came from `sharp` or `libwebp`
+ * (`imageHeader.test.ts`'s frozen samples). A browser's own encoder is
+ * different: Chrome's `canvas.toBlob("image/webp")` puts an `ALPH` chunk
+ * (the alpha plane, compressed but real image data, not metadata) before the
+ * `VP8 ` chunk this scan is looking for. Measured against Chromium while
+ * building #359: a 1024x1024 transparent PNG, resized to fit a 2048x448
+ * banner box (448x448 for that source), put its `VP8 ` chunk at byte 4128 -
+ * past the old 4096 bound, so the upload was refused as unreadable. 65536
+ * leaves over an order of magnitude of headroom above that measurement, and
+ * is still small next to the 512 KiB a picture may weigh in total.
  */
-export const IMAGE_HEADER_BYTES = 4096;
+export const IMAGE_HEADER_BYTES = 65536;
 
 export interface ImageHeader {
   /** The type the bytes are, which is not necessarily the type declared. */
