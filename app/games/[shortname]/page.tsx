@@ -120,7 +120,7 @@ function Faction({
     <li>
       <Link
         href={`/games/${game}/units?faction=${encodeURIComponent(faction.key)}`}
-        className={`${CARD} items-center gap-3 p-2 pr-4`}
+        className={`${CARD} items-center gap-3 ${picture ? "p-2 pr-4" : "px-4 py-3"}`}
       >
         {picture}
         <span className="min-w-0 break-words font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
@@ -139,7 +139,7 @@ function Onward({ href, name, detail }: { href: string; name: string; detail: st
         <span className="font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
           {name}
         </span>
-        <span className="text-sm text-neutral-400">{detail}</span>
+        <span className="text-sm text-pretty text-neutral-400">{detail}</span>
       </Link>
     </li>
   );
