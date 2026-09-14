@@ -359,6 +359,14 @@ function PromotionPanel({
   const rows: { label: string; value: string; detail?: string; alarm?: boolean }[] = [
     { label: "Waiting for review", value: figure(status.pending) },
     {
+      label: "Lost in the Blob store",
+      value: figure(status.missing),
+      detail:
+        status.missing
+          ? "The store would not return these, so promotion skips them until Coilbox uploads them again."
+          : undefined,
+    },
+    {
       label: `Approved, in the ${PROMOTION_AGE_DAYS} day hold`,
       value: figure(status.waiting),
     },

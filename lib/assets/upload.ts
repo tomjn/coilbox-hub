@@ -195,9 +195,10 @@ export type AssetUploadCheck =
 /** What the identity check needs off a row that already exists. Each column is
  * a question a later check asks: who may replace it, whether these are the same
  * source bytes, which archive those bytes came out of, whether it is in a state
- * that may be replaced at all, and how much of the account's quota the
- * superseded row is holding. */
-const EXISTING_COLUMNS = "id, source_hash, source_archive, uploaded_by, moderation, bytes";
+ * that may be replaced at all, how much of the account's quota the superseded
+ * row is holding, and whether the hub has lost its bytes (#336). */
+const EXISTING_COLUMNS =
+  "id, source_hash, source_archive, uploaded_by, moderation, bytes, bytes_missing_at";
 
 interface ExistingAsset {
   id: string;
@@ -206,6 +207,7 @@ interface ExistingAsset {
   uploaded_by: string | null;
   moderation: string;
   bytes: number;
+  bytes_missing_at: string | null;
 }
 
 /**
@@ -409,7 +411,11 @@ export async function checkAssetUpload(
     // an approved row to pending, so a client retrying in a loop would keep its
     // own picture out of the gallery. `/api/v1/assets/have` answers this for
     // free and in batches, which is what a well behaved client asks first.
-    if (replacing.source_hash === declaration.sourceHash) {
+    //
+    // Not when the hub has lost the bytes (#336). The row is still there, but
+    // the store it names will not return them, so the same source bytes are
+    // exactly what is wanted and `have` has already said so.
+    if (replacing.source_hash === declaration.sourceHash && replacing.bytes_missing_at === null) {
       return {
         ok: false,
         error:
@@ -545,6 +551,8 @@ export async function uploaderSkipsQueue(supabase: SupabaseClient): Promise<bool
  *
  * `tier` and `promoted_at` go back too. The new object is in the bucket, so a
  * row left saying `static` or `blob` would name a store the bytes are not in.
+ * `bytes_missing_at` goes with them, because the bytes are no longer missing
+ * (#336), and the table refuses a bucket row that still says they are.
  *
  * Replacement, not accumulation. One row per identity throughout, and the
  * superseded object stays in the store as an orphan for #113 rather than being
@@ -582,6 +590,7 @@ export async function writeUploadedAsset(
         // upload's date and the hourly limit would not count this write.
         seen_at: new Date().toISOString(),
         promoted_at: null,
+        bytes_missing_at: null,
         ...moderation,
       })
       .eq("id", replacing);

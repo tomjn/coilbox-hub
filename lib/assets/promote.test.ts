@@ -60,6 +60,7 @@ interface Row {
   blob_path_tier: string | null;
   promoted_at: string | null;
   updated_at: string;
+  bytes_missing_at: string | null;
 }
 
 function unit(id: string, name: string, hash: string, over: Partial<Row> = {}): Row {
@@ -80,6 +81,7 @@ function unit(id: string, name: string, hash: string, over: Partial<Row> = {}): 
     blob_path_tier: null,
     promoted_at: null,
     updated_at: OLD,
+    bytes_missing_at: null,
     ...over,
   };
 }
@@ -194,6 +196,7 @@ function fakeSupabase(world: World): SupabaseClient {
       if (row.tier !== "blob" && row.tier !== "bucket") return;
       if (row.moderation !== "approved") return;
       if (row.blob_path !== null) return;
+      if (row.bytes_missing_at !== null) return;
 
       row.blob_path = row.path;
       row.blob_path_tier = row.tier;
@@ -871,6 +874,32 @@ test("a store that refuses every read moves nothing and loses nothing", async ()
   expect(result).toEqual({ drained: 0, promoted: 0, skipped: 2, deleted: 0, unreadable: 2 });
   expect(world.discarded).toEqual([]);
   invariants(world);
+});
+
+/** #336. Marked once by `scripts/find-unreadable-blob-assets.ts`, so the run
+ * neither reads it nor fails on it, and it cannot hold a batch slot that a
+ * readable row behind it needs. */
+test("a row marked as lost in the store is not selected, so it cannot fill a batch", async () => {
+  world = new World([
+    unit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1", {
+      bytes_missing_at: "2026-09-14T12:00:00Z",
+    }),
+    unit("00000000-0000-4000-8000-000000000002", "armllt", "bbb2"),
+  ]);
+  world.blob.delete(world.rows[0].path);
+  const read: string[] = [];
+  const ports = fakePorts(world);
+  const reading = ports.read;
+  ports.read = async (url) => {
+    read.push(url);
+    return reading(url);
+  };
+
+  const result = await runPromotion(fakeSupabase(world), ports, { now: NOW, limit: 1 });
+
+  expect(result).toEqual({ drained: 0, promoted: 1, skipped: 0, deleted: 1, unreadable: 0 });
+  expect(read).toEqual([`${BLOB_TIER_BASE}units/bar/buildpic/bbb2-Hn4vQ2rT.webp`]);
+  expect(world.rows.map((row) => row.tier)).toEqual(["blob", "static"]);
 });
 
 test("a drain that fails is said out loud and the rows due today still move", async () => {

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { AssetIdentity } from "./asset";
-import { identityFilter, identityKey, queryChunks } from "./have";
+import { heldForHave, identityFilter, identityKey, queryChunks } from "./have";
 
 const UNIT: AssetIdentity = {
   keyedOn: "unit",
@@ -75,4 +75,17 @@ test("one query stays under the request line most proxies allow", () => {
   const query = encodeURIComponent(identities.map(identityFilter).join(","));
 
   expect(query.length).toBeLessThan(8000);
+});
+
+/** #336. Coilbox uploads whatever the hub does not answer `have` for. */
+test("a row whose bytes the store lost is not held, so Coilbox offers it again", () => {
+  const lost = "2026-09-14T12:00:00Z";
+
+  expect(heldForHave({ moderation: "approved", bytes_missing_at: null })).toBe(true);
+  expect(heldForHave({ moderation: "approved", bytes_missing_at: lost })).toBe(false);
+  expect(heldForHave({ moderation: "pending", bytes_missing_at: lost })).toBe(false);
+});
+
+test("a rejected row is held whatever happened to its bytes, since an upload cannot undo it", () => {
+  expect(heldForHave({ moderation: "rejected", bytes_missing_at: "2026-09-14T12:00:00Z" })).toBe(true);
 });
