@@ -1,4 +1,7 @@
+import type { GameImageKind } from "@/lib/api/gameBranding";
 import { GAME_BRANDING_MAX_BYTES } from "@/lib/api/gameBranding";
+import { IMAGE_HEADER_BYTES, readImageHeader } from "@/lib/assets/imageHeader";
+import { type ConvertResult, convertImageForUpload, IMAGE_TARGETS, planImageUpload } from "@/lib/games/imageResize";
 
 /**
  * What the logo and banner forms on a game's edit page tell the person
@@ -7,6 +10,11 @@ import { GAME_BRANDING_MAX_BYTES } from "@/lib/api/gameBranding";
  *
  * The server action and the form share these, so the size check the browser
  * makes reads the same as the one the server makes.
+ *
+ * A file that needs shrinking or converting (#356, #359) goes through
+ * `./imageResize` first, which is where that work and its own messages live.
+ * This file only decides whether a chosen file needs that detour, and stitches
+ * its answer onto the server's.
  */
 
 /** The answer an upload form shows. Null before the first upload. */
@@ -16,7 +24,7 @@ export interface GameImageUploadState {
 }
 
 export const UPLOAD_MESSAGES = {
-  noFile: "Choose a PNG or WebP file to upload.",
+  noFile: "Choose a PNG, WebP or JPEG file to upload.",
   wrongType: "This file is not a PNG or WebP picture. Save it as PNG or WebP and try again.",
   signedOut: "You are signed out. Sign in, then upload the picture again.",
   notAllowed: "You can no longer change this game. Only its owner or a moderator can upload its pictures.",
@@ -32,13 +40,25 @@ function refused(message: string): GameImageUploadState {
   return { ok: false, message };
 }
 
-/** The refusal for a missing, empty or oversized file, or null when the file
- *  may be sent. What the bytes are is for the server to read. */
-export function refuseImageFile(file: FormDataEntryValue | null): GameImageUploadState | null {
+/** The refusal for a missing or empty file, or null when a file is there.
+ *  Shared by {@link refuseImageFile} and {@link sendGameImage}: the server
+ *  still checks the size on the finished upload, but the browser no longer
+ *  refuses a big file on sight, since shrinking it is the point of #359. */
+function refuseMissingFile(file: FormDataEntryValue | null): GameImageUploadState | null {
   if (!(file instanceof File) || file.size === 0) return refused(UPLOAD_MESSAGES.noFile);
-  if (file.size > GAME_BRANDING_MAX_BYTES) {
+  return null;
+}
+
+/** The refusal for a missing, empty or oversized file, or null when the file
+ *  may be sent. What the bytes are is for the server to read. Used server side
+ *  (`app/games/actions.ts`) as the last check on what actually arrived. */
+export function refuseImageFile(file: FormDataEntryValue | null): GameImageUploadState | null {
+  const missing = refuseMissingFile(file);
+  if (missing) return missing;
+  const picked = file as File;
+  if (picked.size > GAME_BRANDING_MAX_BYTES) {
     return refused(
-      `This file is ${kilobytes(file.size)}. The largest picture you can upload is ` +
+      `This file is ${kilobytes(picked.size)}. The largest picture you can upload is ` +
         `${kilobytes(GAME_BRANDING_MAX_BYTES)}. Make it smaller and try again.`,
     );
   }
@@ -48,22 +68,48 @@ export function refuseImageFile(file: FormDataEntryValue | null): GameImageUploa
 /**
  * Send an upload form to the server action, from the browser.
  *
- * The size is checked here first because Next.js refuses a server action body
- * over 1 MB before the action runs. That refusal is thrown in the browser, and
- * the page is replaced by an error screen. Anything else thrown on the way,
- * such as a dropped connection, becomes a message beside the form for the same
- * reason.
+ * A PNG or WebP already inside its display box and under the byte limit is
+ * sent unchanged. Everything else - a JPEG, an oversized PNG or WebP, or
+ * anything the header can't read - is handed to `convert` first, which shrinks
+ * or converts it and reports what it did. Its answer, when it succeeds, is
+ * stitched onto the server's so the person sees both.
+ *
+ * The size is checked before sending, unchanged or converted, because Next.js
+ * refuses a server action body over 1 MB before the action runs, throwing in
+ * the browser and replacing the page with an error screen. Anything else
+ * thrown on the way, such as a dropped connection, becomes a message beside
+ * the form for the same reason.
+ *
+ * `convert` defaults to the real browser conversion (`./imageResize`) and is
+ * only ever overridden in tests, the same way `send` already was.
  */
 export async function sendGameImage(
   send: (previous: GameImageUploadState | null, form: FormData) => Promise<GameImageUploadState>,
   previous: GameImageUploadState | null,
   form: FormData,
+  convert: (file: File, kind: GameImageKind) => Promise<ConvertResult> = convertImageForUpload,
 ): Promise<GameImageUploadState> {
-  const refusal = refuseImageFile(form.get("image"));
-  if (refusal) return refusal;
+  const entry = form.get("image");
+  const missing = refuseMissingFile(entry);
+  if (missing) return missing;
+  const file = entry as File;
+
+  const kind = (form.get("kind") === "logo" ? "logo" : "banner") as GameImageKind;
+  const headerBytes = new Uint8Array(await file.slice(0, IMAGE_HEADER_BYTES).arrayBuffer());
+  const header = readImageHeader(headerBytes);
+  const plan = planImageUpload(header, file.size, GAME_BRANDING_MAX_BYTES, IMAGE_TARGETS[kind]);
+
+  let note = "";
+  if (plan === "convert") {
+    const result = await convert(file, kind);
+    if (!result.ok) return refused(result.message);
+    form.set("image", result.file);
+    note = `${result.message} `;
+  }
 
   try {
-    return await send(previous, form);
+    const sent = await send(previous, form);
+    return { ok: sent.ok, message: `${note}${sent.message}`.trim() };
   } catch {
     return refused(UPLOAD_MESSAGES.notSent);
   }
