@@ -10,7 +10,8 @@ import type { ImageHeader } from "@/lib/assets/imageHeader";
  * (`lib/api/gameBranding.ts`), and it keeps refusing anything else, because a
  * request can skip the browser. Getting a photo under that limit, and getting a
  * JPEG accepted at all, is this file's job: decode whatever was chosen, draw it
- * no larger than the game page ever shows it, and encode WebP.
+ * no larger than the game page ever shows it, and encode it as
+ * {@link targetFormat} says.
  *
  * ## Target dimensions
  *
@@ -105,15 +106,41 @@ export function planImageUpload(
 }
 
 /** What a resized or converted picture's answer says happened, with the
- *  before and after size (#359's ask). A WebP that only needed shrinking says
- *  so. Anything else names the format it came from, since the output is
- *  always WebP. */
-export function describeConversion(originalMime: string, originalBytes: number, resultBytes: number): string {
+ *  before and after size (#359's ask). A picture that only needed shrinking,
+ *  not a format change, says so. Anything else names the format it came from
+ *  and the format it became. */
+export function describeConversion(
+  originalMime: string,
+  originalBytes: number,
+  resultBytes: number,
+  resultMime: string,
+): string {
   const before = kilobytes(originalBytes);
   const after = kilobytes(resultBytes);
-  if (originalMime === "image/webp") return `Shrunk from ${before} to ${after}.`;
-  const label = originalMime === "image/jpeg" ? "JPEG" : originalMime === "image/png" ? "PNG" : "the original file";
-  return `Converted from ${label} (${before}) to WebP (${after}).`;
+  if (originalMime === resultMime) return `Shrunk from ${before} to ${after}.`;
+  const label =
+    originalMime === "image/jpeg"
+      ? "JPEG"
+      : originalMime === "image/png"
+        ? "PNG"
+        : originalMime === "image/webp"
+          ? "WebP"
+          : "the original file";
+  const outputLabel = resultMime === "image/webp" ? "WebP" : "PNG";
+  return `Converted from ${label} (${before}) to ${outputLabel} (${after}).`;
+}
+
+/**
+ * The MIME type a converted upload encodes to.
+ *
+ * A logo is embedded straight into the link preview's renderer
+ * (`app/games/[shortname]/opengraph-image.tsx`), which cannot decode WebP
+ * (#366). So a logo always converts to PNG - itself small enough at the
+ * 128x128 logo box to stay well under the byte limit uncompressed. A banner
+ * never reaches that renderer, so it keeps WebP's smaller size.
+ */
+export function targetFormat(kind: GameImageKind): "image/png" | "image/webp" {
+  return kind === "logo" ? "image/png" : "image/webp";
 }
 
 export interface ConvertSuccess {
@@ -129,22 +156,24 @@ export interface ConvertFailure {
 
 export type ConvertResult = ConvertSuccess | ConvertFailure;
 
-/** One WebP (or, lacking browser support, PNG) encode of `bitmap` at `width`x
- *  `height`. Tries `OffscreenCanvas` first, since it needs no element in the
- *  page, and falls back to a `<canvas>` for engines without it. Neither call
- *  fills a background before drawing, so transparency in the source survives. */
+/** One encode of `bitmap` at `width`x`height`, in `format` (falling back to
+ *  PNG when the browser cannot produce `format`). Tries `OffscreenCanvas`
+ *  first, since it needs no element in the page, and falls back to a
+ *  `<canvas>` for engines without it. Neither call fills a background before
+ *  drawing, so transparency in the source survives. */
 async function encodeAttempt(
   bitmap: ImageBitmap,
   width: number,
   height: number,
   quality: number | undefined,
+  format: "image/png" | "image/webp",
 ): Promise<Blob> {
   if (typeof OffscreenCanvas !== "undefined") {
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("2d context unavailable");
     ctx.drawImage(bitmap, 0, 0, width, height);
-    return await canvas.convertToBlob({ type: "image/webp", quality });
+    return await canvas.convertToBlob({ type: format, quality });
   }
 
   const canvas = document.createElement("canvas");
@@ -154,7 +183,7 @@ async function encodeAttempt(
   if (!ctx) throw new Error("2d context unavailable");
   ctx.drawImage(bitmap, 0, 0, width, height);
   return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("canvas.toBlob produced nothing"))), "image/webp", quality);
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("canvas.toBlob produced nothing"))), format, quality);
   });
 }
 
@@ -171,11 +200,12 @@ async function encodeAttempt(
  * below {@link MIN_DIMENSION}. Stops as soon as one attempt lands at or under
  * {@link GAME_BRANDING_MAX_BYTES}.
  *
- * Some engines still answer `canvas.toBlob("image/webp")` with a PNG instead
- * (Safari added WebP encoding late). That is read off the returned blob's own
- * `type`, not assumed from what was asked for. Once it happens, quality steps
- * are skipped for the rest of the attempt, since PNG has none to give, and
- * only the dimension gets smaller.
+ * Some engines still answer `canvas.toBlob(format)` with a PNG instead of the
+ * WebP a banner asked for (Safari added WebP encoding late). That is read off
+ * the returned blob's own `type`, not assumed from what was asked for. Once it
+ * happens, quality steps are skipped for the rest of the attempt, since PNG
+ * has none to give, and only the dimension gets smaller. A logo already asks
+ * for PNG ({@link targetFormat}), so this only ever fires for a banner.
  */
 export async function convertImageForUpload(file: File, kind: GameImageKind): Promise<ConvertResult> {
   let bitmap: ImageBitmap;
@@ -188,21 +218,22 @@ export async function convertImageForUpload(file: File, kind: GameImageKind): Pr
   try {
     const box = IMAGE_TARGETS[kind];
     let { width, height } = fitWithinBox(bitmap.width, bitmap.height, box.maxWidth, box.maxHeight);
-    let webpSupported = true;
+    const format = targetFormat(kind);
+    let formatSupported = format === "image/webp";
     let smallest: Blob | null = null;
 
     for (let round = 0; round < MAX_DIMENSION_ROUNDS; round++) {
-      const qualities = webpSupported ? QUALITY_STEPS : [undefined];
+      const qualities = formatSupported ? QUALITY_STEPS : [undefined];
 
       for (const quality of qualities) {
         let blob: Blob;
         try {
-          blob = await encodeAttempt(bitmap, width, height, quality);
+          blob = await encodeAttempt(bitmap, width, height, quality, format);
         } catch {
           return { ok: false, message: "This picture could not be converted in your browser. Try a different browser or a smaller picture." };
         }
 
-        if (blob.type !== "image/webp") webpSupported = false;
+        if (blob.type !== format) formatSupported = false;
         if (!smallest || blob.size < smallest.size) smallest = blob;
 
         if (blob.size <= GAME_BRANDING_MAX_BYTES) {
@@ -210,11 +241,11 @@ export async function convertImageForUpload(file: File, kind: GameImageKind): Pr
           return {
             ok: true,
             file: new File([blob], `${kind}.${ext}`, { type: blob.type }),
-            message: describeConversion(file.type, file.size, blob.size),
+            message: describeConversion(file.type, file.size, blob.size, blob.type),
           };
         }
 
-        if (!webpSupported) break;
+        if (!formatSupported) break;
       }
 
       width = Math.max(MIN_DIMENSION, Math.round(width * DIMENSION_STEP_FACTOR));

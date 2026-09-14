@@ -26,6 +26,30 @@ export const alt = "A game on Coilbox Hub";
 const dataUri = (type: string, buffer: ArrayBuffer): string =>
   `data:${type};base64,${Buffer.from(buffer).toString("base64")}`;
 
+/**
+ * The picture formats this route's renderer (`next/og`, which bundles Satori)
+ * can actually decode.
+ *
+ * Confirmed against the vendored source at
+ * node_modules/next/dist/compiled/@vercel/og/index.node.js: the list a decoded
+ * data URI's detected type is checked against only holds PNG, APNG, JPEG, GIF
+ * and SVG. WebP and AVIF are recognised by their magic bytes but have no
+ * decode case, so handing one to `ImageResponse` throws mid-render instead of
+ * returning cleanly (#366) - confirmed locally, the same crash the issue
+ * reports: a spread of the `undefined` the missing case leaves behind.
+ *
+ * The upload bucket only ever holds PNG or WebP (`lib/games/art.ts`), so in
+ * practice this only ever turns away WebP, but it is written against the
+ * renderer's real support list rather than the bucket's narrower one.
+ */
+const SATORI_DECODABLE_LOGO_TYPES = new Set([
+  "image/png",
+  "image/apng",
+  "image/jpeg",
+  "image/gif",
+  "image/svg+xml",
+]);
+
 async function logoDataUri(page: GamePage): Promise<string | null> {
   try {
     // A logo still in the staging bucket is read from there directly, through
@@ -39,7 +63,8 @@ async function logoDataUri(page: GamePage): Promise<string | null> {
         "logo",
         page.logo_hash,
       );
-      return art && "bytes" in art ? dataUri(art.mime, await art.bytes.arrayBuffer()) : null;
+      if (!art || !("bytes" in art) || !SATORI_DECODABLE_LOGO_TYPES.has(art.mime)) return null;
+      return dataUri(art.mime, await art.bytes.arrayBuffer());
     }
 
     const url = gameArtUrl(page.shortname, "logo", {
@@ -50,7 +75,9 @@ async function logoDataUri(page: GamePage): Promise<string | null> {
     if (!url) return null;
     const response = await fetch(url);
     if (!response.ok) return null;
-    return dataUri(response.headers.get("content-type") ?? "image/png", await response.arrayBuffer());
+    const contentType = response.headers.get("content-type") ?? "image/png";
+    if (!SATORI_DECODABLE_LOGO_TYPES.has(contentType)) return null;
+    return dataUri(contentType, await response.arrayBuffer());
   } catch {
     return null;
   }

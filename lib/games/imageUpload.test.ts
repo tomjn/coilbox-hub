@@ -11,6 +11,11 @@ const PNG = Buffer.from(
   "base64",
 );
 
+/** 3x2, lossy WebP - the same frozen libwebp output `lib/assets/imageHeader.test.ts`
+ *  uses as `lossyWebp`. Small enough to pass every other check `planImageUpload`
+ *  makes, so it isolates the #366 rule that a logo converts regardless. */
+const WEBP = Buffer.from("UklGRjoAAABXRUJQVlA4IC4AAAAQAgCdASoDAAIAAUAmJaACdLoB+AH4AAPIAP7udn/+oLQ18vxov/U4MHPn4/wA", "base64");
+
 function form(file?: File, kind: "logo" | "banner" = "banner"): FormData {
   const data = new FormData();
   data.set("shortname", "BA");
@@ -67,6 +72,39 @@ test("a PNG already inside its box and under the byte limit is sent unchanged, w
 
   expect(state).toEqual({ ok: true, message: "Banner uploaded." });
   expect(send).toHaveBeenCalledTimes(1);
+});
+
+test("a WebP banner already inside its box and under the byte limit is sent unchanged, without converting", async () => {
+  const send = mock(async () => ({ ok: true, message: "Banner uploaded." }));
+  const webpFile = new File([WEBP], "banner.webp", { type: "image/webp" });
+
+  const state = await sendGameImage(send, null, form(webpFile), unusedConvert);
+
+  expect(state).toEqual({ ok: true, message: "Banner uploaded." });
+  expect(send).toHaveBeenCalledTimes(1);
+});
+
+test("a WebP logo is always handed to convert, even inside its box and under the byte limit (#366)", async () => {
+  const send = mock(async () => ({ ok: true, message: "Logo uploaded." }));
+  const converted = pngFile("logo.png");
+  // Both parameters are unused in the body: they are here so bun records
+  // `convert`'s call arguments with the real two-argument shape, which the
+  // assertion on `convert.mock.calls[0]` below reads.
+  const convert = mock(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async (_file: File, _kind: "logo" | "banner"): Promise<ConvertResult> => ({
+      ok: true,
+      file: converted,
+      message: "Converted from WebP (1 KB) to PNG (1 KB).",
+    }),
+  );
+  const webpFile = new File([WEBP], "logo.webp", { type: "image/webp" });
+
+  const state = await sendGameImage(send, null, form(webpFile, "logo"), convert);
+
+  expect(convert).toHaveBeenCalledTimes(1);
+  expect(convert.mock.calls[0]?.[1]).toBe("logo");
+  expect(state).toEqual({ ok: true, message: "Converted from WebP (1 KB) to PNG (1 KB). Logo uploaded." });
 });
 
 test("bytes that are not a readable PNG or WebP header are handed to convert", async () => {
