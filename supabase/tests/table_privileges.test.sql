@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(87);
+select plan(90);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -127,6 +127,17 @@ select table_privs_are('public', 'blob_put', 'authenticated', ARRAY[]::name[],
   'authenticated holds no table privilege on blob_put');
 select table_privs_are('public', 'blob_put', 'service_role', ARRAY['SELECT'],
   'service_role reads the put() count and can neither add to it nor take from it by hand');
+
+-- public.staged_object_deletion: bucket objects a deleter has reserved (issue
+-- #335). Select only, for the sweep to finish what a dead run reserved. The
+-- functions in 20260914170000 are the only writers, so a reservation cannot be
+-- dropped by hand while its object is half deleted.
+select table_privs_are('public', 'staged_object_deletion', 'anon', ARRAY[]::name[],
+  'anon holds no table privilege on staged_object_deletion');
+select table_privs_are('public', 'staged_object_deletion', 'authenticated', ARRAY[]::name[],
+  'authenticated holds no table privilege on staged_object_deletion');
+select table_privs_are('public', 'staged_object_deletion', 'service_role', ARRAY['SELECT'],
+  'service_role reads the reservations and can neither add one nor release one by hand');
 
 -- public.asset_licence: recorded research a moderator can read server side, and
 -- written only by a migration, where a person reviews the finding before it
