@@ -2,7 +2,7 @@
 -- reserved before the write.
 
 begin;
-select plan(11);
+select plan(13);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -83,6 +83,15 @@ select throws_ok(
   'only the kinds of upload that exist'
 );
 
+-- Days back from today, so the assertion does not depend on the date it runs.
+-- The released reservation and the one from 31 days ago are both absent.
+select set_eq(
+  $$select ((now() at time zone 'utc')::date - day) || ' ' || kind || ' ' || puts
+    from public.blob_put_days()$$,
+  ARRAY['0 asset 1', '0 game_image 1', '29 asset 1'],
+  'the days count what the window counts, split by kind, and nothing older'
+);
+
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
@@ -92,6 +101,13 @@ select throws_ok(
   '42501',
   null,
   'a browser cannot spend from the allowance'
+);
+
+select throws_ok(
+  $$select public.blob_put_days()$$,
+  '42501',
+  null,
+  'nor read how it was spent'
 );
 
 select * from finish();
