@@ -21,6 +21,13 @@ test("a card leads with the name and links to the game's page", () => {
   expect(html).toContain('href="/games/BA"');
 });
 
+/** Only the name is inside the link, so a screen reader announces the link as
+ *  the game's name rather than its whole description (#358). */
+test("the card's link is named by the game's name alone, inside its heading", () => {
+  const html = renderToStaticMarkup(<GameCard game={GAME} />);
+  expect(html).toMatch(/<h2[^>]*><a [^>]*href="\/games\/BA"[^>]*>Balanced Annihilation<\/a><\/h2>/);
+});
+
 test("a game with no description yet shows none rather than an empty block", () => {
   const html = renderToStaticMarkup(
     <GameCard game={{ ...GAME, description: null }} />,
@@ -37,9 +44,10 @@ test("a card says how much there is in words", () => {
   expect(html).not.toContain("community item");
 });
 
-/** A game the hub holds a logo for draws it above the name (#239), from the
- *  durable tier. One that holds none keeps the typographic card. */
-test("a card with a logo draws it, and one without does not", () => {
+/** A game the hub holds a logo for draws it beside the name (#239), from the
+ *  durable tier, in a tile of one size. One that holds none gets the same tile
+ *  with no picture in it, so names still line up across a row (#358). */
+test("a card with a logo draws it in the tile, and one without gets an empty tile", () => {
   const withLogo = renderToStaticMarkup(
     <GameCard
       game={{ ...GAME, shortname: "SF", logo_path: "games/SF/logo.webp" }}
@@ -48,8 +56,11 @@ test("a card with a logo draws it, and one without does not", () => {
   expect(withLogo).toContain(
     'src="https://tomjn.github.io/coilbox-assets/games/SF/logo.webp"',
   );
+  expect(withLogo).toContain("h-16 w-24");
 
-  expect(renderToStaticMarkup(<GameCard game={GAME} />)).not.toContain("<img");
+  const withoutLogo = renderToStaticMarkup(<GameCard game={GAME} />);
+  expect(withoutLogo).not.toContain("<img");
+  expect(withoutLogo).toContain("h-16 w-24");
 });
 
 /** A logo still in the staging bucket is drawn from the hub's own route, named

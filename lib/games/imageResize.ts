@@ -21,8 +21,8 @@ import type { ImageHeader } from "@/lib/assets/imageHeader";
  * is that check, and it is the only thing standing between a small WebP and a
  * pointless re-encode.
  *
- * - Logo: `h-16 w-16` (64px) on the game page (`app/games/[shortname]/page.tsx`),
- *   `h-12` (48px) on the game card (`components/GameCard.tsx`), and 128x128
+ * - Logo: a 64px tile (`components/GameLogo.tsx`) on the game page and the
+ *   game card, and 128x128
  *   flat on the link preview (`app/games/[shortname]/opengraph-image.tsx`,
  *   which renders at a fixed pixel size with no notion of device pixels). The
  *   page's 64px doubled for 2x screens and the preview's 128px land on the same
