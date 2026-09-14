@@ -27,7 +27,7 @@ export function GameImageForm({ shortname, kind }: { shortname: string; kind: "l
         <input
           type="file"
           name="image"
-          accept="image/png,image/webp"
+          accept="image/png,image/webp,image/jpeg"
           required
           className="text-sm text-neutral-300"
         />
