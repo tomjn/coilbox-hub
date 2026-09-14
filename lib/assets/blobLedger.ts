@@ -77,3 +77,71 @@ export async function releaseBlobPut(supabase: SupabaseClient, id: number): Prom
 export function blobWindowStart(now: Date): string {
   return new Date(now.getTime() - BLOB_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 }
+
+/** One UTC day of the window, split by what the puts were for. */
+export interface BlobPutDay {
+  /** `YYYY-MM-DD`, UTC. */
+  day: string;
+  asset: number;
+  gameImage: number;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Every day the window touches, oldest first, with the days nothing was put on
+ * filled in as zero.
+ *
+ * That is {@link BLOB_WINDOW_DAYS} + 1 days, because the window starts part way
+ * through its first one. A chart that dropped the empty days would draw one busy
+ * week as a busy month.
+ *
+ * Null when the query failed. Null is not a quiet month.
+ */
+export async function fetchBlobPutDays(
+  supabase: SupabaseClient,
+  now: Date = new Date(),
+): Promise<BlobPutDay[] | null> {
+  const { data, error } = await supabase.rpc("blob_put_days");
+  if (error) return null;
+
+  const days = new Map<string, BlobPutDay>();
+  const first = new Date(now.getTime() - BLOB_WINDOW_DAYS * DAY_MS);
+  for (let at = 0; at <= BLOB_WINDOW_DAYS; at++) {
+    const day = new Date(first.getTime() + at * DAY_MS).toISOString().slice(0, 10);
+    days.set(day, { day, asset: 0, gameImage: 0 });
+  }
+
+  for (const row of (data ?? []) as { day: string; kind: BlobPutKind; puts: number }[]) {
+    const held = days.get(row.day);
+    if (!held) continue;
+    if (row.kind === "asset") held.asset += row.puts;
+    else held.gameImage += row.puts;
+  }
+
+  return [...days.values()];
+}
+
+/**
+ * The UTC day uploads are accepted again, or null when they are accepted now.
+ *
+ * Walks the window from its oldest day, taking each day's puts off the total as
+ * that day ages out, until the total is under the budget. A put ages out 30 days
+ * to the minute after it was made, so room made by puts late on a day arrives
+ * late on the day this names. That is the reading a moderator needs: which day
+ * to expect, not which minute.
+ */
+export function uploadsResume(days: BlobPutDay[], budget: number = BLOB_PUT_BUDGET): string | null {
+  let used = days.reduce((sum, day) => sum + day.asset + day.gameImage, 0);
+  if (used < budget) return null;
+
+  for (const day of days) {
+    used -= day.asset + day.gameImage;
+    if (used < budget) {
+      const date = new Date(`${day.day}T00:00:00.000Z`);
+      return new Date(date.getTime() + BLOB_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
+    }
+  }
+
+  return null;
+}

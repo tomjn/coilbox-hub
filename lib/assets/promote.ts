@@ -155,6 +155,115 @@ export function promotionCutoff(now: Date = new Date()): string {
 }
 
 /**
+ * How long past due a row can sit before the job has missed a run rather than
+ * not reached it yet. The job runs daily (`promote.yml` in the assets repo) and
+ * is allowed 60 minutes, so a row due for longer than a day and an hour was due
+ * when a run started and was not moved by it.
+ */
+export const PROMOTION_STALL_HOURS = 25;
+
+/** Where the staging tier stands, for the allowances page. Every count is
+ *  null when its query failed, which is not the same as none. */
+export interface PromotionStatus {
+  /** Approved and still inside the hold. */
+  waiting: number | null;
+  /** Approved, past the hold, and not moved yet. */
+  due: number | null;
+  /** When the longest waiting of those became due, or null when none are. */
+  dueSince: string | null;
+  /** True when that was longer ago than a run can explain. */
+  stalled: boolean;
+  /** Uploads on the staging tier nobody has reviewed. */
+  pending: number | null;
+  /** Staging objects promoted and not deleted yet. */
+  leftover: number | null;
+  /** Rows moved to the durable tier in the last 30 days. */
+  promotedRecently: number | null;
+  /** The most recent move, or null when there has never been one. */
+  lastPromotedAt: string | null;
+}
+
+/**
+ * Where the staging tier stands. Wants the secret key, for the reason
+ * {@link fetchPromotable} gives.
+ *
+ * The page shows this so that a job which has stopped moving pictures is visible
+ * without opening the assets repo's Actions tab. Every count comes from
+ * Postgres, which is the same place the job decides from.
+ */
+export async function fetchPromotionStatus(
+  supabase: SupabaseClient,
+  now: Date = new Date(),
+): Promise<PromotionStatus> {
+  const cutoff = promotionCutoff(now);
+  const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const count = async (query: PromiseLike<{ count: number | null; error: unknown }>) => {
+    const { count: rows, error } = await query;
+    return error ? null : (rows ?? 0);
+  };
+  const assets = () => supabase.from("asset").select("id", { count: "exact", head: true });
+
+  const [waiting, due, oldestDue, pending, leftover, promotedRecently, lastPromoted] =
+    await Promise.all([
+      count(
+        assets()
+          .eq("tier", "blob")
+          .eq("moderation", "approved")
+          .is("blob_path", null)
+          .gt("updated_at", cutoff),
+      ),
+      count(
+        assets()
+          .eq("tier", "blob")
+          .eq("moderation", "approved")
+          .is("blob_path", null)
+          .lte("updated_at", cutoff),
+      ),
+      supabase
+        .from("asset")
+        .select("updated_at")
+        .eq("tier", "blob")
+        .eq("moderation", "approved")
+        .is("blob_path", null)
+        .lte("updated_at", cutoff)
+        .order("updated_at", { ascending: true })
+        .limit(1),
+      count(assets().eq("tier", "blob").eq("moderation", "pending")),
+      count(assets().not("blob_path", "is", null)),
+      count(assets().gte("promoted_at", since)),
+      supabase
+        .from("asset")
+        .select("promoted_at")
+        .not("promoted_at", "is", null)
+        .order("promoted_at", { ascending: false })
+        .limit(1),
+    ]);
+
+  const oldest = oldestDue.error
+    ? null
+    : ((oldestDue.data?.[0] as { updated_at: string } | undefined)?.updated_at ?? null);
+  const dueSince = oldest
+    ? new Date(new Date(oldest).getTime() + PROMOTION_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    : null;
+
+  return {
+    waiting,
+    due,
+    dueSince,
+    stalled:
+      dueSince !== null &&
+      now.getTime() - new Date(dueSince).getTime() > PROMOTION_STALL_HOURS * 60 * 60 * 1000,
+    pending,
+    leftover,
+    promotedRecently,
+    lastPromotedAt: lastPromoted.error
+      ? null
+      : ((lastPromoted.data?.[0] as { promoted_at: string } | undefined)?.promoted_at ?? null),
+  };
+}
+
+/**
  * Where a row's bytes go in the durable tier, or null when the identity cannot
  * be spelled as a path.
  *
