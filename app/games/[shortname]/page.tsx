@@ -161,7 +161,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
             <div className="pt-1">
               <VisibilityToggleForm
                 action={setGameVisibility}
-                fields={{ shortname, hidden: "true" }}
+                fields={{ shortname, hidden: "true", onSuccess: "edit" }}
                 label="Hide this game"
                 pendingLabel="Hiding…"
                 buttonClassName="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"

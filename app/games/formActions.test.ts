@@ -256,6 +256,41 @@ test("a visibility form with no shortname never reaches the write", async () => 
   });
 });
 
+// #374: the moderation queue's unhide buttons and a game's own "Hide this
+// game" shortcut make their own row or page disappear in the same response
+// that would have shown their message, so a form that opts in with
+// `onSuccess` is sent on to a page that still exists, with the message
+// riding along as the `visibility` search param, rather than state on the
+// component the write just took away. Every other form leaves `onSuccess`
+// unset and keeps answering in place, proved by the tests above.
+
+test("an unhide from the moderation queue redirects there with the message", async () => {
+  const attempt = setGameVisibility(null, form({ shortname: "BA", hidden: "false", onSuccess: "moderation" }));
+
+  await expect(attempt).rejects.toMatchObject({
+    digest: "NEXT_REDIRECT;replace;/moderation/games?visibility=game-shown;307;",
+  });
+});
+
+test("hiding a game from its own page redirects to its edit page with the message", async () => {
+  const attempt = setGameVisibility(null, form({ shortname: "BA", hidden: "true", onSuccess: "edit" }));
+
+  await expect(attempt).rejects.toMatchObject({
+    digest: "NEXT_REDIRECT;replace;/games/BA/edit?visibility=game-hidden;307;",
+  });
+});
+
+test("a refused unhide with onSuccess set still tells the form in place, not a redirect", async () => {
+  visitor = null;
+
+  expect(
+    await setGameVisibility(null, form({ shortname: "BA", hidden: "false", onSuccess: "moderation" })),
+  ).toEqual({
+    ok: false,
+    message: VISIBILITY_MESSAGES.signedOut,
+  });
+});
+
 test("hiding a release tells the form", async () => {
   const state = await setVersionVisibility(null, form({ shortname: "BA", version: "1.9.0", hidden: "true" }));
 
@@ -310,5 +345,16 @@ test("a release visibility form missing the version never reaches the write", as
   expect(await setVersionVisibility(null, form({ shortname: "BA", hidden: "true" }))).toEqual({
     ok: false,
     message: VISIBILITY_MESSAGES.notSent,
+  });
+});
+
+test("unhiding a release from the moderation queue redirects there with the message (#374)", async () => {
+  const attempt = setVersionVisibility(
+    null,
+    form({ shortname: "BA", version: "1.9.0", hidden: "false", onSuccess: "moderation" }),
+  );
+
+  await expect(attempt).rejects.toMatchObject({
+    digest: "NEXT_REDIRECT;replace;/moderation/games?visibility=release-shown;307;",
   });
 });

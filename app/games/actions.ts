@@ -10,7 +10,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { GameLink } from "@/lib/games/catalog";
 import { editableGame } from "@/lib/games/editor";
-import { EDIT_MESSAGES, type GameFormState, SNIPPET_MESSAGES, VISIBILITY_MESSAGES } from "@/lib/games/formState";
+import {
+  EDIT_MESSAGES,
+  type GameFormState,
+  SNIPPET_MESSAGES,
+  VISIBILITY_FLASH_MESSAGES,
+  VISIBILITY_MESSAGES,
+  type VisibilityFlashKey,
+} from "@/lib/games/formState";
 import {
   type GameImageUploadState,
   REMOVE_MESSAGES,
@@ -56,6 +63,25 @@ function createAdmin(): ReturnType<typeof createAdminClient> | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Where a hide or show control sends the visitor once its write lands, for
+ * the two spots the row or page the control lives on disappears in the same
+ * response that would have shown its own message (#374): the moderation
+ * queue's unhide buttons, whose row leaves the hidden list, and a game's own
+ * "Hide this game" shortcut, whose page 404s once the anon cached read can no
+ * longer see it. Every other visibility control - the moderation queue's
+ * "hide by shortname" forms, and the edit page's own toggles - stays on the
+ * page it started on, where the message already shows inline, so this is
+ * opt in per form (the `onSuccess` field) rather than something every write
+ * does. The destination is always one this function builds itself, from a
+ * closed set, never a path a caller supplies.
+ */
+function visibilitySuccessDestination(onSuccess: string, shortname: string): string | null {
+  if (onSuccess === "moderation") return "/moderation/games";
+  if (onSuccess === "edit") return `/games/${shortname}/edit`;
+  return null;
 }
 
 export async function requestOwnership(form: FormData): Promise<void> {
@@ -274,7 +300,11 @@ export async function setGameVisibility(
   revalidatePath("/games");
   revalidatePath(`/games/${shortname}`);
   revalidatePath("/moderation/games");
-  return { ok: true, message: hidden ? "Game hidden." : "Game shown again." };
+
+  const flashKey: VisibilityFlashKey = hidden ? "game-hidden" : "game-shown";
+  const destination = visibilitySuccessDestination(String(form.get("onSuccess") ?? ""), shortname);
+  if (destination) redirect(`${destination}?visibility=${flashKey}`);
+  return { ok: true, message: VISIBILITY_FLASH_MESSAGES[flashKey] };
 }
 
 /** Hide or show one release, on its game's edit page or the moderation queue
@@ -319,7 +349,11 @@ export async function setVersionVisibility(
 
   revalidatePath(`/games/${shortname}`);
   revalidatePath("/moderation/games");
-  return { ok: true, message: hidden ? "Release hidden." : "Release shown again." };
+
+  const flashKey: VisibilityFlashKey = hidden ? "release-hidden" : "release-shown";
+  const destination = visibilitySuccessDestination(String(form.get("onSuccess") ?? ""), shortname);
+  if (destination) redirect(`${destination}?visibility=${flashKey}`);
+  return { ok: true, message: VISIBILITY_FLASH_MESSAGES[flashKey] };
 }
 
 /**

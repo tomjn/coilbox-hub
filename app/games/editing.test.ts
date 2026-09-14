@@ -101,7 +101,7 @@ function uploadBanner(form: FormData = banner()) {
 }
 
 function editPage() {
-  return EditGame({ params: Promise.resolve({ shortname: "BA" }) });
+  return EditGame({ params: Promise.resolve({ shortname: "BA" }), searchParams: Promise.resolve({}) });
 }
 
 beforeEach(() => {
