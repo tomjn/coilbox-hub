@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RichTextInline } from "@/components/RichText";
 import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle } from "@/lib/games/labels";
 import type { GameSummary } from "@/lib/games/query";
@@ -47,7 +48,11 @@ export function GameCard({ game }: { game: GameSummary }) {
         <span className="text-lg font-semibold tracking-tight text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
           {gameTitle(game)}
         </span>
-        {game.description ? <span className={BLURB}>{game.description}</span> : null}
+        {game.description ? (
+          <span className={BLURB}>
+            <RichTextInline text={game.description} />
+          </span>
+        ) : null}
         <span className="mt-auto text-xs uppercase tracking-wide text-neutral-500">
           {gameCountLabel(game)}
         </span>

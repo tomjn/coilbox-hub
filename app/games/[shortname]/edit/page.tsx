@@ -108,7 +108,13 @@ export default async function EditGame({
               maxLength={4000}
               rows={5}
               className={CONTROL}
+              aria-describedby="description-help"
             />
+            <p id="description-help" className="text-xs text-neutral-500">
+              A blank line starts a new paragraph, one line break keeps text on the next line.
+              Wrap words in **two asterisks** for bold, and *one asterisk* or _underscores_ for
+              italic. Nothing else formats - no links, headings or HTML.
+            </p>
           </div>
 
           <fieldset className="flex flex-col gap-2">
