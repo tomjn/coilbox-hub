@@ -2,19 +2,11 @@ import { NextResponse } from "next/server";
 import { buildAssetUploadBody, parseAssetUpload } from "@/lib/api/assetUpload";
 import { corsPreflight, withCors } from "@/lib/api/cors";
 import { apiError } from "@/lib/api/response";
-import {
-  BLOB_BUDGET_ERROR,
-  BLOB_LEDGER_ERROR,
-  BLOB_SUSPENDED_ERROR,
-  BLOB_TOKEN_ERROR,
-  deleteBlobAssets,
-  putBlobAsset,
-} from "@/lib/assets/blob";
 import { checkAssetImage } from "@/lib/assets/caps";
 import { encodedHash } from "@/lib/assets/hash";
 import { IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
-import { recordUnclaimedObject } from "@/lib/assets/orphan";
 import { recordSourceConflict } from "@/lib/assets/sourceConflict";
+import { putStagedAsset, StagedAssetExistsError } from "@/lib/assets/staging";
 import { checkAssetUpload, uploaderSkipsQueue, writeUploadedAsset } from "@/lib/assets/upload";
 import { clientIp, recordUploadIp } from "@/lib/assets/uploadIp";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -23,11 +15,12 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
 
 /**
  * The upload route (issue #104). Everything that uploads posts the bytes here
- * and this calls `put()`. There is no other way in.
+ * and this writes them to the private staging bucket (#332). There is no other
+ * way in.
  *
- * Not client direct, and the reasons are in the issue rather than a preference.
- * The `vercel_blob` Rust crate has one release last touched about three years
- * ago, which is not something to put a shipped desktop client on, and reverse
+ * Not client direct. It was decided when staging was Vercel Blob: the
+ * `vercel_blob` Rust crate had one release last touched about three years ago,
+ * which is not something to put a shipped desktop client on, and reverse
  * engineering Blob's HTTP contract out of the JS SDK works right up until
  * Vercel changes an unpublished interface and breaks builds already on people's
  * machines.
@@ -50,10 +43,9 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  *
  * ## The order, and why nothing writes before it finishes
  *
- * `put()` is the only advanced operation this codebase makes and a Hobby store
- * gets 2,000 a month, which cannot be topped up and cannot be paid through, so
- * a rejected upload has to cost zero. Everything below the auth check runs
- * before the write:
+ * A rejected upload has to cost zero. That rule was set by Blob's 2,000
+ * advanced operations a month, and the bucket's 1 GB keeps it. Everything
+ * below the auth check runs before the write:
  *
  * 1. the bearer token verifies
  * 2. the body is multipart and carries both parts
@@ -62,14 +54,11 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * 5. `checkAssetImage`: the image header, against the caps for its class
  * 6. `encodedHash`: the hash of the bytes, which is where they will land
  * 7. `checkAssetUpload`: MIME, size, path, identity, three quotas
- * 8. the reservation `putBlobAsset` makes against the hub's 30 day budget, which
- *    is last because it is the one check that writes
  *
- * An accepted upload does not always write, either. `checkAssetUpload` asks in
- * the same round trip whether the staging store already holds an object with
- * this hash, and an upload that repeats bytes the hub has takes the object it
- * has (#132). That is one operation saved on every duplicate, which for
- * placeholder buildpics is most of a roster.
+ * An accepted upload does not always write, either. The path is content
+ * addressed, so bytes the bucket already holds are already at that path, and
+ * the write finds them there and keeps them (#132). For placeholder buildpics
+ * that is most of a roster.
  *
  * ## 201 created, 200 replaced
  *
@@ -87,11 +76,12 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * ## Why either of them says so little
  *
  * They say the upload was accepted and whether it is pending or already
- * approved, and nothing about where the bytes are. The store is public, so the path is the URL, and a caller that
- * held either could publish the picture before a reviewer had seen it, which is
- * the whole of what the queue exists to stop (#131). Withholding it from a
- * well behaved caller costs nothing: it already has the bytes it just sent, and
- * an approved row resolves through #108 like any other.
+ * approved, and nothing about where the bytes are. When staging was a public
+ * Blob store the path was the URL, and a caller that held it could publish the
+ * picture before a reviewer had seen it (#131). The bucket is private, so the
+ * path is no longer a way in, but it is still nothing a caller needs: it
+ * already has the bytes it just sent, and an approved row resolves through
+ * #108 like any other.
  */
 export const OPTIONS = corsPreflight;
 
@@ -203,36 +193,18 @@ export async function POST(request: Request) {
     return apiError(check.error, check.status);
   }
 
-  // The advanced operation, unless the store already holds these exact bytes.
-  // Nothing above it has written anything, and nothing below it can refuse the
-  // upload.
+  // The write. Nothing above it has written anything, and nothing below it can
+  // refuse the upload.
   //
-  // `check.path` is where the hub asked for the bytes and `stored` is where
-  // they went, which is not the same string: Blob appends a suffix nobody can
-  // derive, and that suffix is the only thing standing between a pending
-  // upload and a public URL (#131). Everything after this point uses `stored`,
-  // because the derived path addresses no object.
-  //
-  // `check.stored` is #132: a staging object whose bytes are these bytes, since
-  // the hub computes the hash and the hash is the path. Reusing it costs
-  // nothing and writes nothing, so there is no operation to spend and no object
-  // this request would have to clean up if the row below fails. Two rows then
-  // name one object, which the database and both deleters are built for.
-  let stored: string;
-  if (check.stored) {
-    stored = check.stored;
-  } else {
-    try {
-      stored = await putBlobAsset(admin, check.path, bytes, parsed.declaration.mime);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        [BLOB_TOKEN_ERROR, BLOB_BUDGET_ERROR, BLOB_LEDGER_ERROR, BLOB_SUSPENDED_ERROR].includes(
-          error.message,
-        )
-      ) {
-        return apiError(error.message, 503);
-      }
+  // `check.path` is content addressed on the hash the hub computed, and the
+  // bucket is private, so the row stores that path as it is. An object already
+  // at it holds these exact bytes, so a collision is a reuse and not a failure
+  // (#132): it writes nothing, and two rows naming one object is a state every
+  // deleter already checks for (`stagingPathsInUse` in `lib/assets/orphan.ts`).
+  try {
+    await putStagedAsset(admin, check.path, bytes, parsed.declaration.mime);
+  } catch (error) {
+    if (!(error instanceof StagedAssetExistsError)) {
       return apiError("The asset store would not accept that upload just now.", 502);
     }
   }
@@ -243,9 +215,6 @@ export async function POST(request: Request) {
   // direct path gone (#133) there is no upload the server does not see the
   // bytes of, so no confirm route has a row to write.
   //
-  // Deleting on a failed write is free, so the store does not keep an object no
-  // row will ever name. It is the object this request just made either way: on
-  // a failed replacement the row still names the object it named before.
   // A moderator's own uploads, or an account allowed to publish unreviewed,
   // go live without waiting in the queue. Asked with the uploader's own client,
   // because the capability is theirs.
@@ -256,34 +225,19 @@ export async function POST(request: Request) {
     auth.user.id,
     parsed.declaration,
     hash,
-    stored,
+    check.path,
     image,
     check.replacing,
     skipQueue,
   );
 
   if (!assetId) {
-    // Only an object this request made. A reused one belongs to the row that
-    // put it there and is still serving it, so deleting it here would take a
-    // picture away over a failure that has nothing to do with it, and recording
-    // it as unclaimed would queue the same thing for a sweep to do later.
-    //
-    // Otherwise: deleting is free, so it is always worth trying. When it fails
-    // as well the object is sitting in a public store with nothing naming it,
-    // and Postgres is the only place a sweep can ever find it again: `list()`
-    // is banned, so an object nobody wrote down is an object nobody can reach
-    // (#113). Writing the name down is the last chance to keep it findable, and
-    // it is best effort too, because the upload has already failed and a second
-    // error helps nobody.
-    if (!check.stored) {
-      const gone = await deleteBlobAssets([stored]).then(
-        () => true,
-        () => false,
-      );
-      if (!gone) {
-        await recordUnclaimedObject(admin, stored, file.size).catch(() => false);
-      }
-    }
+    // The object stays. It may be one another row already names, or one a
+    // concurrent upload of the same bytes has just reused, and deleting it
+    // would take that picture away over a failure that has nothing to do with
+    // it. The bucket is private, so a spare object is storage and not
+    // exposure. A retry of this upload reuses it, and #335's sweep clears it
+    // if nothing ever does.
     return apiError("The asset was uploaded but its record could not be written.", 503);
   }
 

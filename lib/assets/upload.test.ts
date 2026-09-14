@@ -10,6 +10,7 @@ import {
   UNIT_RENDER_CEILING,
   checkAssetUpload,
   uploaderSkipsQueue,
+  writeUploadedAsset,
 } from "./upload";
 
 const USER = "11111111-1111-1111-1111-111111111111";
@@ -81,19 +82,15 @@ function held(overrides: Partial<ExistingRow> = {}): ExistingRow {
 
 interface World {
   existing: ExistingRow | null;
-  /** What `reusable_staging_object` answers: an object already holding these
-   * bytes, or null for the ordinary case where the store has never seen them. */
-  stored: string | null;
   unitRenders: number;
   accountBytes: number;
   recent: number;
-  broken?: "identity" | "bytes" | "reuse";
+  broken?: "identity" | "bytes";
 }
 
 function world(overrides: Partial<World> = {}): World {
   return {
     existing: null,
-    stored: null,
     unitRenders: 0,
     accountBytes: 0,
     recent: 0,
@@ -166,14 +163,6 @@ function fakeSupabase(state: World, seen: Query[] = []): SupabaseClient {
 
   const rpc = (name: string, args: Record<string, unknown>) => {
     seen.push({ table: `rpc:${name}`, filters: Object.values(args).map(String) });
-
-    if (name === "reusable_staging_object") {
-      return Promise.resolve(
-        state.broken === "reuse"
-          ? { data: null, error: { message: "down" } }
-          : { data: state.stored, error: null },
-      );
-    }
 
     return Promise.resolve(
       state.broken === "bytes"
@@ -434,40 +423,17 @@ test("the same source bytes again are refused rather than stored twice", async (
 });
 
 /**
- * #132. Two units in a game shipping the same placeholder buildpic encode to the
- * same bytes, and the hub computes the hash from the bytes (#154), so the second
- * upload can be recognised before it spends one advanced operation out of 2,000
- * a month writing the store what it already holds.
+ * #332. The bucket path is content addressed and has no suffix, so identical
+ * bytes land at the path this answers with and the route reuses the object it
+ * finds there. The Blob era lookup for a suffixed object to reuse would hand a
+ * bucket row a Blob path, so it is not asked.
  */
-test("bytes the store already holds come back as an object to reuse", async () => {
-  const already = "units/BYAR/buildpic/encabc-Hn4vQ2rT.webp";
-
-  expect(await check(world({ stored: already }))).toEqual({
-    ok: true,
-    path: "units/BYAR/buildpic/encabc.webp",
-    replacing: null,
-    stored: already,
-  });
-});
-
-test("the lookup is on the hash the hub computed and nothing off the declaration", async () => {
+test("the check does not look for a Blob object to reuse", async () => {
   const seen: Query[] = [];
-  await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration(), HASH);
+  const result = await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration(), HASH);
 
-  expect(seen.find((query) => query.table === "rpc:reusable_staging_object")?.filters).toEqual([
-    HASH,
-  ]);
-});
-
-/** An optimisation that fails should cost an operation, not an upload. Every
- * other query in this file is a limit, and a limit that cannot be read refuses.
- * This one is not a limit. */
-test("a reuse lookup that fails writes the object rather than refusing the upload", async () => {
-  expect(await check(world({ broken: "reuse", stored: "units/BYAR/buildpic/encabc-x.webp" }))).toEqual({
-    ok: true,
-    path: "units/BYAR/buildpic/encabc.webp",
-    replacing: null,
-  });
+  expect(result).toEqual({ ok: true, path: "units/BYAR/buildpic/encabc.webp", replacing: null });
+  expect(seen.map((query) => query.table)).not.toContain("rpc:reusable_staging_object");
 });
 
 /**
@@ -701,4 +667,42 @@ test("anybody else waits in the queue, seeders included", async () => {
 
 test("a capability that could not be read is a picture that waits", async () => {
   expect(await uploaderSkipsQueue(capabilities("down"))).toBe(false);
+});
+
+/** Every write the row gets, whether it inserted or replaced. */
+function recordingWrites(written: Record<string, unknown>[]): SupabaseClient {
+  const builder = {
+    insert: (row: Record<string, unknown>) => {
+      written.push(row);
+      return builder;
+    },
+    update: (row: Record<string, unknown>) => {
+      written.push(row);
+      return builder;
+    },
+    select: () => builder,
+    eq: () => Promise.resolve({ error: null }),
+    single: () => Promise.resolve({ data: { id: "new-row" }, error: null }),
+  };
+  return { from: () => builder } as unknown as SupabaseClient;
+}
+
+/** #332. New uploads are staged in the Supabase bucket, at the path the hub
+ * computed, whether the row is new or a replacement of one still in Blob. */
+test("an upload's row says its bytes are in the bucket, at the path the hub computed", async () => {
+  const written: Record<string, unknown>[] = [];
+  const path = "units/BYAR/buildpic/encabc.webp";
+  const measured = { width: 256, height: 256 };
+
+  expect(
+    await writeUploadedAsset(recordingWrites(written), USER, declaration(), HASH, path, measured, null, false),
+  ).toBe("new-row");
+  expect(
+    await writeUploadedAsset(recordingWrites(written), USER, declaration(), HASH, path, measured, "old-row", false),
+  ).toBe("old-row");
+
+  expect(written.map((row) => [row.tier, row.path])).toEqual([
+    ["bucket", path],
+    ["bucket", path],
+  ]);
 });
