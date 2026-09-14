@@ -8,7 +8,7 @@
 -- as bigger than it is on every card that shows it.
 
 begin;
-select plan(12);
+select plan(13);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -18,7 +18,8 @@ values ('0f8fad5b-0005-4000-8000-000000000001', 'BA', 'Balanced Annihilation', '
 insert into public.game_faction (game_id, key, name)
 values
   ('0f8fad5b-0005-4000-8000-000000000001', 'armada', 'Armada'),
-  ('0f8fad5b-0005-4000-8000-000000000001', 'cortex', 'Cortex');
+  ('0f8fad5b-0005-4000-8000-000000000001', 'cortex', 'Cortex'),
+  ('0f8fad5b-0005-4000-8000-000000000001', 'random', 'Random');
 
 insert into public.game_unit (game_id, unit_name, facts_digest)
 values
@@ -51,7 +52,13 @@ update public.item set deleted_at = now() where id = '0f8fad5b-0005-0000-0000-00
 
 select is(
   (select faction_count from public.game_browse where shortname = 'BA')::int, 2,
-  'a game counts its sides'
+  'a game counts its sides, and Random is not one'
+);
+
+select is(
+  (select count(*) from public.game_faction
+    where game_id = '0f8fad5b-0005-4000-8000-000000000001')::int, 3,
+  'though the Random row is still stored'
 );
 
 select is(
