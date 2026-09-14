@@ -137,7 +137,7 @@ export const SUBJECT_UPLOADS_PER_HOUR = 100;
  * `width` and `height` are not here, and their absence is #105's answer. The
  * hub measures the image header, so a declared pair could only agree with the
  * bytes or be wrong, and there is no third thing a client could usefully mean
- * by it. {@link writePendingAsset} takes the measured pair separately.
+ * by it. {@link writeUploadedAsset} takes the measured pair separately.
  *
  * `hash` is not here either, and its absence is #154's answer. It is over the
  * encoded bytes, which arrive in the same request, so the hub computes it in
@@ -528,23 +528,58 @@ function assetColumns(
 }
 
 /**
- * Write the pending row for an upload the hub has just accepted, replacing the
- * row named by `replacing` when a newer archive changed the bytes (#106).
+ * Whether the account uploading may skip the moderation queue.
+ *
+ * `supabase` must be the uploader's own client, the one built from their bearer
+ * token, because `has_capability()` answers for the caller and nobody else.
+ * Asked with the secret key it would answer for no one.
+ *
+ * Two capabilities, and holding either is enough:
+ *
+ * - `can_publish_unreviewed`, which is exactly this.
+ * - `can_moderate`. A moderator can approve any picture in the grid, their own
+ *   included, so sending theirs through the queue only makes them do it by
+ *   hand. Skipping it waives nothing they could not already do. It is still
+ *   recorded as a bypass rather than a moderator approval, because nobody
+ *   looked at these bytes in the grid, and `asset_event` has to be able to say
+ *   so.
+ *
+ * False when the question could not be answered. The safe way to be wrong is a
+ * picture that waits in the queue.
+ */
+export async function uploaderSkipsQueue(supabase: SupabaseClient): Promise<boolean> {
+  const answers = await Promise.all(
+    (["can_publish_unreviewed", "can_moderate"] as const).map((capability) =>
+      supabase.rpc("has_capability", { capability }).then(
+        ({ data, error }) => !error && data === true,
+        () => false,
+      ),
+    ),
+  );
+
+  return answers.some(Boolean);
+}
+
+/**
+ * Write the row for an upload the hub has just accepted, replacing the row named
+ * by `replacing` when a newer archive changed the bytes (#106).
  *
  * `hash` and `measured` are both what the bytes turned out to be rather than
  * what the declaration said, which is why they arrive separately from it.
  *
- * `moderation` and `approval_source` are left at their defaults on an insert
- * and set back to them on a replacement, so nothing on this path can put a row
- * in front of the public. Bypass on a capability is #114's alongside the queue
- * that would otherwise hold it.
+ * `skipQueue` is {@link uploaderSkipsQueue}. When it is false the row is
+ * pending on an insert and set back to pending on a replacement, so nothing on
+ * this path puts an ordinary upload in front of the public. When it is true the
+ * row is approved with `approval_source = 'bypass'`, and the audit trigger
+ * records it as `bypassed`, replacement or not.
  *
- * Setting them back matters more than leaving them alone would. An approved row
- * that keeps its approval through a replacement is serving bytes nobody has
- * looked at, under a review a moderator gave to different bytes, which is
- * exactly what the queue exists to stop. `approval_source` has to go with it:
- * the table's `asset_approval_state_check` will not have a pending row that
- * still says what approved it, and it should not, since nothing approved this.
+ * Setting a replacement back to pending matters more than leaving it alone
+ * would. An approved row that keeps its approval through a replacement is
+ * serving bytes nobody has looked at, under a review a moderator gave to
+ * different bytes, which is exactly what the queue exists to stop.
+ * `approval_source` has to go with it: the table's `asset_approval_state_check`
+ * will not have a pending row that still says what approved it, and it should
+ * not, since nothing approved this.
  *
  * `tier` and `promoted_at` go back too. The new object is in Blob, so a row
  * left saying `static` would name a durable tier path the bytes are not at.
@@ -559,7 +594,7 @@ function assetColumns(
  * that id, and the id is a thing this function already has and the caller
  * otherwise would not.
  */
-export async function writePendingAsset(
+export async function writeUploadedAsset(
   supabase: SupabaseClient,
   userId: string,
   declaration: AssetUploadDeclaration,
@@ -567,9 +602,13 @@ export async function writePendingAsset(
   path: string,
   measured: AssetImageDimensions,
   replacing: string | null,
+  skipQueue: boolean,
 ): Promise<string | null> {
   const { identity } = declaration;
   const columns = assetColumns(declaration, hash, path, measured);
+  const moderation = skipQueue
+    ? { moderation: "approved", approval_source: "bypass" }
+    : { moderation: "pending", approval_source: null };
 
   if (replacing) {
     const { error } = await supabase
@@ -581,8 +620,7 @@ export async function writePendingAsset(
         // upload's date and the hourly limit would not count this write.
         seen_at: new Date().toISOString(),
         promoted_at: null,
-        moderation: "pending",
-        approval_source: null,
+        ...moderation,
       })
       .eq("id", replacing);
 
@@ -597,6 +635,7 @@ export async function writePendingAsset(
       map_name: identity.keyedOn === "map" ? identity.mapName : null,
       variant: identity.variant,
       ...columns,
+      ...moderation,
       uploaded_by: userId,
     })
     .select("id")

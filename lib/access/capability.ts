@@ -58,10 +58,11 @@ export const USER_CAPABILITIES = [
    * holds this. Granting it to anybody else is the point at which automated
    * screening has to be reconsidered. */
   "can_seed_unit_assets",
-  /** Skip the moderation queue for whatever this person uploads. Reserved for a
-   * future user supplied class, and held by nobody today. */
+  /** Skip the moderation queue for whatever this person uploads. */
   "can_publish_unreviewed",
-  /** See and withdraw anything, and read the report queue. */
+  /** See and withdraw anything, and read the report queue. A moderator's own
+   * uploads also skip the queue, because they could approve them in the grid
+   * anyway (`uploaderSkipsQueue` in `lib/assets/upload.ts`). */
   "can_moderate",
 ] as const;
 

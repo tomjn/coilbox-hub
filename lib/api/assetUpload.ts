@@ -35,8 +35,9 @@ export const ASSET_UPLOAD_VERSION = 1;
 export interface AssetUploadBody {
   format: typeof ASSET_UPLOAD_FORMAT;
   version: typeof ASSET_UPLOAD_VERSION;
-  /** Always `pending` today. Nothing on this path can approve a row. */
-  moderation: "pending";
+  /** `approved` when the uploader holds a capability that skips the queue
+   *  (`uploaderSkipsQueue` in `lib/assets/upload.ts`), otherwise `pending`. */
+  moderation: "pending" | "approved";
 }
 
 export type ParsedAssetUpload =
@@ -344,10 +345,12 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
   };
 }
 
-export function buildAssetUploadBody(): AssetUploadBody {
+export function buildAssetUploadBody(
+  moderation: AssetUploadBody["moderation"] = "pending",
+): AssetUploadBody {
   return {
     format: ASSET_UPLOAD_FORMAT,
     version: ASSET_UPLOAD_VERSION,
-    moderation: "pending",
+    moderation,
   };
 }
