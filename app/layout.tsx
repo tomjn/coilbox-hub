@@ -7,6 +7,7 @@ import { Suspense, ViewTransition } from "react";
 import { CoilLogo } from "@/components/CoilLogo";
 import { DownloadIcon, GalleryIcon, GamesIcon, MapsIcon, PublishIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
+import { NavLink } from "@/components/NavLink";
 import { NavAccount, NavAccountFallback } from "@/components/NavAccount";
 import { COILBOX_URL } from "@/lib/coilbox";
 import { siteUrl } from "@/lib/site";
@@ -49,6 +50,30 @@ const navItem =
    and label sit exactly where they did. */
 const navBody = "flex items-center gap-2";
 
+/* The section the visitor is in. Lit rather than only brighter, so on a narrow
+   screen, where the nav is icons alone, the tile still says where you are. */
+const navCurrent = "bg-neutral-900 text-white";
+
+/* A section link, lit while the visitor is anywhere in its section. Only
+   `NavLink` reads the route, so it alone waits behind the boundary, and until it
+   arrives the link is drawn unlit. */
+function SectionLink({ href, children }: { href: string; children: React.ReactNode }) {
+  const body = <LinkPending className={navBody}>{children}</LinkPending>;
+  return (
+    <Suspense
+      fallback={
+        <Link href={href} className={navItem}>
+          {body}
+        </Link>
+      }
+    >
+      <NavLink href={href} className={navItem} currentClassName={navCurrent}>
+        {body}
+      </NavLink>
+    </Suspense>
+  );
+}
+
 /**
  * Nothing here reads the request.
  *
@@ -73,30 +98,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             Coilbox Hub
           </Link>
           <nav className="-mr-2 flex items-center gap-1 text-sm text-neutral-400 sm:gap-3">
-            <Link href="/gallery" className={navItem}>
-              <LinkPending className={navBody}>
-                <GalleryIcon className="w-4" />
-                <span className="sr-only sm:not-sr-only">Gallery</span>
-              </LinkPending>
-            </Link>
-            <Link href="/maps" className={navItem}>
-              <LinkPending className={navBody}>
-                <MapsIcon className="w-4" />
-                <span className="sr-only sm:not-sr-only">Maps</span>
-              </LinkPending>
-            </Link>
-            <Link href="/games" className={navItem}>
-              <LinkPending className={navBody}>
-                <GamesIcon className="w-4" />
-                <span className="sr-only sm:not-sr-only">Games</span>
-              </LinkPending>
-            </Link>
-            <Link href="/publish" className={navItem}>
-              <LinkPending className={navBody}>
-                <PublishIcon className="w-4" />
-                <span className="sr-only sm:not-sr-only">Publish</span>
-              </LinkPending>
-            </Link>
+            <SectionLink href="/gallery">
+              <GalleryIcon className="w-4" />
+              <span className="sr-only sm:not-sr-only">Gallery</span>
+            </SectionLink>
+            <SectionLink href="/maps">
+              <MapsIcon className="w-4" />
+              <span className="sr-only sm:not-sr-only">Maps</span>
+            </SectionLink>
+            <SectionLink href="/games">
+              <GamesIcon className="w-4" />
+              <span className="sr-only sm:not-sr-only">Games</span>
+            </SectionLink>
+            <SectionLink href="/publish">
+              <PublishIcon className="w-4" />
+              <span className="sr-only sm:not-sr-only">Publish</span>
+            </SectionLink>
             {/* The only outbound link in the nav, and it opens in a new tab so
                 that following it from an item page does not lose the item the
                 visitor came to import. */}
