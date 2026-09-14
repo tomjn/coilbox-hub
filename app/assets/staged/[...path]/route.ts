@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { fetchApprovedStagedPicture, type StagedPicture } from "@/lib/assets/bucket";
+import {
+  fetchApprovedStagedPicture,
+  type PromotedPicture,
+  type StagedPicture,
+} from "@/lib/assets/bucket";
 import { isAssetMime } from "@/lib/assets/path";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAnonClient } from "@/lib/supabase/anon";
@@ -46,13 +50,29 @@ export async function GET(
 ) {
   const { path } = await ctx.params;
 
-  let picture: StagedPicture | null;
+  let picture: StagedPicture | PromotedPicture | null;
   try {
     picture = await fetchApprovedStagedPicture(createAnonClient(), createAdminClient(), path.join("/"));
   } catch {
     return refused(502);
   }
   if (!picture) return refused(404);
+
+  // Promoted since the page naming this URL was cached (#335). Permanent, and
+  // cached like the bytes, because both URLs are content addressed. The
+  // location is built from a path an approved `static` row holds, never from
+  // anything else in the request. CORS goes on the redirect too, or a
+  // `crossOrigin = "anonymous"` image load stops at it.
+  if ("promoted" in picture) {
+    return new NextResponse(null, {
+      status: 308,
+      headers: {
+        Location: picture.promoted,
+        "Cache-Control": CACHE,
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
 
   return new NextResponse(picture.bytes, {
     headers: {

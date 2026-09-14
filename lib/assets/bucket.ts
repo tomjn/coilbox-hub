@@ -1,5 +1,6 @@
 import { StorageApiError, type SupabaseClient } from "@supabase/supabase-js";
 import { siteUrl } from "@/lib/site";
+import { staticTierUrl } from "./cdn";
 import { downloadStagedAsset } from "./staging";
 
 /**
@@ -36,6 +37,16 @@ import { downloadStagedAsset } from "./staging";
  * picture and the path has no suffix. The route serves the bytes if any of
  * them is approved, which is what `resolveAsset` already does for that row's
  * page.
+ *
+ * ## After promotion
+ *
+ * Promotion (#335) moves a row to `static` at the same path, because a bucket
+ * path is already the content addressed durable path. A page cached before the
+ * move can keep naming this route for a while after it. So an approved `static`
+ * row at the path is answered with a redirect to the durable tier, which is
+ * safe to cache for good because both URLs name the same bytes. It is checked
+ * before a bucket row, so a promoted picture is not read out of the bucket
+ * while its copy there waits to be deleted.
  */
 
 /** Where the route lives, relative to the site root, with the trailing slash. */
@@ -57,10 +68,17 @@ export interface StagedPicture {
   mime: string;
 }
 
+/** An approved picture promotion has moved, and where the durable tier serves
+ *  it. */
+export interface PromotedPicture {
+  promoted: string;
+}
+
 /**
  * The bytes at a bucket path, only when an approved bucket row names it. Null
  * otherwise, and null too when the row exists but the object does not, so the
- * route answers every refusal the same way.
+ * route answers every refusal the same way. When an approved row at the path
+ * has been promoted, the durable tier URL instead.
  *
  * `anon` reads the row and must be the anonymous client (`lib/supabase/anon.ts`).
  * `admin` reads the bucket, which only the secret key can.
@@ -74,19 +92,22 @@ export async function fetchApprovedStagedPicture(
   anon: SupabaseClient,
   admin: SupabaseClient,
   path: string,
-): Promise<StagedPicture | null> {
+): Promise<StagedPicture | PromotedPicture | null> {
+  // `static` sorts after `bucket`, so descending puts a promoted row first.
   const { data, error } = await anon
     .from("asset")
-    .select("mime")
+    .select("mime, tier")
     .eq("path", path)
-    .eq("tier", "bucket")
+    .in("tier", ["bucket", "static"])
     .eq("moderation", "approved")
+    .order("tier", { ascending: false })
     .limit(1);
 
   if (error) throw error;
 
-  const row = (data as { mime: string }[] | null)?.[0];
+  const row = (data as { mime: string; tier: string }[] | null)?.[0];
   if (!row) return null;
+  if (row.tier === "static") return { promoted: staticTierUrl(path) };
 
   try {
     return { bytes: await downloadStagedAsset(admin, path), mime: row.mime };
