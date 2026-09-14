@@ -73,7 +73,11 @@ test("bytes that are not a readable PNG or WebP header are handed to convert", a
   const send = mock(async () => ({ ok: true, message: "Banner uploaded." }));
   const jpeg = new Uint8Array(64);
   jpeg.set([0xff, 0xd8, 0xff, 0xe0]);
+  // Both parameters are unused in the body: they are here so bun records
+  // `convert`'s call arguments with the real two-argument shape, which the
+  // assertion on `convert.mock.calls[0]` below reads.
   const convert = mock(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async (_file: File, _kind: "logo" | "banner"): Promise<ConvertResult> => ({
       ok: true,
       file: pngFile("banner.webp"),
@@ -89,6 +93,10 @@ test("bytes that are not a readable PNG or WebP header are handed to convert", a
 });
 
 test("a real PNG over the byte limit is handed to convert, and its file replaces the one sent", async () => {
+  // Both parameters are unused in the body: they are here so bun records
+  // `send`'s call arguments with the real two-argument shape, which the
+  // assertion on `send.mock.calls[0]` below reads to find the sent FormData.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const send = mock(async (_previous: unknown, _sentForm: FormData) => ({ ok: true, message: "Logo uploaded." }));
   const converted = pngFile("logo.webp");
   const convert = mock(async (): Promise<ConvertResult> => ({ ok: true, file: converted, message: "Shrunk from 704 KB to 12 KB." }));
