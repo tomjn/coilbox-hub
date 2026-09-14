@@ -15,7 +15,7 @@ import { encodedHash } from "@/lib/assets/hash";
 import { IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
 import { recordUnclaimedObject } from "@/lib/assets/orphan";
 import { recordSourceConflict } from "@/lib/assets/sourceConflict";
-import { checkAssetUpload, writePendingAsset } from "@/lib/assets/upload";
+import { checkAssetUpload, uploaderSkipsQueue, writeUploadedAsset } from "@/lib/assets/upload";
 import { clientIp, recordUploadIp } from "@/lib/assets/uploadIp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticateBearer } from "@/lib/supabase/bearer";
@@ -75,7 +75,8 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  *
  * An identity the hub already holds is not automatically a refusal any more
  * (#106). A newer archive with a different `source_hash` replaces the row it
- * already has, in place and back to pending, and that answers 200 because
+ * already has, in place and back to pending unless the uploader skips the
+ * queue, and that answers 200 because
  * nothing was created. Everything above still runs on it, unchanged and in the
  * same order, so a replacement is held to every rule a first upload is.
  *
@@ -85,8 +86,8 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  *
  * ## Why either of them says so little
  *
- * They say the upload was accepted and is pending, and nothing about where the
- * bytes are. The store is public, so the path is the URL, and a caller that
+ * They say the upload was accepted and whether it is pending or already
+ * approved, and nothing about where the bytes are. The store is public, so the path is the URL, and a caller that
  * held either could publish the picture before a reviewer had seen it, which is
  * the whole of what the queue exists to stop (#131). Withholding it from a
  * well behaved caller costs nothing: it already has the bytes it just sent, and
@@ -245,7 +246,12 @@ export async function POST(request: Request) {
   // Deleting on a failed write is free, so the store does not keep an object no
   // row will ever name. It is the object this request just made either way: on
   // a failed replacement the row still names the object it named before.
-  const assetId = await writePendingAsset(
+  // A moderator's own uploads, or an account allowed to publish unreviewed,
+  // go live without waiting in the queue. Asked with the uploader's own client,
+  // because the capability is theirs.
+  const skipQueue = await uploaderSkipsQueue(auth.supabase);
+
+  const assetId = await writeUploadedAsset(
     admin,
     auth.user.id,
     parsed.declaration,
@@ -253,6 +259,7 @@ export async function POST(request: Request) {
     stored,
     image,
     check.replacing,
+    skipQueue,
   );
 
   if (!assetId) {
@@ -285,10 +292,14 @@ export async function POST(request: Request) {
   // picture is pending or rejected and purged when it is approved, by a trigger
   // rather than a promise. Best effort: the row is written and the object is
   // stored, so a failure here is not worth throwing either of them away for.
-  await recordUploadIp(admin, assetId, clientIp(request.headers));
+  //
+  // Not on an upload that skipped the queue. It is approved already, and the
+  // trigger only purges on the way into approved, so an address written now
+  // would be kept for good.
+  if (!skipQueue) await recordUploadIp(admin, assetId, clientIp(request.headers));
 
   return withCors(
-    NextResponse.json(buildAssetUploadBody(), {
+    NextResponse.json(buildAssetUploadBody(skipQueue ? "approved" : "pending"), {
       status: check.replacing ? 200 : 201,
       headers: { "Cache-Control": "no-store" },
     }),

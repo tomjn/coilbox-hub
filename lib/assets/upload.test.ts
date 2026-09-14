@@ -9,6 +9,7 @@ import {
   SUBJECT_UPLOADS_PER_HOUR,
   UNIT_RENDER_CEILING,
   checkAssetUpload,
+  uploaderSkipsQueue,
 } from "./upload";
 
 const USER = "11111111-1111-1111-1111-111111111111";
@@ -671,4 +672,33 @@ test("a request that trips two limits always hears about the same one", async ()
   expect(result.ok).toBe(false);
   if (result.ok) return;
   expect(result.error).toContain("rejected");
+});
+
+/** The uploader's own client, answering `has_capability` from a fixed set. */
+function capabilities(held: string[] | "down"): SupabaseClient {
+  return {
+    rpc: (_name: string, args: { capability: string }) =>
+      Promise.resolve(
+        held === "down"
+          ? { data: null, error: { message: "down" } }
+          : { data: held.includes(args.capability), error: null },
+      ),
+  } as unknown as SupabaseClient;
+}
+
+test("a moderator's own uploads skip the queue, because they could approve them anyway", async () => {
+  expect(await uploaderSkipsQueue(capabilities(["can_moderate"]))).toBe(true);
+});
+
+test("an account allowed to publish unreviewed skips the queue", async () => {
+  expect(await uploaderSkipsQueue(capabilities(["can_publish_unreviewed"]))).toBe(true);
+});
+
+test("anybody else waits in the queue, seeders included", async () => {
+  expect(await uploaderSkipsQueue(capabilities([]))).toBe(false);
+  expect(await uploaderSkipsQueue(capabilities(["can_seed_unit_assets"]))).toBe(false);
+});
+
+test("a capability that could not be read is a picture that waits", async () => {
+  expect(await uploaderSkipsQueue(capabilities("down"))).toBe(false);
 });

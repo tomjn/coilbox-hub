@@ -217,4 +217,5 @@ test("the reply carries the envelope a shipped build reads first, and no path", 
     version: ASSET_UPLOAD_VERSION,
     moderation: "pending",
   });
+  expect(buildAssetUploadBody("approved").moderation).toBe("approved");
 });
