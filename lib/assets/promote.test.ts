@@ -35,7 +35,7 @@ mock.module("@vercel/blob", () => ({
 }));
 
 const { BLOB_TIER_BASE } = await import("./blob");
-const { PROMOTION_AGE_DAYS, durablePath, promotionCutoff, runPromotion } =
+const { PROMOTION_AGE_DAYS, StagingReadError, durablePath, promotionCutoff, runPromotion } =
   await import("./promote");
 
 const NOW = new Date("2026-08-14T12:00:00.000Z");
@@ -298,7 +298,7 @@ test("the durable path is recomputed and is not the suffixed staging one", () =>
 test("a whole run moves the rows and empties the staging store", async () => {
   const result = await run();
 
-  expect(result).toEqual({ drained: 0, promoted: 2, skipped: 0, deleted: 2 });
+  expect(result).toEqual({ drained: 0, promoted: 2, skipped: 0, deleted: 2, unreadable: 0 });
   expect([...world.pushed].sort()).toEqual([
     "units/bar/buildpic/aaa1.webp",
     "units/bar/buildpic/bbb2.webp",
@@ -317,7 +317,7 @@ test("nothing approved in the last day moves", async () => {
     unit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1", { updated_at: RECENT }),
   ]);
 
-  expect(await run()).toEqual({ drained: 0, promoted: 0, skipped: 0, deleted: 0 });
+  expect(await run()).toEqual({ drained: 0, promoted: 0, skipped: 0, deleted: 0, unreadable: 0 });
   expect(world.rows[0].tier).toBe("blob");
   expect(world.discarded).toEqual([]);
 });
@@ -329,7 +329,6 @@ test("nothing approved in the last day moves", async () => {
 // restarts the run and checks it converges.
 
 const KILL_POINTS = [
-  "read",
   "write",
   "publish",
   "serving",
@@ -560,10 +559,74 @@ test("bytes that are not the length the row claims are never committed", async (
 
   const result = await runPromotion(fakeSupabase(world), ports, { now: NOW });
 
-  expect(result).toEqual({ drained: 0, promoted: 0, skipped: 1, deleted: 0 });
+  expect(result).toEqual({ drained: 0, promoted: 0, skipped: 1, deleted: 0, unreadable: 0 });
   expect([...world.pushed]).toEqual([]);
   expect(world.rows[0].tier).toBe("blob");
   expect(world.said[0]).toContain("the store returned 11 bytes and the row says 4096");
+});
+
+test("an object the store will not return skips its row and the rest of the batch moves", async () => {
+  // What a suspended store did to every run from 2026-09-13: one 403 on the
+  // first row ended the whole job, and nothing behind it ever moved.
+  const ports = fakePorts(world);
+  const read = ports.read;
+  ports.read = async (url) => {
+    if (url.endsWith("aaa1-Hn4vQ2rT.webp")) throw new StagingReadError(403, url);
+    return read(url);
+  };
+
+  const result = await runPromotion(fakeSupabase(world), ports, { now: NOW });
+
+  expect(result).toEqual({ drained: 0, promoted: 1, skipped: 1, deleted: 1, unreadable: 1 });
+  expect(world.rows[0].tier).toBe("blob");
+  expect(world.rows[1].tier).toBe("static");
+  expect(world.said.join("\n")).toContain("the store would not return its bytes: 403 reading");
+  invariants(world);
+
+  // And once the store answers again, the row it skipped moves like any other.
+  const next = await run();
+  expect(next.promoted).toBe(1);
+  expect(world.rows.every((row) => row.tier === "static")).toBe(true);
+  invariants(world);
+});
+
+test("a store that refuses every read moves nothing and loses nothing", async () => {
+  const ports = fakePorts(world);
+  ports.read = async (url) => {
+    throw new StagingReadError(403, url);
+  };
+
+  const result = await runPromotion(fakeSupabase(world), ports, { now: NOW });
+
+  expect(result).toEqual({ drained: 0, promoted: 0, skipped: 2, deleted: 0, unreadable: 2 });
+  expect(world.discarded).toEqual([]);
+  invariants(world);
+});
+
+test("a drain that fails is said out loud and the rows due today still move", async () => {
+  world = new World([
+    unit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1", {
+      tier: "static",
+      path: "units/bar/buildpic/aaa1.webp",
+      blob_path: "units/bar/buildpic/aaa1-Hn4vQ2rT.webp",
+      promoted_at: OLD,
+    }),
+    unit("00000000-0000-4000-8000-000000000002", "armllt", "bbb2"),
+  ]);
+  world.failAt = "discard";
+
+  const result = await run();
+
+  expect(result.drained).toBe(0);
+  expect(result.promoted).toBe(1);
+  expect(world.said.join("\n")).toContain("Could not drain what an earlier run left");
+  // Still named, so the next run finishes the job.
+  expect(world.rows[0].blob_path).toBe("units/bar/buildpic/aaa1-Hn4vQ2rT.webp");
+  invariants(world);
+
+  await run();
+  expect(world.rows.every((row) => row.blob_path === null)).toBe(true);
+  expect([...world.blob]).toEqual([]);
 });
 
 test("the batch limit bounds one run and the rest waits for the next", async () => {
