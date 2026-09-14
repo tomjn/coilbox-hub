@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { staticTierUrl } from "@/lib/assets/cdn";
+import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle } from "@/lib/games/labels";
 import type { GameSummary } from "@/lib/games/query";
 
@@ -20,6 +20,12 @@ import type { GameSummary } from "@/lib/games/query";
 const BLURB = "line-clamp-3 text-sm leading-6 text-neutral-400";
 
 export function GameCard({ game }: { game: GameSummary }) {
+  const logo = gameArtUrl(game.shortname, "logo", {
+    path: game.logo_path,
+    hash: game.logo_hash,
+    staged_tier: game.logo_staged_tier,
+  });
+
   return (
     <li>
       <Link
@@ -28,10 +34,10 @@ export function GameCard({ game }: { game: GameSummary }) {
       >
         {/* Not next/image: logos come off the durable tier already sized for
             where they are drawn, the same reason buildpics skip it. */}
-        {game.logo_path ? (
+        {logo ? (
           // eslint-disable-next-line @next/next/no-img-element -- see above
           <img
-            src={staticTierUrl(game.logo_path)}
+            src={logo}
             alt=""
             loading="lazy"
             decoding="async"

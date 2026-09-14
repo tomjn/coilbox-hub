@@ -8,6 +8,8 @@ const GAME: GameSummary = {
   display_name: "Balanced Annihilation",
   description: "The classic total annihilation balance mod.",
   logo_path: null,
+  logo_hash: null,
+  logo_staged_tier: null,
   faction_count: 2,
   unit_count: 340,
   item_count: 12,
@@ -48,4 +50,20 @@ test("a card with a logo draws it, and one without does not", () => {
   );
 
   expect(renderToStaticMarkup(<GameCard game={GAME} />)).not.toContain("<img");
+});
+
+/** A logo still in the staging bucket is drawn from the hub's own route, named
+ *  by its hash, because GitHub Pages does not have it until promotion (#345).
+ *  One still staged in Blob is not drawn, because Blob is suspended. */
+test("a staged logo comes from the hub's route, and one staged in Blob is not drawn", () => {
+  const hash = "a".repeat(64);
+  const staged = { ...GAME, shortname: "SF", logo_path: "games/SF/logo.webp", logo_hash: hash };
+
+  expect(
+    renderToStaticMarkup(<GameCard game={{ ...staged, logo_staged_tier: "bucket" }} />),
+  ).toContain(`src="/assets/games/SF/logo/${hash}"`);
+
+  expect(
+    renderToStaticMarkup(<GameCard game={{ ...staged, logo_staged_tier: "blob" }} />),
+  ).not.toContain("<img");
 });

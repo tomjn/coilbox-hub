@@ -318,5 +318,7 @@ export async function uploadGameImage(form: FormData): Promise<void> {
     .update({ [column]: path, [hashColumn]: hash, [stagedColumn]: "bucket" })
     .eq("id", owned.id);
 
+  // The listing card draws the logo too, and names it by its hash (#345).
+  revalidatePath("/games");
   revalidatePath(`/games/${shortname}`);
 }

@@ -6,6 +6,7 @@ import { requestOwnership, setGameVisibility } from "@/app/games/actions";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { staticTierUrl } from "@/lib/assets/cdn";
+import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle, itemCountLabel } from "@/lib/games/labels";
 import { gamePageCached } from "@/lib/games/cached";
 import { editableGame } from "@/lib/games/editor";
@@ -91,6 +92,18 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
   if (!page) notFound();
 
   const title = gameTitle(page);
+  // A picture still in the staging bucket comes from the hub's own route, and
+  // one staged in Blob is not drawn (#345).
+  const banner = gameArtUrl(page.shortname, "banner", {
+    path: page.banner_path,
+    hash: page.banner_hash,
+    staged_tier: page.banner_staged_tier,
+  });
+  const logo = gameArtUrl(page.shortname, "logo", {
+    path: page.logo_path,
+    hash: page.logo_hash,
+    staged_tier: page.logo_staged_tier,
+  });
 
   // The session decides what the visitor sees: an unowned game asks for
   // somebody to take it, the owner or a moderator (#350) gets the pen and the
@@ -104,23 +117,23 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
 
   return (
     <main className="relative flex-1">
-      {page.banner_path ? (
+      {banner ? (
         // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
         <img
-          src={staticTierUrl(page.banner_path)}
+          src={banner}
           alt=""
           decoding="async"
           className="h-40 w-full object-cover sm:h-56"
         />
       ) : null}
-      <ArtBackdrop drawing={games} strength={page.banner_path ? 0 : BACKDROP_STRENGTH} />
+      <ArtBackdrop drawing={games} strength={banner ? 0 : BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-4">
-            {page.logo_path ? (
+            {logo ? (
               // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
               <img
-                src={staticTierUrl(page.logo_path)}
+                src={logo}
                 alt={`${title} logo`}
                 width={64}
                 height={64}
