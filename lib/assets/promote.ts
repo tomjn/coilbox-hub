@@ -469,8 +469,11 @@ export interface PromotionPorts {
   held(path: string): Promise<boolean>;
   /** Put the bytes in the durable checkout. */
   write(path: string, bytes: Uint8Array): Promise<void>;
-  /** Commit and push everything written. Returning means it is on the default
-   *  branch of the assets repo. */
+  /** Take a file out of the durable checkout, so the next publish deletes it
+   *  from the durable tier. Safe to repeat, and for a path never committed. */
+  remove(path: string): Promise<void>;
+  /** Commit and push everything written or removed. Returning means it is on
+   *  the default branch of the assets repo. */
   publish(paths: string[]): Promise<void>;
   /** Which of these the durable tier is actually serving, having waited a
    *  while for the ones it is not. The gate on every deletion, and the reason

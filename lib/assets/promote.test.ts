@@ -276,6 +276,10 @@ function fakePorts(world: World): PromotionPorts {
       expect(bytes.byteLength).toBeGreaterThan(0);
       world.checkout.add(path);
     },
+    // Only the game picture pass removes anything.
+    remove: async (path: string) => {
+      throw new Error(`the asset pass removed ${path}`);
+    },
     publish: async () => {
       world.trip("publish");
       for (const path of world.checkout) {

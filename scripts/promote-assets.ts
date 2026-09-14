@@ -13,8 +13,8 @@
  *   bun run promote:assets --withdrawn <asset-id>
  *
  * A dry run reads Postgres and reports. It writes nothing, pushes nothing,
- * deletes nothing and does not even read the bytes, so it costs one query and
- * can be run against production to see whether staging is draining.
+ * deletes nothing and does not even read the bytes, so it costs a few queries
+ * and can be run against production to see whether staging is draining.
  *
  * ## The takedown queue, which this reports and never acts on
  *
@@ -57,7 +57,7 @@
 
 export {}; // top level await needs this file to be a module
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createClient, StorageApiError } from "@supabase/supabase-js";
 import { blobTierUrl, deleteBlobAssets } from "@/lib/assets/blob";
@@ -247,19 +247,37 @@ const ports: PromotionPorts = {
     await writeFile(target, bytes);
   },
 
+  // Off the disk and out of the index. The file may be one this run wrote and
+  // never committed, which `git rm` alone would leave on the disk.
+  remove: async (path) => {
+    await rm(join(repo!, path), { force: true });
+    await git("rm", "--cached", "--ignore-unmatch", "--quiet", "--", path);
+  },
+
   publish: async (paths) => {
-    await git("add", "--", ...paths);
+    // A run that only removes files has nothing to add. Removals are already
+    // staged by `remove`.
+    if (paths.length > 0) await git("add", "--", ...paths);
 
     // Nothing staged means every object in the batch was already committed by
     // a run that died before moving the rows. There is nothing to push and
     // nothing to deploy, and the objects are already being served.
-    const staged = await git("diff", "--cached", "--name-only");
+    const staged = await git("diff", "--cached", "--name-status");
     if (staged === "") {
       console.log("Already committed by an earlier run, so nothing to push.");
       return;
     }
 
-    const count = staged.split("\n").length;
+    const lines = staged.split("\n");
+    const removed = lines.filter((line) => line.startsWith("D")).length;
+    const count = lines.length - removed;
+    const pictures = (n: number) => `${n} picture${n === 1 ? "" : "s"}`;
+    const message =
+      removed === 0
+        ? `Promote ${pictures(count)} out of staging`
+        : count === 0
+          ? `Remove ${pictures(removed)} the hub no longer names`
+          : `Promote ${pictures(count)} out of staging and remove ${removed} the hub no longer names`;
     await git(
       "-c",
       "user.name=github-actions[bot]",
@@ -267,7 +285,7 @@ const ports: PromotionPorts = {
       "user.email=41898282+github-actions[bot]@users.noreply.github.com",
       "commit",
       "--message",
-      `Promote ${count} picture${count === 1 ? "" : "s"} out of staging`,
+      message,
     );
     await git("push");
     await dispatchPages();
@@ -325,7 +343,7 @@ if (withdrawn) {
   const { durablePath, fetchPendingDeletions, fetchPromotable } = await import(
     "@/lib/assets/promote"
   );
-  const { fetchStagedGameImages } = await import("@/lib/assets/promoteGameImages");
+  const { fetchStagedGameImages, strayGameImages } = await import("@/lib/assets/promoteGameImages");
 
   const leftover = await fetchPendingDeletions(supabase);
   for (const row of leftover) {
@@ -363,9 +381,13 @@ if (withdrawn) {
     }
   }
 
+  // Removed art, and art at an old extension, still in the checkout (#360).
+  const stray = await strayGameImages(supabase, ports.held);
+  for (const path of stray) console.log(`would remove ${path} from the durable tier: no game row names it`);
+
   console.log(
-    `${leftover.length} left over, ${due.length} due, ${waiting} game picture(s) waiting. ` +
-      `Dry run only. Re-run with --write to apply.`,
+    `${leftover.length} left over, ${due.length} due, ${waiting} game picture(s) waiting, ` +
+      `${stray.length} to remove. Dry run only. Re-run with --write to apply.`,
   );
 } else {
   // Both passes run whatever the other did, and the job fails at the end if
@@ -397,6 +419,7 @@ if (withdrawn) {
   try {
     const images = await runGameImagePromotion(supabase, ports);
     if (images.skipped > 0) console.log(`${images.skipped} game picture(s) skipped, listed above.`);
+    if (images.removed > 0) console.log(`${images.removed} game picture(s) removed, listed above.`);
     if (images.unreadable > 0) failed = true;
   } catch (error) {
     console.error("The game picture pass stopped:", error);
