@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { editGameDetails, setGameVisibility, setVersionVisibility, uploadGameImage } from "@/app/games/actions";
+import { editGameDetails, setGameVisibility, setVersionVisibility } from "@/app/games/actions";
 import { editableGame } from "@/lib/games/editor";
 import { loadGamePage } from "@/lib/games/page";
 import { createClient } from "@/lib/supabase/server";
+import { GameImageForm } from "./GameImageForm";
 
 /**
  * The edit page for a game's owner or a moderator (#229, #350).
@@ -13,10 +14,11 @@ import { createClient } from "@/lib/supabase/server";
  * path onto the row). One form per job means a failed upload never takes the
  * description with it.
  *
- * Everything here is ordinary forms posting to server actions. The links rows
- * are a fixed set of five pairs rather than a dynamic add button, because a
- * button that needs a bundle to work is a worse trade than five rows nobody
- * has to fill in.
+ * Everything here is ordinary forms posting to server actions, except the two
+ * uploads, which check a file's size in the browser first (`GameImageForm`).
+ * The links rows are a fixed set of five pairs rather than a dynamic add
+ * button, because a button that needs a bundle to work is a worse trade than
+ * five rows nobody has to fill in.
  */
 
 const CONTROL =
@@ -180,46 +182,14 @@ export default async function EditGame({
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Logo</h2>
-          <p className="text-sm text-neutral-500">Square, PNG or WebP, up to half a megabyte.</p>
-          <form action={uploadGameImage} className="flex items-end gap-3">
-            <input type="hidden" name="shortname" value={shortname} />
-            <input type="hidden" name="kind" value="logo" />
-            <input
-              type="file"
-              name="image"
-              accept="image/png,image/webp"
-              required
-              className="text-sm text-neutral-300"
-            />
-            <button
-              type="submit"
-              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-            >
-              Upload logo
-            </button>
-          </form>
+          <p className="text-sm text-neutral-500">Square, PNG or WebP, up to 512 KB.</p>
+          <GameImageForm shortname={shortname} kind="logo" />
         </section>
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Banner</h2>
-          <p className="text-sm text-neutral-500">Wide, PNG or WebP, up to half a megabyte.</p>
-          <form action={uploadGameImage} className="flex items-end gap-3">
-            <input type="hidden" name="shortname" value={shortname} />
-            <input type="hidden" name="kind" value="banner" />
-            <input
-              type="file"
-              name="image"
-              accept="image/png,image/webp"
-              required
-              className="text-sm text-neutral-300"
-            />
-            <button
-              type="submit"
-              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-            >
-              Upload banner
-            </button>
-          </form>
+          <p className="text-sm text-neutral-500">Wide, PNG or WebP, up to 512 KB.</p>
+          <GameImageForm shortname={shortname} kind="banner" />
         </section>
       </div>
     </main>

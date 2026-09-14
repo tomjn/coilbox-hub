@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { GameLink } from "@/lib/games/catalog";
 import { editableGame } from "@/lib/games/editor";
+import { type GameImageUploadState, refuseImageFile, UPLOAD_MESSAGES } from "@/lib/games/imageUpload";
 
 /**
  * The writes behind ownership (#229): asking, deciding, and what an owner may
@@ -193,13 +194,6 @@ export async function setSnippet(form: FormData): Promise<void> {
   }
 }
 
-/** The most bytes a logo or banner may be.
- *
- * A logo renders at 24 pixels and a banner across one column; anything past
- * half a megabyte is not a logo, it is an uncompressed screenshot, and refusing
- * it costs nothing honest. */
-const MAX_IMAGE_BYTES = 512 * 1024;
-
 export async function setGameVisibility(form: FormData): Promise<void> {
   const shortname = String(form.get("shortname") ?? "");
   const hidden = form.get("hidden") === "true";
@@ -266,45 +260,58 @@ export async function setVersionVisibility(form: FormData): Promise<void> {
   revalidatePath("/moderation/games");
 }
 
-export async function uploadGameImage(form: FormData): Promise<void> {
+/**
+ * A logo or banner from the edit page's form, answered with what the form
+ * shows (#354). Every refusal says why, because a form that silently did
+ * nothing is how an owner lost track of which pictures had saved.
+ */
+export async function uploadGameImage(
+  _previous: GameImageUploadState | null,
+  form: FormData,
+): Promise<GameImageUploadState> {
   const shortname = String(form.get("shortname") ?? "");
   const kind = String(form.get("kind") ?? "");
-  if (!shortname || (kind !== "logo" && kind !== "banner")) return;
+  if (!shortname || (kind !== "logo" && kind !== "banner")) {
+    return { ok: false, message: UPLOAD_MESSAGES.notSent };
+  }
 
   const file = form.get("image");
-  if (!(file instanceof File) || file.size === 0) return;
-  if (file.size > MAX_IMAGE_BYTES) return;
+  const refusal = refuseImageFile(file);
+  if (refusal) return refusal;
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/sign-in");
+  if (!user) return { ok: false, message: UPLOAD_MESSAGES.signedOut };
 
   // The owner or a moderator (#350), checked with the visitor's own client, so
   // the answer is what row level security sees. The write below needs the
   // secret key for the staging bucket, and it earns that only after this check
   // came back with the game.
   const owned = await editableGame(supabase, user.id, shortname);
-  if (!owned) return;
+  if (!owned) return { ok: false, message: UPLOAD_MESSAGES.notAllowed };
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  // `refuseImageFile` has already refused anything that is not a file.
+  const bytes = new Uint8Array(await (file as File).arrayBuffer());
   const header = readImageHeader(bytes.slice(0, IMAGE_HEADER_BYTES));
-  if (!header) return;
+  if (!header) return { ok: false, message: UPLOAD_MESSAGES.wrongType };
 
   const ext = header.mime === "image/png" ? "png" : "webp";
   const path = `games/${shortname}/${kind}.${ext}`;
 
   const admin = createAdmin();
-  if (!admin) return;
+  if (!admin) {
+    console.error(`uploadGameImage: no secret key, so ${path} was not stored`);
+    return { ok: false, message: UPLOAD_MESSAGES.notSaved };
+  }
 
-  // The form has no error state, so a store that would not take it is a form
-  // that did nothing.
-  const stored = await putStagedGameImage(admin, path, bytes.buffer as ArrayBuffer, header.mime).then(
-    () => true,
-    () => false,
-  );
-  if (!stored) return;
+  try {
+    await putStagedGameImage(admin, path, bytes.buffer as ArrayBuffer, header.mime);
+  } catch (error) {
+    console.error(`uploadGameImage: the bucket refused ${path}`, error);
+    return { ok: false, message: UPLOAD_MESSAGES.notSaved };
+  }
 
   // The hash is over the bytes, so a re-upload of the same picture is visible
   // as no change and a cache can key on it.
@@ -313,12 +320,18 @@ export async function uploadGameImage(form: FormData): Promise<void> {
   const hashColumn = kind === "logo" ? "logo_hash" : "banner_hash";
   // Which store holds the staged copy, so promotion reads the bucket (#332).
   const stagedColumn = kind === "logo" ? "logo_staged_tier" : "banner_staged_tier";
-  await admin
+  const { error } = await admin
     .from("game")
     .update({ [column]: path, [hashColumn]: hash, [stagedColumn]: "bucket" })
     .eq("id", owned.id);
+  if (error) {
+    console.error(`uploadGameImage: stored ${path} but the game row was not updated`, error);
+    return { ok: false, message: UPLOAD_MESSAGES.notSaved };
+  }
 
   // The listing card draws the logo too, and names it by its hash (#345).
   revalidatePath("/games");
   revalidatePath(`/games/${shortname}`);
+
+  return { ok: true, message: kind === "logo" ? "Logo uploaded." : "Banner uploaded." };
 }
