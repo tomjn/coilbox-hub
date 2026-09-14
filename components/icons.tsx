@@ -85,6 +85,17 @@ export function DownloadIcon({ className }: { className?: string }) {
   );
 }
 
+/** An arrow leaving a box, for a link to somewhere that is not the hub. */
+export function ExternalIcon({ className }: { className?: string }) {
+  return (
+    <Icon className={className}>
+      <path d="M14 4h6v6" />
+      <path d="M20 4 11 13" />
+      <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+    </Icon>
+  );
+}
+
 export function ModerationIcon({ className }: { className?: string }) {
   return (
     <Icon className={className}>

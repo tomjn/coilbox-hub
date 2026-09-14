@@ -4,6 +4,7 @@ import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { loadGamePage, type GamePage } from "./page";
 import { fetchGames, type GameSummary } from "./query";
+import { loadGameSides, type GameSides } from "./sides";
 import {
   loadUnitComparison,
   loadUnitGrid,
@@ -57,6 +58,17 @@ export async function gamePageCached(shortname: string): Promise<GamePage | null
   cacheTag(TAGS.games);
 
   return loadGamePage(createAnonClient(), shortname);
+}
+
+/** The sides of the named games, each with its start unit's buildpic where one
+ *  is held. Carries the assets tag, because approving a commander's buildpic
+ *  changes the card. */
+export async function gameSidesCached(shortnames: string[]): Promise<Map<string, GameSides>> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games, TAGS.assets);
+
+  return loadGameSides(createAnonClient(), shortnames);
 }
 
 /** One page of a game's units, with a buildpic per cell. */

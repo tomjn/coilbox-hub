@@ -8,6 +8,7 @@ import {
 import { fetchHeldAssets, resolveAsset, type ResolvedAsset } from "@/lib/assets/resolve";
 import { fetchPage } from "@/lib/gallery/query";
 import { readAll } from "@/lib/supabase/readAll";
+import { isRandomFaction } from "./factions";
 import { morphGroups, type MorphStage } from "./morph";
 import { formatStatValue, statLabel, statRows, tabularStatRows } from "./stats";
 
@@ -463,20 +464,6 @@ export async function unitBuildpics(
 export interface FactionOption {
   key: string;
   name: string;
-}
-
-/**
- * Whether a side is the die roll rather than an army (#280).
- *
- * Games report a faction called Random so a lobby can pick one for you. It has
- * no units of its own worth a strip, a filter or a tree block, and offering it
- * beside real sides reads as a side somebody plays.
- */
-function isRandomFaction(faction: { key: string; name: string }): boolean {
-  return (
-    faction.key.trim().toLowerCase() === "random" ||
-    faction.name.trim().toLowerCase() === "random"
-  );
 }
 
 export async function gameFactions(

@@ -22,6 +22,7 @@ const GAME_ROW = {
   game_faction: [
     { key: "armada", name: "Armada", logo_path: null },
     { key: "cortex", name: "Cortex", logo_path: "factions/cortex.webp" },
+    { key: "random", name: "Random", logo_path: null },
   ],
   game_version: [{ version: "2.0.0", last_seen_at: "2026-08-21T00:00:00Z" }],
 };
@@ -45,7 +46,7 @@ function fakeSupabase(row: unknown, counts: unknown): SupabaseClient {
   } as unknown as SupabaseClient;
 }
 
-test("a page carries the row's facts with the junk dropped", async () => {
+test("a page carries the row's facts with the junk and the Random side dropped", async () => {
   const page = await loadGamePage(
     fakeSupabase(GAME_ROW, { faction_count: 2, unit_count: 340 }),
     "BA",

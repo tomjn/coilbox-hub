@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseGameLinks, type GameLink } from "./catalog";
+import { isRandomFaction } from "./factions";
 
 /**
  * Everything one game's page shows, in one place a test can reach (#226).
@@ -26,7 +27,8 @@ export interface GamePage {
   unit_count: number;
   /** Live community content filed under this shortname (#244). */
   item_count: number;
-  /** Alphabetical, so the strip reads the same way every time it is built. */
+  /** Alphabetical, so the strip reads the same way every time it is built.
+   *  Random is left out, because it is a lobby choice and not a side. */
   factions: GamePageFaction[];
   /** The release most recently reported, which is how fresh the facts are.
    *  Null until a client has said. */
@@ -107,7 +109,7 @@ export async function loadGamePage(
     faction_count: counts.data.faction_count,
     unit_count: counts.data.unit_count,
     item_count: counts.data.item_count,
-    factions: held.game_faction ?? [],
+    factions: (held.game_faction ?? []).filter((faction) => !isRandomFaction(faction)),
     release: held.game_version?.[0]?.version ?? null,
     owner_user_id: held.owner_user_id,
     hidden_at: held.hidden_at,
