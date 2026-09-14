@@ -9,7 +9,7 @@ import { assetObjectPath } from "./path";
  * (issue #111). The only writer to the durable tier after the seed, and the
  * only reason the Blob store stays near empty.
  *
- * Everything approved and older than seven days, in the order it was approved.
+ * Everything approved more than a day ago, in the order it was approved.
  * Not the popular ones, not the large ones: the point is that staging drains,
  * and a Blob footprint that keeps growing is then a plain signal that this job
  * has stalled rather than a number somebody has to interpret.
@@ -32,7 +32,7 @@ import { assetObjectPath } from "./path";
  * 1. Drain. Delete any staging object a previous run promoted and did not get
  *    round to deleting. Fails here: said out loud and carried on past, because
  *    nothing has changed and the next run drains it.
- * 2. Select. Approved, on the staging tier, untouched for seven days. Dies
+ * 2. Select. Approved, on the staging tier, untouched for a day. Dies
  *    here: nothing has changed.
  * 3. Read the bytes out of Blob and write them into the assets checkout under
  *    the content addressed path, which is recomputed from the row because the
@@ -87,13 +87,17 @@ import { assetObjectPath } from "./path";
 /**
  * How long an approved picture stays in staging before it moves.
  *
- * Seven days is the issue's, and it is a moderation window rather than a
- * storage one: an approval that turns out to be wrong is reversible while the
- * bytes are only in Blob, and stops being reversible once they are in a public
- * git history that cannot be rewritten. Nothing about the staging tier needs
- * the delay.
+ * A moderation window rather than a storage one: an approval that turns out to
+ * be wrong is reversible while the bytes are only in staging, and stops being
+ * reversible once they are in a public git history that cannot be rewritten.
+ *
+ * It was seven days, from #111. That kept every approved picture in the Blob
+ * store for a week, and a store that fills up or gets suspended takes all of
+ * them with it. One day still gives a moderator the rest of the day to take back an
+ * approval, and the daily run means a picture moves one to two days after it
+ * was approved.
  */
-export const PROMOTION_AGE_DAYS = 7;
+export const PROMOTION_AGE_DAYS = 1;
 
 /**
  * How many rows one run moves.
@@ -101,7 +105,7 @@ export const PROMOTION_AGE_DAYS = 7;
  * Not a #119 batching rule. One run is one push whatever this is, so the
  * deploy costs the same for 1 row as for 200. What this bounds is the run
  * itself: the bytes it reads out of Blob, and how much work is in flight when
- * something goes wrong. At seven days behind a moderation queue that shows 240
+ * something goes wrong. At a day behind a moderation queue that shows 240
  * at a time, a day's approvals fit comfortably inside it, and anything that
  * does not simply moves on the next run.
  */
@@ -143,7 +147,7 @@ export interface Promotable {
  * event. `updated_at` is when the row last changed, which for an approved row
  * is when it was approved, and it is the value that does the right thing when
  * a newer archive replaces the bytes: the replacement puts the row back to
- * pending and restarts the seven days, so nothing is promoted on the strength
+ * pending and restarts the wait, so nothing is promoted on the strength
  * of a review somebody gave to different bytes.
  */
 export function promotionCutoff(now: Date = new Date()): string {

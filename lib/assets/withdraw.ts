@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * ## Why the hub says it and does not do it
  *
- * Promotion moves an approved picture into tomjn/coilbox-assets seven days
+ * Promotion moves an approved picture into tomjn/coilbox-assets a day or two
  * after it is approved, and a safety problem is the kind that gets reported
  * long after somebody approved the picture. By then the bytes are in a public
  * git history and rejecting the row reaches the row and nothing else.
