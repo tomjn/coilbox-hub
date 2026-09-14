@@ -29,11 +29,13 @@ mock.module("@vercel/blob", () => ({
 }));
 
 const {
+  ABANDONED_RESERVATION_MINUTES,
   claimedPaths,
   fetchOrphans,
   forgetOrphans,
   stagingPathsInUse,
   sweepOrphans,
+  sweepStagedObjects,
 } = await import("./orphan");
 
 interface AssetRow {
@@ -63,6 +65,27 @@ class World {
   discardFails = false;
   /** Size of every `.in()` call made against `assets`, in request order. */
   inBatchSizes: number[] = [];
+  /** Objects in the Supabase bucket, by path. */
+  bucket = new Set<string>();
+  /** Game pictures whose staged copy the row says is in the bucket. */
+  stagedGamePaths: string[] = [];
+  /** Outstanding bucket deletion reservations, path to when reserved. */
+  reservations = new Map<string, string>();
+  discardedStaged: string[] = [];
+  /** Set to make `discardStaged` throw once. */
+  discardStagedFails = false;
+  /** Runs between the bucket listing and the reservation, to race a claim in. */
+  afterListing: (() => void) | null = null;
+
+  /** Whether anything claims a bucket path, the way the two SQL functions in
+   *  20260914170000 decide it. */
+  claims(path: string, queuedIsClaimed = true) {
+    return (
+      this.assets.some((row) => row.path === path && row.tier !== "static") ||
+      (queuedIsClaimed && this.assets.some((row) => row.blob_path === path)) ||
+      this.stagedGamePaths.includes(path)
+    );
+  }
 
   live(path: string) {
     this.assets.push({ path, tier: "blob", blob_path: null });
@@ -118,6 +141,10 @@ function fakeSupabase(world: World): SupabaseClient {
         matching = matching.filter((row) => row[column] === value);
         return builder;
       },
+      lt: (column: string, value: string) => {
+        matching = matching.filter((row) => String(row[column]) < value);
+        return builder;
+      },
       in: (column: string, values: unknown[]) => {
         if (name === "asset") world.inBatchSizes.push(values.length);
         matching = matching.filter((row) => values.includes(row[column]));
@@ -139,12 +166,38 @@ function fakeSupabase(world: World): SupabaseClient {
     from: (name: string) =>
       table(
         name,
-        (name === "asset_orphan" ? world.orphans : world.assets) as unknown as Record<
-          string,
-          unknown
-        >[],
+        (name === "asset_orphan"
+          ? world.orphans
+          : name === "staged_object_deletion"
+            ? [...world.reservations].map(([path, reserved_at]) => ({ path, reserved_at }))
+            : world.assets) as unknown as Record<string, unknown>[],
       ),
-    rpc: (_name: string, args: Record<string, unknown>) => {
+    rpc: (name: string, args: Record<string, unknown>) => {
+      if (name === "unclaimed_staged_objects") {
+        const data = [...world.bucket]
+          .filter((path) => !world.claims(path))
+          .slice(0, args.max_objects as number)
+          .map((path) => ({ object_path: path, bytes: 1024, created_at: "2026-09-14T00:00:00.000Z" }));
+        world.afterListing?.();
+        return Promise.resolve({ data, error: null });
+      }
+      if (name === "reserve_staged_deletions") {
+        const data = [...new Set(args.object_paths as string[])]
+          .filter((path) => !world.claims(path, args.queued_is_claimed as boolean))
+          .map((path) => {
+            if (!world.reservations.has(path)) world.reservations.set(path, "2026-09-14T12:00:00.000Z");
+            return { object_path: path };
+          });
+        return Promise.resolve({ data, error: null });
+      }
+      if (name === "release_staged_deletions") {
+        let released = 0;
+        for (const path of args.object_paths as string[]) {
+          if (world.reservations.delete(path)) released++;
+        }
+        return Promise.resolve({ data: released, error: null });
+      }
+
       let cleared = 0;
       for (const row of world.orphans) {
         if ((args.ids as number[]).includes(row.id) && row.deleted_at === null) {
@@ -164,6 +217,16 @@ function fakePorts(world: World): CleanupPorts {
       for (const path of paths) {
         world.blob.delete(path);
         world.discarded.push(path);
+      }
+    },
+    discardStaged: async (paths) => {
+      if (world.discardStagedFails) {
+        world.discardStagedFails = false;
+        throw new Error("the bucket would not answer");
+      }
+      for (const path of paths) {
+        world.bucket.delete(path);
+        world.discardedStaged.push(path);
       }
     },
     say: (message) => {
@@ -320,4 +383,95 @@ test("claimedPaths batches both the live check and the queue check", async () =>
 
   expect(claimed.size).toBe(120);
   expect(world.inBatchSizes.every((size) => size <= 50)).toBe(true);
+});
+
+// ## The Supabase bucket (#335)
+//
+// Nothing is queued: the bucket is listed from Postgres, and a deletion is
+// reserved first, under a lock an upload also takes. The SQL half, including
+// the lock, is `staged_pictures_promotion.test.sql`. This half is the order.
+
+const NOW = new Date("2026-09-14T12:00:00.000Z");
+
+/** The bucket invariant: every object left is claimed, or reserved for a
+ *  deletion that has not finished. */
+function bucketInvariant(world: World) {
+  for (const path of world.bucket) {
+    const named = world.claims(path) || world.reservations.has(path);
+    expect({ path, named }).toEqual({ path, named: true });
+  }
+}
+
+test("the bucket sweep takes what nothing claims and leaves a shared object two rows name", async () => {
+  const shared = "units/bar/buildpic/shared.webp";
+  world.assets.push({ path: shared, tier: "bucket", blob_path: null });
+  world.assets.push({ path: shared, tier: "bucket", blob_path: null });
+  world.assets.push({ path: "units/bar/buildpic/done.webp", tier: "static", blob_path: "units/bar/buildpic/queued.webp" });
+  world.stagedGamePaths.push("games/BA/logo.webp");
+  for (const path of [shared, "units/bar/buildpic/spare.webp", "units/bar/buildpic/queued.webp", "games/BA/logo.webp"]) {
+    world.bucket.add(path);
+  }
+
+  const result = await sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, NOW);
+
+  expect(result).toEqual({ deleted: 1, kept: 0 });
+  expect(world.discardedStaged).toEqual(["units/bar/buildpic/spare.webp"]);
+  expect(world.discarded).toEqual([]);
+  expect(world.reservations.size).toBe(0);
+  bucketInvariant(world);
+});
+
+test("an object an upload claims after the bucket was listed is kept", async () => {
+  world.bucket.add("units/bar/buildpic/reused.webp");
+  world.afterListing = () => {
+    world.assets.push({ path: "units/bar/buildpic/reused.webp", tier: "bucket", blob_path: null });
+  };
+
+  const result = await sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, NOW);
+
+  expect(result).toEqual({ deleted: 0, kept: 1 });
+  expect(world.discardedStaged).toEqual([]);
+  expect(world.said).toEqual(["keep units/bar/buildpic/reused.webp: a row claimed it after the bucket was listed."]);
+  bucketInvariant(world);
+});
+
+test("a sweep killed at the delete leaves the reservation, and a sweep after the job's timeout finishes it", async () => {
+  world.bucket.add("units/bar/buildpic/spare.webp");
+  world.discardStagedFails = true;
+
+  await expect(sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, NOW)).rejects.toThrow("would not answer");
+
+  // Still reserved, so the database keeps refusing an upload that would reuse it.
+  expect(world.reservations.has("units/bar/buildpic/spare.webp")).toBe(true);
+  expect(world.bucket.has("units/bar/buildpic/spare.webp")).toBe(true);
+  bucketInvariant(world);
+
+  // The object itself is gone by the next sweep only if the delete landed, so
+  // take the worst case: it did, and only the reservation is left.
+  world.bucket.delete("units/bar/buildpic/spare.webp");
+  const soon = await sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, NOW);
+  expect(soon).toEqual({ deleted: 0, kept: 0 });
+  expect(world.reservations.size).toBe(1);
+
+  const later = new Date(NOW.getTime() + (ABANDONED_RESERVATION_MINUTES + 1) * 60 * 1000);
+  const result = await sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, later);
+
+  expect(result).toEqual({ deleted: 1, kept: 0 });
+  expect(world.discardedStaged).toEqual(["units/bar/buildpic/spare.webp"]);
+  expect(world.reservations.size).toBe(0);
+  expect(world.said).toContain("Finished deleting 1 bucket object(s) an earlier run reserved.");
+});
+
+test("the Blob sweep never deletes from the bucket, and the bucket sweep never deletes from Blob", async () => {
+  world.live("live.webp").orphan("old-Hn4vQ2rT.webp");
+  world.bucket.add("old-Hn4vQ2rT.webp");
+
+  await sweepOrphans(fakeSupabase(world), fakePorts(world));
+  expect(world.discarded).toEqual(["old-Hn4vQ2rT.webp"]);
+  expect(world.discardedStaged).toEqual([]);
+
+  world.blob.add("stray.webp");
+  await sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, NOW);
+  expect(world.discardedStaged).toEqual(["old-Hn4vQ2rT.webp"]);
+  expect(world.blob.has("stray.webp")).toBe(true);
 });
