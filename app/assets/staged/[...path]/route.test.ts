@@ -53,6 +53,20 @@ test("the path is the segments joined, read as anon for the row and admin for th
   );
 });
 
+test("a promoted picture is a permanent, cached redirect to the durable tier and nothing else", async () => {
+  answer = () => Promise.resolve({ promoted: "https://tomjn.github.io/coilbox-assets/units/bar/buildpic/abc.webp" });
+
+  const response = await GET(new Request("http://hub.test/x"), ctx(SEGMENTS));
+
+  expect(response.status).toBe(308);
+  expect(await response.text()).toBe("");
+  expect([...response.headers].sort()).toEqual([
+    ["access-control-allow-origin", "*"],
+    ["cache-control", "public, max-age=31536000, immutable"],
+    ["location", "https://tomjn.github.io/coilbox-assets/units/bar/buildpic/abc.webp"],
+  ]);
+});
+
 test("a row whose declared type the hub does not store falls back to octet-stream", async () => {
   answer = () => Promise.resolve({ bytes: new Blob(["<script>"]), mime: "text/html" });
 

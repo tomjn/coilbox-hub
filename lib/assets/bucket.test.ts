@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { StorageApiError, type SupabaseClient } from "@supabase/supabase-js";
 import { bucketTierUrl, fetchApprovedStagedPicture } from "./bucket";
+import { staticTierUrl } from "./cdn";
 import { STAGED_PICTURES_BUCKET } from "./staging";
 
 const PATH = "units/bar/buildpic/abc.webp";
@@ -28,12 +29,20 @@ test("off Vercel the route is on localhost", () => {
  *  answering with `rows`. Row level security is not simulated: the filters are
  *  what this file adds, and `supabase/tests/asset_access.test.sql` proves the
  *  policy underneath them. */
-function anonWith(rows: { mime: string }[], error: unknown = null) {
+function anonWith(rows: { mime: string; tier?: string }[], error: unknown = null) {
   const filters: [string, unknown][] = [];
   const builder = {
     select: () => builder,
     eq: (column: string, value: unknown) => {
       filters.push([column, value]);
+      return builder;
+    },
+    in: (column: string, values: unknown[]) => {
+      filters.push([column, values]);
+      return builder;
+    },
+    order: (column: string, options: unknown) => {
+      filters.push([`order ${column}`, options]);
       return builder;
     },
     limit: () => Promise.resolve({ data: error ? null : rows, error }),
@@ -62,7 +71,7 @@ function adminWith(download: { data: unknown; error: unknown }) {
 }
 
 test("an approved bucket row's bytes are read from the staging bucket at its path", async () => {
-  const anon = anonWith([{ mime: "image/webp" }]);
+  const anon = anonWith([{ mime: "image/webp", tier: "bucket" }]);
   const bytes = new Blob(["hello"]);
   const admin = adminWith({ data: bytes, error: null });
 
@@ -72,16 +81,32 @@ test("an approved bucket row's bytes are read from the staging bucket at its pat
   expect(admin.asked).toEqual({ bucket: STAGED_PICTURES_BUCKET, path: PATH });
 });
 
-test("the row read asks for this path, in the bucket, approved, and nothing looser", async () => {
-  const anon = anonWith([{ mime: "image/webp" }]);
+test("the row read asks for this path, in the bucket or promoted, approved, and nothing looser", async () => {
+  const anon = anonWith([{ mime: "image/webp", tier: "bucket" }]);
 
   await fetchApprovedStagedPicture(anon.client, adminWith({ data: new Blob([]), error: null }).client, PATH);
 
   expect(anon.filters).toEqual([
     ["path", PATH],
-    ["tier", "bucket"],
+    ["tier", ["bucket", "static"]],
     ["moderation", "approved"],
+    ["order tier", { ascending: false }],
   ]);
+});
+
+// Promotion keeps the path, so a page cached before the move still names this
+// route (#335).
+test("an approved row promoted to the durable tier answers with its durable URL, and the bucket is never asked", async () => {
+  const admin = adminWith({ data: new Blob(["still in the bucket"]), error: null });
+
+  const picture = await fetchApprovedStagedPicture(
+    anonWith([{ mime: "image/webp", tier: "static" }]).client,
+    admin.client,
+    PATH,
+  );
+
+  expect(picture).toEqual({ promoted: staticTierUrl(PATH) });
+  expect(admin.asked).toEqual({});
 });
 
 // Pending, rejected and missing are one case here: the filters above and the
@@ -98,7 +123,7 @@ test("an approved row with no object behind it is null, the same as no row", asy
 
   expect(
     await fetchApprovedStagedPicture(
-      anonWith([{ mime: "image/webp" }]).client,
+      anonWith([{ mime: "image/webp", tier: "bucket" }]).client,
       adminWith({ data: null, error: gone }).client,
       PATH,
     ),
@@ -110,7 +135,7 @@ test("any other bucket failure throws rather than answering null", async () => {
 
   await expect(
     fetchApprovedStagedPicture(
-      anonWith([{ mime: "image/webp" }]).client,
+      anonWith([{ mime: "image/webp", tier: "bucket" }]).client,
       adminWith({ data: null, error: down }).client,
       PATH,
     ),

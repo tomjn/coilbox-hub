@@ -59,7 +59,16 @@ import {
   METER_ALERT_FRACTION,
   fetchMeters,
 } from "@/lib/assets/meters";
-import { CLEANUP_BATCH, type CleanupPorts, fetchOrphans, sweepOrphans } from "@/lib/assets/orphan";
+import {
+  CLEANUP_BATCH,
+  type CleanupPorts,
+  fetchAbandonedStagedDeletions,
+  fetchOrphans,
+  fetchUnclaimedStagedObjects,
+  sweepOrphans,
+  sweepStagedObjects,
+} from "@/lib/assets/orphan";
+import { removeStagedAssets } from "@/lib/assets/staging";
 
 /** Deleting is free and spends none of the allowance, but a batch counts
  *  per blob against the per minute rate limit, so a large sweep is paced rather
@@ -118,21 +127,57 @@ const ports: CleanupPorts = {
       await deleteBlobAssets(paths.slice(at, at + DELETE_CHUNK));
     }
   },
+  // Chunked the same way, without the pause, which is for Blob's rate limit.
+  discardStaged: async (paths) => {
+    for (let at = 0; at < paths.length; at += DELETE_CHUNK) {
+      await removeStagedAssets(supabase, paths.slice(at, at + DELETE_CHUNK));
+    }
+  },
   say: (message) => console.log(message),
 };
 
-// The sweep first. An alert is not a reason to leave objects in a store that is
+// The sweeps first. An alert is not a reason to leave objects in a store that is
 // filling up, and the numbers below are more useful after it than before.
+//
+// Blob, then the Supabase bucket (#335), and one failing does not stop the
+// other. A suspended Blob store should not keep the bucket filling up.
+let failed = false;
+
 if (write) {
-  const result = await sweepOrphans(supabase, ports, limit);
-  console.log(`${result.deleted} deleted, ${result.kept} kept.`);
+  try {
+    const result = await sweepOrphans(supabase, ports, limit);
+    console.log(`Blob: ${result.deleted} deleted, ${result.kept} kept.`);
+  } catch (error) {
+    console.error("The Blob sweep stopped:", error);
+    failed = true;
+  }
+
+  try {
+    const result = await sweepStagedObjects(supabase, ports, limit);
+    console.log(`Bucket: ${result.deleted} deleted, ${result.kept} kept.`);
+  } catch (error) {
+    console.error("The bucket sweep stopped:", error);
+    failed = true;
+  }
 } else {
   const orphans = await fetchOrphans(supabase, limit);
   for (const orphan of orphans) {
-    console.log(`would delete ${orphan.path} (${orphan.reason}, ${formatBytes(orphan.bytes)})`);
+    console.log(`would delete ${orphan.path} from Blob (${orphan.reason}, ${formatBytes(orphan.bytes)})`);
   }
+
+  const abandoned = await fetchAbandonedStagedDeletions(supabase);
+  for (const path of abandoned) {
+    console.log(`would finish deleting ${path} from the bucket, reserved by a run that stopped`);
+  }
+
+  const unclaimed = await fetchUnclaimedStagedObjects(supabase, limit);
+  for (const object of unclaimed) {
+    console.log(`would delete ${object.path} from the bucket (${formatBytes(object.bytes)})`);
+  }
+
   console.log(
-    `${orphans.length} unclaimed. Dry run only. Re-run with --write to delete them.`,
+    `${orphans.length} unclaimed in Blob, ${abandoned.length + unclaimed.length} in the bucket. ` +
+      "Dry run only. Re-run with --write to delete them.",
   );
 }
 
@@ -173,3 +218,5 @@ if (alerts.length > 0) {
   );
   process.exit(1);
 }
+
+if (failed) process.exitCode = 1;

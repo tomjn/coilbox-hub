@@ -1,10 +1,9 @@
 -- Rows on the Supabase bucket tier, and what the Blob era functions do with
 -- them (issue #332).
 --
--- Promotion and the orphan queue only know Blob until #335. What can be proved
--- here is that neither of them touches a `bucket` row: promotion never moves
--- one or gives it a `blob_path`, and replacing one never queues its path for
--- the Blob sweep.
+-- The orphan queue only knows Blob. What can be proved here is that replacing a
+-- `bucket` row never queues its path for the Blob sweep. Promotion moves bucket
+-- rows since #335, and staged_pictures_promotion.test.sql covers the rest.
 
 begin;
 select plan(12);
@@ -38,21 +37,21 @@ select throws_ok(
   'and nowhere the hub does not know about'
 );
 
--- ## Promotion leaves a bucket row alone
+-- ## Promotion moves a bucket row (#335)
 
 select is(
   (select count(*) from public.promote_assets(
     ARRAY['0f8fad5b-4444-4000-8000-00000000000a'::uuid],
     ARRAY['units/bar/buildpic/enc-a.webp']
   ))::int,
-  0,
-  'promote_assets turns down a row on the bucket tier'
+  1,
+  'promote_assets moves a row on the bucket tier'
 );
 
 select is(
-  (select tier || ' ' || path || ' ' || coalesce(blob_path, 'none') from public.asset where id = '0f8fad5b-4444-4000-8000-00000000000a'),
-  'bucket units/bar/buildpic/enc-a.webp none',
-  'so the row keeps its tier and path and gains no blob_path for the Blob drain to delete'
+  (select tier || ' ' || path || ' ' || blob_path || ' ' || blob_path_tier from public.asset where id = '0f8fad5b-4444-4000-8000-00000000000a'),
+  'static units/bar/buildpic/enc-a.webp units/bar/buildpic/enc-a.webp bucket',
+  'and queues its path for deletion from the bucket, not from Blob'
 );
 
 -- ## Replacements and the Blob sweep's queue
