@@ -57,6 +57,7 @@ interface Row {
   rejection_kind: string | null;
   bytes: number;
   blob_path: string | null;
+  blob_path_tier: string | null;
   promoted_at: string | null;
   updated_at: string;
 }
@@ -76,6 +77,7 @@ function unit(id: string, name: string, hash: string, over: Partial<Row> = {}): 
     rejection_kind: null,
     bytes: 4096,
     blob_path: null,
+    blob_path_tier: null,
     promoted_at: null,
     updated_at: OLD,
     ...over,
@@ -86,10 +88,21 @@ function unit(id: string, name: string, hash: string, over: Partial<Row> = {}): 
  * Everything outside the process: the table, the store, the assets checkout and
  * what the published site is actually serving.
  */
+/** A unit picture uploaded to the Supabase bucket (#332), where the staging
+ *  path is already the durable one. */
+function bucketUnit(id: string, name: string, hash: string, over: Partial<Row> = {}): Row {
+  return unit(id, name, hash, { tier: "bucket", path: `units/bar/buildpic/${hash}.webp`, ...over });
+}
+
 class World {
   rows: Row[];
   /** Staging objects, by the pathname the store knows them as. */
   blob = new Set<string>();
+  /** Objects in the Supabase bucket, by path. */
+  bucket = new Set<string>();
+  /** Outstanding bucket deletion reservations, by path. */
+  reservations = new Set<string>();
+  discardedStaged: string[] = [];
   /** Written into the checkout but not pushed. A throwaway working tree. */
   checkout = new Set<string>();
   /** On the default branch of the assets repo. */
@@ -109,8 +122,9 @@ class World {
     this.rows = rows;
     for (const row of rows) {
       if (row.tier === "blob") this.blob.add(row.path);
+      if (row.tier === "bucket") this.bucket.add(row.path);
       if (row.tier === "static") this.pushed.add(row.path);
-      if (row.blob_path) this.blob.add(row.blob_path);
+      if (row.blob_path) (row.blob_path_tier === "bucket" ? this.bucket : this.blob).add(row.blob_path);
     }
     for (const path of this.pushed) this.served.add(path);
   }
@@ -172,20 +186,21 @@ function fakeSupabase(world: World): SupabaseClient {
   };
 
   const promote = (ids: string[], paths: string[]) => {
-    const moved: { id: string; blob_path: string }[] = [];
+    const moved: { id: string; blob_path: string; blob_path_tier: string }[] = [];
 
     ids.forEach((id, index) => {
       const row = world.rows.find((candidate) => candidate.id === id);
       if (!row) return;
-      if (row.tier !== "blob") return;
+      if (row.tier !== "blob" && row.tier !== "bucket") return;
       if (row.moderation !== "approved") return;
       if (row.blob_path !== null) return;
 
       row.blob_path = row.path;
+      row.blob_path_tier = row.tier;
       row.path = paths[index];
       row.tier = "static";
       row.promoted_at = NOW.toISOString();
-      moved.push({ id, blob_path: row.blob_path });
+      moved.push({ id, blob_path: row.blob_path, blob_path_tier: row.blob_path_tier });
     });
 
     return moved;
@@ -196,11 +211,27 @@ function fakeSupabase(world: World): SupabaseClient {
     for (const row of world.rows) {
       if (ids.includes(row.id) && row.blob_path !== null) {
         row.blob_path = null;
+        row.blob_path_tier = null;
         cleared++;
       }
     }
     return cleared;
   };
+
+  // The claims 20260914170000 checks under its lock.
+  const reserve = (paths: string[], queuedIsClaimed: boolean) =>
+    [...new Set(paths)]
+      .filter(
+        (path) =>
+          !world.rows.some((row) => row.path === path && row.tier !== "static") &&
+          !(queuedIsClaimed && world.rows.some((row) => row.blob_path === path)),
+      )
+      .map((path) => {
+        world.reservations.add(path);
+        return { object_path: path };
+      });
+
+  const release = (paths: string[]) => paths.filter((path) => world.reservations.delete(path)).length;
 
   return {
     from: () => query(world.rows),
@@ -210,7 +241,11 @@ function fakeSupabase(world: World): SupabaseClient {
       const data =
         name === "promote_assets"
           ? promote(args.ids as string[], args.paths as string[])
-          : clear(args.ids as string[]);
+          : name === "reserve_staged_deletions"
+            ? reserve(args.object_paths as string[], args.queued_is_claimed as boolean)
+            : name === "release_staged_deletions"
+              ? release(args.object_paths as string[])
+              : clear(args.ids as string[]);
 
       return Promise.resolve({ data, error: null });
     },
@@ -224,6 +259,12 @@ function fakePorts(world: World): PromotionPorts {
       const path = url.slice(BLOB_TIER_BASE.length);
       const row = world.rows.find((candidate) => candidate.path === path);
       if (!world.blob.has(path) || !row) throw new Error(`no object at ${path}`);
+      return new Uint8Array(row.bytes);
+    },
+    readStaged: async (path: string) => {
+      world.trip("readStaged");
+      const row = world.rows.find((candidate) => candidate.path === path);
+      if (!world.bucket.has(path) || !row) throw new StagingReadError(404, path);
       return new Uint8Array(row.bytes);
     },
     held: async (path: string) => world.checkout.has(path) || world.pushed.has(path),
@@ -251,6 +292,13 @@ function fakePorts(world: World): PromotionPorts {
         world.discarded.push(path);
       }
     },
+    discardStaged: async (paths: string[]) => {
+      world.trip("discardStaged");
+      for (const path of paths) {
+        world.bucket.delete(path);
+        world.discardedStaged.push(path);
+      }
+    },
     say: (message: string) => {
       world.said.push(message);
     },
@@ -260,7 +308,7 @@ function fakePorts(world: World): PromotionPorts {
 /** The two things that must be true of the world at every instant. */
 function invariants(world: World) {
   for (const row of world.rows) {
-    const where = row.tier === "blob" ? world.blob : world.pushed;
+    const where = row.tier === "blob" ? world.blob : row.tier === "bucket" ? world.bucket : world.pushed;
     expect({ id: row.id, tier: row.tier, reachable: where.has(row.path) }).toEqual({
       id: row.id,
       tier: row.tier,
@@ -272,6 +320,15 @@ function invariants(world: World) {
     const named = world.rows.some(
       (row) => (row.tier === "blob" && row.path === path) || row.blob_path === path,
     );
+    expect({ path, named }).toEqual({ path, named: true });
+  }
+
+  // A bucket object may also be reserved by a run that died mid-delete, which
+  // keeps refusing any upload that would claim it.
+  for (const path of world.bucket) {
+    const named =
+      world.reservations.has(path) ||
+      world.rows.some((row) => (row.tier === "bucket" && row.path === path) || row.blob_path === path);
     expect({ path, named }).toEqual({ path, named: true });
   }
 }
@@ -296,8 +353,8 @@ test("the cutoff is a day back, on the row's own clock", () => {
 test("the durable path is recomputed and is not the suffixed staging one", () => {
   const row = unit("00000000-0000-4000-8000-00000000000f", "armsolar", "aaa1");
 
-  expect(durablePath(row)).toBe("units/bar/buildpic/aaa1.webp");
-  expect(durablePath(row)).not.toBe(row.path);
+  expect(durablePath({ ...row, tier: "blob" })).toBe("units/bar/buildpic/aaa1.webp");
+  expect(durablePath({ ...row, tier: "blob" })).not.toBe(row.path);
 });
 
 test("a whole run moves the rows and empties the staging store", async () => {
@@ -327,35 +384,146 @@ test("nothing approved in the last day moves", async () => {
   expect(world.discarded).toEqual([]);
 });
 
-// ## Rows in the Supabase bucket, which this run cannot read until #335
+// ## Rows in the Supabase bucket (#335)
 
-test("an approved row in the bucket is not read, moved or deleted, and the Blob row beside it still moves", async () => {
+test("a batch reads each row from its own store and deletes from its own store", async () => {
   world = new World([
-    unit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1", {
-      tier: "bucket",
-      path: "units/bar/buildpic/aaa1.webp",
-    }),
+    bucketUnit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1"),
     unit("00000000-0000-4000-8000-000000000002", "armllt", "bbb2"),
   ]);
   const read: string[] = [];
   const ports = fakePorts(world);
-  const reading = ports.read;
+  const [reading, readingStaged] = [ports.read, ports.readStaged];
   ports.read = async (url) => {
     read.push(url);
     return reading(url);
   };
+  ports.readStaged = async (path) => {
+    read.push(`bucket:${path}`);
+    return readingStaged(path);
+  };
 
   const result = await runPromotion(fakeSupabase(world), ports, { now: NOW });
 
-  expect(result).toMatchObject({ promoted: 1, skipped: 0, unreadable: 0 });
-  expect(read).toEqual([`${BLOB_TIER_BASE}units/bar/buildpic/bbb2-Hn4vQ2rT.webp`]);
-  expect(world.rows[0]).toMatchObject({
-    tier: "bucket",
-    path: "units/bar/buildpic/aaa1.webp",
-    blob_path: null,
-    promoted_at: null,
-  });
+  expect(result).toEqual({ drained: 0, promoted: 2, skipped: 0, deleted: 2, unreadable: 0 });
+  expect(read).toEqual([
+    "bucket:units/bar/buildpic/aaa1.webp",
+    `${BLOB_TIER_BASE}units/bar/buildpic/bbb2-Hn4vQ2rT.webp`,
+  ]);
   expect(world.discarded).toEqual(["units/bar/buildpic/bbb2-Hn4vQ2rT.webp"]);
+  expect(world.discardedStaged).toEqual(["units/bar/buildpic/aaa1.webp"]);
+  expect(world.rows.map((row) => `${row.tier} ${row.path} ${row.blob_path}`)).toEqual([
+    "static units/bar/buildpic/aaa1.webp null",
+    "static units/bar/buildpic/bbb2.webp null",
+  ]);
+  expect(world.reservations.size).toBe(0);
+  invariants(world);
+});
+
+test("a bucket object the store does not have skips its row and deletes nothing", async () => {
+  world = new World([bucketUnit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1")]);
+  world.bucket.clear();
+
+  const result = await run();
+
+  expect(result).toEqual({ drained: 0, promoted: 0, skipped: 1, deleted: 0, unreadable: 1 });
+  expect(world.rows[0].tier).toBe("bucket");
+  expect(world.said.join("\n")).toContain("the store would not return its bytes: 404");
+});
+
+test("a bucket object two rows share is kept until the second row has moved too", async () => {
+  const shared = "units/bar/buildpic/aaa1.webp";
+  world = new World([
+    bucketUnit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1"),
+    bucketUnit("00000000-0000-4000-8000-000000000002", "armadvsol", "aaa1", { updated_at: RECENT }),
+  ]);
+
+  const first = await run();
+
+  expect(first).toMatchObject({ promoted: 1, deleted: 0 });
+  expect(world.bucket.has(shared)).toBe(true);
+  expect(world.rows[0]).toMatchObject({ blob_path: shared, blob_path_tier: "bucket" });
+  expect(world.said).toContain(`keep ${shared}: another row is still serving that object.`);
+  expect(world.reservations.size).toBe(0);
+  invariants(world);
+
+  world.rows[1].updated_at = OLD;
+  const second = await run();
+
+  // The first row's queue entry is not a claim against the drain, or the two
+  // entries would keep the object for each other forever.
+  expect(second).toMatchObject({ promoted: 1, deleted: 1 });
+  expect(world.discardedStaged).toEqual([shared]);
+  expect(world.rows.every((row) => row.tier === "static")).toBe(true);
+  invariants(world);
+
+  // The first row's entry outlived the delete, and the next drain settles it.
+  const third = await run();
+
+  expect(third.drained).toBe(1);
+  expect(world.rows.every((row) => row.blob_path === null)).toBe(true);
+  expect([...world.bucket]).toEqual([]);
+  expect(world.reservations.size).toBe(0);
+  invariants(world);
+});
+
+test("a promoted bucket row replaced by the same bytes before its drain settles the entry and keeps the object", async () => {
+  // `checkAssetUpload` refuses only an identical source hash, so a newer
+  // archive can encode to the same bytes and land back on the queued path.
+  const path = "units/bar/buildpic/aaa1.webp";
+  world = new World([
+    bucketUnit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1", {
+      moderation: "pending",
+      updated_at: RECENT,
+      blob_path: path,
+      blob_path_tier: "bucket",
+    }),
+  ]);
+
+  const first = await run();
+
+  expect(first).toMatchObject({ drained: 0, promoted: 0 });
+  expect(world.discardedStaged).toEqual([]);
+  expect(world.rows[0]).toMatchObject({ tier: "bucket", path, blob_path: null, blob_path_tier: null });
+  expect(world.said).toContain(`keep ${path}: its row was replaced with the same bytes and serves it again.`);
+  invariants(world);
+
+  // And nothing stops it promoting once it is approved and past the hold.
+  Object.assign(world.rows[0], { moderation: "approved", updated_at: OLD });
+  const second = await run();
+
+  expect(second).toMatchObject({ promoted: 1, deleted: 1 });
+  expect([...world.bucket]).toEqual([]);
+  invariants(world);
+});
+
+test("an upload that reuses a bucket object while it is being promoted keeps the object", async () => {
+  // The race #332 warned about: identical bytes uploaded for another unit land
+  // on the same content addressed object after the row moved and before the
+  // delete. The reservation sees the new claim and refuses.
+  const path = "units/bar/buildpic/aaa1.webp";
+  world = new World([bucketUnit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1")]);
+  const supabase = fakeSupabase(world);
+  const rpc = supabase.rpc.bind(supabase);
+  (supabase as unknown as { rpc: typeof rpc }).rpc = ((name: string, args: Record<string, unknown>) => {
+    if (name === "reserve_staged_deletions") {
+      world.rows.push(
+        bucketUnit("00000000-0000-4000-8000-000000000003", "armadvsol", "aaa1", {
+          moderation: "pending",
+          updated_at: RECENT,
+        }),
+      );
+    }
+    return rpc(name as never, args as never);
+  }) as typeof rpc;
+
+  const result = await runPromotion(supabase, fakePorts(world), { now: NOW });
+
+  expect(result).toMatchObject({ promoted: 1, deleted: 0 });
+  expect(world.discardedStaged).toEqual([]);
+  expect(world.bucket.has(path)).toBe(true);
+  expect(world.rows[0].blob_path).toBe(path);
+  invariants(world);
 });
 
 test("a promoted row replaced by a bucket upload drains its old Blob copy and nothing in the bucket", async () => {
@@ -418,6 +586,55 @@ for (const point of KILL_POINTS) {
     expect(world.rows.every((row) => row.blob_path === null)).toBe(true);
     expect([...world.blob]).toEqual([]);
     expect(result.drained + result.deleted).toBe(2);
+    invariants(world);
+  });
+}
+
+const BUCKET_KILL_POINTS = [
+  "readStaged",
+  "write",
+  "publish",
+  "serving",
+  "promote_assets",
+  "reserve_staged_deletions",
+  "discardStaged",
+  "release_staged_deletions",
+  "clear_promoted_blob_paths",
+] as const;
+
+for (const point of BUCKET_KILL_POINTS) {
+  const bucketWorld = () =>
+    new World([
+      bucketUnit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1"),
+      bucketUnit("00000000-0000-4000-8000-000000000002", "armllt", "bbb2"),
+    ]);
+
+  test(`a bucket batch killed at ${point} keeps every picture in a store and every object named`, async () => {
+    world = bucketWorld();
+    world.failAt = point;
+
+    // A failed read skips its row rather than stopping the run.
+    if (point === "readStaged") await run();
+    else await expect(run()).rejects.toThrow(`killed at ${point}`);
+
+    invariants(world);
+
+    for (const path of world.discardedStaged) {
+      const claimed = world.rows.some((row) => row.path === path && row.tier !== "static");
+      expect({ path, claimed }).toEqual({ path, claimed: false });
+    }
+  });
+
+  test(`a bucket batch killed at ${point} is finished by the next run`, async () => {
+    world = bucketWorld();
+    world.failAt = point;
+    await run().catch(() => undefined);
+
+    await run();
+
+    expect(world.rows.every((row) => row.tier === "static" && row.blob_path === null)).toBe(true);
+    expect([...world.bucket]).toEqual([]);
+    expect(world.reservations.size).toBe(0);
     invariants(world);
   });
 }

@@ -3,9 +3,10 @@
  *
  * The order the run happens in, what each step guarantees and what an
  * interrupted run leaves behind are all in `lib/assets/promote.ts`, which is
- * where they are tested. This file is the six things that module cannot do
- * itself: read an object over HTTP, put a file in a checkout, commit and push
- * it, ask the published site whether it is serving yet, and delete from Blob.
+ * where they are tested. This file is the things that module cannot do
+ * itself: read an object over HTTP or out of the Supabase bucket, put a file in
+ * a checkout, commit and push it, ask the published site whether it is serving
+ * yet, and delete from Blob or the bucket.
  *
  *   bun run promote:assets --assets-repo ../coilbox-assets --dry-run
  *   bun run promote:assets --assets-repo ../coilbox-assets --write
@@ -39,8 +40,9 @@
  *
  * The cost is that the two credentials this needs have to be repository
  * secrets on the assets repo: `SUPABASE_SERVICE_ROLE_KEY`, which bypasses row
- * level security on the whole database, and `BLOB_READ_WRITE_TOKEN`, which can
- * write the staging store. Neither has anything to do with publishing images,
+ * level security on the whole database and is also what reads and deletes in
+ * the Supabase bucket, and `BLOB_READ_WRITE_TOKEN`, which can write the Blob
+ * store. Neither has anything to do with publishing images,
  * and they are the two most powerful credentials the project has, so they are
  * worth naming rather than adding quietly.
  *
@@ -57,7 +59,7 @@ export {}; // top level await needs this file to be a module
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, StorageApiError } from "@supabase/supabase-js";
 import { blobTierUrl, deleteBlobAssets } from "@/lib/assets/blob";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import {
@@ -67,6 +69,7 @@ import {
   StagingReadError,
 } from "@/lib/assets/promote";
 import { runGameImagePromotion } from "@/lib/assets/promoteGameImages";
+import { downloadStagedAsset, removeStagedAssets, STAGED_PICTURES_BUCKET } from "@/lib/assets/staging";
 import {
   fetchOutstandingWithdrawals,
   recordWithdrawn,
@@ -224,6 +227,18 @@ const ports: PromotionPorts = {
     return new Uint8Array(await response.arrayBuffer());
   },
 
+  // The bucket is private, so this goes through the Storage API with the
+  // secret key rather than over a public URL. A missing object is a 404 like
+  // Blob's, so the game picture pass can tell absent from refused.
+  readStaged: async (path) => {
+    try {
+      return new Uint8Array(await (await downloadStagedAsset(supabase, path)).arrayBuffer());
+    } catch (error) {
+      if (!(error instanceof StorageApiError)) throw error;
+      throw new StagingReadError(Number(error.statusCode) || error.status, `${STAGED_PICTURES_BUCKET}/${path}`);
+    }
+  },
+
   held: async (path) => await Bun.file(join(repo!, path)).exists(),
 
   write: async (path, bytes) => {
@@ -283,6 +298,13 @@ const ports: PromotionPorts = {
     }
   },
 
+  // Chunked the same way, without the pause, which is for Blob's rate limit.
+  discardStaged: async (paths) => {
+    for (let at = 0; at < paths.length; at += DELETE_CHUNK) {
+      await removeStagedAssets(supabase, paths.slice(at, at + DELETE_CHUNK));
+    }
+  },
+
   say: (message) => console.log(message),
 };
 
@@ -307,25 +329,33 @@ if (withdrawn) {
 
   const leftover = await fetchPendingDeletions(supabase);
   for (const row of leftover) {
-    console.log(`would delete ${row.blob_path}, promoted already and still in the store`);
+    console.log(
+      `would delete ${row.blob_path} from ${row.blob_path_tier ?? "blob"}, promoted already and still in the store`,
+    );
   }
 
   const due = await fetchPromotable(supabase, limit);
   for (const row of due) {
-    console.log(`would promote ${row.id}: ${row.path} -> ${durablePath(row) ?? "(unstorable)"}`);
+    console.log(
+      `would promote ${row.id}: ${row.tier} ${row.path} -> ${durablePath(row) ?? "(unstorable)"}`,
+    );
   }
 
-  // A game row says which store its staged copy is in, and this lists only the
-  // Blob ones. It cannot say whether a Blob copy is still there, because a
-  // promoted picture keeps the value, so the dry run asks the store directly. A
-  // HEAD is data transfer, not an operation, and a path that answers is one
-  // this run would have moved.
+  // A game row says which store its staged copy is in. A bucket copy is listed
+  // as it is. A legacy row can still say Blob after its picture was promoted, so
+  // for those the dry run asks the store directly. A HEAD is data transfer, not
+  // an operation, and a path that answers is one this run would have moved.
   const staged = await fetchStagedGameImages(supabase);
   let waiting = 0;
   const seen = new Set<string>();
   for (const image of staged) {
     if (seen.has(image.path)) continue;
     seen.add(image.path);
+    if (image.store === "bucket") {
+      console.log(`would promote game ${image.kind} ${image.path} from the bucket`);
+      waiting++;
+      continue;
+    }
     const response = await fetch(blobTierUrl(image.path), { method: "HEAD", cache: "no-store" });
     if (response.ok) {
       console.log(`would promote game ${image.kind} ${image.path}`);

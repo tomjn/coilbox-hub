@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { blobTierUrl } from "./blob";
 import { rowIdentity } from "./have";
-import { stagingPathsInUse } from "./orphan";
+import { deleteStagedObjects, stagingPathsInUse } from "./orphan";
 import { assetObjectPath } from "./path";
 
 /**
@@ -34,9 +34,10 @@ import { assetObjectPath } from "./path";
  *    nothing has changed and the next run drains it.
  * 2. Select. Approved, on the staging tier, untouched for a day. Dies
  *    here: nothing has changed.
- * 3. Read the bytes out of Blob and write them into the assets checkout under
- *    the content addressed path, which is recomputed from the row because the
- *    staging path carries a suffix that is not part of it. An object the store
+ * 3. Read the bytes out of whichever store the row's `tier` names, Blob or the
+ *    Supabase bucket (#335), and write them into the assets checkout under
+ *    the content addressed path, which is recomputed from the row because a
+ *    Blob staging path carries a suffix that is not part of it. An object the store
  *    will not return skips its row and the rest of the batch carries on. Dies
  *    here: the working tree of a throwaway checkout is thrown away with it.
  * 4. Re-check that every row is still approved and still on the staging tier,
@@ -49,11 +50,12 @@ import { assetObjectPath } from "./path";
  * 6. Move the rows, in one statement, which is one transaction. Dies part way
  *    through: Postgres rolls it back and no row moved. Dies after it commits:
  *    the rows say `static`, the objects are in both tiers, and each moved row
- *    holds the staging path it used to have in `blob_path`, so step 1 of the
- *    next run finishes the job.
+ *    holds the staging path it used to have in `blob_path`, and the store it is
+ *    in in `blob_path_tier`, so step 1 of the next run finishes the job.
  * 7. Delete the staging objects and clear `blob_path`. Dies between the two:
- *    the next drain deletes an object that is already gone, which Blob accepts
- *    without complaint.
+ *    the next drain deletes an object that is already gone, which both stores
+ *    accept without complaint. A bucket object is reserved before it is
+ *    deleted, and a reservation a dead run leaves is finished by the sweep.
  *
  * There is no step at which the bytes are gone from Blob and not yet in the
  * durable tier, and no step at which a staging object stops being named by a
@@ -111,11 +113,16 @@ export const PROMOTION_AGE_DAYS = 1;
  */
 export const PROMOTION_BATCH = 200;
 
+/** The two staging stores: Vercel Blob, which is draining, and the Supabase
+ *  bucket (#332). Promotion moves rows out of both. */
+export type StagingStore = "blob" | "bucket";
+const STAGING_TIERS: StagingStore[] = ["blob", "bucket"];
+
 /** Everything promotion needs off a row: the identity and hash the durable
- *  path is recomputed from, the staging path the bytes are read from, and the
- *  length they have to be. */
+ *  path is recomputed from, the staging store and path the bytes are read
+ *  from, and the length they have to be. */
 const PROMOTABLE_COLUMNS =
-  "id, game, unit_name, map_name, variant, hash, mime, path, bytes, updated_at";
+  "id, game, unit_name, map_name, variant, hash, mime, tier, path, bytes, updated_at";
 
 export interface PromotableRow {
   id: string;
@@ -125,7 +132,10 @@ export interface PromotableRow {
   variant: string;
   hash: string;
   mime: string;
-  /** The staging pathname, suffix and all. Not the durable one. */
+  /** Which staging store holds the bytes. */
+  tier: StagingStore;
+  /** The staging pathname. A Blob one carries a suffix and is not the durable
+   *  path. A bucket one is the durable path already. */
   path: string;
   bytes: number;
   updated_at: string;
@@ -208,14 +218,14 @@ export async function fetchPromotionStatus(
     await Promise.all([
       count(
         assets()
-          .eq("tier", "blob")
+          .in("tier", STAGING_TIERS)
           .eq("moderation", "approved")
           .is("blob_path", null)
           .gt("updated_at", cutoff),
       ),
       count(
         assets()
-          .eq("tier", "blob")
+          .in("tier", STAGING_TIERS)
           .eq("moderation", "approved")
           .is("blob_path", null)
           .lte("updated_at", cutoff),
@@ -223,13 +233,13 @@ export async function fetchPromotionStatus(
       supabase
         .from("asset")
         .select("updated_at")
-        .eq("tier", "blob")
+        .in("tier", STAGING_TIERS)
         .eq("moderation", "approved")
         .is("blob_path", null)
         .lte("updated_at", cutoff)
         .order("updated_at", { ascending: true })
         .limit(1),
-      count(assets().eq("tier", "blob").eq("moderation", "pending")),
+      count(assets().in("tier", STAGING_TIERS).eq("moderation", "pending")),
       count(assets().not("blob_path", "is", null)),
       count(assets().gte("promoted_at", since)),
       supabase
@@ -292,7 +302,7 @@ export async function fetchPromotable(
   const { data, error } = await supabase
     .from("asset")
     .select(PROMOTABLE_COLUMNS)
-    .eq("tier", "blob")
+    .in("tier", STAGING_TIERS)
     .eq("moderation", "approved")
     .is("blob_path", null)
     .lte("updated_at", promotionCutoff(now))
@@ -329,7 +339,7 @@ export async function stillPromotable(
     .from("asset")
     .select("id")
     .in("id", ids)
-    .eq("tier", "blob")
+    .in("tier", STAGING_TIERS)
     .eq("moderation", "approved");
 
   if (error) throw new Error(`Could not re-check the batch before pushing: ${error.message}`);
@@ -348,6 +358,8 @@ export interface PendingDeletion {
   tier: string;
   /** The staging pathname to delete. */
   blob_path: string;
+  /** Which store it is in. Null is Blob, for paths queued before #335. */
+  blob_path_tier: StagingStore | null;
 }
 
 /**
@@ -364,7 +376,7 @@ export async function fetchPendingDeletions(
 ): Promise<PendingDeletion[]> {
   const { data, error } = await supabase
     .from("asset")
-    .select("id, path, tier, blob_path")
+    .select("id, path, tier, blob_path, blob_path_tier")
     .not("blob_path", "is", null);
 
   if (error) throw new Error(`Could not read the pending deletions: ${error.message}`);
@@ -387,7 +399,11 @@ export async function promoteRows(
 
   if (error) throw new Error(`Could not move the rows to the durable tier: ${error.message}`);
 
-  const moved = (data ?? []) as { id: string; blob_path: string }[];
+  const moved = (data ?? []) as {
+    id: string;
+    blob_path: string;
+    blob_path_tier: StagingStore | null;
+  }[];
   const durable = new Map(batch.map((item) => [item.row.id, item.durable]));
 
   return moved.map((row) => ({
@@ -395,6 +411,7 @@ export async function promoteRows(
     path: durable.get(row.id) ?? "",
     tier: "static",
     blob_path: row.blob_path,
+    blob_path_tier: row.blob_path_tier,
   }));
 }
 
@@ -427,6 +444,10 @@ export interface PromotionPorts {
    *  an operation. Throws {@link StagingReadError} when the store answers with
    *  anything but the bytes. */
   read(url: string): Promise<Uint8Array>;
+  /** The bytes at a path in the Supabase bucket. Throws
+   *  {@link StagingReadError} with 404 when nothing is there, and with the
+   *  Storage API's status for any other refusal. */
+  readStaged(path: string): Promise<Uint8Array>;
   /** Whether the durable checkout already holds this path. Content addressed,
    *  so if it does, it holds the same bytes and there is nothing to write. */
   held(path: string): Promise<boolean>;
@@ -439,8 +460,11 @@ export interface PromotionPorts {
    *  while for the ones it is not. The gate on every deletion, and the reason
    *  no deletion rests on a push having been followed by a deploy that worked. */
   serving(paths: string[]): Promise<string[]>;
-  /** Remove staging objects. Free, and safe to repeat. */
+  /** Remove Blob objects. Free, and safe to repeat. */
   discard(paths: string[]): Promise<void>;
+  /** Remove objects from the Supabase bucket. Safe to repeat. Only ever
+   *  called on paths `reserve_staged_deletions` has reserved. */
+  discardStaged(paths: string[]): Promise<void>;
   say(message: string): void;
 }
 
@@ -505,6 +529,12 @@ function message(error: unknown): string {
  * Anything the durable tier is not serving yet is left alone and said out
  * loud. It stays in both tiers, which is the safe direction, and the next run
  * asks again.
+ *
+ * A Blob object and a bucket object are checked differently. No upload writes
+ * to Blob any more, so for Blob the table is asked once. An upload can still
+ * reuse a bucket object at any moment, so a bucket path is reserved under a
+ * lock the upload also takes, and deleted only if the reservation holds
+ * (`deleteStagedObjects` in `./orphan`).
  */
 async function deletePromoted(
   supabase: SupabaseClient,
@@ -513,36 +543,81 @@ async function deletePromoted(
 ): Promise<number> {
   if (pending.length === 0) return 0;
 
-  const [live, shared] = await Promise.all([
-    ports
-      .serving(pending.filter((row) => row.tier === "static").map((row) => row.path))
-      .then((paths) => new Set(paths)),
-    stagingPathsInUse(
-      supabase,
-      pending.map((row) => row.blob_path),
-    ),
-  ]);
+  const live = new Set(
+    await ports.serving(pending.filter((row) => row.tier === "static").map((row) => row.path)),
+  );
 
-  const going: PendingDeletion[] = [];
+  const ready: PendingDeletion[] = [];
   for (const row of pending) {
-    if (shared.has(row.blob_path)) {
-      ports.say(`keep ${row.blob_path}: another row is still serving that object.`);
-    } else if (row.tier !== "static" || live.has(row.path)) {
-      going.push(row);
+    if (row.tier !== "static" || live.has(row.path)) {
+      ready.push(row);
     } else {
       ports.say(`keep ${row.blob_path}: the durable tier is not serving ${row.path} yet.`);
     }
   }
 
-  if (going.length === 0) return 0;
+  const keepShared = (row: PendingDeletion) =>
+    ports.say(`keep ${row.blob_path}: another row is still serving that object.`);
 
-  await ports.discard(going.map((row) => row.blob_path));
-  await clearPendingDeletions(
-    supabase,
-    going.map((row) => row.id),
+  let deleted = 0;
+
+  const inBlob = ready.filter((row) => row.blob_path_tier !== "bucket");
+  if (inBlob.length > 0) {
+    const shared = await stagingPathsInUse(
+      supabase,
+      inBlob.map((row) => row.blob_path),
+    );
+    const going = inBlob.filter((row) => !shared.has(row.blob_path));
+    inBlob.filter((row) => shared.has(row.blob_path)).forEach(keepShared);
+
+    if (going.length > 0) {
+      await ports.discard(going.map((row) => row.blob_path));
+      await clearPendingDeletions(
+        supabase,
+        going.map((row) => row.id),
+      );
+      deleted += going.length;
+    }
+  }
+
+  // A newer archive with the same encoded bytes put the row back on the bucket
+  // at the very path it had queued. The row is serving that object again, so
+  // the entry is settled without a delete. Left alone, the row's own claim
+  // would keep the object and the entry would keep the row from promoting.
+  const reclaimed = ready.filter(
+    (row) => row.blob_path_tier === "bucket" && row.tier === "bucket" && row.path === row.blob_path,
   );
+  if (reclaimed.length > 0) {
+    for (const row of reclaimed) {
+      ports.say(`keep ${row.blob_path}: its row was replaced with the same bytes and serves it again.`);
+    }
+    await clearPendingDeletions(
+      supabase,
+      reclaimed.map((row) => row.id),
+    );
+  }
 
-  return going.length;
+  const inBucket = ready.filter((row) => row.blob_path_tier === "bucket" && !reclaimed.includes(row));
+  if (inBucket.length > 0) {
+    const gone = await deleteStagedObjects(
+      supabase,
+      (paths) => ports.discardStaged(paths),
+      inBucket.map((row) => row.blob_path),
+      false,
+    );
+    const going = inBucket.filter((row) => gone.has(row.blob_path));
+    inBucket.filter((row) => !gone.has(row.blob_path)).forEach(keepShared);
+
+    if (going.length > 0) {
+      await clearPendingDeletions(
+        supabase,
+        going.map((row) => row.id),
+      );
+      deleted += going.length;
+    }
+  }
+
+  return deleted;
 }
 
 /**
@@ -601,7 +676,10 @@ export async function runPromotion(
     // named, so nothing is lost and the next run tries again.
     let bytes: Uint8Array;
     try {
-      bytes = await ports.read(blobTierUrl(row.path));
+      bytes =
+        row.tier === "bucket"
+          ? await ports.readStaged(row.path)
+          : await ports.read(blobTierUrl(row.path));
     } catch (error) {
       ports.say(`skip ${row.id}: the store would not return its bytes: ${message(error)}`);
       skipped++;
