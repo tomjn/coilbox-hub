@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { editGameDetails, setGameVisibility, setVersionVisibility, uploadGameImage } from "@/app/games/actions";
+import { editableGame } from "@/lib/games/editor";
 import { loadGamePage } from "@/lib/games/page";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * The owner's edit page (#229).
+ * The edit page for a game's owner or a moderator (#229, #350).
  *
  * Three forms, because they are three different kinds of write: words (a plain
  * update through row level security), and two images (bytes to Blob, then a
@@ -37,16 +38,16 @@ export default async function EditGame({
   if (!user) redirect("/auth/sign-in");
 
   // Read with the session client rather than the cached one, for the reason
-  // that makes this page exist at all: an owner must be able to reach their
-  // game's edit form after hiding it, and the cached read answers as anon,
-  // which a hidden row is invisible to. The owner policy on the table is what
-  // lets this read through.
+  // that makes this page exist at all: an owner or a moderator must be able to
+  // reach a game's edit form after hiding it, and the cached read answers as
+  // anon, which a hidden row is invisible to. The read policy on the table is
+  // what lets this read through for both.
   const page = await loadGamePage(supabase, shortname);
   if (!page) notFound();
 
-  // Not the owner? The route exists but holds nothing for them, which is the
-  // same answer an unknown shortname gets.
-  if (page.owner_user_id !== user.id) notFound();
+  // Neither the owner nor a moderator (#350)? The route exists but holds
+  // nothing for them, which is the same answer an unknown shortname gets.
+  if (!(await editableGame(supabase, user.id, shortname))) notFound();
 
   // Every release reported so far, including hidden ones, since managing them
   // is what this page is for. The public pickers filter those themselves.
@@ -140,7 +141,7 @@ export default async function EditGame({
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Visibility</h2>
           <p className="text-sm text-neutral-500">
-            Hidden means off the site for everybody but you. Facts keep flowing; unhiding brings
+            Hidden means off the site for everybody but the owner and moderators. Facts keep flowing; unhiding brings
             everything back.
           </p>
           <form action={setGameVisibility} className="flex items-center gap-3">

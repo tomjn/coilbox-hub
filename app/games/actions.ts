@@ -2,13 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { readImageHeader, IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
 import { encodedHash } from "@/lib/assets/hash";
 import { putStagedGameImage } from "@/lib/assets/staging";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { GameLink } from "@/lib/games/catalog";
+import { editableGame } from "@/lib/games/editor";
 
 /**
  * The writes behind ownership (#229): asking, deciding, and what an owner may
@@ -16,8 +16,8 @@ import type { GameLink } from "@/lib/games/catalog";
  *
  * Every action here is thin on purpose. The rules live in constraints and
  * policies - one open ask per person per game, nobody asking as somebody else,
- * only a moderator deciding, an owner editing only their own row and only the
- * columns the grant names - and `supabase/tests/game_ownership.test.sql` proves
+ * only a moderator deciding, an owner or a moderator editing a game (#350) and
+ * only the columns the grant names - and `supabase/tests/game_ownership.test.sql` proves
  * them against real roles. What is left here is reading the form, doing the one
  * check a policy cannot (who is asking at all), and writing.
  */
@@ -141,9 +141,10 @@ export async function editGameDetails(form: FormData): Promise<void> {
 
   const displayName = String(form.get("display_name") ?? "").trim().slice(0, 256);
 
-  // The owner-scoped policy filters every row but theirs, so a stranger's edit
-  // succeeds over nothing. Returning the rows is how the action knows whether
-  // it was the owner writing or a passer-by.
+  // The owner and moderator policies filter out every row a stranger may not
+  // change, so a stranger's edit succeeds over nothing. Returning the rows is
+  // how the action knows whether it was the owner or a moderator writing, or a
+  // passer-by.
   const { data } = await supabase
     .from("game")
     .update({
@@ -199,32 +200,6 @@ export async function setSnippet(form: FormData): Promise<void> {
  * it costs nothing honest. */
 const MAX_IMAGE_BYTES = 512 * 1024;
 
-/**
- * Who may work a visibility switch (#242): a moderator, or the approved owner
- * of that particular game. Both checks run with the visitor's own client, so
- * what they see is what row level security sees.
- */
-async function mayWorkVisibilitySwitch(
-  supabase: SupabaseClient,
-  shortname: string,
-): Promise<boolean> {
-  const { data: allowed } = await supabase.rpc("is_moderator");
-  if (allowed) return true;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return false;
-
-  const { data: owned } = await supabase
-    .from("game")
-    .select("id")
-    .eq("shortname", shortname)
-    .eq("owner_user_id", user.id)
-    .maybeSingle();
-  return owned !== null;
-}
-
 export async function setGameVisibility(form: FormData): Promise<void> {
   const shortname = String(form.get("shortname") ?? "");
   const hidden = form.get("hidden") === "true";
@@ -237,13 +212,9 @@ export async function setGameVisibility(form: FormData): Promise<void> {
 
   const admin = createAdmin();
   if (!user || !admin) return;
-  if (!(await mayWorkVisibilitySwitch(supabase, shortname))) return;
 
-  const { data: game } = await admin
-    .from("game")
-    .select("id")
-    .eq("shortname", shortname)
-    .maybeSingle();
+  // A moderator or the game's owner (#242), asked with the visitor's own client.
+  const game = await editableGame(supabase, user.id, shortname);
   if (!game) return;
 
   // The columns ride one update: who and when are part of the fact, and
@@ -276,13 +247,8 @@ export async function setVersionVisibility(form: FormData): Promise<void> {
 
   const admin = createAdmin();
   if (!user || !admin) return;
-  if (!(await mayWorkVisibilitySwitch(supabase, shortname))) return;
 
-  const { data: game } = await admin
-    .from("game")
-    .select("id")
-    .eq("shortname", shortname)
-    .maybeSingle();
+  const game = await editableGame(supabase, user.id, shortname);
   if (!game) return;
 
   const { error } = await admin
@@ -315,16 +281,11 @@ export async function uploadGameImage(form: FormData): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/sign-in");
 
-  // Ownership is checked with the visitor's own client, so the answer is what
-  // row level security sees. The write below needs the secret key for the
-  // staging bucket, and it earns that only after this check came back with the
-  // game.
-  const { data: owned } = await supabase
-    .from("game")
-    .select("id")
-    .eq("shortname", shortname)
-    .eq("owner_user_id", user.id)
-    .maybeSingle();
+  // The owner or a moderator (#350), checked with the visitor's own client, so
+  // the answer is what row level security sees. The write below needs the
+  // secret key for the staging bucket, and it earns that only after this check
+  // came back with the game.
+  const owned = await editableGame(supabase, user.id, shortname);
   if (!owned) return;
 
   const bytes = new Uint8Array(await file.arrayBuffer());
