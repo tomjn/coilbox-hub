@@ -32,6 +32,7 @@ const {
   formatBytes,
   headroom,
   headroomAlerts,
+  SUPABASE_STORAGE_ALLOWANCE_BYTES,
 } = await import("./meters");
 
 type Meter = Awaited<ReturnType<typeof fetchMeters>>["meters"][number];
@@ -48,8 +49,13 @@ interface Usage {
 /** Where each count started from, so a test can see the window. */
 let windows: string[] = [];
 
-/** Enough of PostgREST for one count and one function. */
-function fakeSupabase(usage: Usage[], counts: Record<string, number | null>): SupabaseClient {
+/** Enough of PostgREST for one count and two functions. `bucketBytes` is what
+ *  `staged_pictures_bucket_bytes` answers with, null meaning the call failed. */
+function fakeSupabase(
+  usage: Usage[],
+  counts: Record<string, number | null>,
+  bucketBytes: number | null = 0,
+): SupabaseClient {
   windows = [];
   const table = (name: string) => {
     const builder = {
@@ -72,7 +78,16 @@ function fakeSupabase(usage: Usage[], counts: Record<string, number | null>): Su
 
   return {
     from: table,
-    rpc: () => Promise.resolve({ data: usage, error: null }),
+    rpc: (name: string) => {
+      if (name === "staged_pictures_bucket_bytes") {
+        return Promise.resolve(
+          bucketBytes === null
+            ? { data: null, error: { message: "no" } }
+            : { data: bucketBytes, error: null },
+        );
+      }
+      return Promise.resolve({ data: usage, error: null });
+    },
   } as unknown as SupabaseClient;
 }
 
@@ -138,16 +153,35 @@ test("a count that could not be read is not a count of zero", async () => {
   expect(meter(report, "Blob advanced operations").used).toBeNull();
 });
 
-test("the two meters nothing here can see say so instead of showing a zero", async () => {
+test("the meters nothing here can see say so instead of showing a zero", async () => {
   const report = await fetchMeters(fakeSupabase([], { blob_put: 0 }), NOW);
 
-  for (const name of ["Blob data transfer", "Vercel fast data transfer", "GitHub Pages bandwidth"]) {
+  for (const name of [
+    "Blob data transfer",
+    "Supabase egress",
+    "Vercel fast data transfer",
+    "GitHub Pages bandwidth",
+  ]) {
     expect({ name, basis: meter(report, name).basis, used: meter(report, name).used }).toEqual({
       name,
       basis: "dashboard",
       used: null,
     });
   }
+});
+
+test("the Supabase Storage meter is the staged-pictures bucket's size", async () => {
+  const report = await fetchMeters(fakeSupabase([], { blob_put: 0 }, 123_456), NOW);
+
+  expect(meter(report, "Supabase Storage").used).toBe(123_456);
+  expect(meter(report, "Supabase Storage").basis).toBe("counted");
+  expect(meter(report, "Supabase Storage").allowance).toBe(SUPABASE_STORAGE_ALLOWANCE_BYTES);
+});
+
+test("a bucket size that could not be read is not a size of zero", async () => {
+  const report = await fetchMeters(fakeSupabase([], { blob_put: 0 }, null), NOW);
+
+  expect(meter(report, "Supabase Storage").used).toBeNull();
 });
 
 test("nothing measurable is nothing to alert on, and nothing to reassure with either", () => {
