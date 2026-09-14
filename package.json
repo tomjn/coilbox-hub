@@ -16,7 +16,8 @@
     "import:branding": "bun scripts/import-branding.ts",
     "promote:assets": "bun scripts/promote-assets.ts",
     "seed:assets": "bun scripts/seed-assets.ts",
-    "cleanup:assets": "bun scripts/cleanup-assets.ts"
+    "cleanup:assets": "bun scripts/cleanup-assets.ts",
+    "find:unreadable-blob": "bun scripts/find-unreadable-blob-assets.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
