@@ -10,7 +10,13 @@ import {
 } from "@/lib/api/gameBranding";
 import { apiError } from "@/lib/api/response";
 import { TAGS } from "@/lib/cache/tags";
-import { BLOB_TOKEN_ERROR, putBlobGameImage } from "@/lib/assets/blob";
+import {
+  BLOB_BUDGET_ERROR,
+  BLOB_LEDGER_ERROR,
+  BLOB_SUSPENDED_ERROR,
+  BLOB_TOKEN_ERROR,
+  putBlobGameImage,
+} from "@/lib/assets/blob";
 import { encodedHash } from "@/lib/assets/hash";
 import { readImageHeader } from "@/lib/assets/imageHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -149,10 +155,15 @@ export async function POST(request: Request) {
 
   let stored: string | null;
   try {
-    stored = await putBlobGameImage(path, bytes, image.mime);
+    stored = await putBlobGameImage(admin, path, bytes, image.mime);
   } catch (error) {
-    if (error instanceof Error && error.message === BLOB_TOKEN_ERROR) {
-      return apiError(BLOB_TOKEN_ERROR, 503);
+    if (
+      error instanceof Error &&
+      [BLOB_TOKEN_ERROR, BLOB_BUDGET_ERROR, BLOB_LEDGER_ERROR, BLOB_SUSPENDED_ERROR].includes(
+        error.message,
+      )
+    ) {
+      return apiError(error.message, 503);
     }
     return apiError("The asset store would not accept that upload just now.", 502);
   }

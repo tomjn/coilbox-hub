@@ -19,6 +19,7 @@ import type { CleanupPorts } from "./orphan";
 // Nothing here reaches the store. The module under test never imports the SDK,
 // and this makes that structural rather than something to check by reading.
 mock.module("@vercel/blob", () => ({
+  BlobStoreSuspendedError: class extends Error {},
   put: () => {
     throw new Error("orphan.test.ts must never spend an advanced operation");
   },
