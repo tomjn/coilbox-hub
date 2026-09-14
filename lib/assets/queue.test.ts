@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { StorageApiError, type SupabaseClient } from "@supabase/supabase-js";
 import { BLOB_TIER_BASE } from "./blob";
 import { fetchAssetObject, pictureCaption, pictureIds, QUEUE_PAGE_SIZE } from "./queue";
+import { STAGED_PICTURES_BUCKET } from "./staging";
 
 const ID = "0f8fad5b-d9cb-469f-a165-70867728950e";
 
@@ -48,26 +49,94 @@ test("a submission cannot act on more rows than a page holds", () => {
   expect(pictureIds(many)).toHaveLength(QUEUE_PAGE_SIZE);
 });
 
-/** A client whose one `asset` row is whatever the test hands it. */
-function oneRow(row: { path: string; tier: string; mime: string } | null): SupabaseClient {
+/** A client whose one `asset` row is whatever the test hands it, and whose
+ * `staged-pictures` download answers whatever the test hands it too. Only the
+ * bucket tests set a download result. The Blob tests never reach `./staging`
+ * at all. */
+function oneRow(
+  row: { path: string; tier: string; mime: string } | null,
+  download: { data: unknown; error: unknown } = { data: null, error: null },
+): SupabaseClient {
   const builder = {
     select: () => builder,
     eq: () => builder,
     maybeSingle: () => Promise.resolve({ data: row, error: null }),
   };
-  return { from: () => builder } as unknown as SupabaseClient;
+  return {
+    from: () => builder,
+    storage: { from: () => ({ download: () => Promise.resolve(download) }) },
+  } as unknown as SupabaseClient;
 }
 
 test("the moderation thumbnail fetches a Blob row from its Blob URL", async () => {
   expect(
     await fetchAssetObject(oneRow({ path: "units/bar/buildpic/abc-Xy9.webp", tier: "blob", mime: "image/webp" }), ID),
-  ).toEqual({ url: `${BLOB_TIER_BASE}units/bar/buildpic/abc-Xy9.webp`, mime: "image/webp" });
+  ).toEqual({
+    source: "url",
+    url: `${BLOB_TIER_BASE}units/bar/buildpic/abc-Xy9.webp`,
+    mime: "image/webp",
+  });
 });
 
-/** Until #333 reads the bucket, the route answers 404 for these rather than
- * fetching a Blob URL built from a path that was never in Blob. */
-test("a row in the bucket has no object URL for the thumbnail route to fetch", async () => {
-  expect(
-    await fetchAssetObject(oneRow({ path: "units/bar/buildpic/abc.webp", tier: "bucket", mime: "image/webp" }), ID),
-  ).toBeNull();
+test("the moderation thumbnail reads a bucket row's bytes from the staging bucket", async () => {
+  const bytes = new Blob(["hello"]);
+  const object = await fetchAssetObject(
+    oneRow(
+      { path: "units/bar/buildpic/abc.webp", tier: "bucket", mime: "image/webp" },
+      { data: bytes, error: null },
+    ),
+    ID,
+  );
+
+  expect(object).toEqual({ source: "bytes", bytes, mime: "image/webp" });
+});
+
+test("a bucket row with no object at its path is treated as a missing row", async () => {
+  const object = await fetchAssetObject(
+    oneRow(
+      { path: "units/bar/buildpic/gone.webp", tier: "bucket", mime: "image/webp" },
+      { data: null, error: new StorageApiError("Object not found", 400, "404", "storage", "NoSuchKey") },
+    ),
+    ID,
+  );
+
+  expect(object).toBeNull();
+});
+
+test("a bucket row that fails to download for another reason throws rather than answering null", async () => {
+  const failure = fetchAssetObject(
+    oneRow(
+      { path: "units/bar/buildpic/abc.webp", tier: "bucket", mime: "image/webp" },
+      { data: null, error: new StorageApiError("Service unavailable", 500, "503", "storage", "InternalError") },
+    ),
+    ID,
+  );
+
+  await expect(failure).rejects.toThrow("Service unavailable");
+});
+
+test("the staging download reaches the staged-pictures bucket", async () => {
+  let seenBucket: string | undefined;
+  const builder = {
+    select: () => builder,
+    eq: () => builder,
+    maybeSingle: () =>
+      Promise.resolve({
+        data: { path: "units/bar/buildpic/abc.webp", tier: "bucket", mime: "image/webp" },
+        error: null,
+      }),
+  };
+  const supabase = {
+    from: () => builder,
+    storage: {
+      from: (bucket: string) => {
+        seenBucket = bucket;
+        return { download: () => Promise.resolve({ data: new Blob(["hello"]), error: null }) };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  await fetchAssetObject(supabase, ID);
+
+  expect(seenBucket).toBe(STAGED_PICTURES_BUCKET);
 });

@@ -1,7 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { StorageApiError, type SupabaseClient } from "@supabase/supabase-js";
 import type { AssetTier, ModeratorRejectionKind } from "./asset";
 import { assetTierUrl } from "./resolve";
 import { fetchSourceConflicts } from "./sourceConflict";
+import { downloadStagedAsset } from "./staging";
 
 /**
  * The moderation queue for pictures (issue #114): what is waiting, what a
@@ -166,14 +167,18 @@ export async function fetchPictureQueue(
   };
 }
 
-export interface AssetObject {
-  url: string;
-  mime: string;
-}
+/**
+ * The object one row points at. `blob` and `static` rows have a public URL the
+ * route can fetch. A `bucket` row is private, so there is nothing to fetch, and
+ * this carries the bytes themselves, already read out of `./staging`.
+ */
+export type AssetObject =
+  | { source: "url"; url: string; mime: string }
+  | { source: "bytes"; bytes: Blob; mime: string };
 
 /**
- * The object one row points at, or null when there is no such row or its bytes
- * have no URL yet (a row in the bucket, until #333).
+ * The object one row points at, or null when there is no such row or, for a
+ * row in the bucket, no object at the path it names.
  *
  * Every moderation state, not just pending. A moderator looking at a picture
  * they have just approved or rejected should not get a broken image, and an
@@ -187,6 +192,14 @@ export interface AssetObject {
  * That ladder serves the public site, so it refuses anything unapproved and
  * substitutes a drawing for a picture it cannot find, and both are the opposite
  * of what a reviewer needs. This asks for one row's own bytes and nothing else.
+ *
+ * `supabase` reads the bucket as well as the row, so this wants the admin
+ * client the same way `./staging` does. A missing object (`StorageApiError`,
+ * `statusCode: "404"`, `code: "NoSuchKey"`, the shape `./staging` documents) is
+ * treated the same as a missing row rather than thrown, so the route answers
+ * 404 either way instead of crashing. Any other storage failure is left to
+ * throw. The caller decides what a broken store looks like to the browser, and
+ * it must not be the raw error's own detail.
  */
 export async function fetchAssetObject(
   supabase: SupabaseClient,
@@ -201,11 +214,18 @@ export async function fetchAssetObject(
   if (!data) return null;
 
   const row = data as unknown as { path: string; tier: AssetTier; mime: string };
-  // A row in the private bucket has no URL. Until #333 reads it through
-  // `./staging`, the thumbnail is a 404 like a missing row, rather than a fetch
-  // from Blob for a path that was never there.
-  const url = assetTierUrl(row.tier, row.path);
-  return url ? { url, mime: row.mime } : null;
+
+  if (row.tier === "bucket") {
+    try {
+      const bytes = await downloadStagedAsset(supabase, row.path);
+      return { source: "bytes", bytes, mime: row.mime };
+    } catch (error) {
+      if (error instanceof StorageApiError && error.statusCode === "404") return null;
+      throw error;
+    }
+  }
+
+  return { source: "url", url: assetTierUrl(row.tier, row.path), mime: row.mime };
 }
 
 /**
