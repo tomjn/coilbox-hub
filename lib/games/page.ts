@@ -37,9 +37,15 @@ export interface GamePage {
   /** Set when a moderator or the owner has taken the game off the site (#242).
    *  Only ever non-null on reads through a client that may see it. */
   hidden_at: string | null;
-  /** The owner's images, where they have uploaded any (#229). */
+  /** The owner's images, where they have uploaded any (#229), with the hash of
+   *  each and the store holding a copy still waiting for promotion (#345).
+   *  `gameArtUrl` in `./art` turns the three into a URL. */
   logo_path: string | null;
+  logo_hash: string | null;
+  logo_staged_tier: string | null;
   banner_path: string | null;
+  banner_hash: string | null;
+  banner_staged_tier: string | null;
 }
 
 /** The row as the query hands it back, before the page shapes it. */
@@ -51,7 +57,11 @@ interface GameRow {
   owner_user_id: string | null;
   hidden_at: string | null;
   logo_path: string | null;
+  logo_hash: string | null;
+  logo_staged_tier: string | null;
   banner_path: string | null;
+  banner_hash: string | null;
+  banner_staged_tier: string | null;
   game_faction: { key: string; name: string; logo_path: string | null }[];
   game_version: { version: string }[];
 }
@@ -69,7 +79,8 @@ export async function loadGamePage(
     supabase
       .from("game")
       .select(
-        "shortname,display_name,description,links,owner_user_id,hidden_at,logo_path,banner_path," +
+        "shortname,display_name,description,links,owner_user_id,hidden_at," +
+          "logo_path,logo_hash,logo_staged_tier,banner_path,banner_hash,banner_staged_tier," +
           "game_faction(key,name,logo_path)," +
           "game_version(version,last_seen_at)",
       )
@@ -101,6 +112,10 @@ export async function loadGamePage(
     owner_user_id: held.owner_user_id,
     hidden_at: held.hidden_at,
     logo_path: held.logo_path,
+    logo_hash: held.logo_hash,
+    logo_staged_tier: held.logo_staged_tier,
     banner_path: held.banner_path,
+    banner_hash: held.banner_hash,
+    banner_staged_tier: held.banner_staged_tier,
   };
 }

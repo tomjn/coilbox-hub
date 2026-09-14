@@ -1,7 +1,10 @@
 import { ImageResponse } from "next/og";
-import { staticTierUrl } from "@/lib/assets/cdn";
+import { fetchGameArt, gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle } from "@/lib/games/labels";
 import { gamePageCached } from "@/lib/games/cached";
+import type { GamePage } from "@/lib/games/page";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createAnonClient } from "@/lib/supabase/anon";
 
 /**
  * The preview a game link gets when it is pasted into Discord (#240), built the
@@ -20,13 +23,34 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "A game on Coilbox Hub";
 
-async function logoDataUri(path: string): Promise<string | null> {
+const dataUri = (type: string, buffer: ArrayBuffer): string =>
+  `data:${type};base64,${Buffer.from(buffer).toString("base64")}`;
+
+async function logoDataUri(page: GamePage): Promise<string | null> {
   try {
-    const response = await fetch(staticTierUrl(path));
+    // A logo still in the staging bucket is read from there directly, through
+    // the same checks its route makes, rather than by fetching the hub's own
+    // URL from inside the hub (#345).
+    if (page.logo_staged_tier === "bucket" && page.logo_hash) {
+      const art = await fetchGameArt(
+        createAnonClient(),
+        createAdminClient(),
+        page.shortname,
+        "logo",
+        page.logo_hash,
+      );
+      return art && "bytes" in art ? dataUri(art.mime, await art.bytes.arrayBuffer()) : null;
+    }
+
+    const url = gameArtUrl(page.shortname, "logo", {
+      path: page.logo_path,
+      hash: page.logo_hash,
+      staged_tier: page.logo_staged_tier,
+    });
+    if (!url) return null;
+    const response = await fetch(url);
     if (!response.ok) return null;
-    const buffer = await response.arrayBuffer();
-    const type = response.headers.get("content-type") ?? "image/png";
-    return `data:${type};base64,${Buffer.from(buffer).toString("base64")}`;
+    return dataUri(response.headers.get("content-type") ?? "image/png", await response.arrayBuffer());
   } catch {
     return null;
   }
@@ -42,8 +66,7 @@ export default async function Image({
 
   const title = page ? gameTitle(page) : "Coilbox Hub";
   const measures = page ? gameCountLabel(page) : "";
-  const logo =
-    page?.logo_path ? await logoDataUri(page.logo_path) : null;
+  const logo = page ? await logoDataUri(page) : null;
 
   const TITLE_LIMIT = 80;
   const shown = title.length > TITLE_LIMIT ? `${title.slice(0, TITLE_LIMIT)}…` : title;
