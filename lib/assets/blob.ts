@@ -8,14 +8,16 @@
  * ## The allowances, and why this file is a file
  *
  * Vercel does not publish the Hobby allowances. Read off the store dashboard on
- * 2026-08-14 they are 1 GB storage, 10 GB a month of data transfer, 10,000
- * simple operations and 2,000 advanced operations.
+ * 2026-08-14 they are 1 GB storage, 10 GB of data transfer, 10,000 simple
+ * operations and 2,000 advanced operations, each over a rolling 30 days rather
+ * than a calendar month.
  *
  * Advanced is the one that binds. `put()`, `copy()` and `list()` all count
- * against it, so the ceiling is 2,000 uploads a month. Exceeding it removes
- * Blob access for 30 days. There is no overage billing, so it cannot be paid
- * through, and a month of the hub not accepting a single picture is not a bill,
- * it is an outage.
+ * against it, so the ceiling is 2,000 uploads in any 30 days. Exceeding it
+ * suspends the store for 30 days. There is no overage billing, so it cannot be
+ * paid through, and a month of the hub not accepting a single picture is not a
+ * bill, it is an outage. It happened in September 2026, which is why every put
+ * here now reserves its operation first (`./blobLedger`).
  *
  * That is why four rules exist, and why they are enforced by what this module
  * does and does not export rather than by a paragraph in a ticket:
@@ -51,7 +53,9 @@
  * the SDK so a missing one fails with a message that names it.
  */
 
-import { del, put } from "@vercel/blob";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { BlobStoreSuspendedError, del, put } from "@vercel/blob";
+import { type BlobPutKind, releaseBlobPut, reserveBlobPut } from "./blobLedger";
 
 /**
  * Where the staging tier serves from, the mirror of `DEFAULT_ASSET_CDN_BASE` in
@@ -72,18 +76,17 @@ export const BLOB_TIER_BASE = "https://eyugwjvmp953ayog.public.blob.vercel-stora
 export const BLOB_TOKEN_ERROR =
   "This deployment has not configured Vercel Blob. Set BLOB_READ_WRITE_TOKEN.";
 
-/**
- * The advanced operations one Hobby store gets a month, and therefore the
- * number of uploads the hub can accept in one. Exported because the upload
- * route's quota check (#104) needs a number to check against, and the number
- * belongs next to the only code that spends it rather than inlined at the call
- * site.
- *
- * Nothing here counts operations. Counting needs shared state across serverless
- * invocations, which means Postgres, which means it belongs to whoever owns the
- * quota rows.
- */
-export const BLOB_ADVANCED_OPERATIONS_PER_MONTH = 2000;
+/** Thrown instead of a put when the last 30 days already hold the budget. */
+export const BLOB_BUDGET_ERROR =
+  "The hub has used its upload allowance for the last 30 days. Try again in a few days.";
+
+/** Thrown instead of a put when the reservation could not be written, because
+ *  a put nobody counted is how the store was suspended. */
+export const BLOB_LEDGER_ERROR = "The upload allowance could not be checked just now.";
+
+/** Thrown when the store refused the put because it is suspended. */
+export const BLOB_SUSPENDED_ERROR =
+  "The staging store is suspended for going over its allowance, so it is not taking uploads.";
 
 /**
  * What an upload body may be. Narrower than the SDK's `PutBody`, which also
@@ -140,10 +143,11 @@ function requireBlobToken(): string {
  * which is the caller's path plus a suffix Blob chose and is the value that
  * belongs on the row.
  *
- * The only advanced operation this codebase makes, so it is the only function
- * with a per-call cost against 2,000 a month. Everything an upload can be
- * rejected for belongs before the call, not inside it: a rejected upload should
- * spend nothing (#104).
+ * One of the two advanced operations this codebase makes, with
+ * {@link putBlobGameImage}, and both reserve the operation before making it.
+ * Everything an upload can be rejected for belongs before the call, not inside
+ * it: a rejected upload should spend nothing (#104). `supabase` must be the
+ * secret key client, which is what the reservation is written with.
  *
  * The options are fixed rather than passed through, because each one is a
  * decision that has already been made and none of them varies per asset.
@@ -171,18 +175,21 @@ function requireBlobToken(): string {
  * two after approval. Asking for longer buys nothing.
  */
 export async function putBlobAsset(
+  supabase: SupabaseClient,
   path: string,
   body: BlobAssetBody,
   contentType: string,
 ): Promise<string> {
   const token = requireBlobToken();
 
-  const result = await put(pathname(path), body, {
-    access: "public",
-    addRandomSuffix: true,
-    contentType,
-    token,
-  });
+  const result = await reserved(supabase, "asset", () =>
+    put(pathname(path), body, {
+      access: "public",
+      addRandomSuffix: true,
+      contentType,
+      token,
+    }),
+  );
 
   return result.pathname;
 }
@@ -199,6 +206,7 @@ export async function putBlobAsset(
  * it but the store's allowance.
  */
 export async function putBlobGameImage(
+  supabase: SupabaseClient,
   path: string,
   body: BlobAssetBody,
   contentType: string,
@@ -210,17 +218,49 @@ export async function putBlobGameImage(
     return null;
   }
 
-  try {
-    const result = await put(pathname(path), body, {
+  // Outside the catch below: an allowance that is used up, or a store that is
+  // suspended, is something the caller should say rather than a generic "the
+  // store would not accept that".
+  const result = await reserved(supabase, "game_image", () =>
+    put(pathname(path), body, {
       access: "public",
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType,
       token,
-    });
-    return result.pathname;
-  } catch {
-    return null;
+    }).catch((error: unknown) => {
+      if (error instanceof BlobStoreSuspendedError) throw error;
+      return null;
+    }),
+  );
+  return result?.pathname ?? null;
+}
+
+/**
+ * Make one put against a reservation, which is the only way this module puts.
+ *
+ * The reservation stays when the put fails, because a put that timed out may
+ * still have landed. It is given back only when the store says it is
+ * suspended, which means it accepted nothing.
+ */
+async function reserved<T>(
+  supabase: SupabaseClient,
+  kind: BlobPutKind,
+  write: () => Promise<T>,
+): Promise<T> {
+  const reservation = await reserveBlobPut(supabase, kind);
+  if (!reservation.ok) {
+    throw new Error(reservation.reason === "full" ? BLOB_BUDGET_ERROR : BLOB_LEDGER_ERROR);
+  }
+
+  try {
+    return await write();
+  } catch (error) {
+    if (error instanceof BlobStoreSuspendedError) {
+      await releaseBlobPut(supabase, reservation.id);
+      throw new Error(BLOB_SUSPENDED_ERROR);
+    }
+    throw error;
   }
 }
 

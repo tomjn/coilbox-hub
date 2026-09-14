@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { buildAssetUploadBody, parseAssetUpload } from "@/lib/api/assetUpload";
 import { corsPreflight, withCors } from "@/lib/api/cors";
 import { apiError } from "@/lib/api/response";
-import { BLOB_TOKEN_ERROR, deleteBlobAssets, putBlobAsset } from "@/lib/assets/blob";
+import {
+  BLOB_BUDGET_ERROR,
+  BLOB_LEDGER_ERROR,
+  BLOB_SUSPENDED_ERROR,
+  BLOB_TOKEN_ERROR,
+  deleteBlobAssets,
+  putBlobAsset,
+} from "@/lib/assets/blob";
 import { checkAssetImage } from "@/lib/assets/caps";
 import { encodedHash } from "@/lib/assets/hash";
 import { IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
@@ -54,7 +61,9 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * 4. the bytes received are the length the declaration claims
  * 5. `checkAssetImage`: the image header, against the caps for its class
  * 6. `encodedHash`: the hash of the bytes, which is where they will land
- * 7. `checkAssetUpload`: MIME, size, path, identity, four quotas
+ * 7. `checkAssetUpload`: MIME, size, path, identity, three quotas
+ * 8. the reservation `putBlobAsset` makes against the hub's 30 day budget, which
+ *    is last because it is the one check that writes
  *
  * An accepted upload does not always write, either. `checkAssetUpload` asks in
  * the same round trip whether the staging store already holds an object with
@@ -213,10 +222,15 @@ export async function POST(request: Request) {
     stored = check.stored;
   } else {
     try {
-      stored = await putBlobAsset(check.path, bytes, parsed.declaration.mime);
+      stored = await putBlobAsset(admin, check.path, bytes, parsed.declaration.mime);
     } catch (error) {
-      if (error instanceof Error && error.message === BLOB_TOKEN_ERROR) {
-        return apiError(BLOB_TOKEN_ERROR, 503);
+      if (
+        error instanceof Error &&
+        [BLOB_TOKEN_ERROR, BLOB_BUDGET_ERROR, BLOB_LEDGER_ERROR, BLOB_SUSPENDED_ERROR].includes(
+          error.message,
+        )
+      ) {
+        return apiError(error.message, 503);
       }
       return apiError("The asset store would not accept that upload just now.", 502);
     }

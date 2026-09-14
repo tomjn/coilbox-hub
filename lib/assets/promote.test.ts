@@ -26,6 +26,7 @@ import type { PromotionPorts } from "./promote";
 // `blobTierUrl`, which is string work, and this makes that structural rather
 // than something to check by reading.
 mock.module("@vercel/blob", () => ({
+  BlobStoreSuspendedError: class extends Error {},
   put: () => {
     throw new Error("promote.test.ts must never spend an advanced operation");
   },

@@ -333,15 +333,19 @@ export async function uploadGameImage(form: FormData): Promise<void> {
   const ext = header.mime === "image/png" ? "png" : "webp";
   const path = `games/${shortname}/${kind}.${ext}`;
 
-  const stored = await putBlobGameImage(path, bytes.buffer as ArrayBuffer, header.mime);
+  const admin = createAdmin();
+  if (!admin) return;
+
+  // Null on a used up allowance or a suspended store as well as on a store
+  // that would not take it. The form has no error state to say which.
+  const stored = await putBlobGameImage(admin, path, bytes.buffer as ArrayBuffer, header.mime).catch(
+    () => null,
+  );
   if (!stored) return;
 
   // The hash is over the bytes, so a re-upload of the same picture is visible
   // as no change and a cache can key on it.
   const hash = await encodedHash(bytes.buffer as ArrayBuffer);
-
-  const admin = createAdmin();
-  if (!admin) return;
   const column = kind === "logo" ? "logo_path" : "banner_path";
   const hashColumn = kind === "logo" ? "logo_hash" : "banner_hash";
   await admin

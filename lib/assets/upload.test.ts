@@ -6,7 +6,6 @@ import {
   ACCOUNT_STORAGE_QUOTA_BYTES,
   ASSET_MAX_OBJECT_BYTES,
   type AssetUploadDeclaration,
-  MONTHLY_UPLOAD_BUDGET,
   SUBJECT_UPLOADS_PER_HOUR,
   UNIT_RENDER_CEILING,
   checkAssetUpload,
@@ -87,7 +86,6 @@ interface World {
   unitRenders: number;
   accountBytes: number;
   recent: number;
-  thisMonth: number;
   broken?: "identity" | "bytes" | "reuse";
 }
 
@@ -98,7 +96,6 @@ function world(overrides: Partial<World> = {}): World {
     unitRenders: 0,
     accountBytes: 0,
     recent: 0,
-    thisMonth: 0,
     ...overrides,
   };
 }
@@ -128,9 +125,6 @@ function fakeSupabase(state: World, seen: Query[] = []): SupabaseClient {
     if (query.filters.some((filter) => filter.startsWith("or:"))) {
       if (state.broken === "identity") return { data: null, error: { message: "down" } };
       return { data: state.existing, error: null };
-    }
-    if (query.filters.includes("not:uploaded_by")) {
-      return { count: state.thisMonth, error: null };
     }
     if (query.filters.includes("eq:uploaded_by")) {
       return { count: state.recent, error: null };
@@ -653,19 +647,6 @@ test("a client looping on one subject is slowed down rather than served", async 
   expect(result.ok).toBe(false);
   if (result.ok) return;
   expect(result.status).toBe(429);
-});
-
-test("the month's allowance stops the whole hub, not one account", async () => {
-  expect((await check(world({ thisMonth: MONTHLY_UPLOAD_BUDGET - 1 }))).ok).toBe(true);
-
-  const result = await check(world({ thisMonth: MONTHLY_UPLOAD_BUDGET }));
-  expect(result.ok).toBe(false);
-  if (result.ok) return;
-  expect(result.status).toBe(503);
-});
-
-test("the budget leaves a margin under the store's advertised allowance", () => {
-  expect(MONTHLY_UPLOAD_BUDGET).toBeLessThan(2000);
 });
 
 /**

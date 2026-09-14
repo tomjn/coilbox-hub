@@ -15,6 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * structural rather than something to check by reading.
  */
 mock.module("@vercel/blob", () => ({
+  BlobStoreSuspendedError: class extends Error {},
   put: () => {
     throw new Error("reading the meters must never spend an advanced operation");
   },
@@ -44,14 +45,21 @@ interface Usage {
   bytes: number;
 }
 
-/** Enough of PostgREST for one call each to two counts and one function. */
+/** Where each count started from, so a test can see the window. */
+let windows: string[] = [];
+
+/** Enough of PostgREST for one count and one function. */
 function fakeSupabase(usage: Usage[], counts: Record<string, number | null>): SupabaseClient {
+  windows = [];
   const table = (name: string) => {
     const builder = {
       select: () => builder,
       eq: () => builder,
       not: () => builder,
-      gte: () => builder,
+      gte: (_column: string, value: string) => {
+        windows.push(value);
+        return builder;
+      },
       then: (resolve: (value: { count: number | null; error: unknown }) => unknown) => {
         const count = counts[name];
         return resolve(
@@ -103,7 +111,7 @@ test("what the store holds is staging plus everything waiting to be swept", asyn
         { tier: "static", variant: "minimap", objects: 5, bytes: 200_000 },
         { tier: "orphan", variant: "superseded", objects: 1, bytes: 4096 },
       ],
-      { asset: 7, asset_orphan: 2 },
+      { blob_put: 9 },
     ),
     NOW,
   );
@@ -114,21 +122,24 @@ test("what the store holds is staging plus everything waiting to be swept", asyn
   expect(report.durable).toEqual([{ name: "minimap", objects: 5, bytes: 200_000 }]);
 });
 
-test("an advanced operation is an upload with a row plus one that lost its row", async () => {
-  const report = await fetchMeters(fakeSupabase([], { asset: 1200, asset_orphan: 3 }), NOW);
+test("advanced operations are every reserved put in the last 30 days, not this month", async () => {
+  const report = await fetchMeters(fakeSupabase([], { blob_put: 1203 }), NOW);
 
   expect(meter(report, "Blob advanced operations").used).toBe(1203);
   expect(meter(report, "Blob advanced operations").basis).toBe("counted");
+  // 30 days back from 14 August, which is in July. A calendar month would have
+  // started on 1 August and missed the half of the window that ended the store.
+  expect(windows).toEqual(["2026-07-15T12:00:00.000Z"]);
 });
 
 test("a count that could not be read is not a count of zero", async () => {
-  const report = await fetchMeters(fakeSupabase([], { asset: null, asset_orphan: 3 }), NOW);
+  const report = await fetchMeters(fakeSupabase([], { blob_put: null }), NOW);
 
   expect(meter(report, "Blob advanced operations").used).toBeNull();
 });
 
 test("the two meters nothing here can see say so instead of showing a zero", async () => {
-  const report = await fetchMeters(fakeSupabase([], { asset: 0, asset_orphan: 0 }), NOW);
+  const report = await fetchMeters(fakeSupabase([], { blob_put: 0 }), NOW);
 
   for (const name of ["Blob data transfer", "Vercel fast data transfer", "GitHub Pages bandwidth"]) {
     expect({ name, basis: meter(report, name).basis, used: meter(report, name).used }).toEqual({

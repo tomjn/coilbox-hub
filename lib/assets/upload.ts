@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type AssetIdentity, type AssetOrigin, UNIT_RENDER_VARIANT_PREFIX } from "./asset";
-import { BLOB_ADVANCED_OPERATIONS_PER_MONTH } from "./blob";
 import { capForVariant } from "./caps";
 import { identityFilter } from "./have";
 import { ASSET_MIME_EXTENSIONS, assetObjectPath, isAssetMime } from "./path";
@@ -119,33 +118,16 @@ export const UNIT_RENDER_CEILING = 8;
  * insurance against a client looping rather than a pace anybody meets, in the
  * spirit of `enforce_publish_rate_limit` on `public.item`.
  *
- * Counted on `seen_at`, for the reason {@link MONTHLY_UPLOAD_BUDGET} gives: a
- * replacement is an upload as far as anything that costs money is concerned.
+ * Counted on `seen_at`, because a replacement (#106) writes a new object without
+ * creating a row, so `created_at` would read a client looping on replacements
+ * as no uploads at all. `updated_at` is wrong in the other direction, since
+ * approving a row in the moderation grid touches it.
  *
  * One rule with a subject rather than two rules, because a map asset is not
  * scoped to a game and inventing a game for it would either exempt maps or
  * force a second limit that drifts from this one.
  */
 export const SUBJECT_UPLOADS_PER_HOUR = 100;
-
-/**
- * How many uploads the hub will accept in a calendar month.
- *
- * Every accepted upload is one `put()` and therefore one advanced operation,
- * and going over the store's allowance is a 30 day outage that cannot be paid
- * through. The margin below the allowance is deliberate: this counts writes the
- * hub made, so anything that spends an operation outside this route, or a write
- * rolled back afterwards, eats into the margin rather than into the outage.
- *
- * Counted on `seen_at` rather than `created_at`, because a replacement (#106)
- * spends an operation without creating a row. `created_at` would read a client
- * looping on replacements as no uploads at all, which is the one way to reach
- * the lockout unnoticed. `updated_at` is wrong in the other direction, since
- * approving a row in the moderation grid touches it and spends nothing.
- * `seen_at` is written by exactly the two things that call `put()`: a first
- * upload and a replacement.
- */
-export const MONTHLY_UPLOAD_BUDGET = BLOB_ADVANCED_OPERATIONS_PER_MONTH - 100;
 
 /**
  * What a client says it is uploading. Every field here ends up on the row
@@ -232,11 +214,6 @@ interface ExistingAsset {
   uploaded_by: string | null;
   moderation: string;
   bytes: number;
-}
-
-/** Beginning of the current calendar month, in UTC, as PostgREST wants it. */
-function monthStart(now: Date): string {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 }
 
 /**
@@ -381,7 +358,10 @@ export async function checkAssetUpload(
           .not("map_name", "is", null)
           .gte("seen_at", since);
 
-  const [existing, stored, unitRenders, accountBytes, recent, thisMonth] =
+  // The store's 30 day budget is not here. It is checked by the reservation
+  // `putBlobAsset` makes, in the same statement that spends it, and only when
+  // this upload is going to write an object at all (`./blobLedger`).
+  const [existing, stored, unitRenders, accountBytes, recent] =
     await Promise.all([
       fetchExisting(supabase, identity),
       reusableObject(supabase, hash),
@@ -397,13 +377,6 @@ export async function checkAssetUpload(
         : Promise.resolve(0),
       supabase.rpc("account_asset_bytes", { account: userId }),
       countRows(recentForSubject),
-      countRows(
-        supabase
-          .from("asset")
-          .select("id", { count: "exact", head: true })
-          .not("uploaded_by", "is", null)
-          .gte("seen_at", monthStart(new Date())),
-      ),
     ]);
 
   if (!existing.ok) return QUOTA_UNAVAILABLE;
@@ -518,15 +491,6 @@ export async function checkAssetUpload(
     };
   }
 
-  if (thisMonth === null) return QUOTA_UNAVAILABLE;
-  if (thisMonth >= MONTHLY_UPLOAD_BUDGET) {
-    return {
-      ok: false,
-      error: "The hub has reached its upload allowance for this month. Try again next month.",
-      status: 503,
-    };
-  }
-
   return {
     ok: true,
     path,
@@ -614,7 +578,7 @@ export async function writePendingAsset(
         ...columns,
         // Not defaulted the way an insert's is, so a replacement has to say
         // when the archive was last seen or the column would keep the first
-        // upload's date and the monthly budget would not count this write.
+        // upload's date and the hourly limit would not count this write.
         seen_at: new Date().toISOString(),
         promoted_at: null,
         moderation: "pending",

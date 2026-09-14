@@ -87,7 +87,7 @@ export default async function Ops() {
 
         <p className="text-sm text-neutral-400">
           Read {new Date(report.at).toISOString().replace("T", " ").slice(0, 16)} UTC. Going
-          over 2,000 Blob advanced operations in a month removes Blob access for 30 days and
+          over 2,000 Blob advanced operations in any 30 days suspends the store for 30 days and
           cannot be paid through, so that is the one to watch. The daily sweep fails on
           purpose once a counted meter passes {Math.round(METER_ALERT_FRACTION * 100)}%.
         </p>
