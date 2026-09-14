@@ -32,6 +32,15 @@ export const UPLOAD_MESSAGES = {
   notSent: "The upload did not reach the hub. Reload the page and try again.",
 } as const;
 
+/** What the remove control beside each upload form says (#360). Same shape of
+ *  answer as an upload, so both forms show their messages the same way. */
+export const REMOVE_MESSAGES = {
+  signedOut: "You are signed out. Sign in, then remove the picture again.",
+  notAllowed: "You can no longer change this game. Only its owner or a moderator can remove its pictures.",
+  notSaved: "The picture could not be removed. Try again in a few minutes.",
+  notSent: "The removal did not reach the hub. Reload the page and try again.",
+} as const;
+
 function kilobytes(bytes: number): string {
   return `${Math.ceil(bytes / 1024)} KB`;
 }

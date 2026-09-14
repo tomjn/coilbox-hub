@@ -71,6 +71,8 @@ class World {
   /** Which step throws the next time it is reached. */
   failAt: string | null = null;
   checkout = new Set<string>();
+  /** Files taken out of the checkout that the next publish deletes. */
+  removing: string[] = [];
   served = new Set<string>();
   discarded: string[] = [];
   said: string[] = [];
@@ -167,10 +169,17 @@ function fakePorts(world: World): PromotionPorts {
       world.trip("write");
       world.checkout.add(path);
     },
+    remove: async (path) => {
+      world.trip("remove");
+      world.checkout.delete(path);
+      world.removing.push(path);
+    },
     publish: async (paths) => {
       world.trip("publish");
-      expect(paths.length).toBeGreaterThan(0);
+      expect(paths.length + world.removing.length).toBeGreaterThan(0);
       for (const path of paths) world.served.add(path);
+      for (const path of world.removing) world.served.delete(path);
+      world.removing = [];
     },
     serving: async (paths) => {
       world.trip("serving");
@@ -263,7 +272,7 @@ test("a store that refuses a read is said out loud rather than read as already p
 
   const result = await runGameImagePromotion(fakeSupabase(world), ports);
 
-  expect(result).toEqual({ promoted: 0, skipped: 2, unreadable: 2 });
+  expect(result).toEqual({ promoted: 0, skipped: 2, unreadable: 2, removed: 0 });
   expect(world.said.join("\n")).toContain("403 reading");
   expect(world.discarded).toEqual([]);
   reachable(world);
@@ -343,7 +352,7 @@ test("a picture staged in the bucket is read and deleted there and never in Blob
 
   const result = await run();
 
-  expect(result).toEqual({ promoted: 2, skipped: 0, unreadable: 0 });
+  expect(result).toEqual({ promoted: 2, skipped: 0, unreadable: 0, removed: 0 });
   expect(world.discarded).toEqual(["games/BA/logo.webp"]);
   expect(world.discardedStaged).toEqual(["games/SF/logo.webp"]);
   expect(world.blob.has("games/SF/logo.webp")).toBe(true);
@@ -381,7 +390,7 @@ test("an owner upload that lands while a bucket picture is promoted keeps the ne
   expect(result.promoted).toBe(1);
   expect(world.discardedStaged).toEqual([]);
   expect(world.rows[0].logo_staged_tier).toBe("bucket");
-  expect(world.said).toContain("keep games/SF/logo.webp: a newer upload replaced it after it was read.");
+  expect(world.said).toContain("keep games/SF/logo.webp: a newer upload or a removal changed the row after it was read.");
 
   const next = await run();
   expect(next.promoted).toBe(1);
@@ -409,7 +418,7 @@ test("a row naming a bucket copy that is not there is said out loud and left as 
 
   const result = await run();
 
-  expect(result).toEqual({ promoted: 0, skipped: 1, unreadable: 0 });
+  expect(result).toEqual({ promoted: 0, skipped: 1, unreadable: 0, removed: 0 });
   expect(world.said).toContain("skip games/SF/logo.webp: the row says the bucket holds it and nothing is there.");
   expect(world.rows[0].logo_staged_tier).toBe("bucket");
   expect(world.discardedStaged).toEqual([]);
@@ -421,4 +430,113 @@ test("a row that records no staged copy is not offered for promotion", async () 
   world = new World([imported]);
 
   expect(await fetchStagedGameImages(fakeSupabase(world))).toEqual([]);
+});
+
+// ## Removed art (#360)
+//
+// Removing a logo or banner only clears its row. These prove promotion never
+// pushes art whose row stopped naming it before the rows were read again, and
+// deletes from the durable tier whatever no row names.
+
+/** A row whose logo an owner or moderator has removed: every column cleared. */
+function removedLogo(row: GameRow) {
+  row.logo_path = null;
+  row.logo_hash = null;
+  row.logo_staged_tier = null;
+}
+
+/** A logo promoted by an earlier run: on the durable tier, no staged copy. */
+function promotedLogo(shortname: string): Fixture {
+  const fixture = stagedLogo(shortname);
+  fixture.row.logo_staged_tier = null;
+  fixture.staged = {};
+  return fixture;
+}
+
+test("a logo removed after it was promoted is deleted from the durable tier, with no gate and no staging touched", async () => {
+  world = new World([promotedLogo("BA")]);
+  world.checkout.add("games/BA/logo.webp");
+  world.served.add("games/BA/logo.webp");
+  removedLogo(world.rows[0]);
+
+  const result = await run();
+
+  expect(result).toEqual({ promoted: 0, skipped: 0, unreadable: 0, removed: 1 });
+  expect(world.trips).toEqual(["remove", "publish"]);
+  expect(world.served.has("games/BA/logo.webp")).toBe(false);
+  expect(world.said).toContain("remove games/BA/logo.webp: no game row names it.");
+});
+
+test("a logo removed before promotion is never written or pushed, and its bucket object is left for the sweep", async () => {
+  world = new World([bucketLogo("BA")]);
+  removedLogo(world.rows[0]);
+
+  const result = await run();
+
+  expect(result).toEqual({ promoted: 0, skipped: 0, unreadable: 0, removed: 0 });
+  expect(world.trips).not.toContain("write");
+  expect(world.trips).not.toContain("publish");
+  expect(world.served.size).toBe(0);
+  // Unclaimed, which is what `unclaimed_staged_objects` lists.
+  expect(world.bucket.has("games/BA/logo.webp")).toBe(true);
+  expect(world.claims("games/BA/logo.webp")).toBe(false);
+});
+
+test("a logo removed while the run reads its bytes is taken back out of the checkout and never pushed", async () => {
+  world = new World([bucketLogo("BA")]);
+  const ports = fakePorts(world);
+  const readStaged = ports.readStaged;
+  ports.readStaged = async (path) => {
+    const bytes = await readStaged(path);
+    removedLogo(world.rows[0]);
+    return bytes;
+  };
+
+  const result = await runGameImagePromotion(fakeSupabase(world), ports);
+
+  expect(result).toEqual({ promoted: 0, skipped: 1, unreadable: 0, removed: 1 });
+  expect(world.checkout.has("games/BA/logo.webp")).toBe(false);
+  expect(world.served.has("games/BA/logo.webp")).toBe(false);
+  expect(world.trips).not.toContain("serving");
+  expect(world.discardedStaged).toEqual([]);
+  expect(world.said).toContain("skip games/BA/logo.webp: its row stopped naming it after it was read.");
+});
+
+test("a logo removed after the rows were read again is pushed once, left unclaimed in the bucket, and deleted by the next run", async () => {
+  world = new World([bucketLogo("BA")]);
+  const ports = fakePorts(world);
+  const publish = ports.publish;
+  ports.publish = async (paths) => {
+    await publish(paths);
+    removedLogo(world.rows[0]);
+  };
+
+  const first = await runGameImagePromotion(fakeSupabase(world), ports);
+
+  expect(first).toEqual({ promoted: 1, skipped: 0, unreadable: 0, removed: 0 });
+  expect(world.said).toContain(
+    "keep games/BA/logo.webp: a newer upload or a removal changed the row after it was read.",
+  );
+  expect(world.claims("games/BA/logo.webp")).toBe(false);
+  expect(world.bucket.has("games/BA/logo.webp")).toBe(true);
+
+  const next = await run();
+
+  expect(next).toEqual({ promoted: 0, skipped: 0, unreadable: 0, removed: 1 });
+  expect(world.served.has("games/BA/logo.webp")).toBe(false);
+});
+
+test("a promoted picture the row still names is kept, and one at an old extension goes out in the same push as the new one", async () => {
+  const replaced = bucketLogo("BA");
+  world = new World([replaced, promotedLogo("SF")]);
+  for (const path of ["games/BA/logo.png", "games/SF/logo.webp"]) {
+    world.checkout.add(path);
+    world.served.add(path);
+  }
+
+  const result = await run();
+
+  expect(result).toEqual({ promoted: 1, skipped: 0, unreadable: 0, removed: 1 });
+  expect(world.trips.filter((trip) => trip === "publish")).toHaveLength(1);
+  expect([...world.served].sort()).toEqual(["games/BA/logo.webp", "games/SF/logo.webp"]);
 });

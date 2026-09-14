@@ -41,11 +41,16 @@ import { type PromotionPorts, StagingReadError, type StagingStore } from "./prom
  *    bytes nobody asked for.
  * 3. Write into the checkout, overwriting whatever was there. Stale art is the
  *    case that matters: the row moved on, the durable tier has to follow.
- * 4. One commit, one push, and then the gate before anything irreversible: the
+ * 4. Read the rows again and take out of the checkout every game picture no
+ *    row names (#360): art an owner or moderator removed, whether it was
+ *    promoted days ago or written a moment ago in step 3, and art left at an
+ *    old extension. A picture removed after it was read is not pushed.
+ * 5. One commit, one push, and then the gate before anything irreversible: the
  *    durable tier must actually be serving every path. Fatal otherwise, the
  *    same reading as the asset run - nothing has been deleted yet, so stopping
- *    loses nothing.
- * 5. Clear the staging copy, and the row's record of it, but only while the
+ *    loses nothing. A removal needs no gate, because no staging copy is
+ *    deleted on the strength of it.
+ * 6. Clear the staging copy, and the row's record of it, but only while the
  *    row still names the hash that was pushed. A newer upload keeps both.
  *    - Blob: delete, then clear the staged tier. Dying between the two leaves
  *      a row naming a Blob copy that is gone, and the next run's 404 clears it.
@@ -53,6 +58,18 @@ import { type PromotionPorts, StagingReadError, type StagingStore } from "./prom
  *      (`deleteStagedObjects` in `./orphan`), which refuses if an upload has
  *      claimed the path again since. Dying between the two leaves an object
  *      nothing claims, which the bucket sweep deletes.
+ *
+ * ## A removal that lands mid run
+ *
+ * Removing art only clears the row (`removeGameImage` in `app/games/actions.ts`).
+ * A removal before step 4's read is never pushed. A removal after it was read
+ * as named, so the push goes ahead; the clear in step 6 then finds the row
+ * changed and leaves the bucket copy to the sweep, and the next run's step 4
+ * deletes the pushed file. Nothing links it in between.
+ *
+ * Deleting from the durable tier takes the file off GitHub Pages. It stays in
+ * the assets repo's git history, which is the same limit
+ * `lib/assets/withdraw.ts` describes for a takedown.
  */
 
 /** What the run reads off a game row. */
@@ -82,6 +99,48 @@ export interface GameImage {
 
 const isStagingStore = (value: string | null): value is StagingStore =>
   value === "blob" || value === "bucket";
+
+/** Every extension an upload, the branding route or the import script gives a
+ *  game picture's path (`games/<shortname>/<kind>.<ext>`). */
+const GAME_IMAGE_EXTENSIONS = ["png", "webp"] as const;
+
+/**
+ * Game picture files the durable checkout holds and no game row names, which
+ * the next publish should delete from the durable tier (#360).
+ *
+ * Every row's two picture paths at every extension are asked about, plus
+ * `written`, the paths this run has just put in the checkout, so a picture
+ * whose row is gone altogether is caught too. `held` is the checkout's answer
+ * (`PromotionPorts.held`).
+ *
+ * Wants the secret key, to read hidden games' rows, whose art is kept.
+ */
+export async function strayGameImages(
+  supabase: SupabaseClient,
+  held: (path: string) => Promise<boolean>,
+  written: string[] = [],
+): Promise<string[]> {
+  const { data, error } = await supabase.from("game").select("shortname,logo_path,banner_path");
+
+  if (error) throw new Error(`Could not read the game rows: ${error.message}`);
+
+  const rows = (data ?? []) as unknown as Pick<GameImagePaths, "shortname" | "logo_path" | "banner_path">[];
+  const named = new Set<string>();
+  const candidates = new Set<string>(written);
+  for (const row of rows) {
+    if (row.logo_path) named.add(row.logo_path);
+    if (row.banner_path) named.add(row.banner_path);
+    for (const kind of ["logo", "banner"]) {
+      for (const ext of GAME_IMAGE_EXTENSIONS) candidates.add(`games/${row.shortname}/${kind}.${ext}`);
+    }
+  }
+
+  const stray: string[] = [];
+  for (const path of candidates) {
+    if (!named.has(path) && (await held(path))) stray.push(path);
+  }
+  return stray;
+}
 
 /**
  * Every picture a game row says is staged, in either store, oldest row first.
@@ -155,6 +214,8 @@ export interface GameImagePromotionResult {
   skipped: number;
   /** Of the skipped, the ones the store would not return. */
   unreadable: number;
+  /** Files deleted from the durable tier because no game row names them. */
+  removed: number;
 }
 
 /**
@@ -167,7 +228,7 @@ export async function runGameImagePromotion(
 ): Promise<GameImagePromotionResult> {
   const images = await fetchStagedGameImages(supabase);
   const seen = new Set<string>();
-  const pushing: GameImage[] = [];
+  let pushing: GameImage[] = [];
   let skipped = 0;
   let unreadable = 0;
 
@@ -228,12 +289,35 @@ export async function runGameImagePromotion(
     pushing.push(image);
   }
 
-  if (pushing.length === 0) {
+  // Read after the writes, so a removal that landed while the bytes were being
+  // read is caught here rather than pushed.
+  const stray = await strayGameImages(
+    supabase,
+    (path) => ports.held(path),
+    pushing.map((image) => image.path),
+  );
+  for (const path of stray) {
+    await ports.remove(path);
+    ports.say(`remove ${path}: no game row names it.`);
+  }
+  const removed = new Set(stray);
+  for (const image of pushing.filter((candidate) => removed.has(candidate.path))) {
+    ports.say(`skip ${image.path}: its row stopped naming it after it was read.`);
+    skipped++;
+  }
+  pushing = pushing.filter((image) => !removed.has(image.path));
+
+  if (pushing.length === 0 && stray.length === 0) {
     ports.say("No game pictures are waiting on the staging tier.");
-    return { promoted: 0, skipped, unreadable };
+    return { promoted: 0, skipped, unreadable, removed: 0 };
   }
 
   await ports.publish(pushing.map((image) => image.path));
+
+  if (pushing.length === 0) {
+    ports.say(`Removed ${stray.length} game picture(s) no row names from the durable tier.`);
+    return { promoted: 0, skipped, unreadable, removed: stray.length };
+  }
 
   // The gate, and the same fatal reading as the asset run: the rows still point
   // at their staging store, which still holds everything, so stopping here
@@ -265,7 +349,7 @@ export async function runGameImagePromotion(
     if (await clearStagedTier(supabase, image)) {
       inBucket.push(image);
     } else {
-      ports.say(`keep ${image.path}: a newer upload replaced it after it was read.`);
+      ports.say(`keep ${image.path}: a newer upload or a removal changed the row after it was read.`);
     }
   }
   const gone = await deleteStagedObjects(
@@ -281,6 +365,9 @@ export async function runGameImagePromotion(
   }
 
   ports.say(`Promoted ${pushing.length} game picture(s) and cleared their staging copies.`);
+  if (stray.length > 0) {
+    ports.say(`Removed ${stray.length} game picture(s) no row names from the durable tier.`);
+  }
 
-  return { promoted: pushing.length, skipped, unreadable };
+  return { promoted: pushing.length, skipped, unreadable, removed: stray.length };
 }

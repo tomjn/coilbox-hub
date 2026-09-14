@@ -1,7 +1,7 @@
 import { beforeEach, expect, mock, test } from "bun:test";
 
-// The web side of who may change a game (#350): the edit page and the logo and
-// banner upload. The owner or a moderator gets through, and a signed in
+// The web side of who may change a game (#350): the edit page, the logo and
+// banner upload, and removing either (#360). The owner or a moderator gets through, and a signed in
 // account that is neither gets a 404 and writes nothing. The database side is
 // `supabase/tests/game_ownership.test.sql`, and the question both ask is
 // proved on its own in `lib/games/editor.test.ts`.
@@ -79,11 +79,13 @@ mock.module("@/lib/supabase/admin", () => ({
   }),
 }));
 
+const revalidated = mock<(path: string) => void>(() => {});
+const updatedTags = mock<(tag: string) => void>(() => {});
 const realCache = await import("next/cache");
-mock.module("next/cache", () => ({ ...realCache, revalidatePath: () => {} }));
+mock.module("next/cache", () => ({ ...realCache, revalidatePath: revalidated, updateTag: updatedTags }));
 
-const { uploadGameImage } = await import("./actions");
-const { UPLOAD_MESSAGES } = await import("@/lib/games/imageUpload");
+const { removeGameImage, uploadGameImage } = await import("./actions");
+const { REMOVE_MESSAGES, UPLOAD_MESSAGES } = await import("@/lib/games/imageUpload");
 const EditGame = (await import("./[shortname]/edit/page")).default;
 
 function banner(image: File = new File([PNG], "banner.png", { type: "image/png" })): FormData {
@@ -106,6 +108,8 @@ beforeEach(() => {
   upload.mockClear();
   rowWrite.mockClear();
   update.mockClear();
+  revalidated.mockClear();
+  updatedTags.mockClear();
 });
 
 test("a signed in account that is neither owner nor moderator gets 404 on the edit page", async () => {
@@ -206,4 +210,61 @@ test("a row that will not take the new path is reported", async () => {
   rowWrite.mockImplementationOnce(async () => ({ error: new Error("row refused") }));
 
   expect(await uploadBanner()).toEqual({ ok: false, message: UPLOAD_MESSAGES.notSaved });
+});
+
+function removal(kind: string): FormData {
+  const form = new FormData();
+  form.set("shortname", "BA");
+  form.set("kind", kind);
+  return form;
+}
+
+test("a stranger cannot remove a logo, and nothing is written or revalidated", async () => {
+  visitor = STRANGER;
+
+  expect(await removeGameImage(null, removal("logo"))).toEqual({ ok: false, message: REMOVE_MESSAGES.notAllowed });
+
+  expect(update).not.toHaveBeenCalled();
+  expect(revalidated).not.toHaveBeenCalled();
+});
+
+test("a signed out removal asks the visitor to sign in", async () => {
+  visitor = null;
+
+  expect(await removeGameImage(null, removal("logo"))).toEqual({ ok: false, message: REMOVE_MESSAGES.signedOut });
+  expect(update).not.toHaveBeenCalled();
+});
+
+test("a moderator who does not own the game removes its banner: all three banner columns cleared, and the pages told", async () => {
+  visitor = MODERATOR;
+
+  expect(await removeGameImage(null, removal("banner"))).toEqual({ ok: true, message: "Banner removed." });
+
+  expect(update).toHaveBeenCalledWith({ banner_path: null, banner_hash: null, banner_staged_tier: null });
+  expect(rowWrite).toHaveBeenCalledWith("id", GAME.id);
+  expect(upload).not.toHaveBeenCalled();
+  expect(updatedTags).toHaveBeenCalledWith("games");
+  expect(revalidated.mock.calls.map(([path]) => path).sort()).toEqual(["/games", "/games/BA"]);
+});
+
+test("the owner removes the logo, and only the logo columns are cleared", async () => {
+  visitor = OWNER;
+
+  expect(await removeGameImage(null, removal("logo"))).toEqual({ ok: true, message: "Logo removed." });
+  expect(update).toHaveBeenCalledWith({ logo_path: null, logo_hash: null, logo_staged_tier: null });
+});
+
+test("a removal naming neither a logo nor a banner writes nothing", async () => {
+  visitor = OWNER;
+
+  expect(await removeGameImage(null, removal("faction_logo"))).toEqual({ ok: false, message: REMOVE_MESSAGES.notSent });
+  expect(update).not.toHaveBeenCalled();
+});
+
+test("a row that will not clear is reported, and the pages are not told anything changed", async () => {
+  visitor = OWNER;
+  rowWrite.mockImplementationOnce(async () => ({ error: new Error("row refused") }));
+
+  expect(await removeGameImage(null, removal("logo"))).toEqual({ ok: false, message: REMOVE_MESSAGES.notSaved });
+  expect(revalidated).not.toHaveBeenCalled();
 });

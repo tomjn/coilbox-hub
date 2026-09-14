@@ -1,15 +1,21 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { readImageHeader, IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
 import { encodedHash } from "@/lib/assets/hash";
 import { putStagedGameImage } from "@/lib/assets/staging";
+import { TAGS } from "@/lib/cache/tags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { GameLink } from "@/lib/games/catalog";
 import { editableGame } from "@/lib/games/editor";
-import { type GameImageUploadState, refuseImageFile, UPLOAD_MESSAGES } from "@/lib/games/imageUpload";
+import {
+  type GameImageUploadState,
+  REMOVE_MESSAGES,
+  refuseImageFile,
+  UPLOAD_MESSAGES,
+} from "@/lib/games/imageUpload";
 
 /**
  * The writes behind ownership (#229): asking, deciding, and what an owner may
@@ -334,4 +340,61 @@ export async function uploadGameImage(
   revalidatePath(`/games/${shortname}`);
 
   return { ok: true, message: kind === "logo" ? "Logo uploaded." : "Banner uploaded." };
+}
+
+/**
+ * Take a game's logo or banner off again (#360), answered the way an upload is.
+ *
+ * Only the row is written. Once it names no path, nothing links the staged
+ * copy: the hub's art route refuses its hash, the daily sweep deletes it from
+ * the bucket (`unclaimed_staged_objects`), and a promoted copy is deleted from
+ * the durable tier by the next promotion run (`lib/assets/promoteGameImages.ts`).
+ * Deleting the bucket object here instead would mean reserving it from a web
+ * request, and a request that died holding the reservation would refuse the
+ * next upload to that path until the sweep ran.
+ */
+export async function removeGameImage(
+  _previous: GameImageUploadState | null,
+  form: FormData,
+): Promise<GameImageUploadState> {
+  const shortname = String(form.get("shortname") ?? "");
+  const kind = String(form.get("kind") ?? "");
+  if (!shortname || (kind !== "logo" && kind !== "banner")) {
+    return { ok: false, message: REMOVE_MESSAGES.notSent };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: REMOVE_MESSAGES.signedOut };
+
+  // The same check an upload makes, for the same reason: the art columns are
+  // not in the signed in grant, so the write needs the secret key, and it
+  // earns that only after the visitor's own client finds the game editable.
+  const owned = await editableGame(supabase, user.id, shortname);
+  if (!owned) return { ok: false, message: REMOVE_MESSAGES.notAllowed };
+
+  const admin = createAdmin();
+  if (!admin) {
+    console.error(`removeGameImage: no secret key, so the ${kind} of ${shortname} was not removed`);
+    return { ok: false, message: REMOVE_MESSAGES.notSaved };
+  }
+
+  const { error } = await admin
+    .from("game")
+    .update({ [`${kind}_path`]: null, [`${kind}_hash`]: null, [`${kind}_staged_tier`]: null })
+    .eq("id", owned.id);
+  if (error) {
+    console.error(`removeGameImage: the game row for ${shortname} would not clear its ${kind}`, error);
+    return { ok: false, message: REMOVE_MESSAGES.notSaved };
+  }
+
+  // The tag as well as the two paths. The link preview is a route of its own
+  // and reads the game row through the games tag.
+  updateTag(TAGS.games);
+  revalidatePath("/games");
+  revalidatePath(`/games/${shortname}`);
+
+  return { ok: true, message: kind === "logo" ? "Logo removed." : "Banner removed." };
 }
