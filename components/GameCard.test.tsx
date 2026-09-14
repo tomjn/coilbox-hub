@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { GameCard } from "@/components/GameCard";
 import type { GameSummary } from "@/lib/games/query";
+import type { GameSides } from "@/lib/games/sides";
 
 const GAME: GameSummary = {
   shortname: "BA",
@@ -40,7 +41,7 @@ test("a game with no description yet shows none rather than an empty block", () 
  *  game's own page, not on the shelf (#280). */
 test("a card says how much there is in words", () => {
   const html = renderToStaticMarkup(<GameCard game={GAME} />);
-  expect(html).toContain("2 factions, 340 units");
+  expect(html.replace(/<[^>]+>/g, "")).toContain("2 factions, 340 units");
   expect(html).not.toContain("community item");
 });
 
@@ -77,4 +78,50 @@ test("a staged logo comes from the hub's route, and one staged in Blob is not dr
   expect(
     renderToStaticMarkup(<GameCard game={{ ...staged, logo_staged_tier: "blob" }} />),
   ).not.toContain("<img");
+});
+
+const SIDES: GameSides = {
+  factions: [
+    { key: "arm", name: "ARM" },
+    { key: "core", name: "CORE" },
+  ],
+  commanders: new Map([
+    [
+      "arm",
+      {
+        unit_name: "armcom",
+        label: "Commander",
+        picture: {
+          from: "static",
+          url: "https://tomjn.github.io/coilbox-assets/units/BA/armcom.webp",
+          served: { keyedOn: "unit", game: "BA", unitName: "armcom", variant: "buildpic" },
+          substituted: false,
+          width: 64,
+          height: 64,
+        },
+      },
+    ],
+  ]),
+};
+
+/** A description that is only the game's own name reads as a placeholder, so
+ *  the card says which sides a player can pick instead. */
+test("a game with no real description says which sides a player can pick", () => {
+  for (const description of [null, "BA", "balanced annihilation"]) {
+    const html = renderToStaticMarkup(<GameCard game={{ ...GAME, description }} sides={SIDES} />);
+    expect(html).toContain("Play as ARM or CORE.");
+  }
+  const described = renderToStaticMarkup(<GameCard game={GAME} sides={SIDES} />);
+  expect(described).not.toContain("Play as");
+});
+
+test("the foot of the card draws each side's start unit it holds a picture for", () => {
+  const html = renderToStaticMarkup(<GameCard game={GAME} sides={SIDES} />);
+  expect(html).toContain('src="https://tomjn.github.io/coilbox-assets/units/BA/armcom.webp"');
+  expect(html.match(/coilbox-assets\/units/g)).toHaveLength(1);
+
+  const none = renderToStaticMarkup(
+    <GameCard game={GAME} sides={{ ...SIDES, commanders: new Map() }} />,
+  );
+  expect(none).not.toContain("<img");
 });

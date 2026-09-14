@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { GameCard } from "@/components/GameCard";
-import { gamesListing } from "@/lib/games/cached";
+import { gameSidesCached, gamesListing } from "@/lib/games/cached";
 
 /**
  * Every game the hub knows about (#225).
@@ -41,6 +41,7 @@ export default async function Games() {
   await connection();
 
   const { games: rows, error } = await gamesListing();
+  const sides = await gameSidesCached(rows.map((game) => game.shortname));
 
   return (
     <main className="relative flex-1">
@@ -69,12 +70,12 @@ export default async function Games() {
           // would pad every card out to the longest description.
           <ul className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2 lg:grid-cols-3">
             {rows.map((game) => (
-              <GameCard key={game.shortname} game={game} />
+              <GameCard key={game.shortname} game={game} sides={sides.get(game.shortname)} />
             ))}
           </ul>
         )}
 
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-400">
           Looking for a map instead?{" "}
           <Link href="/maps" className="text-neutral-300 underline-offset-4 hover:underline active:underline">
             Every map the hub knows about

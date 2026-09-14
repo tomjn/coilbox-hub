@@ -24,8 +24,61 @@ export function gameTitle(game: Pick<GameSummary, "shortname" | "display_name">)
  * a broken counter once the facts arrive.
  */
 export function gameCountLabel(game: Pick<GameSummary, "faction_count" | "unit_count">): string {
-  const factions = game.faction_count === 1 ? "1 faction" : `${game.faction_count} factions`;
-  return `${factions}, ${game.unit_count} units`;
+  return gameCountParts(game)
+    .map((part) => `${part.count} ${part.noun}`)
+    .join(", ");
+}
+
+/**
+ * The same counts, number and noun apart, for a card that sets the numbers
+ * brighter than the words. Built here so the singular stays in one place.
+ */
+export function gameCountParts(
+  game: Pick<GameSummary, "faction_count" | "unit_count">,
+): { count: number; noun: string }[] {
+  return [
+    { count: game.faction_count, noun: game.faction_count === 1 ? "faction" : "factions" },
+    { count: game.unit_count, noun: "units" },
+  ];
+}
+
+/**
+ * Whether a description says anything beyond the game's name.
+ *
+ * Some games describe themselves with their own shortname and nothing else
+ * ("BOTA"). Printed under the title, that reads as a placeholder, so a page
+ * treats it as no description. Compared as plain text, case and spacing
+ * ignored.
+ */
+export function saysMoreThanName(
+  game: Pick<GameSummary, "shortname" | "display_name">,
+  plainDescription: string | null,
+): boolean {
+  const said = plainDescription?.trim().toLowerCase() ?? "";
+  if (said === "") return false;
+  const names = [game.shortname, game.display_name]
+    .filter((name): name is string => name !== null)
+    .map((name) => name.trim().toLowerCase());
+  return !names.includes(said);
+}
+
+/**
+ * The sides a player can pick, as a sentence, for a card with nothing else to
+ * say: "Play as ARM or CORE." Null for a game with no sides reported.
+ */
+export function playAsLabel(factionNames: string[]): string | null {
+  if (factionNames.length === 0) return null;
+  const list = new Intl.ListFormat("en", { type: "disjunction" }).format(factionNames);
+  return `Play as ${list}.`;
+}
+
+/**
+ * What the community card says under its name. A count when there is
+ * something to count, and a plain statement when there is not, because "0
+ * community items" under a link reads as a dead end.
+ */
+export function itemCardLabel(count: number): string {
+  return count === 0 ? "Nothing published yet" : itemCountLabel(count);
 }
 
 /**

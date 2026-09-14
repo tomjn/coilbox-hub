@@ -5,15 +5,18 @@ import { cache } from "react";
 import { requestOwnership, setGameVisibility } from "@/app/games/actions";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
+import { CommanderPicture } from "@/components/CommanderPicture";
 import { GameLogo } from "@/components/GameLogo";
+import { ExternalIcon, GamesIcon } from "@/components/icons";
 import { RichText } from "@/components/RichText";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { gameArtUrl } from "@/lib/games/art";
-import { gameCountLabel, gameTitle, itemCountLabel } from "@/lib/games/labels";
-import { gamePageCached } from "@/lib/games/cached";
+import { gameCountLabel, gameTitle, itemCardLabel, saysMoreThanName } from "@/lib/games/labels";
+import { gamePageCached, gameSidesCached } from "@/lib/games/cached";
 import { editableGame } from "@/lib/games/editor";
 import type { GamePageFaction } from "@/lib/games/page";
+import type { SideCommander } from "@/lib/games/sides";
 import { createClient } from "@/lib/supabase/server";
 import { richTextToPlainText } from "@/lib/text/richText";
 
@@ -61,30 +64,82 @@ export async function generateMetadata({
   };
 }
 
-/** One side of the game, as a chip beside its fellows. The name is always
- *  there; the logo rides along when the hub holds one, because a strip of
- *  dashed boxes would promise pictures nobody has yet. The whole chip is a
- *  link into the encyclopedia, filtered to that side (#280). */
-function Faction({ game, faction }: { game: string; faction: GamePageFaction }) {
+/** The card style the games listing uses, so the ways on from this page read
+ *  as the same kind of thing as the cards that led here. */
+const CARD =
+  "group flex h-full rounded-md border border-neutral-800 bg-neutral-950 transition-colors hover:border-neutral-600 active:border-neutral-500";
+
+/** A side's picture slot. Every tile in a row gets one when any side has a
+ *  picture, so names line up, and the empty slot carries the games icon the way
+ *  an empty logo tile does. */
+const SLOT = "size-12 shrink-0 rounded";
+
+/**
+ * One side of the game, as a tile beside its fellows. The name is always
+ * there. The picture is the side's own logo when the hub holds one, and
+ * otherwise the unit a player starts that side with, which is what a player of
+ * the game recognises it by. The whole tile is a link into the encyclopedia,
+ * filtered to that side (#280).
+ */
+function Faction({
+  game,
+  faction,
+  commander,
+  slot,
+}: {
+  game: string;
+  faction: GamePageFaction;
+  commander: SideCommander | undefined;
+  slot: boolean;
+}) {
+  let picture = null;
+  if (faction.logo_path) {
+    picture = (
+      // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image, see next.config.ts
+      <img
+        src={staticTierUrl(faction.logo_path)}
+        alt=""
+        width={48}
+        height={48}
+        loading="lazy"
+        decoding="async"
+        className={`${SLOT} bg-black object-contain`}
+      />
+    );
+  } else if (commander) {
+    picture = <CommanderPicture commander={commander} className={`${SLOT} bg-black`} />;
+  } else if (slot) {
+    picture = (
+      <span aria-hidden className={`${SLOT} flex items-center justify-center bg-neutral-900`}>
+        <GamesIcon className="w-5 text-neutral-600" />
+      </span>
+    );
+  }
+
   return (
     <li>
       <Link
         href={`/games/${game}/units?faction=${encodeURIComponent(faction.key)}`}
-        className="flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 underline-offset-4 transition-colors hover:border-neutral-600 hover:text-white active:border-neutral-500 active:text-white"
+        className={`${CARD} items-center gap-3 p-2 pr-4`}
       >
-        {faction.logo_path ? (
-          // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
-          <img
-            src={staticTierUrl(faction.logo_path)}
-            alt=""
-            width={24}
-            height={24}
-            loading="lazy"
-            decoding="async"
-            className="h-6 w-6 rounded object-contain"
-          />
-        ) : null}
-        <span>{faction.name}</span>
+        {picture}
+        <span className="min-w-0 break-words font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
+          {faction.name}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+/** One way on from the game's page: a name and a line saying what is there. */
+function Onward({ href, name, detail }: { href: string; name: string; detail: string }) {
+  return (
+    <li>
+      <Link href={href} className={`${CARD} flex-col gap-1 p-4`}>
+        <span className="font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
+          {name}
+        </span>
+        <span className="text-sm text-neutral-400">{detail}</span>
       </Link>
     </li>
   );
@@ -119,10 +174,17 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
   } = await supabase.auth.getUser();
   const mayEdit = user !== null && (await editableGame(supabase, user.id, shortname)) !== null;
 
+  const commanders = (await gameSidesCached([page.shortname])).get(page.shortname)?.commanders;
+  const factionSlots = page.factions.some(
+    (faction) => faction.logo_path !== null || commanders?.has(faction.key),
+  );
+  const describes =
+    page.description !== null && saysMoreThanName(page, richTextToPlainText(page.description));
+
   return (
     <main className="relative flex-1">
       {banner ? (
-        // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image; see next.config.ts
+        // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image, see next.config.ts
         <img
           src={banner}
           alt=""
@@ -133,18 +195,24 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
       <ArtBackdrop drawing={games} strength={banner ? 0 : BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-3">
+          <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
+            <Link href="/games" className="underline-offset-4 hover:text-neutral-200 hover:underline active:underline">
+              Games
+            </Link>
+            <span aria-hidden> / </span>
+            <span className="text-neutral-200">{title}</span>
+          </nav>
           <div className="flex items-center gap-4">
-            {logo ? <GameLogo src={logo} alt={`${title} logo`} /> : null}
-            <div className="flex flex-col">
-              <p className="text-xs uppercase tracking-wide text-neutral-500">{page.shortname}</p>
-              <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-            </div>
+            <GameLogo src={logo} alt={`${title} logo`} />
+            <h1 className="min-w-0 break-words text-3xl font-semibold tracking-tight text-balance">
+              {title}
+            </h1>
           </div>
-          {page.description ? (
-            <RichText text={page.description} className="max-w-3xl text-neutral-300" />
+          {describes && page.description ? (
+            <RichText text={page.description} className="max-w-prose text-neutral-300" />
           ) : null}
           {page.release ? (
-            <p className="text-sm text-neutral-500">Facts as of release {page.release}.</p>
+            <p className="text-sm text-neutral-400">Game version {page.release}</p>
           ) : null}
           {mayEdit ? (
             <p className="text-sm">
@@ -170,34 +238,24 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           ) : null}
         </div>
 
-        {page.links.length > 0 ? (
-          <ul className="flex flex-wrap gap-2">
-            {page.links.map((link) => (
-              <li key={link.url}>
-                <a
-                  href={link.url}
-                  rel="noopener noreferrer"
-                  className="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-                >
-                  {link.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
         <section className="flex flex-col gap-3" aria-labelledby="game-factions">
           <h2 id="game-factions" className="text-sm uppercase tracking-wide text-neutral-400">
             Factions
           </h2>
           {page.factions.length > 0 ? (
-            <ul className="flex flex-wrap gap-2">
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {page.factions.map((faction) => (
-                <Faction key={faction.key} game={page.shortname} faction={faction} />
+                <Faction
+                  key={faction.key}
+                  game={page.shortname}
+                  faction={faction}
+                  commander={commanders?.get(faction.key)}
+                  slot={factionSlots}
+                />
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-neutral-500">Nobody has reported this game&rsquo;s sides yet.</p>
+            <p className="text-sm text-neutral-400">Nobody has reported this game&rsquo;s sides yet.</p>
           )}
         </section>
 
@@ -205,46 +263,48 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           <h2 id="game-explore" className="text-sm uppercase tracking-wide text-neutral-400">
             Explore
           </h2>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <li>
-              <Link
-                href={`/games/${page.shortname}/units`}
-                className="group flex h-full flex-col gap-1 rounded-md border border-neutral-900 p-4 transition-colors hover:border-neutral-600 active:border-neutral-500"
-              >
-                <span className="font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
-                  Unit encyclopedia
-                </span>
-                <span className="text-sm text-neutral-500">
-                  Every unit: {gameCountLabel(page)}
-                </span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                href={`/games/${shortname}/tree`}
-                className="group flex h-full flex-col gap-1 rounded-md border border-neutral-900 p-4 transition-colors hover:border-neutral-600 active:border-neutral-500"
-              >
-                <span className="font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
-                  Build tree
-                </span>
-                <span className="text-sm text-neutral-500">
-                  What each faction can reach, from its start units
-                </span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                href={`/gallery?game=${encodeURIComponent(shortname)}`}
-                className="group flex h-full flex-col gap-1 rounded-md border border-neutral-900 p-4 transition-colors hover:border-neutral-600 active:border-neutral-500"
-              >
-                <span className="font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
-                  Community items
-                </span>
-                <span className="text-sm text-neutral-500">{itemCountLabel(page.item_count)}</span>
-              </Link>
-            </li>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Onward
+              href={`/games/${page.shortname}/units`}
+              name="Unit encyclopedia"
+              detail={gameCountLabel(page)}
+            />
+            <Onward
+              href={`/games/${shortname}/tree`}
+              name="Build tree"
+              detail="What each faction can reach from its start units"
+            />
+            <Onward
+              href={`/gallery?game=${encodeURIComponent(shortname)}`}
+              name="Community items"
+              detail={itemCardLabel(page.item_count)}
+            />
           </ul>
         </section>
+
+        {/* Last, because they leave the hub. Each carries the outbound arrow so
+         *  it does not read as one more way into this game's pages. */}
+        {page.links.length > 0 ? (
+          <section className="flex flex-col gap-3" aria-labelledby="game-links">
+            <h2 id="game-links" className="text-sm uppercase tracking-wide text-neutral-400">
+              Links
+            </h2>
+            <ul className="flex flex-wrap gap-2">
+              {page.links.map((link) => (
+                <li key={link.url}>
+                  <a
+                    href={link.url}
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+                  >
+                    {link.label}
+                    <ExternalIcon className="w-3.5 text-neutral-400" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {/* Claiming a game is rare, so the ask folds down to one quiet line
          *  below the facts (#249) and only opens for whoever wants it. Open,
@@ -277,7 +337,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           </details>
         ) : null}
 
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-400">
           <Link href="/games" className="text-neutral-300 underline-offset-4 hover:underline active:underline">
             Every game the hub knows about
           </Link>
