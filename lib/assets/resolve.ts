@@ -7,6 +7,7 @@ import {
   UNIT_RENDER_VARIANT_PREFIX,
 } from "./asset";
 import { blobTierUrl } from "./blob";
+import { bucketTierUrl } from "./bucket";
 import { staticTierUrl } from "./cdn";
 import { identityFilter, identityKey, queryChunks, rowIdentity } from "./have";
 import { type Footprint, type MissingPicture, missingPicture } from "./placeholder";
@@ -28,16 +29,18 @@ import { type Footprint, type MissingPicture, missingPicture } from "./placehold
  * 1. The atlas for the game, buildpics only, already in the bundle. Not built.
  *    See the note below.
  * 2. The durable tier on GitHub Pages, which is off Vercel's meters entirely.
- * 3. Blob, for anything not promoted yet.
+ * 3. The staging tier, for anything not promoted yet: Blob for older uploads,
+ *    and the private bucket, served through the hub's own route, for newer
+ *    ones.
  * 4. The buildpic, when a render angle is missing.
  * 5. A placeholder drawn from the footprint and the name.
  *
  * Two and three are one lookup rather than two attempts. There is exactly one
  * row per identity, guaranteed by `asset_unit_identity_idx` and
- * `asset_map_identity_idx`, and that row's `tier` column says which of the two
- * stores holds it. So the order between them is a fact about promotion, not
+ * `asset_map_identity_idx`, and that row's `tier` column says which store
+ * holds it. So the order between them is a fact about promotion, not
  * something this file races: a promoted row reads `static` and an unpromoted one
- * reads `blob`, and neither state is ever ambiguous.
+ * reads `blob` or `bucket`, and no state is ever ambiguous.
  *
  * ## Nothing here can serve a pending or a rejected row
  *
@@ -59,6 +62,12 @@ import { type Footprint, type MissingPicture, missingPicture } from "./placehold
  * `app/moderation/assets/[id]/route.ts` is the only path to unapproved bytes and
  * it checks `is_moderator()` per request.
  *
+ * A bucket row's URL points at `app/assets/staged/[...path]/route.ts`, which
+ * holds the same line on its own: it serves a path only when an approved bucket
+ * row names it, and reads that row as `anon`. So a page handed a stale URL for a
+ * row rejected since still gets no bytes from a request that reaches the hub.
+ * `lib/assets/bucket.ts` says what a cached copy costs.
+ *
  * ## The atlas rung is a name and not a stub
  *
  * #112 builds one packed WebP per game plus a JSON map of `unit_name` to
@@ -78,27 +87,20 @@ import { type Footprint, type MissingPicture, missingPicture } from "./placehold
 /**
  * Which rung answered.
  *
- * The two tiers keep their own names rather than collapsing into one "stored",
+ * The tiers keep their own names rather than collapsing into one "stored",
  * because which one served a picture is the difference between a request that
- * costs nothing and one that spends Blob data transfer, and that is worth being
- * able to see.
+ * costs nothing and one that spends Blob data transfer or a call to the hub,
+ * and that is worth being able to see.
  *
  * #112 adds `"atlas"` here.
  */
-export const ASSET_SOURCES = ["static", "blob", "placeholder"] as const;
+export const ASSET_SOURCES = ["static", "blob", "bucket", "placeholder"] as const;
 
 export type AssetSource = (typeof ASSET_SOURCES)[number];
 
-/**
- * A tier with a URL a browser can fetch. Not `bucket`: it is private, so a row
- * there has no URL until #334 serves approved pictures through the hub, and
- * until then the ladder treats it as no row at all.
- */
-export type ReachableTier = Exclude<AssetTier, "bucket">;
-
 /** A picture the hub holds, at an absolute URL. */
 export interface ServedAsset {
-  from: ReachableTier;
+  from: AssetTier;
   url: string;
   /**
    * Whose bytes these actually are, which is not always what was asked for.
@@ -175,20 +177,18 @@ export type HeldAssets = ReadonlyMap<string, HeldRow>;
  * `./queue`, because a moderator has to see the picture itself and every rung
  * this file adds above and below is something to show in place of one.
  *
- * Null for `bucket`. Building a Blob URL out of a bucket path would point a
- * page at an object that was never in Blob, so a bucket row has no URL until
- * #333 and #334 give it one.
+ * The moderation route does not use this for a `bucket` row. The URL it gives
+ * serves approved rows only, and a moderator needs pending ones, so
+ * `fetchAssetObject` reads those bytes out of the bucket itself.
  */
-export function assetTierUrl(tier: ReachableTier, path: string): string;
-export function assetTierUrl(tier: AssetTier, path: string): string | null;
-export function assetTierUrl(tier: AssetTier, path: string): string | null {
+export function assetTierUrl(tier: AssetTier, path: string): string {
   switch (tier) {
     case "static":
       return staticTierUrl(path);
     case "blob":
       return blobTierUrl(path);
     case "bucket":
-      return null;
+      return bucketTierUrl(path);
   }
 }
 
@@ -281,24 +281,17 @@ export async function fetchHeldAssets(
  * That caller could reach into {@link HeldAssets} itself, and going through this
  * is what keeps the approved test in one place rather than copied into whoever
  * wants a column next.
- *
- * A row in the bucket is not servable yet, however approved, because nothing
- * can hand a browser its bytes (#334). It falls through the ladder the way a
- * pending row does.
  */
-export function servable(
-  held: HeldAssets,
-  identity: AssetIdentity,
-): (HeldRow & { tier: ReachableTier }) | null {
+export function servable(held: HeldAssets, identity: AssetIdentity): HeldRow | null {
   const row = held.get(identityKey(identity));
-  if (!row || row.moderation !== "approved" || row.tier === "bucket") return null;
-  return { ...row, tier: row.tier };
+  if (!row || row.moderation !== "approved") return null;
+  return row;
 }
 
 function serve(
   asked: AssetIdentity,
   served: AssetIdentity,
-  row: HeldRow & { tier: ReachableTier },
+  row: HeldRow,
 ): ServedAsset {
   return {
     from: row.tier,
