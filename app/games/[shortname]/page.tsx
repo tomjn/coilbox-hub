@@ -5,6 +5,7 @@ import { cache } from "react";
 import { requestOwnership, setGameVisibility } from "@/app/games/actions";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
+import { RichText } from "@/components/RichText";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle, itemCountLabel } from "@/lib/games/labels";
@@ -12,6 +13,7 @@ import { gamePageCached } from "@/lib/games/cached";
 import { editableGame } from "@/lib/games/editor";
 import type { GamePageFaction } from "@/lib/games/page";
 import { createClient } from "@/lib/supabase/server";
+import { richTextToPlainText } from "@/lib/text/richText";
 
 /**
  * Everything the catalog holds about one game (#226).
@@ -46,9 +48,9 @@ export async function generateMetadata({
   if (!page) return { title: "Not found - Coilbox Hub" };
 
   const title = gameTitle(page);
-  const description =
-    page.description ??
-    `${page.faction_count} factions and ${page.unit_count} units on the hub.`;
+  const description = page.description
+    ? richTextToPlainText(page.description)
+    : `${page.faction_count} factions and ${page.unit_count} units on the hub.`;
 
   return {
     title: `${title} - Coilbox Hub`,
@@ -147,7 +149,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
             </div>
           </div>
           {page.description ? (
-            <p className="max-w-3xl text-neutral-300">{page.description}</p>
+            <RichText text={page.description} className="max-w-3xl text-neutral-300" />
           ) : null}
           {page.release ? (
             <p className="text-sm text-neutral-500">Facts as of release {page.release}.</p>
