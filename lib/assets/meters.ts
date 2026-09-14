@@ -200,7 +200,7 @@ export async function fetchMeters(
         unit: "operations",
         note:
           `Every put() the hub makes, for a picture or a game's logo or banner, reserved before ` +
-          `it is made. Uploads stop at ${BLOB_PUT_BUDGET}. Counts the hub's own spend only: ` +
+          `it is made. Uploads stop at ${BLOB_PUT_BUDGET.toLocaleString("en-GB")}. Counts the hub's own spend only: ` +
           "browsing the store in the Vercel dashboard lists blobs, which is an advanced " +
           "operation nothing here can see, and the margin below the allowance is for that.",
       },
