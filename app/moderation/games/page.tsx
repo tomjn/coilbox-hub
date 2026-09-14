@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ModerationNav } from "@/components/ModerationNav";
+import { VisibilityFlash } from "@/components/VisibilityFlash";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { decideRequest, setGameVisibility, setVersionVisibility } from "@/app/games/actions";
 import { createClient } from "@/lib/supabase/server";
@@ -18,10 +19,13 @@ import { createClient } from "@/lib/supabase/server";
  * and `is_moderator()` gates it exactly as it gates every other section.
  */
 
-export default async function ModerationGames() {
+export default async function ModerationGames({ searchParams }: PageProps<"/moderation/games">) {
   const supabase = await createClient();
   const { data: allowed } = await supabase.rpc("is_moderator");
   if (!allowed) redirect("/moderation");
+
+  const { visibility } = await searchParams;
+  const flash = typeof visibility === "string" ? visibility : undefined;
 
   const { data: requests } = await supabase
     .from("game_ownership_request")
@@ -115,6 +119,7 @@ export default async function ModerationGames() {
           <h2 id="mod-visibility" className="text-sm uppercase tracking-wide text-neutral-400">
             Visibility
           </h2>
+          <VisibilityFlash message={flash} />
 
           <VisibilityToggleForm
             action={setGameVisibility}
@@ -183,7 +188,7 @@ export default async function ModerationGames() {
                         <span className="font-mono text-neutral-300">{row.shortname}</span>
                         <VisibilityToggleForm
                           action={setGameVisibility}
-                          fields={{ shortname: row.shortname, hidden: "false" }}
+                          fields={{ shortname: row.shortname, hidden: "false", onSuccess: "moderation" }}
                           label="Unhide"
                           pendingLabel="Unhiding…"
                           buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
@@ -208,7 +213,12 @@ export default async function ModerationGames() {
                         </span>
                         <VisibilityToggleForm
                           action={setVersionVisibility}
-                          fields={{ shortname: row.game.shortname, version: row.version, hidden: "false" }}
+                          fields={{
+                            shortname: row.game.shortname,
+                            version: row.version,
+                            hidden: "false",
+                            onSuccess: "moderation",
+                          }}
                           label="Unhide"
                           pendingLabel="Unhiding…"
                           buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"

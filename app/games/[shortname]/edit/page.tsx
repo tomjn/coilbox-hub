@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { setGameVisibility, setVersionVisibility } from "@/app/games/actions";
+import { VisibilityFlash } from "@/components/VisibilityFlash";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { editableGame } from "@/lib/games/editor";
 import { loadGamePage } from "@/lib/games/page";
@@ -27,10 +28,14 @@ import { GameImageRemoveForm } from "./GameImageRemoveForm";
 
 export default async function EditGame({
   params,
+  searchParams,
 }: {
   params: Promise<{ shortname: string }>;
+  searchParams: Promise<{ visibility?: string | string[] }>;
 }) {
   const { shortname } = await params;
+  const { visibility } = await searchParams;
+  const flash = typeof visibility === "string" ? visibility : undefined;
 
   const supabase = await createClient();
   const {
@@ -87,6 +92,7 @@ export default async function EditGame({
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Visibility</h2>
+          <VisibilityFlash message={flash} />
           <p className="text-sm text-neutral-500">
             Hidden means off the site for everybody but the owner and moderators. Facts keep flowing; unhiding brings
             everything back.

@@ -58,6 +58,25 @@ function createAdmin(): ReturnType<typeof createAdminClient> | null {
   }
 }
 
+/**
+ * Where a hide or show control sends the visitor once its write lands, for
+ * the two spots the row or page the control lives on disappears in the same
+ * response that would have shown its own message (#374): the moderation
+ * queue's unhide buttons, whose row leaves the hidden list, and a game's own
+ * "Hide this game" shortcut, whose page 404s once the anon cached read can no
+ * longer see it. Every other visibility control - the moderation queue's
+ * "hide by shortname" forms, and the edit page's own toggles - stays on the
+ * page it started on, where the message already shows inline, so this is
+ * opt in per form (the `onSuccess` field) rather than something every write
+ * does. The destination is always one this function builds itself, from a
+ * closed set, never a path a caller supplies.
+ */
+function visibilitySuccessDestination(onSuccess: string, shortname: string): string | null {
+  if (onSuccess === "moderation") return "/moderation/games";
+  if (onSuccess === "edit") return `/games/${shortname}/edit`;
+  return null;
+}
+
 export async function requestOwnership(form: FormData): Promise<void> {
   const shortname = String(form.get("shortname") ?? "");
   const note = String(form.get("note") ?? "").trim().slice(0, 2000);
@@ -274,7 +293,11 @@ export async function setGameVisibility(
   revalidatePath("/games");
   revalidatePath(`/games/${shortname}`);
   revalidatePath("/moderation/games");
-  return { ok: true, message: hidden ? "Game hidden." : "Game shown again." };
+
+  const message = hidden ? "Game hidden." : "Game shown again.";
+  const destination = visibilitySuccessDestination(String(form.get("onSuccess") ?? ""), shortname);
+  if (destination) redirect(`${destination}?visibility=${encodeURIComponent(message)}`);
+  return { ok: true, message };
 }
 
 /** Hide or show one release, on its game's edit page or the moderation queue
@@ -319,7 +342,11 @@ export async function setVersionVisibility(
 
   revalidatePath(`/games/${shortname}`);
   revalidatePath("/moderation/games");
-  return { ok: true, message: hidden ? "Release hidden." : "Release shown again." };
+
+  const message = hidden ? "Release hidden." : "Release shown again.";
+  const destination = visibilitySuccessDestination(String(form.get("onSuccess") ?? ""), shortname);
+  if (destination) redirect(`${destination}?visibility=${encodeURIComponent(message)}`);
+  return { ok: true, message };
 }
 
 /**
