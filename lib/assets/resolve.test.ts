@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { siteUrl } from "@/lib/site";
 import { ASSET_TIERS, type AssetIdentity } from "./asset";
 import { BLOB_TIER_BASE } from "./blob";
 import { DEFAULT_ASSET_CDN_BASE } from "./cdn";
@@ -141,43 +142,64 @@ test("a blob row resolves to the staging store and a static row to the durable t
   );
 });
 
-test("both reachable tiers are sources a caller has to handle, alongside the placeholder", () => {
-  for (const tier of ASSET_TIERS.filter((tier) => tier !== "bucket")) {
+test("every tier is a source a caller has to handle, alongside the placeholder", () => {
+  for (const tier of ASSET_TIERS) {
     expect(ASSET_SOURCES).toContain(tier);
   }
   expect(ASSET_SOURCES).toContain("placeholder");
 });
 
-// The bucket is private, and nothing serves it to a browser until #334.
+// The bucket is private, so an approved row in it is served through the hub's
+// own route (#334) rather than at a store URL.
 
-test("a bucket row has no URL, rather than a Blob URL built out of its path", () => {
-  expect(assetTierUrl("bucket", "units/bar/buildpic/abc.webp")).toBeNull();
+test("a bucket row resolves to the hub's staged picture route, not a Blob URL", () => {
+  expect(assetTierUrl("bucket", "units/bar/buildpic/abc.webp")).toBe(
+    `${siteUrl()}/assets/staged/units/bar/buildpic/abc.webp`,
+  );
 });
 
-test("an approved row in the bucket draws the placeholder and never names its path", () => {
+test("an approved row in the bucket is served through the route", () => {
   const held = heldOf([
     BUILDPIC,
     { tier: "bucket", path: "units/bar/buildpic/abc.webp", width: 256, height: 256, moderation: "approved" },
   ]);
 
-  const resolved = resolveAsset(BUILDPIC, held, { width: 4, height: 4 });
-
-  expect(resolved.from).toBe("placeholder");
-  expect(JSON.stringify(resolved)).not.toContain("abc.webp");
-  expect(servable(held, BUILDPIC)).toBeNull();
+  expect(resolveAsset(BUILDPIC, held)).toEqual({
+    from: "bucket",
+    url: `${siteUrl()}/assets/staged/units/bar/buildpic/abc.webp`,
+    served: BUILDPIC,
+    substituted: false,
+    width: 256,
+    height: 256,
+  });
 });
 
-test("a render in the bucket falls through to a buildpic the hub can serve", () => {
-  const held = heldOf(
-    [RENDER, { tier: "bucket", path: "units/bar/render/270/ghi.webp", width: 256, height: 192, moderation: "approved" }],
-    [BUILDPIC, { tier: "blob", path: "units/bar/buildpic/abc-Xy9.webp", width: 256, height: 256, moderation: "approved" }],
-  );
+test("a pending or rejected row in the bucket draws the placeholder and never names its path", () => {
+  for (const moderation of ["pending", "rejected"] as const) {
+    const held = heldOf([
+      BUILDPIC,
+      { tier: "bucket", path: "units/bar/buildpic/abc.webp", width: 256, height: 256, moderation },
+    ]);
+
+    const resolved = resolveAsset(BUILDPIC, held, { width: 4, height: 4 });
+
+    expect(resolved.from).toBe("placeholder");
+    expect(JSON.stringify(resolved)).not.toContain("abc.webp");
+    expect(servable(held, BUILDPIC)).toBeNull();
+  }
+});
+
+test("a missing render substitutes a buildpic that is in the bucket", () => {
+  const held = heldOf([
+    BUILDPIC,
+    { tier: "bucket", path: "units/bar/buildpic/abc.webp", width: 256, height: 256, moderation: "approved" },
+  ]);
 
   expect(resolveAsset(RENDER, held)).toMatchObject({
-    from: "blob",
+    from: "bucket",
     served: BUILDPIC,
     substituted: true,
-    url: `${BLOB_TIER_BASE}units/bar/buildpic/abc-Xy9.webp`,
+    url: `${siteUrl()}/assets/staged/units/bar/buildpic/abc.webp`,
   });
 });
 
