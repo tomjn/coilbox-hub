@@ -30,13 +30,15 @@ import { assetObjectPath } from "./path";
  * direction every step below fails in.
  *
  * 1. Drain. Delete any staging object a previous run promoted and did not get
- *    round to deleting. Dies here: nothing has changed, the next run drains it.
+ *    round to deleting. Fails here: said out loud and carried on past, because
+ *    nothing has changed and the next run drains it.
  * 2. Select. Approved, on the staging tier, untouched for seven days. Dies
  *    here: nothing has changed.
  * 3. Read the bytes out of Blob and write them into the assets checkout under
  *    the content addressed path, which is recomputed from the row because the
- *    staging path carries a suffix that is not part of it. Dies here: the
- *    working tree of a throwaway checkout is thrown away with it.
+ *    staging path carries a suffix that is not part of it. An object the store
+ *    will not return skips its row and the rest of the batch carries on. Dies
+ *    here: the working tree of a throwaway checkout is thrown away with it.
  * 4. Re-check that every row is still approved and still on the staging tier,
  *    then commit and push. Dies before the push: nothing durable happened.
  *    Dies after it: the object is in both tiers and every row still says
@@ -309,7 +311,8 @@ export async function clearPendingDeletions(
  */
 export interface PromotionPorts {
   /** The bytes at a URL. A plain fetch of a public object: data transfer, not
-   *  an operation. */
+   *  an operation. Throws {@link StagingReadError} when the store answers with
+   *  anything but the bytes. */
   read(url: string): Promise<Uint8Array>;
   /** Whether the durable checkout already holds this path. Content addressed,
    *  so if it does, it holds the same bytes and there is nothing to write. */
@@ -328,6 +331,23 @@ export interface PromotionPorts {
   say(message: string): void;
 }
 
+/**
+ * The store answered a read with a status rather than the bytes.
+ *
+ * Its own class so a caller can tell a 404, which the game picture pass reads
+ * as "not on the staging tier", from everything else. A suspended Vercel Blob
+ * store answers 403 for every object, and that is not the same fact as absent.
+ */
+export class StagingReadError extends Error {
+  constructor(
+    readonly status: number,
+    url: string,
+  ) {
+    super(`${status} reading ${url}`);
+    this.name = "StagingReadError";
+  }
+}
+
 export interface PromotionResult {
   /** Staging objects a previous run left behind and this one deleted. */
   drained: number;
@@ -337,6 +357,14 @@ export interface PromotionResult {
   skipped: number;
   /** Staging objects this run deleted for rows it promoted itself. */
   deleted: number;
+  /** Of the skipped rows, the ones whose bytes the store would not return. A
+   *  run that finishes with any of these finished, and still needs a person to
+   *  look, so the job fails on it after everything else has run. */
+  unreadable: number;
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -415,20 +443,28 @@ export async function runPromotion(
   ports: PromotionPorts,
   options: { limit?: number; now?: Date } = {},
 ): Promise<PromotionResult> {
-  // 1. Whatever a previous run left in both tiers.
-  const drained = await deletePromoted(supabase, ports, await fetchPendingDeletions(supabase));
-  if (drained > 0) ports.say(`Deleted ${drained} staging object(s) left by an earlier run.`);
+  // 1. Whatever a previous run left in both tiers. A failure here is not a
+  // reason to stop: every leftover is still named in `blob_path`, so the next
+  // run drains it, and the rows due today have nothing to do with it.
+  let drained = 0;
+  try {
+    drained = await deletePromoted(supabase, ports, await fetchPendingDeletions(supabase));
+    if (drained > 0) ports.say(`Deleted ${drained} staging object(s) left by an earlier run.`);
+  } catch (error) {
+    ports.say(`Could not drain what an earlier run left, so it waits for the next: ${message(error)}`);
+  }
 
   // 2. What is due.
   const rows = await fetchPromotable(supabase, options.limit ?? PROMOTION_BATCH, options.now);
   if (rows.length === 0) {
     ports.say("Nothing is due for promotion.");
-    return { drained, promoted: 0, skipped: 0, deleted: 0 };
+    return { drained, promoted: 0, skipped: 0, deleted: 0, unreadable: 0 };
   }
 
   // 3. The bytes, into the checkout, at the path the identity and hash name.
   const batch: Promotable[] = [];
   let skipped = 0;
+  let unreadable = 0;
 
   for (const row of rows) {
     const durable = durablePath(row);
@@ -447,7 +483,18 @@ export async function runPromotion(
       continue;
     }
 
-    const bytes = await ports.read(blobTierUrl(row.path));
+    // One object the store will not return is that row's problem, not the
+    // batch's. Skipping it leaves the row on the staging tier and the object
+    // named, so nothing is lost and the next run tries again.
+    let bytes: Uint8Array;
+    try {
+      bytes = await ports.read(blobTierUrl(row.path));
+    } catch (error) {
+      ports.say(`skip ${row.id}: the store would not return its bytes: ${message(error)}`);
+      skipped++;
+      unreadable++;
+      continue;
+    }
 
     // The durable tier's history cannot be rewritten, so a short read or an
     // error page has to be caught before the commit rather than after it. The
@@ -467,7 +514,7 @@ export async function runPromotion(
   }
 
   if (batch.length === 0) {
-    return { drained, promoted: 0, skipped, deleted: 0 };
+    return { drained, promoted: 0, skipped, deleted: 0, unreadable };
   }
 
   // 4. Last look before the permanent bit, then one commit and one push.
@@ -480,7 +527,7 @@ export async function runPromotion(
 
   if (pushing.length === 0) {
     ports.say("Every row in the batch changed state while its bytes were being read.");
-    return { drained, promoted: 0, skipped, deleted: 0 };
+    return { drained, promoted: 0, skipped, deleted: 0, unreadable };
   }
 
   await ports.publish(pushing.map((item) => item.durable));
@@ -509,5 +556,5 @@ export async function runPromotion(
   // earlier by a caller.
   const deleted = await deletePromoted(supabase, ports, moved);
 
-  return { drained, promoted: moved.length, skipped, deleted };
+  return { drained, promoted: moved.length, skipped, deleted, unreadable };
 }
