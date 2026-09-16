@@ -30,6 +30,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
   const { data: requests } = await supabase
     .from("game_ownership_request")
     .select("id,note,created_at,requested_by_name,game(shortname)")
+    .eq("state", "open")
     .order("created_at", { ascending: true });
 
   const queue = (requests ?? []) as unknown as {
