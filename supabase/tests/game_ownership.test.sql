@@ -8,7 +8,7 @@
 -- nothing else.
 
 begin;
-select plan(35);
+select plan(37);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -114,6 +114,18 @@ select lives_ok(
 -- service_role; no policy hands owner_user_id to a browser.
 reset role;
 set local role service_role;
+
+select lives_ok(
+  $$select game_id, state, requested_by from public.game_ownership_request$$,
+  'the decision action reads the ask as service_role'
+);
+
+select lives_ok(
+  $$update public.game_ownership_request set decided_at = now()
+    where game_id = '0f8fad5b-0006-4000-8000-000000000001'$$,
+  'and writes the decision as service_role'
+);
+
 update public.game set owner_user_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' where shortname = 'BA';
 
 -- Now the author owns BA, and can edit exactly what an owner edits.
