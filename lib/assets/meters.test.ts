@@ -1,4 +1,4 @@
-import { expect, mock, test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -8,25 +8,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * measure has to come back with no figure and never with a zero, and it must not
  * be able to raise or clear an alert. A dashboard-only meter reading 0% would be
  * read as headroom, which is the one wrong answer here.
- *
- * The second claim is that reading the meters is free. Asking the store how full
- * it is would be an advanced operation spent on watching the advanced operation
- * count, so every number comes out of Postgres, and the mock below makes that
- * structural rather than something to check by reading.
  */
-mock.module("@vercel/blob", () => ({
-  BlobStoreSuspendedError: class extends Error {},
-  put: () => {
-    throw new Error("reading the meters must never spend an advanced operation");
-  },
-  del: () => {
-    throw new Error("reading the meters must never call the store");
-  },
-}));
-
 const {
   assetClass,
-  BLOB_STORAGE_ALLOWANCE_BYTES,
   durableClasses,
   fetchMeters,
   formatBytes,
@@ -46,38 +30,10 @@ interface Usage {
   bytes: number;
 }
 
-/** Where each count started from, so a test can see the window. */
-let windows: string[] = [];
-
-/** Enough of PostgREST for one count and two functions. `bucketBytes` is what
+/** Enough of PostgREST for two functions. `bucketBytes` is what
  *  `staged_pictures_bucket_bytes` answers with, null meaning the call failed. */
-function fakeSupabase(
-  usage: Usage[],
-  counts: Record<string, number | null>,
-  bucketBytes: number | null = 0,
-): SupabaseClient {
-  windows = [];
-  const table = (name: string) => {
-    const builder = {
-      select: () => builder,
-      eq: () => builder,
-      not: () => builder,
-      gte: (_column: string, value: string) => {
-        windows.push(value);
-        return builder;
-      },
-      then: (resolve: (value: { count: number | null; error: unknown }) => unknown) => {
-        const count = counts[name];
-        return resolve(
-          count === null ? { count: null, error: { message: "no" } } : { count, error: null },
-        );
-      },
-    };
-    return builder;
-  };
-
+function fakeSupabase(usage: Usage[], bucketBytes: number | null = 0): SupabaseClient {
   return {
-    from: table,
     rpc: (name: string) => {
       if (name === "staged_pictures_bucket_bytes") {
         return Promise.resolve(
@@ -110,7 +66,7 @@ test("the durable tier is broken down by class, biggest first", () => {
       { tier: "static", variant: "render:0", objects: 2, bytes: 200 },
       { tier: "static", variant: "render:90", objects: 1, bytes: 100 },
       { tier: "static", variant: "buildpic", objects: 9, bytes: 90 },
-      { tier: "blob", variant: "buildpic", objects: 4, bytes: 4000 },
+      { tier: "bucket", variant: "buildpic", objects: 4, bytes: 4000 },
     ]),
   ).toEqual([
     { name: "render", objects: 3, bytes: 300 },
@@ -118,46 +74,30 @@ test("the durable tier is broken down by class, biggest first", () => {
   ]);
 });
 
-test("what the store holds is staging plus everything waiting to be swept", async () => {
+test("the durable tier meter counts only static rows", async () => {
   const report = await fetchMeters(
-    fakeSupabase(
-      [
-        { tier: "blob", variant: "buildpic", objects: 2, bytes: 8192 },
-        { tier: "static", variant: "minimap", objects: 5, bytes: 200_000 },
-        { tier: "orphan", variant: "superseded", objects: 1, bytes: 4096 },
-      ],
-      { blob_put: 9 },
-    ),
+    fakeSupabase([
+      { tier: "bucket", variant: "buildpic", objects: 2, bytes: 8192 },
+      { tier: "static", variant: "minimap", objects: 5, bytes: 200_000 },
+      { tier: "orphan", variant: "superseded", objects: 1, bytes: 4096 },
+    ]),
     NOW,
   );
 
-  expect(meter(report, "Blob storage").used).toBe(8192 + 4096);
-  expect(meter(report, "Blob storage").allowance).toBe(BLOB_STORAGE_ALLOWANCE_BYTES);
   expect(meter(report, "Durable tier").used).toBe(200_000);
   expect(report.durable).toEqual([{ name: "minimap", objects: 5, bytes: 200_000 }]);
 });
 
-test("advanced operations are every reserved put in the last 30 days, not this month", async () => {
-  const report = await fetchMeters(fakeSupabase([], { blob_put: 1203 }), NOW);
+test("there is no Blob meter left to raise an alarm", async () => {
+  const report = await fetchMeters(fakeSupabase([]), NOW);
 
-  expect(meter(report, "Blob advanced operations").used).toBe(1203);
-  expect(meter(report, "Blob advanced operations").basis).toBe("counted");
-  // 30 days back from 14 August, which is in July. A calendar month would have
-  // started on 1 August and missed the half of the window that ended the store.
-  expect(windows).toEqual(["2026-07-15T12:00:00.000Z"]);
-});
-
-test("a count that could not be read is not a count of zero", async () => {
-  const report = await fetchMeters(fakeSupabase([], { blob_put: null }), NOW);
-
-  expect(meter(report, "Blob advanced operations").used).toBeNull();
+  expect(report.meters.filter((candidate) => candidate.name.includes("Blob"))).toEqual([]);
 });
 
 test("the meters nothing here can see say so instead of showing a zero", async () => {
-  const report = await fetchMeters(fakeSupabase([], { blob_put: 0 }), NOW);
+  const report = await fetchMeters(fakeSupabase([]), NOW);
 
   for (const name of [
-    "Blob data transfer",
     "Supabase egress",
     "Vercel fast data transfer",
     "GitHub Pages bandwidth",
@@ -171,7 +111,7 @@ test("the meters nothing here can see say so instead of showing a zero", async (
 });
 
 test("the Supabase Storage meter is the staged-pictures bucket's size", async () => {
-  const report = await fetchMeters(fakeSupabase([], { blob_put: 0 }, 123_456), NOW);
+  const report = await fetchMeters(fakeSupabase([], 123_456), NOW);
 
   expect(meter(report, "Supabase Storage").used).toBe(123_456);
   expect(meter(report, "Supabase Storage").basis).toBe("counted");
@@ -179,7 +119,7 @@ test("the Supabase Storage meter is the staged-pictures bucket's size", async ()
 });
 
 test("a bucket size that could not be read is not a size of zero", async () => {
-  const report = await fetchMeters(fakeSupabase([], { blob_put: 0 }, null), NOW);
+  const report = await fetchMeters(fakeSupabase([], null), NOW);
 
   expect(meter(report, "Supabase Storage").used).toBeNull();
 });
@@ -191,7 +131,6 @@ test("nothing measurable is nothing to alert on, and nothing to reassure with ei
       basis: "dashboard",
       used: null,
       allowance: 100,
-      unit: "bytes",
       note: "",
     }),
   ).toBeNull();
@@ -201,8 +140,8 @@ test("nothing measurable is nothing to alert on, and nothing to reassure with ei
       at: NOW.toISOString(),
       durable: [],
       meters: [
-        { name: "unmeasured", basis: "dashboard", used: null, allowance: 100, unit: "bytes", note: "" },
-        { name: "roomy", basis: "counted", used: 10, allowance: 100, unit: "operations", note: "" },
+        { name: "unmeasured", basis: "dashboard", used: null, allowance: 100, note: "" },
+        { name: "roomy", basis: "counted", used: 10, allowance: 100, note: "" },
       ],
     }),
   ).toEqual([]);
@@ -213,12 +152,12 @@ test("a counted meter three quarters full fails the run that reads it", () => {
     at: NOW.toISOString(),
     durable: [],
     meters: [
-      { name: "operations", basis: "counted", used: 1500, allowance: 2000, unit: "operations", note: "" },
-      { name: "roomy", basis: "counted", used: 1499, allowance: 2000, unit: "operations", note: "" },
+      { name: "bucket", basis: "counted", used: 1536, allowance: 2048, note: "" },
+      { name: "roomy", basis: "counted", used: 1535, allowance: 2048, note: "" },
     ],
   });
 
-  expect(alerts).toEqual(["operations: 1500 of 2000 operations, which is past 75% of the allowance."]);
+  expect(alerts).toEqual(["bucket: 1.5 KiB of 2.0 KiB, which is past 75% of the allowance."]);
 });
 
 test("bytes are read at a glance in the units the allowances are written in", () => {

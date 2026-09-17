@@ -1,61 +1,44 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { UNIT_RENDER_VARIANT_PREFIX } from "./asset";
-import {
-  BLOB_ADVANCED_OPERATIONS_ALLOWANCE,
-  BLOB_PUT_BUDGET,
-  BLOB_WINDOW_DAYS,
-  blobWindowStart,
-} from "./blobLedger";
 
 /**
  * What the hub is spending, against the allowances that can end it (issue #113).
  *
  * ## Why every number says how it was arrived at
  *
- * Vercel does not publish the Hobby allowances in any API, and the four numbers
- * below were read off a dashboard by hand on 2026-08-14 (#99). There is no
- * endpoint to ask what has been used either. So a meter here is one of three
- * things and always says which:
+ * Neither Vercel nor Supabase tells an application what it has used, so a meter
+ * here is one of three things and always says which:
  *
- * - `counted`, worked out from Postgres, which knows because every object in the
- *   staging store has a row and the ones that stopped having one are in
- *   `public.asset_orphan`
+ * - `counted`, worked out from Postgres
  * - `estimated`, worked out from Postgres for something Postgres only partly
  *   describes
  * - `dashboard`, not measurable from here at all, reported as absent
  *
  * A meter that quietly reported a stale constant as if it were live would be
- * worse than no meter, because the whole point of the exercise is that the one
- * allowance that cannot be paid through stops being a surprise.
+ * worse than no meter.
  *
- * ## The one that binds
+ * ## No Blob meters
  *
- * Advanced operations. Going over 2,000 in any 30 days suspends the store for
- * 30 days, there is no overage billing, and a month of the hub refusing every
- * upload is an outage rather than a bill. Every put reserves its operation
- * against {@link BLOB_PUT_BUDGET}, which is 100 below the allowance, so the hub
- * cannot reach the suspension through its own front door. What this adds is
- * warning before that refusal starts, because a hub that has stopped taking
- * pictures is also a failure and one nobody gets an email about.
+ * Vercel Blob was the staging store until September 2026, and its 2,000
+ * advanced operations a month were the allowance that could end the hub. Uploads
+ * go to the Supabase bucket now (#332), nothing is staged in Blob that the hub
+ * still wants, and #338 removes the rest. A Blob meter would only raise alarms
+ * about a store the hub no longer writes to.
  *
- * Until September 2026 this counted asset rows by calendar month, and the store
- * was suspended with this meter reading 675. `./blobLedger` says what changed.
- *
- * {@link headroomAlerts} is that warning, and the channel is a scheduled job
+ * {@link headroomAlerts} is the warning, and the channel is a scheduled job
  * exiting non-zero. That is not elegant and it is the only alerting this project
  * has: a failed GitHub Actions run emails the repository owner, and nothing else
  * here can reach anybody.
  */
 
-/** One gibibyte, which is how Vercel and GitHub both express these. */
+/** One gibibyte, which is how Vercel, Supabase and GitHub all express these. */
 const GIB = 1024 * 1024 * 1024;
 
-/** Read off the Blob store dashboard on 2026-08-14 (#99). */
-export const BLOB_STORAGE_ALLOWANCE_BYTES = GIB;
-export const BLOB_DATA_TRANSFER_ALLOWANCE_BYTES = 10 * GIB;
+/** The window Vercel measures Hobby usage over, rolling rather than monthly. */
+const VERCEL_WINDOW_DAYS = 30;
 
-/** Shared between the site and anything else served through Vercel, which is
- *  why a staging read of the corpus shows up on the same meter as real visits. */
+/** Shared between the site and anything else served through Vercel, which
+ *  includes every staged picture `/assets/staged/` serves. */
 export const VERCEL_FAST_DATA_TRANSFER_ALLOWANCE_BYTES = 100 * GIB;
 
 /** GitHub Pages publishes a site of at most 1 GB, and asks for under 100 GB of
@@ -76,26 +59,25 @@ export const SUPABASE_EGRESS_ALLOWANCE_BYTES = 10 * GIB;
 /**
  * How full a counted meter has to be before the daily job starts failing.
  *
- * Three quarters, so the operations meter alerts at 1,500 of 2,000. That leaves
- * 400 uploads between the first red run and the budget refusing anything. It is
- * not weeks: one release of render angles spent more than that in a day in
- * August 2026, so treat a red run as today's problem.
+ * Three quarters. The bucket is 1 GB, and its busiest day so far (2026-09-16,
+ * one account's backfill) added 3.9 MiB, so the last quarter would take
+ * 64 days like that to fill.
  *
  * One fraction for every meter rather than a number each. They are all "this
  * ends badly at 100%" and inventing a separate threshold per meter would be
- * three more numbers to defend and keep in step.
+ * more numbers to defend and keep in step.
  */
 export const METER_ALERT_FRACTION = 0.75;
 
 export type MeterBasis = "counted" | "estimated" | "dashboard";
 
+/** Every meter is in bytes. */
 export interface Meter {
   name: string;
   basis: MeterBasis;
   /** Null on a `dashboard` meter, which is the whole of what makes it one. */
   used: number | null;
   allowance: number;
-  unit: "operations" | "bytes";
   /** What the number is, and what it leaves out. Rendered next to it: a basis
    *  that is not on the screen is a basis nobody reads. */
   note: string;
@@ -141,18 +123,9 @@ export function assetClass(variant: string): string {
   return variant.startsWith(UNIT_RENDER_VARIANT_PREFIX) ? "render" : variant;
 }
 
-/** A count, or null when the query failed. Null is not zero: a meter that read a
- *  broken query as an empty store would report full headroom at exactly the
- *  moment nobody can check. */
-async function countRows(
-  query: PromiseLike<{ count: number | null; error: unknown }>,
-): Promise<number | null> {
-  const { count, error } = await query;
-  return error ? null : (count ?? 0);
-}
-
-/** A scalar bigint RPC's answer, or null when the call failed. Same reasoning
- *  as {@link countRows}: a failed read is not a zero. */
+/** A scalar bigint RPC's answer, or null when the call failed. Null is not
+ *  zero: a meter that read a broken query as an empty store would report full
+ *  headroom at exactly the moment nobody can check. */
 async function readBigint(
   query: PromiseLike<{ data: unknown; error: unknown }>,
 ): Promise<number | null> {
@@ -183,23 +156,16 @@ export function durableClasses(rows: UsageRow[]): DurableClass[] {
 /**
  * Every meter, read now.
  *
- * Wants the secret key. `public.asset_orphan` is readable by nothing else, and
- * the counts have to include pending and rejected rows, which
+ * Wants the secret key. Both functions are granted to nothing else, and the
+ * counts have to include pending and rejected rows, which
  * `asset_read_approved` hides.
  */
 export async function fetchMeters(
   supabase: SupabaseClient,
   now: Date = new Date(),
 ): Promise<MeterReport> {
-  const [usage, operations, bucketBytes] = await Promise.all([
+  const [usage, bucketBytes] = await Promise.all([
     supabase.rpc("asset_storage_usage"),
-    // One row per reserved `put()`, the same rows the budget is checked against.
-    countRows(
-      supabase
-        .from("blob_put")
-        .select("id", { count: "exact", head: true })
-        .gte("at", blobWindowStart(now)),
-    ),
     readBigint(supabase.rpc("staged_pictures_bucket_bytes")),
   ]);
 
@@ -213,44 +179,10 @@ export async function fetchMeters(
     durable,
     meters: [
       {
-        name: `Blob advanced operations, last ${BLOB_WINDOW_DAYS} days`,
-        basis: "counted",
-        used: operations,
-        allowance: BLOB_ADVANCED_OPERATIONS_ALLOWANCE,
-        unit: "operations",
-        note:
-          `Every put() the hub makes, for a picture or a game's logo or banner, reserved before ` +
-          `it is made. Uploads stop at ${BLOB_PUT_BUDGET.toLocaleString("en-GB")}. Counts the hub's own spend only: ` +
-          "browsing the store in the Vercel dashboard lists blobs, which is an advanced " +
-          "operation nothing here can see, and the margin below the allowance is for that.",
-      },
-      {
-        name: "Blob storage",
-        basis: "counted",
-        used: total(rows, "blob") + total(rows, "orphan"),
-        allowance: BLOB_STORAGE_ALLOWANCE_BYTES,
-        unit: "bytes",
-        note:
-          "The encoded length of every staging row plus every object still queued for sweeping. " +
-          "Excludes per object overhead the store charges and this cannot see.",
-      },
-      {
-        name: `Blob data transfer, last ${BLOB_WINDOW_DAYS} days`,
-        basis: "dashboard",
-        used: null,
-        allowance: BLOB_DATA_TRANSFER_ALLOWANCE_BYTES,
-        unit: "bytes",
-        note:
-          "The store is public, so a browser fetches a staging picture straight from it and no " +
-          "part of that request reaches the hub. Nothing here can count it and there is no API " +
-          "to ask. Read it off the store dashboard.",
-      },
-      {
         name: "Supabase Storage",
         basis: "counted",
         used: bucketBytes,
         allowance: SUPABASE_STORAGE_ALLOWANCE_BYTES,
-        unit: "bytes",
         note:
           "Every object in the staged-pictures bucket, summed by storage.get_size_by_bucket(). " +
           "Every upload counts here whatever its moderation state: a rejected picture (#348) is " +
@@ -261,28 +193,28 @@ export async function fetchMeters(
         basis: "dashboard",
         used: null,
         allowance: SUPABASE_EGRESS_ALLOWANCE_BYTES,
-        unit: "bytes",
         note:
           "5 GB cached and 5 GB uncached, shared by the database, auth and storage across the " +
-          "whole organisation and not just this project. Not exposed to the application. Read it " +
-          "off the project dashboard.",
+          "whole organisation and not just this project. /assets/staged/ reads a staged picture " +
+          "out of the bucket whenever Vercel's CDN has no copy, which includes the first view " +
+          "after every deployment, and the CDN answers the rest. Not exposed to the " +
+          "application. Read it off the project dashboard.",
       },
       {
-        name: `Vercel fast data transfer, last ${BLOB_WINDOW_DAYS} days`,
+        name: `Vercel fast data transfer, last ${VERCEL_WINDOW_DAYS} days`,
         basis: "dashboard",
         used: null,
         allowance: VERCEL_FAST_DATA_TRANSFER_ALLOWANCE_BYTES,
-        unit: "bytes",
         note:
-          "Everything the site serves, shared with any staging read of the corpus. Measured by " +
-          "the platform and not exposed to the application. Read it off the project dashboard.",
+          "Everything the site serves, including every view of a staged picture, since those " +
+          "come through /assets/staged/ rather than straight from a store. Measured by the " +
+          "platform and not exposed to the application. Read it off the project dashboard.",
       },
       {
         name: "Durable tier published size",
         basis: "estimated",
         used: total(rows, "static"),
         allowance: PAGES_PUBLISHED_ALLOWANCE_BYTES,
-        unit: "bytes",
         note:
           "Summed from the rows that say they are on the durable tier. An estimate of the " +
           "published site rather than a measurement of it: the site also holds the atlas, the " +
@@ -294,7 +226,6 @@ export async function fetchMeters(
         basis: "dashboard",
         used: null,
         allowance: PAGES_BANDWIDTH_SOFT_ALLOWANCE_BYTES,
-        unit: "bytes",
         note:
           "A soft limit, and GitHub publishes no figure for it anywhere a job could read. There " +
           "is nothing to report until somebody is emailed about it.",
@@ -326,7 +257,7 @@ export function headroomAlerts(report: MeterReport): string[] {
     })
     .map(
       (meter) =>
-        `${meter.name}: ${meter.used} of ${meter.allowance} ${meter.unit}, which is past ` +
+        `${meter.name}: ${formatBytes(meter.used ?? 0)} of ${formatBytes(meter.allowance)}, which is past ` +
         `${Math.round(METER_ALERT_FRACTION * 100)}% of the allowance.`,
     );
 }
