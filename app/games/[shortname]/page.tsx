@@ -69,6 +69,12 @@ export async function generateMetadata({
 const CARD =
   "group flex h-full rounded-md border border-neutral-800 bg-card transition-colors hover:border-neutral-600 active:border-neutral-500";
 
+/** The controls this page offers beside the title: the owner's two, and the
+ *  download where a game names one. A link and a button doing neighbouring
+ *  jobs should not look like two different kinds of thing. */
+const CONTROL_BUTTON =
+  "rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60";
+
 /** A side's picture slot. Every tile in a row gets one when any side has a
  *  picture, so names line up, and the empty slot carries the games icon the way
  *  an empty logo tile does. */
@@ -215,24 +221,20 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
             <p className="text-sm text-neutral-400">Game version {page.release}</p>
           ) : null}
           {mayEdit ? (
-            <p className="text-sm">
-              <Link
-                href={`/games/${shortname}/edit`}
-                className="text-neutral-300 underline-offset-4 hover:underline active:underline"
-              >
-                Edit this game&rsquo;s words and images
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Link href={`/games/${shortname}/edit`} className={CONTROL_BUTTON}>
+                Edit this game
               </Link>
-              .
-            </p>
-          ) : null}
-          {mayEdit ? (
-            <div className="pt-1">
               <VisibilityToggleForm
                 action={setGameVisibility}
                 fields={{ shortname, hidden: "true", onSuccess: "edit" }}
                 label="Hide this game"
                 pendingLabel="Hiding…"
-                buttonClassName="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                // The default is a flex column, which stretches its button
+                // across the whole page. Only this call site needs fixing: the
+                // edit page and the moderation queue pass their own layout.
+                formClassName="flex flex-col items-start gap-1.5"
+                buttonClassName={CONTROL_BUTTON}
               />
             </div>
           ) : null}
