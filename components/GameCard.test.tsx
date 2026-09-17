@@ -66,8 +66,8 @@ test("a card with a logo draws it in the tile, and one without gets an empty til
 
 /** A logo still in the staging bucket is drawn from the hub's own route, named
  *  by its hash, because GitHub Pages does not have it until promotion (#345).
- *  One still staged in Blob is not drawn, because Blob is suspended. */
-test("a staged logo comes from the hub's route, and one staged in Blob is not drawn", () => {
+ *  An unrecognised staged tier is not drawn at all. */
+test("a staged logo comes from the hub's route, and an unrecognised staged tier is not drawn", () => {
   const hash = "a".repeat(64);
   const staged = { ...GAME, shortname: "SF", logo_path: "games/SF/logo.webp", logo_hash: hash };
 
@@ -76,7 +76,7 @@ test("a staged logo comes from the hub's route, and one staged in Blob is not dr
   ).toContain(`src="/assets/games/SF/logo/${hash}"`);
 
   expect(
-    renderToStaticMarkup(<GameCard game={{ ...staged, logo_staged_tier: "blob" }} />),
+    renderToStaticMarkup(<GameCard game={{ ...staged, logo_staged_tier: "unknown" }} />),
   ).not.toContain("<img");
 });
 

@@ -22,7 +22,7 @@ function render(angle: string): ResolvedAsset {
 const RENDER = render("top");
 
 const BUILDPICTURE: ResolvedAsset = {
-  from: "blob",
+  from: "bucket",
   url: "https://example.test/armcom-buildpic.webp",
   served: { keyedOn: "unit", game: "BA", unitName: "armcom", variant: "buildpic" },
   substituted: false,

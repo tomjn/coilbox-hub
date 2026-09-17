@@ -1,9 +1,10 @@
 import { beforeEach, expect, mock, test } from "bun:test";
 
 // `lib/games/art.test.ts` covers what `fetchGameArt` answers for a matching
-// hash, a wrong one, a hidden game, Blob and a promoted row. What is left to
-// prove here is the route's own job: which requests reach it, the headers on a
-// served picture and a redirect, and that every refusal looks the same.
+// hash, a wrong one, a hidden game, an unrecognised staged tier and a promoted
+// row. What is left to prove here is the route's own job: which requests reach
+// it, the headers on a served picture and a redirect, and that every refusal
+// looks the same.
 
 mock.module("@/lib/supabase/anon", () => ({ createAnonClient: () => ({ role: "anon" }) }));
 mock.module("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ role: "admin" }) }));

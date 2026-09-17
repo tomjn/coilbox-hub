@@ -52,11 +52,11 @@ import type { MapPreview, PreviewAppearance, PreviewPoint } from "@/lib/maps/pre
  *
  * ## Both pictures are read pixel by pixel, so both need CORS
  *
- * The durable tier is GitHub Pages and the staging tier is Vercel Blob. Both
- * answer `access-control-allow-origin: *`, so `crossOrigin = "anonymous"` is
- * enough and the canvas stays untainted. Without it `getImageData` throws and
- * WebGL refuses the texture, which is why a failure here is reported to the
- * visitor rather than swallowed.
+ * The durable tier is GitHub Pages and the staging tier is the hub's own
+ * `/assets/staged/` route. Both answer `access-control-allow-origin: *`, so
+ * `crossOrigin = "anonymous"` is enough and the canvas stays untainted.
+ * Without it `getImageData` throws and WebGL refuses the texture, which is why
+ * a failure here is reported to the visitor rather than swallowed.
  *
  * ## What it follows
  *

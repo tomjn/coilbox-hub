@@ -20,10 +20,9 @@ import type { HeightRange } from "./heights";
  * itself over HTTP would be a round trip to learn what it already knows.
  *
  * `servable` is what both URLs come through, so the approved only filter and
- * `assetTierUrl` are the single door here as everywhere else. A pending upload's
- * Blob path is a working public URL and the only thing keeping unreviewed bytes
- * out of sight is that nobody knows it, so this must not become a second way to
- * reach one.
+ * `assetTierUrl` are the single door here as everywhere else. A pending upload
+ * sits in the private staging bucket, and this must not become a second way to
+ * reach bytes nobody has reviewed.
  *
  * ## No overlay means no preview
  *

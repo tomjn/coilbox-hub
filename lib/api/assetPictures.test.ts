@@ -8,10 +8,10 @@ import {
   parseAssetPicturesBody,
 } from "./assetPictures";
 import { type AssetIdentity, MAP_VARIANTS } from "@/lib/assets/asset";
-import { BLOB_TIER_BASE } from "@/lib/assets/blob";
 import { DEFAULT_ASSET_CDN_BASE } from "@/lib/assets/cdn";
 import { identityKey } from "@/lib/assets/have";
 import type { HeldRow } from "@/lib/assets/resolve";
+import { siteUrl } from "@/lib/site";
 
 const UNIT_KEY = {
   keyed_on: "unit",
@@ -241,20 +241,20 @@ test("a durable tier row answers with its tier, its tier relative path and the p
 });
 
 /**
- * The suffix is the reason the route exists: `lib/assets/blob.ts` adds one
- * nobody can compute, so a caller that does not hold the bytes cannot derive
- * this path however much of the identity it knows.
+ * The hash is the reason the route exists: it is a hash of the encoded bytes,
+ * which nothing about the identity determines, so a caller that does not hold
+ * the bytes cannot derive this path however much of the identity it knows.
  */
-test("a staging tier row answers with the path Blob chose, suffix and all", () => {
+test("a staging tier row answers with its own path and tier", () => {
   const [identity] = identitiesOf({ keys: [MAP_KEY] });
   const held = heldFor([
-    [identity, row({ tier: "blob", path: "maps/minimap/def-Xy9tR2.webp" })],
+    [identity, row({ tier: "bucket", path: "maps/minimap/def.webp" })],
   ]);
 
   expect(buildAssetPicturesBody([identity], held).results[0].picture).toMatchObject({
-    tier: "blob",
-    path: "maps/minimap/def-Xy9tR2.webp",
-    url: `${BLOB_TIER_BASE}maps/minimap/def-Xy9tR2.webp`,
+    tier: "bucket",
+    path: "maps/minimap/def.webp",
+    url: `${siteUrl()}/assets/staged/maps/minimap/def.webp`,
   });
 });
 

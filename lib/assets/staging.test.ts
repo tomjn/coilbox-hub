@@ -69,7 +69,7 @@ function fakeStorage() {
 
 test("the module does not offer list or any other listing call", async () => {
   // Postgres already knows every object, because every object has a row
-  // (issue #331, and the same reasoning as `./blob`'s rule one and two).
+  // (issue #331).
   const staging = await import("./staging");
   const exported = Object.keys(staging);
 
@@ -89,7 +89,7 @@ test("a put reaches the staged-pictures bucket with upsert false", async () => {
   expect(store.calls.upload[0][2]).toEqual({ contentType: "image/webp", upsert: false });
 });
 
-test("a put normalises a leading slash the way ./blob does", async () => {
+test("a put normalises a leading slash", async () => {
   const store = fakeStorage();
 
   await putStagedAsset(store.supabase, "/units/bar/abc.webp", "bytes", "image/webp");

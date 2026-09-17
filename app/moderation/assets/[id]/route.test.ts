@@ -73,22 +73,22 @@ test("a bucket row is served to a moderator with the security headers unchanged"
   expect(response.headers.get("Cache-Control")).toBe("private, max-age=300");
 });
 
-test("a Blob row is still fetched from its Blob URL, with the same headers", async () => {
+test("a static row is still fetched from its durable tier URL, with the same headers", async () => {
   fetchAssetObjectResult = Promise.resolve({
     source: "url",
-    url: "https://blob.example/units/bar/abc-Xy9.webp",
+    url: "https://tomjn.github.io/coilbox-assets/units/bar/abc.webp",
     mime: "image/webp",
   });
   const originalFetch = globalThis.fetch;
-  const upstreamFetch = mock(() => Promise.resolve(new Response("blob bytes", { status: 200 })));
+  const upstreamFetch = mock(() => Promise.resolve(new Response("durable bytes", { status: 200 })));
   globalThis.fetch = upstreamFetch as unknown as typeof fetch;
 
   try {
     const response = await GET(new Request("http://hub.test/x"), ctx(ID));
 
-    expect(upstreamFetch).toHaveBeenCalledWith("https://blob.example/units/bar/abc-Xy9.webp");
+    expect(upstreamFetch).toHaveBeenCalledWith("https://tomjn.github.io/coilbox-assets/units/bar/abc.webp");
     expect(response.status).toBe(200);
-    expect(await response.text()).toBe("blob bytes");
+    expect(await response.text()).toBe("durable bytes");
     expect(response.headers.get("Content-Type")).toBe("image/webp");
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(response.headers.get("Content-Security-Policy")).toBe("default-src 'none'; sandbox");

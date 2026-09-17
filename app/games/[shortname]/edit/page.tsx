@@ -14,9 +14,9 @@ import { GameImageRemoveForm } from "./GameImageRemoveForm";
  * The edit page for a game's owner or a moderator (#229, #350).
  *
  * Three forms, because they are three different kinds of write: words (a plain
- * update through row level security), and two images (bytes to Blob, then a
- * path onto the row). One form per job means a failed upload never takes the
- * description with it.
+ * update through row level security), and two images (bytes to the staging
+ * bucket, then a path onto the row). One form per job means a failed upload
+ * never takes the description with it.
  *
  * Everything here is ordinary forms posting to server actions, except the two
  * uploads, which check a file's size in the browser first (`GameImageForm`),

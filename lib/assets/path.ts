@@ -13,20 +13,22 @@
  * the same bytes always name the same key, which is what lets the durable tier
  * hold one object per picture and what #112 packs an atlas out of.
  *
- * On the staging tier this is the path the hub asks for rather than the path
- * the object ends up at. Blob appends a suffix, the row stores what came back,
- * and promotion (#111) recomputes this path from the row when it writes the
- * object into the durable tier. The reason is #131: the uploader holds the
- * bytes, so the uploader can derive anything derived from them, and a public
- * store makes a derivable path a public URL before anybody has reviewed it.
+ * This is also the exact path an upload writes to on the staging bucket, so
+ * promotion (#111) copies the object into the durable tier at that same path
+ * rather than working one out for it. Vercel Blob, the staging store before
+ * the bucket, appended a suffix nobody could derive without the bytes (#131),
+ * so promotion had to recompute this path from the row to land the object at
+ * its durable name. #338 removed Blob, and the bucket writes to a content
+ * addressed path from the start, so promotion still recomputes it defensively
+ * but the two paths already agree.
  *
  * `unit_name` and `map_name` are not in the path, for two different reasons.
  * A map name is the full canonical name the engine reports, which is free text
  * with spaces, brackets, quotes and full stops in it, and none of that belongs
  * in an object key or in a git tree. A unit name is safe enough, but including
  * it would store one object per unit where two units in a game legitimately
- * share a picture, and each of those copies is an advanced operation out of
- * 2,000 a month.
+ * share a picture, which is needless storage and a needless git object for
+ * bytes already held.
  *
  * The consequence is worth naming: two rows can point at one object. Deleting
  * the object for one row therefore has to consider the other, which is #113's

@@ -152,7 +152,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
 
   const title = gameTitle(page);
   // A picture still in the staging bucket comes from the hub's own route, and
-  // one staged in Blob is not drawn (#345).
+  // an unrecognised staged tier is not drawn (#345).
   const banner = gameArtUrl(page.shortname, "banner", {
     path: page.banner_path,
     hash: page.banner_hash,

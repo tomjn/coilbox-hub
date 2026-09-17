@@ -23,42 +23,11 @@ const eslintConfig = defineConfig([
   ]),
   {
     rules: {
-      // Vercel Blob on Hobby gets 2,000 advanced operations a month, and
-      // `list()`, `head()` and `copy()` all spend them for answers a
-      // `public.asset` row already has. Going over removes Blob access for 30
-      // days and cannot be paid through, so the ban is a lint error rather
-      // than a note somebody has to have read. `lib/assets/blob.ts` exports
-      // the two calls that are worth making and explains the rest.
-      //
-      // `@vercel/blob/client` was left unrestricted for the client direct
-      // upload path (#104), which spends none of that allowance. It is banned
-      // outright now, for a different reason: `upload()` hands the browser the
-      // finished URL, so it tells an uploader where its own unreviewed picture
-      // landed, and the moderation queue only works because nobody outside the
-      // hub knows that (#133). There is one upload path and it is a route.
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "@vercel/blob",
-              message:
-                "Import from @/lib/assets/blob instead. It is the only place this package is allowed, and it deliberately does not expose list(), head() or copy().",
-            },
-            {
-              name: "@vercel/blob/client",
-              message:
-                "Client direct uploads are not accepted. upload() returns the object's URL to the uploader, which is the one party a pending picture is kept from (#133). Post to /api/v1/assets/upload instead.",
-            },
-          ],
-        },
-      ],
       // `supabase.storage` is a property access rather than an import, so it
-      // needs its own rule alongside the one above rather than reuse of it.
-      // Same reasoning as @vercel/blob (#331): the staging bucket is private
-      // and content addressed, and `lib/assets/staging.ts` is the only place
-      // that is allowed to know that, or to reach for a listing call nothing
-      // here should ever make.
+      // needs `no-restricted-syntax` rather than `no-restricted-imports`. The
+      // staging bucket is private and content addressed, and
+      // `lib/assets/staging.ts` is the only place that is allowed to know
+      // that, or to reach for a listing call nothing here should ever make.
       "no-restricted-syntax": [
         "error",
         {
@@ -68,10 +37,6 @@ const eslintConfig = defineConfig([
         },
       ],
     },
-  },
-  {
-    files: ["lib/assets/blob.ts"],
-    rules: { "no-restricted-imports": "off" },
   },
   {
     files: ["lib/assets/staging.ts"],

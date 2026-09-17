@@ -22,9 +22,9 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  *
  * The pictures of a map come through `/api/v1/assets/upload` and this is not
  * that route. That one carries bytes, so it takes one asset per request against
- * a platform body cap and a Blob write that succeeds or fails whole. There are
- * no bytes here, so fifty maps travel together and each gets its own outcome
- * inside a 200.
+ * a platform body cap and a bucket write that succeeds or fails whole. There
+ * are no bytes here, so fifty maps travel together and each gets its own
+ * outcome inside a 200.
  *
  * ## What the hub works out for itself
  *

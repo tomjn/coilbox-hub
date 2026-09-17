@@ -459,20 +459,6 @@ test("another account still cannot replace a row whose bytes are lost", async ()
 });
 
 /**
- * #332. The bucket path is content addressed and has no suffix, so identical
- * bytes land at the path this answers with and the route reuses the object it
- * finds there. The Blob era lookup for a suffixed object to reuse would hand a
- * bucket row a Blob path, so it is not asked.
- */
-test("the check does not look for a Blob object to reuse", async () => {
-  const seen: Query[] = [];
-  const result = await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration(), HASH);
-
-  expect(result).toEqual({ ok: true, path: "units/BYAR/buildpic/encabc.webp", replacing: null });
-  expect(seen.map((query) => query.table)).not.toContain("rpc:reusable_staging_object");
-});
-
-/**
  * The cheap signal #116 asks for, and the reason it rides along on the answer
  * rather than being one.
  *

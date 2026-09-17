@@ -6,7 +6,6 @@ import {
   UNIT_BUILDPIC_VARIANT,
   UNIT_RENDER_VARIANT_PREFIX,
 } from "./asset";
-import { blobTierUrl } from "./blob";
 import { bucketTierUrl } from "./bucket";
 import { staticTierUrl } from "./cdn";
 import { identityFilter, identityKey, queryChunks, rowIdentity } from "./have";
@@ -18,7 +17,7 @@ import { type Footprint, type MissingPicture, missingPicture } from "./placehold
  *
  * A caller asks by identity and never by tier. Which tier serves a picture is a
  * storage detail that comes off the row, so a component that wanted a minimap
- * has no reason to know that this one is still in Blob and that one has been
+ * has no reason to know that this one is still staged and that one has been
  * promoted.
  *
  * The last rung always succeeds. Nothing here can answer "no", so a caller never
@@ -29,9 +28,8 @@ import { type Footprint, type MissingPicture, missingPicture } from "./placehold
  * 1. The atlas for the game, buildpics only, already in the bundle. Not built.
  *    See the note below.
  * 2. The durable tier on GitHub Pages, which is off Vercel's meters entirely.
- * 3. The staging tier, for anything not promoted yet: Blob for older uploads,
- *    and the private bucket, served through the hub's own route, for newer
- *    ones.
+ * 3. The staging tier, for anything not promoted yet: the private bucket,
+ *    served through the hub's own route.
  * 4. The buildpic, when a render angle is missing.
  * 5. A placeholder drawn from the footprint and the name.
  *
@@ -40,7 +38,7 @@ import { type Footprint, type MissingPicture, missingPicture } from "./placehold
  * `asset_map_identity_idx`, and that row's `tier` column says which store
  * holds it. So the order between them is a fact about promotion, not
  * something this file races: a promoted row reads `static` and an unpromoted one
- * reads `blob` or `bucket`, and no state is ever ambiguous.
+ * reads `bucket`, and no state is ever ambiguous.
  *
  * ## Nothing here can serve a pending or a rejected row
  *
@@ -56,11 +54,8 @@ import { type Footprint, type MissingPicture, missingPicture } from "./placehold
  *
  * A pending row is therefore indistinguishable from no row at all: the identity
  * falls through to the buildpic substitute and then to the placeholder. That is
- * the point. A pending upload's Blob path is a working public URL, and the only
- * thing keeping unreviewed bytes out of sight is that nobody outside the hub
- * knows it (#131), so this resolver must never be the second way to reach one.
- * `app/moderation/assets/[id]/route.ts` is the only path to unapproved bytes and
- * it checks `is_moderator()` per request.
+ * the point. `app/moderation/assets/[id]/route.ts` is the only path to
+ * unapproved bytes and it checks `is_moderator()` per request.
  *
  * A bucket row's URL points at `app/assets/staged/[...path]/route.ts`, which
  * holds the same line on its own: it serves a path only when an approved bucket
@@ -89,12 +84,12 @@ import { type Footprint, type MissingPicture, missingPicture } from "./placehold
  *
  * The tiers keep their own names rather than collapsing into one "stored",
  * because which one served a picture is the difference between a request that
- * costs nothing and one that spends Blob data transfer or a call to the hub,
- * and that is worth being able to see.
+ * costs nothing and one that spends a call to the hub, and that is worth being
+ * able to see.
  *
  * #112 adds `"atlas"` here.
  */
-export const ASSET_SOURCES = ["static", "blob", "bucket", "placeholder"] as const;
+export const ASSET_SOURCES = ["static", "bucket", "placeholder"] as const;
 
 export type AssetSource = (typeof ASSET_SOURCES)[number];
 
@@ -188,8 +183,6 @@ export function assetTierUrl(tier: AssetTier, path: string): string {
   switch (tier) {
     case "static":
       return staticTierUrl(path);
-    case "blob":
-      return blobTierUrl(path);
     case "bucket":
       return bucketTierUrl(path);
   }
@@ -262,9 +255,9 @@ export async function fetchHeldAssets(
 
     for (const row of data as unknown as (HeldRow &
       Parameters<typeof rowIdentity>[0] & { bytes_missing_at?: string | null })[]) {
-      // A row whose bytes the Blob store would not return (#336) is served as
-      // if there were no row. Its URL answers 403, and the buildpic or the
-      // placeholder is a picture where a broken image is not.
+      // A row marked as missing its bytes (#336) is served as if there were no
+      // row, and the buildpic or the placeholder is a picture where a broken
+      // image is not.
       if (row.bytes_missing_at) continue;
 
       held.set(identityKey(rowIdentity(row)), {

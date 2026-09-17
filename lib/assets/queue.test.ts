@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { StorageApiError, type SupabaseClient } from "@supabase/supabase-js";
-import { BLOB_TIER_BASE } from "./blob";
+import { DEFAULT_ASSET_CDN_BASE } from "./cdn";
 import { fetchAssetObject, pictureCaption, pictureIds, QUEUE_PAGE_SIZE } from "./queue";
 import { STAGED_PICTURES_BUCKET } from "./staging";
 
@@ -51,7 +51,7 @@ test("a submission cannot act on more rows than a page holds", () => {
 
 /** A client whose one `asset` row is whatever the test hands it, and whose
  * `staged-pictures` download answers whatever the test hands it too. Only the
- * bucket tests set a download result. The Blob tests never reach `./staging`
+ * bucket tests set a download result. The static tests never reach `./staging`
  * at all. */
 function oneRow(
   row: { path: string; tier: string; mime: string } | null,
@@ -68,12 +68,12 @@ function oneRow(
   } as unknown as SupabaseClient;
 }
 
-test("the moderation thumbnail fetches a Blob row from its Blob URL", async () => {
+test("the moderation thumbnail fetches a static row from its durable tier URL", async () => {
   expect(
-    await fetchAssetObject(oneRow({ path: "units/bar/buildpic/abc-Xy9.webp", tier: "blob", mime: "image/webp" }), ID),
+    await fetchAssetObject(oneRow({ path: "units/bar/buildpic/abc.webp", tier: "static", mime: "image/webp" }), ID),
   ).toEqual({
     source: "url",
-    url: `${BLOB_TIER_BASE}units/bar/buildpic/abc-Xy9.webp`,
+    url: `${DEFAULT_ASSET_CDN_BASE}units/bar/buildpic/abc.webp`,
     mime: "image/webp",
   });
 });

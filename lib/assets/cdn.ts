@@ -8,8 +8,8 @@
  * template or a stored row.
  *
  * This is the durable tier rung only. The full resolution order, which is the
- * atlas, then this, then Blob, then a buildpic substitute, then a generated
- * placeholder, belongs to #108 and is not here.
+ * atlas, then this, then the staging bucket, then a buildpic substitute, then
+ * a generated placeholder, belongs to #108 and is not here.
  */
 
 /**

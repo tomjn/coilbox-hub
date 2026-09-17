@@ -9,20 +9,24 @@ import { createClient } from "@/lib/supabase/server";
  *
  * ## Why the grid does not just link at the store
  *
- * A pending upload is in a public Blob store, reachable the moment `put()`
- * returns, and the only thing keeping it out of sight is that its path carries a
- * suffix nobody outside the hub can derive (#131). Putting that path in the
- * page's markup would hand the browser the one secret the queue rests on, for a
- * few hundred rows at a time. It would then be in the page source, the RSC
- * payload, the back/forward cache and whatever the browser is running, and there
- * is no taking it back: a leaked path cannot be rotated without rewriting the
- * object, which is the thing being protected.
+ * A pending upload sits in the private staging bucket, which `anon` and
+ * `authenticated` cannot read at all: only a client holding the secret key
+ * can. Putting the bucket path in the page's markup would still be a mistake
+ * even so, because it would be in the page source, the RSC payload, the
+ * back/forward cache and whatever the browser is running, for no gain: the
+ * browser could not fetch it without the secret key regardless.
  *
  * So the path never leaves the server. The browser gets this URL instead, which
  * names a row rather than an object, and the hub reads the path and fetches the
  * bytes itself. Access is decided per request rather than handed out once, so
  * somebody who stops being a moderator stops seeing pictures on their next
  * request rather than keeping a set of working URLs.
+ *
+ * Vercel Blob, the staging store before the bucket (#332), needed a sharper
+ * version of the same rule: it was public, so a pending upload's path was a
+ * working URL and its random suffix was the only thing keeping it out of sight
+ * (#131). #338 removed Blob, and the rule against putting a staging path in
+ * front of a browser outlived it.
  *
  * ## What everybody else gets
  *
@@ -36,8 +40,9 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * A private cache is the moderator's own browser and nothing in between, which
  * is what `private` is for: a shared cache, Vercel's included, must not hold a
- * pending picture. Without a max-age a reload refetches every thumbnail from the
- * store, which spends Blob data transfer to show a picture that has not changed.
+ * pending picture. Without a max-age a reload refetches every thumbnail from
+ * the store, spending a Storage API read to show a picture that has not
+ * changed.
  *
  * The one thing it costs: for five minutes after somebody stops being a
  * moderator, their own browser can still show them a picture it already

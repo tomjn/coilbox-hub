@@ -21,8 +21,8 @@ test("art staged in the bucket is drawn from the hub's route, named by its hash"
   );
 });
 
-test("art staged in Blob, a bucket row with no hash, and no art at all draw nothing", () => {
-  expect(gameArtUrl("BA", "logo", { path: PATH, hash: HASH, staged_tier: "blob" })).toBeNull();
+test("an unrecognised staged tier, a bucket row with no hash, and no art at all draw nothing", () => {
+  expect(gameArtUrl("BA", "logo", { path: PATH, hash: HASH, staged_tier: "unknown" })).toBeNull();
   expect(gameArtUrl("BA", "logo", { path: PATH, hash: null, staged_tier: "bucket" })).toBeNull();
   expect(gameArtUrl("BA", "logo", { path: null, hash: null, staged_tier: null })).toBeNull();
 });
@@ -118,11 +118,11 @@ test("no row for this game and hash is null, and the bucket is never asked", asy
   expect(admin.asked).toEqual({});
 });
 
-test("art staged in Blob is null, and the bucket is never asked", async () => {
+test("an unrecognised staged tier is null, and the bucket is never asked", async () => {
   const admin = adminWith({ data: new Blob([BYTES]), error: null });
 
   expect(
-    await fetchGameArt(anonWith({ logo_path: PATH, logo_staged_tier: "blob" }).client, admin.client, "BA", "logo", HASH),
+    await fetchGameArt(anonWith({ logo_path: PATH, logo_staged_tier: "unknown" }).client, admin.client, "BA", "logo", HASH),
   ).toBeNull();
   expect(admin.asked).toEqual({});
 });

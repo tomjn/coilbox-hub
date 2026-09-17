@@ -31,8 +31,9 @@ import { downloadStagedAsset } from "@/lib/assets/staging";
  * bucket holds the staged copy. The row is read with the anonymous client, so
  * a hidden game's row is not found and its art is refused, as its page is.
  *
- * Art still staged in Vercel Blob is not drawn at all. Blob is suspended, so
- * its URL would be a broken image, which is what this set out to remove.
+ * Art that named neither the bucket nor the durable tier used to mean it was
+ * still staged in Vercel Blob, which #338 removed. Nothing writes that state
+ * any more, and the fallback below still refuses to draw it.
  *
  * ## After promotion
  *

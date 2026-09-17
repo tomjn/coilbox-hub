@@ -123,10 +123,6 @@ export async function POST(request: Request) {
   // The hash over the encoded bytes decides whether anything changes at all,
   // before the store is asked for anything: a repeat of the bytes already on
   // the row writes nothing.
-  //
-  // Except when the row's staged copy is still in Blob (#332). That store may
-  // be suspended and unreadable, so the same bytes sent again go to the bucket
-  // and the row moves with them, rather than being told nothing changed.
   const hash = await encodedHash(bytes);
 
   const hashColumn = parsed.kind === "logo" ? "logo_hash" : "banner_hash";
@@ -139,12 +135,7 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   const held = current as Record<string, unknown> | null;
-  if (
-    held &&
-    held[hashColumn] === hash &&
-    held[pathColumn] !== null &&
-    held[stagedColumn] !== "blob"
-  ) {
+  if (held && held[hashColumn] === hash && held[pathColumn] !== null) {
     const answer: GameBrandingResponseBody = {
       format: GAME_BRANDING_FORMAT,
       version: GAME_BRANDING_VERSION,

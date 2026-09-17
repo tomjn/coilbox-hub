@@ -13,8 +13,9 @@
  * A dry run reads Postgres and reports. It deletes nothing, and costs one round
  * trip, so it can be pointed at production to see what the bucket is holding.
  *
- * It sweeps the Supabase bucket only. Vercel Blob is not swept any more, for
- * the reasons `lib/assets/orphan.ts` gives.
+ * It sweeps the Supabase bucket only. Vercel Blob, the staging store before
+ * the bucket, was removed in #338, and `lib/assets/orphan.ts` has what is left
+ * of that history.
  *
  * ## Where it runs, and why not in the hub
  *

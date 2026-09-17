@@ -18,14 +18,13 @@ import { downloadStagedAsset } from "./staging";
  * and keep the table shut.
  *
  * This is the second one, and the deciding factor is what a pending row's `path`
- * is. The Blob store is public, so on a pending row the path is a working URL
- * for bytes nobody has reviewed, and Blob's random suffix is the only thing
- * keeping it out of sight (#131). A select policy would make that column
- * readable over PostgREST with the publishable key by any browser holding a
- * moderator session, which puts the one secret the queue rests on into a
- * browser, where an extension, an XSS or a shared machine reaches it. Nothing
- * would then be able to take it back: the path cannot be rotated without
- * rewriting the object, and the object is what is being protected.
+ * is. When staging was Vercel Blob, the store was public, so the path was a
+ * working URL for bytes nobody had reviewed, and the store's random suffix was
+ * the only thing keeping it out of sight (#131). The private bucket (#332)
+ * does not remove the reason to keep `path` off a policy: a select policy would
+ * still make the column readable over PostgREST with the publishable key by any
+ * browser holding a moderator session, which puts the path an object lives at
+ * into a browser, where an extension, an XSS or a shared machine reaches it.
  *
  * Reading server side keeps the path on the server. What reaches the browser is
  * a row id and a URL on the hub's own origin, and `app/moderation/assets/[id]`
@@ -168,9 +167,9 @@ export async function fetchPictureQueue(
 }
 
 /**
- * The object one row points at. `blob` and `static` rows have a public URL the
- * route can fetch. A `bucket` row is private, so there is nothing to fetch, and
- * this carries the bytes themselves, already read out of `./staging`.
+ * The object one row points at. A `static` row has a public URL the route can
+ * fetch. A `bucket` row is private, so there is nothing to fetch, and this
+ * carries the bytes themselves, already read out of `./staging`.
  */
 export type AssetObject =
   | { source: "url"; url: string; mime: string }
