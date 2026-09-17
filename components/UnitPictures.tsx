@@ -1,5 +1,6 @@
 import { AssetPlaceholder } from "@/components/AssetPlaceholder";
-import type { ResolvedAsset } from "@/lib/assets/resolve";
+import { UNIT_RENDER_VARIANT_PREFIX } from "@/lib/assets/asset";
+import type { ResolvedAsset, ServedAsset } from "@/lib/assets/resolve";
 import type { UnitRenderView } from "@/lib/games/units";
 
 /**
@@ -11,6 +12,37 @@ import type { UnitRenderView } from "@/lib/games/units";
  * screen - side by side made sense in a mockup and fought the layout on
  * everything wider than a phone.
  */
+
+/**
+ * What a caption calls each angle. The vocabulary's own names are keys and not
+ * words for a reader, so `top` reads "Top down" rather than being shown raw.
+ *
+ * An angle added upstream falls through to its own name, which is a plain word
+ * in every angle the vocabulary has ever carried. That beats a caption reading
+ * "undefined" over a picture the hub is holding perfectly well.
+ */
+const ANGLE_CAPTIONS: Record<string, string> = {
+  top: "Top down",
+  front: "Front",
+  side: "Side",
+  angled: "Angled",
+};
+
+/**
+ * What the portrait is actually showing.
+ *
+ * A unit with renders and no buildpic is served one of its renders, and
+ * the caption has to follow the bytes rather than the slot they are filling.
+ * `served` is the identity the ladder answered with, which is what that field
+ * is for.
+ */
+function portraitCaption(asset: ServedAsset): string {
+  const variant = asset.served.variant;
+  if (!variant.startsWith(UNIT_RENDER_VARIANT_PREFIX)) return "Buildpic";
+
+  const angle = variant.slice(UNIT_RENDER_VARIANT_PREFIX.length);
+  return ANGLE_CAPTIONS[angle] ?? angle;
+}
 
 /** The hero portrait: the buildpic when the hub holds one, otherwise whatever
  *  the render resolution found. */
@@ -36,25 +68,12 @@ export function UnitPortrait({
           className="h-auto w-full object-contain"
         />
       )}
-      <figcaption className="text-xs text-neutral-500">Buildpic</figcaption>
+      <figcaption className="text-xs text-neutral-500">
+        {asset.from === "placeholder" ? "Buildpic" : portraitCaption(asset)}
+      </figcaption>
     </figure>
   );
 }
-
-/**
- * What a caption calls each angle. The vocabulary's own names are keys and not
- * words for a reader, so `top` reads "Top down" rather than being shown raw.
- *
- * An angle added upstream falls through to its own name, which is a plain word
- * in every angle the vocabulary has ever carried. That beats a caption reading
- * "undefined" over a picture the hub is holding perfectly well.
- */
-const ANGLE_CAPTIONS: Record<string, string> = {
-  top: "Top down",
-  front: "Front",
-  side: "Side",
-  angled: "Angled",
-};
 
 /** One angle, or nothing when the hub holds no render at that angle - an empty
  *  figure would promise a picture that is not there. A substituted one is the

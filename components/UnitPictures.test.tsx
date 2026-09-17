@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
-import type { ResolvedAsset } from "@/lib/assets/resolve";
+import type { ResolvedAsset, ServedAsset } from "@/lib/assets/resolve";
 
 /**
  * The unit's pictures draw apart (#268): the buildpic as the hero portrait
  * beside the name, every stored render angle in a section of its own.
  */
 
-function render(angle: string): ResolvedAsset {
+function render(angle: string): ServedAsset {
   return {
     from: "static",
     url: `https://example.test/armcom-${angle}.webp`,
@@ -35,6 +35,17 @@ test("the portrait shows the buildpic and says so", () => {
 
   expect(html).toContain('alt="Picture of Commander"');
   expect(html).toContain("Buildpic");
+});
+
+/** A unit with renders and no buildpic is shown one of its renders, and
+ *  captioning that "Buildpic" would be a plain lie about what the picture is. */
+test("a portrait standing in for a missing buildpic is captioned as the render it is", () => {
+  const substituted: ServedAsset = { ...render("angled"), substituted: true };
+
+  const html = renderToStaticMarkup(<UnitPortrait label="Commander" asset={substituted} />);
+
+  expect(html).toContain("Angled");
+  expect(html).not.toContain("Buildpic");
 });
 
 test("the render section draws a stored top down render", () => {
