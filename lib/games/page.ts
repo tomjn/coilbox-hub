@@ -51,6 +51,8 @@ export interface GamePage {
   card_path: string | null;
   card_hash: string | null;
   card_staged_tier: string | null;
+  download_kind: string | null;
+  download_value: string | null;
 }
 
 /** The row as the query hands it back, before the page shapes it. */
@@ -70,6 +72,8 @@ interface GameRow {
   card_path: string | null;
   card_hash: string | null;
   card_staged_tier: string | null;
+  download_kind: string | null;
+  download_value: string | null;
   game_faction: { key: string; name: string; logo_path: string | null }[];
   game_version: { version: string }[];
 }
@@ -89,7 +93,7 @@ export async function loadGamePage(
       .select(
         "shortname,display_name,description,links,owner_user_id,hidden_at," +
           "logo_path,logo_hash,logo_staged_tier,banner_path,banner_hash,banner_staged_tier," +
-          "card_path,card_hash,card_staged_tier," +
+          "card_path,card_hash,card_staged_tier,download_kind,download_value," +
           "game_faction(key,name,logo_path)," +
           "game_version(version,last_seen_at)",
       )
@@ -129,5 +133,7 @@ export async function loadGamePage(
     card_path: held.card_path,
     card_hash: held.card_hash,
     card_staged_tier: held.card_staged_tier,
+    download_kind: held.download_kind,
+    download_value: held.download_value,
   };
 }

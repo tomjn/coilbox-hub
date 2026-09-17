@@ -88,6 +88,8 @@ export default async function EditGame({
           displayName={page.display_name ?? ""}
           description={page.description ?? ""}
           links={page.links}
+          downloadKind={page.download_kind ?? "rapid"}
+          downloadValue={page.download_value ?? ""}
         />
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">

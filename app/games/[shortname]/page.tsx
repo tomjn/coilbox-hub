@@ -14,6 +14,7 @@ import { staticTierUrl } from "@/lib/assets/cdn";
 import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle, itemCardLabel, saysMoreThanName } from "@/lib/games/labels";
 import { gamePageCached, gameSidesCached } from "@/lib/games/cached";
+import { downloadHref, type DownloadKind, type GameDownload } from "@/lib/games/download";
 import { editableGame } from "@/lib/games/editor";
 import type { GamePageFaction } from "@/lib/games/page";
 import type { SideCommander } from "@/lib/games/sides";
@@ -79,6 +80,35 @@ const CONTROL_BUTTON =
  *  picture, so names line up, and the empty slot carries the games icon the way
  *  an empty logo tile does. */
 const SLOT = "size-12 shrink-0 rounded";
+
+/**
+ * Where to get the game, which is the one thing a visitor who does not have it
+ * yet came here for.
+ *
+ * A rapid tag is drawn as text rather than as a link, because there is nowhere
+ * for it to go. It is a string a lobby hands to its own downloader, and making
+ * it look clickable would promise something it cannot do.
+ */
+function Download({ download }: { download: GameDownload }) {
+  const href = downloadHref(download);
+  if (!href) {
+    return (
+      <p className="text-sm text-neutral-400">
+        Install with rapid:{" "}
+        <code className="rounded bg-neutral-900 px-2 py-1 font-mono text-neutral-200">
+          {download.value}
+        </code>
+      </p>
+    );
+  }
+  return (
+    <p className="text-sm">
+      <a href={href} className={CONTROL_BUTTON}>
+        {download.kind === "github" ? "Releases on GitHub" : "Download this game"}
+      </a>
+    </p>
+  );
+}
 
 /**
  * One side of the game, as a tile beside its fellows. The name is always
@@ -219,6 +249,11 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           ) : null}
           {page.release ? (
             <p className="text-sm text-neutral-400">Game version {page.release}</p>
+          ) : null}
+          {page.download_kind && page.download_value ? (
+            <Download
+              download={{ kind: page.download_kind as DownloadKind, value: page.download_value }}
+            />
           ) : null}
           {mayEdit ? (
             <div className="flex flex-wrap items-center gap-3 pt-1">

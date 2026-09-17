@@ -10,6 +10,7 @@ import { TAGS } from "@/lib/cache/tags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { GameLink } from "@/lib/games/catalog";
+import { parseDownload } from "@/lib/games/download";
 import { editableGame } from "@/lib/games/editor";
 import {
   EDIT_MESSAGES,
@@ -196,6 +197,14 @@ export async function editGameDetails(
 
   const displayName = String(form.get("display_name") ?? "").trim().slice(0, 256);
 
+  // Refused before the write rather than after, so a mistyped tag says what is
+  // wrong with it instead of coming back as a constraint violation.
+  const download = parseDownload(
+    String(form.get("download_kind") ?? ""),
+    String(form.get("download_value") ?? ""),
+  );
+  if (!download.ok) return { ok: false, message: download.message };
+
   // The owner and moderator policies filter out every row a stranger may not
   // change, so a stranger's edit succeeds over nothing. Returning the rows is
   // how the action knows whether it was the owner or a moderator writing, or a
@@ -206,6 +215,8 @@ export async function editGameDetails(
       display_name: displayName || null,
       description: String(form.get("description") ?? "").trim().slice(0, 4000) || null,
       links: linksFromForm(form),
+      download_kind: download.download?.kind ?? null,
+      download_value: download.download?.value ?? null,
     })
     .eq("shortname", shortname)
     .select("shortname");
