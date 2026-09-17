@@ -12,9 +12,22 @@
 export const GAME_BRANDING_FORMAT = "coilbox-hub-games";
 export const GAME_BRANDING_VERSION = 1;
 
-/** The kinds of picture a game row can carry, which are also the only values
- *  `kind` accepts. */
-export type GameImageKind = "logo" | "banner";
+/**
+ * The kinds of picture a game row can carry, which are also the only values
+ * `kind` accepts.
+ *
+ * A list rather than a union written out by hand, because six files repeated
+ * the pair as literals and adding the third meant finding all six. Everything
+ * that needs to know now reads this, including the column names, which are
+ * `<kind>_path`, `<kind>_hash` and `<kind>_staged_tier` on `public.game`.
+ */
+export const GAME_IMAGE_KINDS = ["logo", "banner", "card"] as const;
+
+export type GameImageKind = (typeof GAME_IMAGE_KINDS)[number];
+
+export function isGameImageKind(value: string): value is GameImageKind {
+  return (GAME_IMAGE_KINDS as readonly string[]).includes(value);
+}
 
 /** How much one picture may weigh. The same number an owner's web upload is
  *  held to (`app/games/actions.ts`), because the two doors exist so a game's
@@ -53,8 +66,8 @@ export function parseGameBrandingFields(form: FormData): ParsedGameBrandingBody 
   }
 
   const kind = String(form.get("kind") ?? "");
-  if (kind !== "logo" && kind !== "banner") {
-    return { ok: false, error: 'The "kind" part must be "logo" or "banner".' };
+  if (!isGameImageKind(kind)) {
+    return { ok: false, error: `The "kind" part must be one of ${GAME_IMAGE_KINDS.join(", ")}.` };
   }
 
   return { ok: true, shortname, kind };

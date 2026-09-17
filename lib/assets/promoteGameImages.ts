@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { GAME_IMAGE_KINDS, type GameImageKind } from "@/lib/api/gameBranding";
 import { deleteStagedObjects } from "./orphan";
 import { type PromotionPorts, StagingReadError } from "./promote";
 
@@ -63,23 +64,25 @@ import { type PromotionPorts, StagingReadError } from "./promote";
  * `lib/assets/withdraw.ts` describes for a takedown.
  */
 
-/** What the run reads off a game row. */
-interface GameImagePaths {
-  shortname: string;
-  logo_path: string | null;
-  banner_path: string | null;
-  logo_hash: string | null;
-  banner_hash: string | null;
-  logo_staged_tier: string | null;
-  banner_staged_tier: string | null;
-}
+/** What the run reads off a game row: three columns per picture kind, which is
+ *  why the columns are named from the kind list rather than written out. */
+type GameImagePaths = { shortname: string } & Record<string, string | null>;
+
+/** The columns each of the two reads below asks for. Built from the kind list,
+ *  so a fourth picture is one entry in that list and nothing here. */
+const GAME_IMAGE_PATH_COLUMNS = GAME_IMAGE_KINDS.map((kind) => `${kind}_path`);
+const GAME_IMAGE_ALL_COLUMNS = GAME_IMAGE_KINDS.flatMap((kind) => [
+  `${kind}_path`,
+  `${kind}_hash`,
+  `${kind}_staged_tier`,
+]);
 
 /** One picture a row names: the shared path and the hash that vouches for the
  *  bytes. */
 export interface GameImage {
   /** Which game sent it, so a skip can be named in the report. */
   shortname: string;
-  kind: "logo" | "banner";
+  kind: GameImageKind;
   path: string;
   hash: string;
 }
@@ -104,17 +107,19 @@ export async function strayGameImages(
   held: (path: string) => Promise<boolean>,
   written: string[] = [],
 ): Promise<string[]> {
-  const { data, error } = await supabase.from("game").select("shortname,logo_path,banner_path");
+  const { data, error } = await supabase
+    .from("game")
+    .select(["shortname", ...GAME_IMAGE_PATH_COLUMNS].join(","));
 
   if (error) throw new Error(`Could not read the game rows: ${error.message}`);
 
-  const rows = (data ?? []) as unknown as Pick<GameImagePaths, "shortname" | "logo_path" | "banner_path">[];
+  const rows = (data ?? []) as unknown as GameImagePaths[];
   const named = new Set<string>();
   const candidates = new Set<string>(written);
   for (const row of rows) {
-    if (row.logo_path) named.add(row.logo_path);
-    if (row.banner_path) named.add(row.banner_path);
-    for (const kind of ["logo", "banner"]) {
+    for (const kind of GAME_IMAGE_KINDS) {
+      const path = row[`${kind}_path`];
+      if (path) named.add(path);
       for (const ext of GAME_IMAGE_EXTENSIONS) candidates.add(`games/${row.shortname}/${kind}.${ext}`);
     }
   }
@@ -138,27 +143,18 @@ export async function fetchStagedGameImages(
 ): Promise<GameImage[]> {
   const { data, error } = await supabase
     .from("game")
-    .select("shortname,logo_path,banner_path,logo_hash,banner_hash,logo_staged_tier,banner_staged_tier");
+    .select(["shortname", ...GAME_IMAGE_ALL_COLUMNS].join(","));
 
   if (error) throw new Error(`Could not read the game rows: ${error.message}`);
 
   const out: GameImage[] = [];
   for (const row of (data ?? []) as unknown as GameImagePaths[]) {
-    if (row.logo_path && row.logo_hash && row.logo_staged_tier === "bucket") {
-      out.push({
-        shortname: row.shortname,
-        kind: "logo",
-        path: row.logo_path,
-        hash: row.logo_hash,
-      });
-    }
-    if (row.banner_path && row.banner_hash && row.banner_staged_tier === "bucket") {
-      out.push({
-        shortname: row.shortname,
-        kind: "banner",
-        path: row.banner_path,
-        hash: row.banner_hash,
-      });
+    for (const kind of GAME_IMAGE_KINDS) {
+      const path = row[`${kind}_path`];
+      const hash = row[`${kind}_hash`];
+      if (path && hash && row[`${kind}_staged_tier`] === "bucket") {
+        out.push({ shortname: row.shortname, kind, path, hash });
+      }
     }
   }
   return out;

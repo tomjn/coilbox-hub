@@ -13,14 +13,14 @@ import { GameImageRemoveForm } from "./GameImageRemoveForm";
 /**
  * The edit page for a game's owner or a moderator (#229, #350).
  *
- * Three forms, because they are three different kinds of write: words (a plain
- * update through row level security), and two images (bytes to the staging
+ * Four forms, because they are two different kinds of write: words (a plain
+ * update through row level security), and three pictures (bytes to the staging
  * bucket, then a path onto the row). One form per job means a failed upload
  * never takes the description with it.
  *
- * Everything here is ordinary forms posting to server actions, except the two
+ * Everything here is ordinary forms posting to server actions, except the three
  * uploads, which check a file's size in the browser first (`GameImageForm`),
- * and the controls that remove a logo or banner (`GameImageRemoveForm`, #360).
+ * and the controls that remove a picture (`GameImageRemoveForm`, #360).
  * The links rows are a fixed set of five pairs rather than a dynamic add
  * button, because a button that needs a bundle to work is a worse trade than
  * five rows nobody has to fill in.
@@ -138,6 +138,16 @@ export default async function EditGame({
           <p className="text-sm text-neutral-500">Wide, PNG or WebP, up to 512 KB.</p>
           <GameImageForm shortname={shortname} kind="banner" />
           <GameImageRemoveForm shortname={shortname} kind="banner" present={page.banner_path !== null} />
+        </section>
+
+        <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
+          <h2 className="text-sm uppercase tracking-wide text-neutral-400">Card art</h2>
+          <p className="text-sm text-neutral-500">
+            16:9, PNG or WebP, up to 512 KB. The games listing draws this above the name, and a lobby
+            shows it on its own card for the game.
+          </p>
+          <GameImageForm shortname={shortname} kind="card" />
+          <GameImageRemoveForm shortname={shortname} kind="card" present={page.card_path !== null} />
         </section>
       </div>
     </main>

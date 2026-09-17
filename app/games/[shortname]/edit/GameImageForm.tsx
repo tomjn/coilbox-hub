@@ -2,18 +2,26 @@
 
 import { useActionState } from "react";
 import { uploadGameImage } from "@/app/games/actions";
+import type { GameImageKind } from "@/lib/api/gameBranding";
 import { type GameImageUploadState, sendGameImage } from "@/lib/games/imageUpload";
 
 /**
- * The logo or banner upload on a game's edit page, with the answer shown
- * beside it (#354).
+ * One picture upload on a game's edit page, with the answer shown beside it
+ * (#354).
  *
  * This form needs the bundle, unlike the rest of the page. A file over the
  * server action body limit never reaches the action, and the error Next.js
  * throws for it would replace the whole page. So the browser checks the size
  * before sending and turns anything thrown into a message here.
  */
-export function GameImageForm({ shortname, kind }: { shortname: string; kind: "logo" | "banner" }) {
+/** What the button offers to upload, in the words the section above it uses. */
+const UPLOAD_LABELS: Record<GameImageKind, string> = {
+  logo: "logo",
+  banner: "banner",
+  card: "card art",
+};
+
+export function GameImageForm({ shortname, kind }: { shortname: string; kind: GameImageKind }) {
   const [state, action, pending] = useActionState<GameImageUploadState | null, FormData>(
     (previous, form) => sendGameImage(uploadGameImage, previous, form),
     null,
@@ -36,7 +44,7 @@ export function GameImageForm({ shortname, kind }: { shortname: string; kind: "l
           disabled={pending}
           className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
         >
-          {pending ? "Uploading…" : kind === "logo" ? "Upload logo" : "Upload banner"}
+          {pending ? "Uploading…" : `Upload ${UPLOAD_LABELS[kind]}`}
         </button>
       </div>
       {state ? (

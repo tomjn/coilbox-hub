@@ -16,6 +16,12 @@ import { richTextToPlainText } from "@/lib/text/richText";
  * the one they want by looking at it. A game is known by name, with its logo as
  * the mark a player recognises it by in a launcher (#239).
  *
+ * ## Card art on top, where a game has it
+ *
+ * A game can upload 16:9 art, the same shape coilbox draws its own game cards
+ * from, and it fills the head of the card. A game without it gets the layout
+ * below unchanged, so this only ever adds.
+ *
  * ## Every card is the same shape (#358)
  *
  * The logo sits in a fixed tile beside the name, the way the game's own page
@@ -50,6 +56,11 @@ export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides
     hash: game.logo_hash,
     staged_tier: game.logo_staged_tier,
   });
+  const card = gameArtUrl(game.shortname, "card", {
+    path: game.card_path,
+    hash: game.card_hash,
+    staged_tier: game.card_staged_tier,
+  });
   const describes =
     game.description !== null && saysMoreThanName(game, richTextToPlainText(game.description));
   const playAs = sides ? playAsLabel(sides.factions.map((faction) => faction.name)) : null;
@@ -59,6 +70,20 @@ export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides
 
   return (
     <li className="group relative flex h-full flex-col gap-4 rounded-md border border-neutral-800 bg-card p-4 transition-colors hover:border-neutral-600 has-[a:active]:border-neutral-500 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-neutral-300">
+      {card ? (
+        // Pulled out to the card's own edges, since a picture inset inside a
+        // padded card reads as a thumbnail rather than as the card's face. A
+        // fixed 16:9 box so a row lines up whatever each game uploaded, and
+        // cropped rather than letterboxed, because a band of background inside
+        // a card reads as a mistake. Decorative, like the logo: the name under
+        // it says which game this is.
+        // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image, see next.config.ts
+        <img
+          src={card}
+          alt=""
+          className="-mx-4 -mt-4 aspect-video w-[calc(100%+2rem)] rounded-t-md object-cover"
+        />
+      ) : null}
       <div className="flex items-start gap-4">
         {/* Decorative here: the name beside it says which game this is. */}
         <GameLogo src={logo} alt="" />

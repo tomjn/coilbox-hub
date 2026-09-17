@@ -2,6 +2,7 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
+import { type GameImageKind, isGameImageKind } from "@/lib/api/gameBranding";
 import { readImageHeader, IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
 import { encodedHash } from "@/lib/assets/hash";
 import { putStagedGameImage } from "@/lib/assets/staging";
@@ -37,6 +38,15 @@ import {
  * them against real roles. What is left here is reading the form, doing the one
  * check a policy cannot (who is asking at all), and writing.
  */
+
+/** What each picture is called in the sentence confirming it saved or went
+ *  away. A map rather than a ternary, so a fourth kind is a line here and a
+ *  compile error until it is added. */
+const IMAGE_LABELS: Record<GameImageKind, string> = {
+  logo: "Logo",
+  banner: "Banner",
+  card: "Card art",
+};
 
 /** The labelled links an edit form carries, as rows.
  *
@@ -433,7 +443,7 @@ export async function uploadGameImage(
 ): Promise<GameImageUploadState> {
   const shortname = String(form.get("shortname") ?? "");
   const kind = String(form.get("kind") ?? "");
-  if (!shortname || (kind !== "logo" && kind !== "banner")) {
+  if (!shortname || !isGameImageKind(kind)) {
     return { ok: false, message: UPLOAD_MESSAGES.notSent };
   }
 
@@ -478,13 +488,14 @@ export async function uploadGameImage(
   // The hash is over the bytes, so a re-upload of the same picture is visible
   // as no change and a cache can key on it.
   const hash = await encodedHash(bytes.buffer as ArrayBuffer);
-  const column = kind === "logo" ? "logo_path" : "banner_path";
-  const hashColumn = kind === "logo" ? "logo_hash" : "banner_hash";
-  // Which store holds the staged copy, so promotion reads the bucket (#332).
-  const stagedColumn = kind === "logo" ? "logo_staged_tier" : "banner_staged_tier";
   const { error } = await admin
     .from("game")
-    .update({ [column]: path, [hashColumn]: hash, [stagedColumn]: "bucket" })
+    .update({
+      [`${kind}_path`]: path,
+      [`${kind}_hash`]: hash,
+      // Which store holds the staged copy, so promotion reads the bucket (#332).
+      [`${kind}_staged_tier`]: "bucket",
+    })
     .eq("id", owned.id);
   if (error) {
     console.error(`uploadGameImage: stored ${path} but the game row was not updated`, error);
@@ -498,7 +509,7 @@ export async function uploadGameImage(
   revalidatePath("/games");
   revalidatePath(`/games/${shortname}`);
 
-  return { ok: true, message: kind === "logo" ? "Logo uploaded." : "Banner uploaded." };
+  return { ok: true, message: `${IMAGE_LABELS[kind]} uploaded.` };
 }
 
 /**
@@ -518,7 +529,7 @@ export async function removeGameImage(
 ): Promise<GameImageUploadState> {
   const shortname = String(form.get("shortname") ?? "");
   const kind = String(form.get("kind") ?? "");
-  if (!shortname || (kind !== "logo" && kind !== "banner")) {
+  if (!shortname || !isGameImageKind(kind)) {
     return { ok: false, message: REMOVE_MESSAGES.notSent };
   }
 
@@ -555,5 +566,5 @@ export async function removeGameImage(
   revalidatePath("/games");
   revalidatePath(`/games/${shortname}`);
 
-  return { ok: true, message: kind === "logo" ? "Logo removed." : "Banner removed." };
+  return { ok: true, message: `${IMAGE_LABELS[kind]} removed.` };
 }
