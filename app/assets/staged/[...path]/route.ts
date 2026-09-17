@@ -32,10 +32,11 @@ import { createAnonClient } from "@/lib/supabase/anon";
  * reaches it, and the pages stop naming the URL as their caches refresh. But
  * the CDN keeps serving its copy until the next deployment, which is when
  * Vercel drops a deployment's cache, and a browser that already loaded the
- * picture keeps it. Accepted because Blob was no better: nothing deletes a
- * rejected row's object (`rejectPicture` in `lib/assets/queue.ts`), so a
- * rejected Blob picture stayed at its public URL for good. Redeploying is the
- * way to pull a picture out of the CDN in a hurry.
+ * picture keeps it. Accepted because Vercel Blob, the staging store before
+ * this one, was no better: nothing deletes a rejected row's object
+ * (`rejectPicture` in `lib/assets/queue.ts`), so a rejected picture there
+ * stayed at its public URL for good. Redeploying is the way to pull a picture
+ * out of the CDN in a hurry.
  */
 
 const CACHE = "public, max-age=31536000, immutable";
@@ -87,8 +88,8 @@ export async function GET(
       "Cache-Control": CACHE,
       // The 3D map preview reads a height overlay pixel by pixel with
       // `crossOrigin = "anonymous"` (`components/mapTerrain.ts`), and the page
-      // may be on a different host from `siteUrl()`. Blob and GitHub Pages both
-      // answer this, and the bytes are public.
+      // may be on a different host from `siteUrl()`. This route and GitHub
+      // Pages both answer it, and the bytes are public.
       "Access-Control-Allow-Origin": "*",
     },
   });

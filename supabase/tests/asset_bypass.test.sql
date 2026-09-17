@@ -21,8 +21,8 @@ set local request.jwt.claims = '';
 
 insert into public.asset (id, game, unit_name, variant, source_hash, hash, encode_profile, path, tier, origin, mime, bytes, width, height, source_archive, moderation, approval_source, uploaded_by)
 values
-  ('0f8fad5b-3333-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-a', 'enc-a', 'webp-lossless-256', 'units/bar/buildpic/enc-a-Hn4vQ2rT.webp', 'blob', 'rendered', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'bypass', '22222222-2222-2222-2222-222222222222'),
-  ('0f8fad5b-3333-4000-8000-00000000000b', 'bar', 'armllt', 'buildpic', 'src-b', 'enc-b', 'webp-lossless-256', 'units/bar/buildpic/enc-b-Zx91Kp2w.webp', 'blob', 'rendered', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'pending', null, '22222222-2222-2222-2222-222222222222');
+  ('0f8fad5b-3333-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-a', 'enc-a', 'webp-lossless-256', 'units/bar/buildpic/enc-a-Hn4vQ2rT.webp', 'bucket', 'rendered', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'bypass', '22222222-2222-2222-2222-222222222222'),
+  ('0f8fad5b-3333-4000-8000-00000000000b', 'bar', 'armllt', 'buildpic', 'src-b', 'enc-b', 'webp-lossless-256', 'units/bar/buildpic/enc-b-Zx91Kp2w.webp', 'bucket', 'rendered', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'pending', null, '22222222-2222-2222-2222-222222222222');
 
 reset role;
 
@@ -88,7 +88,7 @@ select is(
 
 select throws_ok(
   $$insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, tier, origin, mime, bytes, width, height, source_archive, moderation, approval_source, uploaded_by)
-    values ('bar', 'armcom', 'buildpic', 'src-c', 'enc-c', 'webp-lossless-256', 'units/bar/buildpic/enc-c.webp', 'blob', 'rendered', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', null, '22222222-2222-2222-2222-222222222222')$$,
+    values ('bar', 'armcom', 'buildpic', 'src-c', 'enc-c', 'webp-lossless-256', 'units/bar/buildpic/enc-c.webp', 'bucket', 'rendered', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', null, '22222222-2222-2222-2222-222222222222')$$,
   '23514',
   null,
   'an approved upload has to say what approved it'

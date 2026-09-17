@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { siteUrl } from "@/lib/site";
 import { ASSET_TIERS, type AssetIdentity } from "./asset";
-import { BLOB_TIER_BASE } from "./blob";
 import { DEFAULT_ASSET_CDN_BASE } from "./cdn";
 import { identityKey } from "./have";
 import {
@@ -68,8 +67,8 @@ function mapRow(overrides: Partial<Row> = {}): Row {
     unit_name: null,
     map_name: "Comet Catcher Remake 1.8",
     variant: "minimap",
-    tier: "blob",
-    path: "maps/minimap/def-Xy9.webp",
+    tier: "bucket",
+    path: "maps/minimap/def.webp",
     width: 512,
     height: 512,
     moderation: "approved",
@@ -134,10 +133,7 @@ function heldOf(...rows: [AssetIdentity, TestRow][]): HeldAssets {
   );
 }
 
-test("a blob row resolves to the staging store and a static row to the durable tier", () => {
-  expect(assetTierUrl("blob", "units/bar/buildpic/abc-Xy9.webp")).toBe(
-    `${BLOB_TIER_BASE}units/bar/buildpic/abc-Xy9.webp`,
-  );
+test("a static row resolves to the durable tier", () => {
   expect(assetTierUrl("static", "units/bar/buildpic/abc.webp")).toBe(
     `${DEFAULT_ASSET_CDN_BASE}units/bar/buildpic/abc.webp`,
   );
@@ -153,7 +149,7 @@ test("every tier is a source a caller has to handle, alongside the placeholder",
 // The bucket is private, so an approved row in it is served through the hub's
 // own route (#334) rather than at a store URL.
 
-test("a bucket row resolves to the hub's staged picture route, not a Blob URL", () => {
+test("a bucket row resolves to the hub's staged picture route", () => {
   expect(assetTierUrl("bucket", "units/bar/buildpic/abc.webp")).toBe(
     `${siteUrl()}/assets/staged/units/bar/buildpic/abc.webp`,
   );
@@ -254,17 +250,17 @@ test("the row's own tier says where the bytes are, and the caller never asks", (
   });
 });
 
-test("a row not promoted yet is served from Blob under the same call", () => {
+test("a row not promoted yet is served from the bucket under the same call", () => {
   const held = heldOf([
     MINIMAP,
-    { tier: "blob", path: "maps/minimap/def-Xy9.webp", width: 512, height: 512, moderation: "approved" },
+    { tier: "bucket", path: "maps/minimap/def.webp", width: 512, height: 512, moderation: "approved" },
   ]);
 
   const resolved = resolveAsset(MINIMAP, held);
 
-  expect(resolved.from).toBe("blob");
+  expect(resolved.from).toBe("bucket");
   expect(resolved).toMatchObject({
-    url: `${BLOB_TIER_BASE}maps/minimap/def-Xy9.webp`,
+    url: `${siteUrl()}/assets/staged/maps/minimap/def.webp`,
     substituted: false,
   });
 });
@@ -274,13 +270,13 @@ test("a row not promoted yet is served from Blob under the same call", () => {
 test("the resolver refuses a pending row even when one reaches the lookup", () => {
   const held = heldOf([
     BUILDPIC,
-    { tier: "blob", path: "units/bar/buildpic/abc-Xy9.webp", width: 256, height: 256, moderation: "pending" },
+    { tier: "bucket", path: "units/bar/buildpic/abc.webp", width: 256, height: 256, moderation: "pending" },
   ]);
 
   const resolved = resolveAsset(BUILDPIC, held);
 
   expect(resolved.from).toBe("placeholder");
-  expect(JSON.stringify(resolved)).not.toContain("abc-Xy9");
+  expect(JSON.stringify(resolved)).not.toContain("abc.webp");
 });
 
 test("a rejected row is no more servable than a pending one", () => {
@@ -327,7 +323,7 @@ test("a render the hub actually has is not a substitution", () => {
 test("a pending buildpic does not stand in for a missing render either", () => {
   const held = heldOf([
     BUILDPIC,
-    { tier: "blob", path: "units/bar/buildpic/abc-Xy9.webp", width: 256, height: 256, moderation: "pending" },
+    { tier: "bucket", path: "units/bar/buildpic/abc.webp", width: 256, height: 256, moderation: "pending" },
   ]);
 
   expect(resolveAsset(RENDER, held).from).toBe("placeholder");
@@ -387,17 +383,17 @@ test("the query asks for approved rows and keys the answer by identity", async (
     world_height_min: null,
     world_height_max: null,
   });
-  expect(held.get(identityKey(MINIMAP))?.tier).toBe("blob");
+  expect(held.get(identityKey(MINIMAP))?.tier).toBe("bucket");
 });
 
-/** #336. The suspended Blob store answers 403 for these, so a page given the
- * URL would draw a broken image. The render falls back to its buildpic, and a
- * minimap with no substitute to the placeholder. */
+/** #336. A row marked as missing its bytes is never served, so a page never
+ * draws a broken image. The render falls back to its buildpic, and a minimap
+ * with no substitute to the placeholder. */
 test("a row whose bytes the store lost is never served, so the fallback shows", async () => {
   const lost = "2026-09-14T12:00:00Z";
   const held = await fetchHeldAssets(
     fakeSupabase([
-      unitRow({ variant: "render:270", tier: "blob", path: "units/bar/render/270/r-Ab1.webp", bytes_missing_at: lost }),
+      unitRow({ variant: "render:270", tier: "bucket", path: "units/bar/render/270/r-Ab1.webp", bytes_missing_at: lost }),
       unitRow(),
       mapRow({ bytes_missing_at: lost }),
     ]),

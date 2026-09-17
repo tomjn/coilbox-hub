@@ -145,7 +145,7 @@ function PromotionPanel({
       value: figure(status.missing),
       detail:
         status.missing
-          ? "Their bytes were only in Vercel Blob, which will not return them. Pages and promotion skip them, and Coilbox uploads each one into the bucket the next time it offers that picture."
+          ? "Their bytes were lost with the old staging store. Pages and promotion skip them, and Coilbox uploads each one into the bucket the next time it offers that picture."
           : undefined,
     },
     {

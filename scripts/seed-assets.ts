@@ -15,13 +15,16 @@
  * A dry run reads the export and the database and reports. It copies nothing,
  * commits nothing and writes no row, so it can be run against production.
  *
- * ## Why this does not go through Blob
+ * ## Why this does not go through the staging tier
  *
- * The staging store allows 2,000 advanced operations a month and a `put()` is
- * one each, so seeding three thousand pictures through it is not merely untidy,
- * it is impossible, and going over removes Blob access for 30 days with no way
- * to pay through it. These files are already on disk beside a git checkout of
- * the durable tier, so they go in it.
+ * Vercel Blob, the staging store until #338, allowed 2,000 advanced operations
+ * a month and a `put()` was one each, so seeding three thousand pictures
+ * through it was not merely untidy, it was impossible, and going over removed
+ * Blob access for 30 days with no way to pay through it. The bucket that
+ * replaced it carries no such quota, but staging is still the wrong place for
+ * a bulk import: it exists for one upload at a time to pass through
+ * moderation. These files are already on disk beside a git checkout of the
+ * durable tier, so they go straight into it.
  *
  * ## The order, and what an interrupted run leaves
  *

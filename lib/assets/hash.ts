@@ -2,10 +2,9 @@
  * The hash of the encoded bytes, computed by the hub (issue #154).
  *
  * `hash` is the leaf of the content addressed path, so whoever picks it picks
- * where the picture lands. On the staging tier that did not matter, because
- * Blob appends a suffix nobody can derive and the row stores what came back.
- * Promotion (#111) recomputes the path from the row and commits the bytes into
- * a public git history, so it matters there: a map path carries no map name, so
+ * where the picture lands, on the staging bucket from the moment it is
+ * uploaded and in the durable tier once promotion (#111) commits the bytes
+ * into a public git history: a map path carries no map name, so
  * `maps/minimap/<hash>.webp` is a filename made entirely of the hash, and a
  * declared one is an uploader choosing which existing picture to overwrite.
  *

@@ -1,26 +1,26 @@
 /**
- * The one place that talks to `supabase.storage`, for the staging tier that is
- * replacing Vercel Blob (issue #331). Nothing else may touch it: the ESLint
- * rule that bans `.storage` outside this file, alongside the one banning
- * `@vercel/blob` outside `./blob`, is in `eslint.config.mjs`.
+ * The one place that talks to `supabase.storage`, for the staging tier
+ * (issue #331). It replaced Vercel Blob, which #338 removed entirely. Nothing
+ * else may touch `.storage`: the ESLint rule that bans it outside this file is
+ * in `eslint.config.mjs`.
  *
  * The bucket is `staged-pictures`, created by #330: private, so `anon` and
  * `authenticated` cannot list, read or write any path in it, and only a
  * client holding the secret key (`lib/supabase/admin.ts`) can. Because it is
- * private there is no suffix to hide a pending upload behind, unlike
- * `./blob`'s `addRandomSuffix` (#131): every path here is the content
- * addressed one `assetObjectPath` in `./path` already builds, and the same
- * bytes always land at the same key.
+ * private there is no suffix to hide a pending upload behind, unlike Blob's
+ * `addRandomSuffix` (#131): every path here is the content addressed one
+ * `assetObjectPath` in `./path` already builds, and the same bytes always
+ * land at the same key.
  *
- * Three calls, matching what `./blob` offers and no more:
+ * Four calls, and no more:
  *
  * 1. `putStagedAsset` uploads with `upsert: false`, because the row for a
  *    freshly hashed upload should never already have an object behind it,
  *    and a collision is worth telling apart from any other failure
  *    ({@link StagedAssetExistsError}).
  * 2. `putStagedGameImage` uploads with `upsert: true`, the one write that
- *    overwrites, as `putBlobGameImage` in `./blob` did before #332: a game's logo or
- *    banner has a deterministic path and a replacement is meant to replace.
+ *    overwrites: a game's logo or banner has a deterministic path and a
+ *    replacement is meant to replace.
  * 3. `downloadStagedAsset` reads the bytes back, for moderation and
  *    promotion.
  * 4. `removeStagedAssets` deletes a batch. Verified against the local stack:
@@ -29,8 +29,7 @@
  *    call failing.
  *
  * Nothing here lists the bucket. Postgres already knows every object, because
- * every object has a `public.asset` or `public.game` row, the same reasoning
- * `./blob` documents for `list()` and `head()`.
+ * every object has a `public.asset` or `public.game` row.
  */
 
 import { type SupabaseClient, StorageApiError } from "@supabase/supabase-js";
@@ -40,10 +39,9 @@ import { type SupabaseClient, StorageApiError } from "@supabase/supabase-js";
 export const STAGED_PICTURES_BUCKET = "staged-pictures";
 
 /**
- * What an upload body may be. The same shape `./blob` accepts, for the same
- * reason: a route handler has an `ArrayBuffer`, a `File` (which is a `Blob`)
- * or `request.body`, and a Node stream is not offered because it only works
- * off the edge.
+ * What an upload body may be. A route handler has an `ArrayBuffer`, a `File`
+ * (which is a `Blob`) or `request.body`, and a Node stream is not offered
+ * because it only works off the edge.
  */
 export type StagedAssetBody = ArrayBuffer | Blob | ReadableStream | string;
 
@@ -65,8 +63,7 @@ export class StagedAssetExistsError extends Error {
 }
 
 /** Strips a leading slash, so a caller that writes `units/x.webp` and a
- *  caller that writes `/units/x.webp` address the same object. Mirrors
- *  `pathname` in `./blob`. */
+ *  caller that writes `/units/x.webp` address the same object. */
 function pathname(path: string): string {
   return path.replace(/^\/+/, "");
 }
@@ -113,9 +110,9 @@ export async function putStagedAsset(
 
 /**
  * Write a game's logo or banner to the staging bucket, overwriting whatever
- * was at that path. It replaced `putBlobGameImage` in `./blob` (#332): the path is
- * deterministic (`games/BA/logo.webp`) rather than content addressed, so a
- * new upload is meant to replace the old bytes rather than collide with them.
+ * was at that path. The path is deterministic (`games/BA/logo.webp`) rather
+ * than content addressed, so a new upload is meant to replace the old bytes
+ * rather than collide with them.
  */
 export async function putStagedGameImage(
   supabase: SupabaseClient,

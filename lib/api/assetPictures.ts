@@ -17,9 +17,9 @@ import { type HeldAssets, resolveAsset } from "@/lib/assets/resolve";
  * Coilbox draws minimaps out of local archives, so a map the reader has not
  * installed leaves it with the map's name and nothing else. The hub has a
  * picture of that map, and `asset.path` comes off the sha256 of the encoded
- * bytes (`lib/assets/path.ts`) with a random suffix on top for anything still in
- * the staging tier (`lib/assets/blob.ts`). A caller that does not hold the bytes
- * cannot work either out, so it has to be told.
+ * bytes (`lib/assets/path.ts`), on the staging tier as much as the durable one.
+ * A caller that does not hold the bytes cannot work it out, so it has to be
+ * told.
  *
  * Carries its own `format` and `version`, the way `/api/v1/items`,
  * `/api/v1/auth` and `/api/v1/assets/have` already do. A shipped desktop build

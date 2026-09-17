@@ -34,7 +34,8 @@
  * `tier` is `static` and `moderation` is `approved` with `approval_source` of
  * `seed`, which is the whole reason this route exists: these files are the
  * maintainer's own collection going straight to the durable tier, so no object
- * is written to Blob and no moderator sees a queue of three thousand pictures.
+ * is written to the staging bucket and no moderator sees a queue of three
+ * thousand pictures.
  *
  * `promoted_at` stays null. It records a row being moved out of the staging
  * tier by #111, and a seeded row was never in it. Setting it would claim a

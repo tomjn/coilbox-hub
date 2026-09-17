@@ -17,13 +17,8 @@ import { UNIT_RENDER_VARIANT_PREFIX } from "./asset";
  * A meter that quietly reported a stale constant as if it were live would be
  * worse than no meter.
  *
- * ## No Blob meters
- *
- * Vercel Blob was the staging store until September 2026, and its 2,000
- * advanced operations a month were the allowance that could end the hub. Uploads
- * go to the Supabase bucket now (#332), nothing is staged in Blob that the hub
- * still wants, and #338 removes the rest. A Blob meter would only raise alarms
- * about a store the hub no longer writes to.
+ * Vercel Blob was the staging store until September 2026, and it had its own
+ * meters here until #338 removed it along with the rest of the hub's Blob code.
  *
  * {@link headroomAlerts} is the warning, and the channel is a scheduled job
  * exiting non-zero. That is not elegant and it is the only alerting this project

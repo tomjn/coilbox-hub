@@ -1,12 +1,13 @@
--- Rows whose Blob bytes could not be read (issue #336).
+-- Rows whose bytes went missing (issues #336 and #338).
 --
--- `lib/assets/unreadable.test.ts` covers which rows get marked, and the have,
--- upload, resolve and promotion tests cover what a mark changes. What only the
--- database can prove is where a mark may sit, that promotion refuses a marked
--- row, and that replacing one queues its Blob path like any other replacement.
+-- The rows whose only copy was in Vercel Blob were moved to the bucket tier and
+-- marked when Blob was removed. The have, upload, resolve and promotion tests
+-- cover what a mark changes. What only the database can prove is where a mark
+-- may sit, that promotion refuses a marked row, and that an upload replacing
+-- one has to clear it.
 
 begin;
-select plan(11);
+select plan(10);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -15,10 +16,10 @@ values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-0000000
 
 insert into public.asset (id, game, unit_name, variant, source_hash, hash, encode_profile, path, tier, origin, mime, bytes, width, height, source_archive, moderation, approval_source, uploaded_by, updated_at)
 values
-  -- Approved in Blob long ago. The store will not return its bytes.
-  ('0f8fad5b-6666-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-a', 'enc-a', 'webp-lossless-256', 'units/bar/buildpic/enc-a-Zx91Kp2w.webp', 'blob', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111', now() - interval '3 days'),
-  -- Approved in Blob long ago, and readable.
-  ('0f8fad5b-6666-4000-8000-00000000000b', 'bar', 'armllt', 'buildpic', 'src-b', 'enc-b', 'webp-lossless-256', 'units/bar/buildpic/enc-b-Qm27Lx0v.webp', 'blob', 'uploaded', 'image/webp', 2048, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111', now() - interval '3 days'),
+  -- Approved long ago, and its bytes were only in Blob.
+  ('0f8fad5b-6666-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-a', 'enc-a', 'webp-lossless-256', 'units/bar/buildpic/enc-a-Zx91Kp2w.webp', 'bucket', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111', now() - interval '3 days'),
+  -- Approved long ago in the bucket, and readable.
+  ('0f8fad5b-6666-4000-8000-00000000000b', 'bar', 'armllt', 'buildpic', 'src-b', 'enc-b', 'webp-lossless-256', 'units/bar/buildpic/enc-b.webp', 'bucket', 'uploaded', 'image/webp', 2048, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111', now() - interval '3 days'),
   -- Already on the durable tier.
   ('0f8fad5b-6666-4000-8000-00000000000c', 'bar', 'armcom', 'buildpic', 'src-c', 'enc-c', 'webp-lossless-256', 'units/bar/buildpic/enc-c.webp', 'static', 'uploaded', 'image/webp', 1024, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111', now() - interval '3 days');
 
@@ -28,7 +29,7 @@ select has_column('public', 'asset', 'bytes_missing_at', 'an asset row can say i
 
 select lives_ok(
   $$update public.asset set bytes_missing_at = now() where id = '0f8fad5b-6666-4000-8000-00000000000a'$$,
-  'a Blob row may be marked'
+  'a bucket row may be marked'
 );
 
 select throws_ok(
@@ -50,27 +51,21 @@ select is(
 
 select is(
   (select tier || ' ' || path || ' ' || coalesce(blob_path, 'null') from public.asset where id = '0f8fad5b-6666-4000-8000-00000000000a'),
-  'blob units/bar/buildpic/enc-a-Zx91Kp2w.webp null',
+  'bucket units/bar/buildpic/enc-a-Zx91Kp2w.webp null',
   'so the marked row keeps its tier and path and queues nothing'
 );
 
 -- ## The upload that replaces it
 
 select throws_ok(
-  $$update public.asset set tier = 'bucket', path = 'units/bar/buildpic/enc-a2.webp', hash = 'enc-a2' where id = '0f8fad5b-6666-4000-8000-00000000000a'$$,
+  $$update public.asset set tier = 'static', path = 'units/bar/buildpic/enc-a2.webp', hash = 'enc-a2' where id = '0f8fad5b-6666-4000-8000-00000000000a'$$,
   '23514', null,
-  'a replacement that leaves the mark behind is refused, so it cannot hide a picture that is there'
+  'a row that moves to the durable tier cannot keep the mark'
 );
 
 select lives_ok(
-  $$update public.asset set tier = 'bucket', path = 'units/bar/buildpic/enc-a2.webp', hash = 'enc-a2', bytes_missing_at = null, moderation = 'pending', approval_source = null where id = '0f8fad5b-6666-4000-8000-00000000000a'$$,
+  $$update public.asset set path = 'units/bar/buildpic/enc-a2.webp', hash = 'enc-a2', bytes_missing_at = null, moderation = 'pending', approval_source = null where id = '0f8fad5b-6666-4000-8000-00000000000a'$$,
   'a replacement that clears the mark is accepted'
-);
-
-select is(
-  (select reason from public.asset_orphan where path = 'units/bar/buildpic/enc-a-Zx91Kp2w.webp'),
-  'superseded',
-  'and the dead Blob path is queued for the Blob sweep like any superseded path'
 );
 
 select is(

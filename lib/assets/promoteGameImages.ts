@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { blobTierUrl } from "./blob";
 import { deleteStagedObjects } from "./orphan";
-import { type PromotionPorts, StagingReadError, type StagingStore } from "./promote";
+import { type PromotionPorts, StagingReadError } from "./promote";
 
 /**
  * Moving a game's own art out of the staging tier and into the durable one
@@ -12,8 +11,8 @@ import { type PromotionPorts, StagingReadError, type StagingStore } from "./prom
  * web action and the branding route store uploads on the staging tier at a
  * deterministic path (`games/<shortname>/<kind>.<ext>`) - while every page
  * reads those columns through `staticTierUrl` only. Without this pass an
- * uploaded logo sits in Blob under a URL nothing renders, which is the gap this
- * closes.
+ * uploaded logo sits in the bucket under a URL nothing renders, which is the
+ * gap this closes.
  *
  * It runs beside `runPromotion` rather than inside it, because the shape is not
  * the asset pipeline's shape and pretending otherwise would bend both: a game
@@ -29,13 +28,9 @@ import { type PromotionPorts, StagingReadError, type StagingStore } from "./prom
  * The same direction every step fails in as the asset run: a picture may end up
  * in both tiers, never in neither.
  *
- * 1. Read the staging bytes for each path a row names, from the store its
- *    `<kind>_staged_tier` names. A 404 from Blob means already promoted, or
- *    written straight to the durable tier by the import script, or never
- *    uploaded at all. Blob takes no new uploads, so that absence is permanent
- *    and the row's staged tier is cleared. A 404 from the bucket is a row
- *    naming a copy that is not there, which is said out loud. Any other
- *    answer is the store refusing, which is said out loud and counted.
+ * 1. Read the staging bytes for each path a row names, from the bucket. A 404
+ *    is a row naming a copy that is not there, which is said out loud. Any
+ *    other answer is the store refusing, which is said out loud and counted.
  * 2. Hash what arrived against the row. Mismatch means a newer upload replaced
  *    the object between the row's write and this read. Skip rather than commit
  *    bytes nobody asked for.
@@ -50,14 +45,10 @@ import { type PromotionPorts, StagingReadError, type StagingStore } from "./prom
  *    same reading as the asset run - nothing has been deleted yet, so stopping
  *    loses nothing. A removal needs no gate, because no staging copy is
  *    deleted on the strength of it.
- * 6. Clear the staging copy, and the row's record of it, but only while the
- *    row still names the hash that was pushed. A newer upload keeps both.
- *    - Blob: delete, then clear the staged tier. Dying between the two leaves
- *      a row naming a Blob copy that is gone, and the next run's 404 clears it.
- *    - Bucket: clear the staged tier, then delete through a reservation
- *      (`deleteStagedObjects` in `./orphan`), which refuses if an upload has
- *      claimed the path again since. Dying between the two leaves an object
- *      nothing claims, which the bucket sweep deletes.
+ * 6. Clear the staged tier, then delete through a reservation
+ *    (`deleteStagedObjects` in `./orphan`), which refuses if an upload has
+ *    claimed the path again since. Dying between the two leaves an object
+ *    nothing claims, which the bucket sweep deletes.
  *
  * ## A removal that lands mid run
  *
@@ -91,14 +82,7 @@ export interface GameImage {
   kind: "logo" | "banner";
   path: string;
   hash: string;
-  /** Which staging store the row says holds the copy. Never read from the
-   *  other one: Blob can hold an older upload of the same bytes at the same
-   *  path, and promoting and deleting that would strand the bucket copy. */
-  store: StagingStore;
 }
-
-const isStagingStore = (value: string | null): value is StagingStore =>
-  value === "blob" || value === "bucket";
 
 /** Every extension an upload, the branding route or the import script gives a
  *  game picture's path (`games/<shortname>/<kind>.<ext>`). */
@@ -143,10 +127,11 @@ export async function strayGameImages(
 }
 
 /**
- * Every picture a game row says is staged, in either store, oldest row first.
+ * Every picture a game row says is staged, oldest row first.
  *
- * Wants the secret key, for the reason the asset run gives: a staging pathname
- * is a working public URL and stays on the server.
+ * Wants the secret key, for the reason the asset run gives: a staging path
+ * stays on the server rather than reaching a caller that has no other use for
+ * it.
  */
 export async function fetchStagedGameImages(
   supabase: SupabaseClient,
@@ -159,22 +144,20 @@ export async function fetchStagedGameImages(
 
   const out: GameImage[] = [];
   for (const row of (data ?? []) as unknown as GameImagePaths[]) {
-    if (row.logo_path && row.logo_hash && isStagingStore(row.logo_staged_tier)) {
+    if (row.logo_path && row.logo_hash && row.logo_staged_tier === "bucket") {
       out.push({
         shortname: row.shortname,
         kind: "logo",
         path: row.logo_path,
         hash: row.logo_hash,
-        store: row.logo_staged_tier,
       });
     }
-    if (row.banner_path && row.banner_hash && isStagingStore(row.banner_staged_tier)) {
+    if (row.banner_path && row.banner_hash && row.banner_staged_tier === "bucket") {
       out.push({
         shortname: row.shortname,
         kind: "banner",
         path: row.banner_path,
         hash: row.banner_hash,
-        store: row.banner_staged_tier,
       });
     }
   }
@@ -183,8 +166,8 @@ export async function fetchStagedGameImages(
 
 /**
  * Say a game picture has no staged copy any more, only while the row still
- * names the path, hash and store that were promoted. Answers whether it did,
- * which is false when an upload has replaced the picture since it was read.
+ * names the path and hash that were promoted. Answers whether it did, which
+ * is false when an upload has replaced the picture since it was read.
  */
 async function clearStagedTier(supabase: SupabaseClient, image: GameImage): Promise<boolean> {
   const { data, error } = await supabase
@@ -193,7 +176,7 @@ async function clearStagedTier(supabase: SupabaseClient, image: GameImage): Prom
     .eq("shortname", image.shortname)
     .eq(`${image.kind}_path`, image.path)
     .eq(`${image.kind}_hash`, image.hash)
-    .eq(`${image.kind}_staged_tier`, image.store)
+    .eq(`${image.kind}_staged_tier`, "bucket")
     .select("shortname");
 
   if (error) {
@@ -237,20 +220,9 @@ export async function runGameImagePromotion(
 
     let bytes: Uint8Array;
     try {
-      bytes =
-        image.store === "bucket"
-          ? await ports.readStaged(image.path)
-          : await ports.read(blobTierUrl(image.path));
+      bytes = await ports.readStaged(image.path);
     } catch (error) {
       if (error instanceof StagingReadError && error.status === 404) {
-        // Not in Blob: promoted by an earlier run, written straight to the
-        // durable tier by the import script, or never uploaded. Nothing writes
-        // to Blob any more, so the row stops saying a copy is there.
-        if (image.store === "blob") {
-          await clearStagedTier(supabase, image);
-          continue;
-        }
-
         // The row says the bucket holds a copy and it does not. Nothing here
         // can bring the bytes back, so it is said rather than cleared.
         seen.add(image.path);
@@ -332,22 +304,14 @@ export async function runGameImagePromotion(
     );
   }
 
-  // Blob: delete, then clear the row's record of the copy. No upload writes to
-  // Blob any more, so nothing can land at the path in between.
-  const inBlob = pushing.filter((image) => image.store === "blob");
-  if (inBlob.length > 0) {
-    await ports.discard(inBlob.map((image) => image.path));
-    for (const image of inBlob) await clearStagedTier(supabase, image);
-  }
-
-  // Bucket: clear the record first, and only where the row still names the
-  // bytes that were pushed, then delete what nothing claims. An owner upload
-  // that lands in between either claims the path first, and keeps the object,
-  // or is refused while the deletion is reserved.
-  const inBucket: GameImage[] = [];
-  for (const image of pushing.filter((candidate) => candidate.store === "bucket")) {
+  // Clear the record first, and only where the row still names the bytes that
+  // were pushed, then delete what nothing claims. An owner upload that lands
+  // in between either claims the path first, and keeps the object, or is
+  // refused while the deletion is reserved.
+  const cleared: GameImage[] = [];
+  for (const image of pushing) {
     if (await clearStagedTier(supabase, image)) {
-      inBucket.push(image);
+      cleared.push(image);
     } else {
       ports.say(`keep ${image.path}: a newer upload or a removal changed the row after it was read.`);
     }
@@ -355,10 +319,10 @@ export async function runGameImagePromotion(
   const gone = await deleteStagedObjects(
     supabase,
     (paths) => ports.discardStaged(paths),
-    inBucket.map((image) => image.path),
+    cleared.map((image) => image.path),
     true,
   );
-  for (const image of inBucket) {
+  for (const image of cleared) {
     if (!gone.has(image.path)) {
       ports.say(`keep ${image.path}: the game row claimed it again before it could be deleted.`);
     }

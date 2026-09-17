@@ -29,9 +29,9 @@ values ('33333333-3333-3333-3333-333333333333', 'can_moderate');
 insert into public.asset (id, map_name, variant, source_hash, hash, encode_profile, path, tier, promoted_at, origin, mime, bytes, width, height, map_width, map_height, source_archive, moderation, approval_source, uploaded_by)
 values
   ('0f8fad5b-0000-4000-8000-00000000000a', 'Tangerine 1.1', 'minimap', 'src-a', 'enc-promoted', 'webp-q80-512', 'maps/minimap/enc-promoted.webp', 'static', now(), 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'tangerine_1.1.sd7', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111'),
-  ('0f8fad5b-0000-4000-8000-00000000000b', 'Comet Catcher 1.8', 'minimap', 'src-b', 'enc-staging', 'webp-q80-512', 'maps/minimap/enc-staging-Xy9.webp', 'blob', null, 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'comet_1.8.sd7', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111'),
+  ('0f8fad5b-0000-4000-8000-00000000000b', 'Comet Catcher 1.8', 'minimap', 'src-b', 'enc-staging', 'webp-q80-512', 'maps/minimap/enc-staging-Xy9.webp', 'bucket', null, 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'comet_1.8.sd7', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111'),
   ('0f8fad5b-0000-4000-8000-00000000000c', 'Supreme Isthmus 1.2', 'minimap', 'src-c', 'enc-editorial', 'webp-q80-512', 'maps/minimap/enc-editorial.webp', 'static', now(), 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'isthmus_1.2.sd7', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111'),
-  ('0f8fad5b-0000-4000-8000-00000000000d', 'Quicksilver 1.5', 'minimap', 'src-d', 'enc-replaced', 'webp-q80-512', 'maps/minimap/enc-replaced-Ab3.webp', 'blob', null, 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'quicksilver_1.5.sd7', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111');
+  ('0f8fad5b-0000-4000-8000-00000000000d', 'Quicksilver 1.5', 'minimap', 'src-d', 'enc-replaced', 'webp-q80-512', 'maps/minimap/enc-replaced-Ab3.webp', 'bucket', null, 'extracted', 'image/webp', 40000, 512, 512, 8192, 8192, 'quicksilver_1.5.sd7', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111');
 
 select is(
   (select count(*) from public.asset_withdrawal)::int, 0,
@@ -74,7 +74,7 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$update public.asset set tier = 'blob' where id = '0f8fad5b-0000-4000-8000-00000000000a'$$,
+  $$update public.asset set tier = 'bucket' where id = '0f8fad5b-0000-4000-8000-00000000000a'$$,
   '23514',
   null,
   'including its tier, which is why the record could not have lived on the row'

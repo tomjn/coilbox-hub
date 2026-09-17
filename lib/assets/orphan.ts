@@ -15,81 +15,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *    bytes, and a second sweeper over the same objects would be a second thing
  *    that can delete them without that gate.
  *
- * ## Nothing here sweeps Vercel Blob
+ * ## Vercel Blob
  *
- * Blob was the staging store until #332, and superseded Blob objects are still
- * queued in `public.asset_orphan` by a trigger. Nothing reads that queue any
- * more. The store was suspended in September 2026 and still answered 403 on
- * 2026-09-17, nothing in it is worth keeping, and #338 removes the store, the queue
- * and the trigger together. Pictures that were only in Blob are marked
- * `bytes_missing_at` (#336), so Coilbox uploads them again into the bucket.
+ * Blob was the staging store before the bucket (#332), and #338 removed it
+ * along with its own orphan queue and the trigger that filled it. Pictures
+ * that were only in Blob are marked `bytes_missing_at` (#336), so Coilbox
+ * uploads them again into the bucket.
  */
 
 /** How many objects one sweep handles. The bucket normally holds none nothing
  *  claims and a replacement adds one, so this bounds a pathological run rather
  *  than a normal one, the way `PROMOTION_BATCH` does. */
 export const CLEANUP_BATCH = 200;
-
-/**
- * How many pathnames one `.in()` query asks about at a time.
- *
- * PostgREST puts an `.in()` list in the request URL, and on 2026-09-04 a
- * queue of 200 pending deletions (24,264 characters of raw pathname, before
- * URL encoding) was enough for Supabase's gateway to reject it outright with
- * a 400 rather than a row-count error. Splitting the list keeps every
- * request a quarter of that size regardless of how large `CLEANUP_BATCH` or
- * `PROMOTION_BATCH` grow, or how large the deletion queue gets after a run
- * that failed before it could drain.
- */
-const PATH_QUERY_BATCH = 50;
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
-  return chunks;
-}
-
-/**
- * Which of these staging pathnames a row is still serving its picture from.
- *
- * The gate on every deletion in the codebase, here and in
- * `lib/assets/promote.ts`. Since #132 an object can be named by a row that never
- * wrote it, so "the row that stored this has moved on" no longer means the
- * object is spare, and the only honest question is whether any row at all names
- * it. Postgres holds every reference, so it is the one asked, rather than a
- * count kept alongside that could drift.
- *
- * Only `path`, and only on a staging tier. `blob_path` is a queued deletion
- * rather than a picture being served, and deleting an object twice is free.
- *
- * Both staging tiers, Blob and the bucket (#332). This is the check for Blob
- * deletions. A bucket deletion asks `reserve_staged_deletions` instead (see
- * {@link deleteStagedObjects}), which checks the same claims under a lock.
- */
-export async function stagingPathsInUse(
-  supabase: SupabaseClient,
-  paths: string[],
-): Promise<Set<string>> {
-  if (paths.length === 0) return new Set();
-
-  const inUse = new Set<string>();
-
-  for (const batch of chunk(paths, PATH_QUERY_BATCH)) {
-    const { data, error } = await supabase
-      .from("asset")
-      .select("path")
-      .neq("tier", "static")
-      .in("path", batch);
-
-    if (error) {
-      throw new Error(`Could not check what still claims these objects: ${error.message}`);
-    }
-
-    for (const row of (data ?? []) as { path: string }[]) inUse.add(row.path);
-  }
-
-  return inUse;
-}
 
 /** The one side effect a sweep has, injected for the same reason
  *  `PromotionPorts` is: a test must be able to watch what would be deleted

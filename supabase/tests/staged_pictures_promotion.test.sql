@@ -6,7 +6,7 @@
 -- who may call any of it.
 
 begin;
-select plan(31);
+select plan(30);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -17,8 +17,8 @@ insert into public.asset (id, game, unit_name, variant, source_hash, hash, encod
 values
   -- Approved in the bucket, due to move.
   ('0f8fad5b-5555-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-a', 'enc-a', 'webp-lossless-256', 'units/bar/buildpic/enc-a.webp', 'bucket', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', null, '11111111-1111-1111-1111-111111111111'),
-  -- Approved in Blob, due to move.
-  ('0f8fad5b-5555-4000-8000-00000000000b', 'bar', 'armllt', 'buildpic', 'src-b', 'enc-b', 'webp-lossless-256', 'units/bar/buildpic/enc-b-Zx91Kp2w.webp', 'blob', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', null, '11111111-1111-1111-1111-111111111111'),
+  -- Approved in the bucket at an older path, due to move.
+  ('0f8fad5b-5555-4000-8000-00000000000b', 'bar', 'armllt', 'buildpic', 'src-b', 'enc-b', 'webp-lossless-256', 'units/bar/buildpic/enc-b-Zx91Kp2w.webp', 'bucket', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', null, '11111111-1111-1111-1111-111111111111'),
   -- Rejected in the bucket. Its object is still named.
   ('0f8fad5b-5555-4000-8000-00000000000c', 'bar', 'armcom', 'buildpic', 'src-c', 'enc-c', 'webp-lossless-256', 'units/bar/buildpic/enc-c.webp', 'bucket', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'rejected', null, 'editorial', '11111111-1111-1111-1111-111111111111'),
   -- Imported straight to the durable tier at a path the bucket also holds.
@@ -110,9 +110,9 @@ select set_eq(
       ARRAY['units/bar/buildpic/enc-a.webp', 'units/bar/buildpic/enc-b.webp', 'units/bar/buildpic/enc-c.webp'])$$,
   ARRAY[
     '0f8fad5b-5555-4000-8000-00000000000a units/bar/buildpic/enc-a.webp bucket',
-    '0f8fad5b-5555-4000-8000-00000000000b units/bar/buildpic/enc-b-Zx91Kp2w.webp blob'
+    '0f8fad5b-5555-4000-8000-00000000000b units/bar/buildpic/enc-b-Zx91Kp2w.webp bucket'
   ],
-  'approved rows in either store move, and each comes back with the store its staging path is in'
+  'approved rows move, and each comes back with the staging path to delete'
 );
 
 select is(
@@ -194,12 +194,6 @@ select throws_ok(
     where id = '0f8fad5b-5555-4000-8000-000000000001'$$,
   '55006', null,
   'a game picture cannot claim it either'
-);
-
-select lives_ok(
-  $$insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, tier, origin, mime, bytes, width, height, source_archive)
-    values ('bar', 'armfus', 'buildpic', 'src-f', 'spare-blob', 'webp-lossless-256', 'units/bar/buildpic/spare.webp', 'blob', 'uploaded', 'image/webp', 2048, 128, 128, 'bar_1.2.sdz')$$,
-  'a Blob row at the same name is another store and is not refused'
 );
 
 select lives_ok(

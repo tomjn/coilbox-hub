@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MapFacts } from "@/lib/api/mapLookup";
-import { BLOB_TIER_BASE } from "@/lib/assets/blob";
 import { DEFAULT_ASSET_CDN_BASE } from "@/lib/assets/cdn";
 import type { AssetLicenceRow } from "@/lib/assets/licence";
+import { siteUrl } from "@/lib/site";
 import {
   blueprintUnitIdentities,
   itemPictures,
@@ -168,8 +168,8 @@ function mapRow(overrides: Partial<Row> = {}): Row {
     unit_name: null,
     map_name: "Some Custom Map 1.0",
     variant: "minimap",
-    tier: "blob",
-    path: "maps/minimap/abc-Xy9.webp",
+    tier: "bucket",
+    path: "maps/minimap/abc.webp",
     width: 512,
     height: 384,
     moderation: "approved",
@@ -292,8 +292,8 @@ test("a map the hub holds a minimap of is served it", async () => {
   );
 
   expect(map).toEqual({
-    from: "blob",
-    url: `${BLOB_TIER_BASE}maps/minimap/abc-Xy9.webp`,
+    from: "bucket",
+    url: `${siteUrl()}/assets/staged/maps/minimap/abc.webp`,
     served: { keyedOn: "map", mapName: "Some Custom Map 1.0", variant: "minimap" },
     substituted: false,
     width: 512,
@@ -359,8 +359,8 @@ test("a pack's maps come back in one query, pictured or not", async () => {
   // Every map the pack names has a card, so the one with nothing stored keeps
   // the placeholder rather than dropping out of the list.
   expect(packMaps.get("Some Custom Map 1.0")).toMatchObject({
-    from: "blob",
-    url: `${BLOB_TIER_BASE}maps/minimap/abc-Xy9.webp`,
+    from: "bucket",
+    url: `${siteUrl()}/assets/staged/maps/minimap/abc.webp`,
   });
   expect(packMaps.get(GLITTERS)).toEqual({
     from: "placeholder",

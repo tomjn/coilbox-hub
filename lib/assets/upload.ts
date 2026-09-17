@@ -554,7 +554,7 @@ export async function uploaderSkipsQueue(supabase: SupabaseClient): Promise<bool
  * not, since nothing approved this.
  *
  * `tier` and `promoted_at` go back too. The new object is in the bucket, so a
- * row left saying `static` or `blob` would name a store the bytes are not in.
+ * row left saying `static` would name a store the bytes are not in.
  * `bytes_missing_at` goes with them, because the bytes are no longer missing
  * (#336), and the table refuses a bucket row that still says they are.
  *

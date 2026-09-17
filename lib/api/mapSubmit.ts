@@ -17,8 +17,8 @@ import { canonicalEntry, type MapEntry, type MapPoint, type MapPoints } from "@/
  * ## A batch, where an asset upload is one at a time
  *
  * Bytes are what force `/api/v1/assets/upload` to take one asset per request: a
- * multipart body, a platform size cap, and a single Blob write that succeeds or
- * fails. There are no bytes here. So fifty maps travel together and the outcome
+ * multipart body, a platform size cap, and a single bucket write that succeeds
+ * or fails. There are no bytes here. So fifty maps travel together and the outcome
  * is per map inside a 200, and one map the hub refuses does not fail the other
  * forty nine.
  *

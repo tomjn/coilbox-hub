@@ -6,7 +6,7 @@
  * where they are tested. This file is the things that module cannot do
  * itself: read an object over HTTP or out of the Supabase bucket, put a file in
  * a checkout, commit and push it, ask the published site whether it is serving
- * yet, and delete from Blob or the bucket.
+ * yet, and delete from the bucket.
  *
  *   bun run promote:assets --assets-repo ../coilbox-assets --dry-run
  *   bun run promote:assets --assets-repo ../coilbox-assets --write
@@ -38,13 +38,11 @@
  * The alternative, running in the hub, means a deploy key or a personal access
  * token with write access to another repository, stored indefinitely.
  *
- * The cost is that the two credentials this needs have to be repository
- * secrets on the assets repo: `SUPABASE_SERVICE_ROLE_KEY`, which bypasses row
- * level security on the whole database and is also what reads and deletes in
- * the Supabase bucket, and `BLOB_READ_WRITE_TOKEN`, which can write the Blob
- * store. Neither has anything to do with publishing images,
- * and they are the two most powerful credentials the project has, so they are
- * worth naming rather than adding quietly.
+ * The cost is that this needs a repository secret on the assets repo:
+ * `SUPABASE_SERVICE_ROLE_KEY`, which bypasses row level security on the whole
+ * database and is also what reads and deletes in the Supabase bucket. It has
+ * nothing to do with publishing images, and it is the most powerful credential
+ * the project has, so it is worth naming rather than adding quietly.
  *
  * ## Why it dispatches the Pages workflow
  *
@@ -60,7 +58,6 @@ export {}; // top level await needs this file to be a module
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createClient, StorageApiError } from "@supabase/supabase-js";
-import { blobTierUrl, deleteBlobAssets } from "@/lib/assets/blob";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import {
   PROMOTION_BATCH,
@@ -83,11 +80,8 @@ import {
 const SERVE_TIMEOUT_MS = 25 * 60 * 1000;
 const POLL_MS = 15_000;
 
-/** Deleting is free and does not touch the monthly allowance, but a batch
- *  counts per blob against the per minute rate limit, so a large run is paced
- *  rather than sent in one call. */
+/** How many paths one deletion call takes at once. */
 const DELETE_CHUNK = 100;
-const DELETE_PAUSE_MS = 2_000;
 
 const args = process.argv.slice(2);
 
@@ -131,11 +125,6 @@ if (!url || !key) {
     "Need NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY set. " +
       "See .env.development.local for the local stack.",
   );
-  process.exit(1);
-}
-
-if (write && !process.env.BLOB_READ_WRITE_TOKEN) {
-  console.error("Need BLOB_READ_WRITE_TOKEN set to delete anything out of the staging tier.");
   process.exit(1);
 }
 
@@ -213,23 +202,10 @@ async function dispatchPages(): Promise<void> {
   }
 }
 
-/** Every status the store refused a read with, so the end of the run can say
- *  what a wall of them most likely means. */
-const refusals = new Set<number>();
-
 const ports: PromotionPorts = {
-  read: async (from) => {
-    const response = await fetch(from, { cache: "no-store" });
-    if (!response.ok) {
-      if (response.status !== 404) refusals.add(response.status);
-      throw new StagingReadError(response.status, from);
-    }
-    return new Uint8Array(await response.arrayBuffer());
-  },
-
   // The bucket is private, so this goes through the Storage API with the
-  // secret key rather than over a public URL. A missing object is a 404 like
-  // Blob's, so the game picture pass can tell absent from refused.
+  // secret key rather than over a public URL. A missing object is a 404, so
+  // the game picture pass can tell absent from refused.
   readStaged: async (path) => {
     try {
       return new Uint8Array(await (await downloadStagedAsset(supabase, path)).arrayBuffer());
@@ -309,14 +285,6 @@ const ports: PromotionPorts = {
     return live;
   },
 
-  discard: async (paths) => {
-    for (let at = 0; at < paths.length; at += DELETE_CHUNK) {
-      if (at > 0) await sleep(DELETE_PAUSE_MS);
-      await deleteBlobAssets(paths.slice(at, at + DELETE_CHUNK));
-    }
-  },
-
-  // Chunked the same way, without the pause, which is for Blob's rate limit.
   discardStaged: async (paths) => {
     for (let at = 0; at < paths.length; at += DELETE_CHUNK) {
       await removeStagedAssets(supabase, paths.slice(at, at + DELETE_CHUNK));
@@ -347,9 +315,7 @@ if (withdrawn) {
 
   const leftover = await fetchPendingDeletions(supabase);
   for (const row of leftover) {
-    console.log(
-      `would delete ${row.blob_path} from ${row.blob_path_tier ?? "blob"}, promoted already and still in the store`,
-    );
+    console.log(`would delete ${row.blob_path}, promoted already and still in the bucket`);
   }
 
   const due = await fetchPromotable(supabase, limit);
@@ -359,26 +325,14 @@ if (withdrawn) {
     );
   }
 
-  // A game row says which store its staged copy is in. A bucket copy is listed
-  // as it is. A legacy row can still say Blob after its picture was promoted, so
-  // for those the dry run asks the store directly. A HEAD is data transfer, not
-  // an operation, and a path that answers is one this run would have moved.
   const staged = await fetchStagedGameImages(supabase);
   let waiting = 0;
   const seen = new Set<string>();
   for (const image of staged) {
     if (seen.has(image.path)) continue;
     seen.add(image.path);
-    if (image.store === "bucket") {
-      console.log(`would promote game ${image.kind} ${image.path} from the bucket`);
-      waiting++;
-      continue;
-    }
-    const response = await fetch(blobTierUrl(image.path), { method: "HEAD", cache: "no-store" });
-    if (response.ok) {
-      console.log(`would promote game ${image.kind} ${image.path}`);
-      waiting++;
-    }
+    console.log(`would promote game ${image.kind} ${image.path} from the bucket`);
+    waiting++;
   }
 
   // Removed art, and art at an old extension, still in the checkout (#360).
@@ -424,13 +378,6 @@ if (withdrawn) {
   } catch (error) {
     console.error("The game picture pass stopped:", error);
     failed = true;
-  }
-
-  if (refusals.has(403)) {
-    console.error(
-      "The staging store answered 403. That is what Vercel Blob returns for every object while " +
-        "a store is suspended for going over an allowance. Check the store's usage page.",
-    );
   }
 
   if (failed) process.exitCode = 1;

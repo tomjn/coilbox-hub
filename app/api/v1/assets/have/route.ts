@@ -12,12 +12,12 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * encodes or uploads anything, because most of the time the answer is that the
  * hub already has it.
  *
- * Answered entirely from `public.asset`. Nothing here touches Vercel Blob:
- * `head()` is a metered simple operation asking what the row already knows, and
- * `list()` spends the 2,000 advanced operations a month that uploads live on.
- * The comparison is on `source_hash`, over the raw archive bytes, never `hash`,
- * over the encoded ones, which legitimately differs between Coilbox releases
- * and would report every asset as changed after any encoder upgrade.
+ * Answered entirely from `public.asset`. Nothing here touches the staging
+ * bucket: every fact this needs is already on the row, and asking the store
+ * directly would only re-derive it. The comparison is on `source_hash`, over
+ * the raw archive bytes, never `hash`, over the encoded ones, which
+ * legitimately differs between Coilbox releases and would report every asset
+ * as changed after any encoder upgrade.
  *
  * ## Why this needs a token
  *

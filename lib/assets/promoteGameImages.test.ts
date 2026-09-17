@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { beforeEach, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BLOB_TIER_BASE } from "./blob";
 import { type PromotionPorts, StagingReadError } from "./promote";
 
 const { runGameImagePromotion, fetchStagedGameImages } = await import("./promoteGameImages");
@@ -14,15 +13,13 @@ const { runGameImagePromotion, fetchStagedGameImages } = await import("./promote
  * witness for whether staging bytes are the ones asked for.
  */
 
-/** A staging object is the seed's bytes; a row hash is the seed's hash. The two
- *  halves of one fixture have to agree, which is what this type carries. */
+/** A staging object is the seed's bytes, and a row hash is the seed's hash. The
+ *  two halves of one fixture have to agree, which is what this type carries. */
 interface Fixture {
   row: GameRow;
   /** Staging objects, pathname to seed. Absent means the picture is not on the
    *  staging tier at all. */
   staged?: Record<string, string>;
-  /** The staged objects are in the bucket rather than Blob. */
-  inBucket?: boolean;
 }
 
 interface GameRow {
@@ -45,7 +42,7 @@ function stagedLogo(shortname: string, seed = `${shortname}-logo-bytes`): Fixtur
       shortname,
       logo_path: path,
       logo_hash: HASH(seed),
-      logo_staged_tier: "blob",
+      logo_staged_tier: "bucket",
       banner_path: null,
       banner_hash: null,
       banner_staged_tier: null,
@@ -54,17 +51,8 @@ function stagedLogo(shortname: string, seed = `${shortname}-logo-bytes`): Fixtur
   };
 }
 
-/** The same, uploaded since #332, so the staged copy is in the bucket. */
-function bucketLogo(shortname: string, seed = `${shortname}-logo-bytes`): Fixture {
-  const fixture = stagedLogo(shortname, seed);
-  fixture.row.logo_staged_tier = "bucket";
-  fixture.inBucket = true;
-  return fixture;
-}
-
 class World {
   rows: GameRow[] = [];
-  blob = new Map<string, Uint8Array>();
   bucket = new Map<string, Uint8Array>();
   reservations = new Set<string>();
   discardedStaged: string[] = [];
@@ -74,7 +62,6 @@ class World {
   /** Files taken out of the checkout that the next publish deletes. */
   removing: string[] = [];
   served = new Set<string>();
-  discarded: string[] = [];
   said: string[] = [];
   trips: string[] = [];
 
@@ -82,13 +69,13 @@ class World {
     for (const fixture of fixtures) {
       this.rows.push(fixture.row);
       for (const [path, seed] of Object.entries(fixture.staged ?? {})) {
-        (fixture.inBucket ? this.bucket : this.blob).set(path, new TextEncoder().encode(seed));
+        this.bucket.set(path, new TextEncoder().encode(seed));
       }
     }
   }
 
   put(path: string, seed: string) {
-    this.blob.set(path, new TextEncoder().encode(seed));
+    this.bucket.set(path, new TextEncoder().encode(seed));
   }
 
   trip(step: string) {
@@ -151,13 +138,6 @@ function fakeSupabase(world: World): SupabaseClient {
 
 function fakePorts(world: World): PromotionPorts {
   return {
-    read: async (url: string) => {
-      world.trip("read");
-      const path = url.slice(BLOB_TIER_BASE.length);
-      const bytes = world.blob.get(path);
-      if (!bytes) throw new StagingReadError(404, url);
-      return bytes;
-    },
     readStaged: async (path: string) => {
       world.trip("readStaged");
       const bytes = world.bucket.get(path);
@@ -185,13 +165,6 @@ function fakePorts(world: World): PromotionPorts {
       world.trip("serving");
       return paths.filter((path) => world.served.has(path));
     },
-    discard: async (paths) => {
-      world.trip("discard");
-      for (const path of paths) {
-        world.blob.delete(path);
-        world.discarded.push(path);
-      }
-    },
     discardStaged: async (paths) => {
       world.trip("discardStaged");
       for (const path of paths) {
@@ -210,7 +183,7 @@ function reachable(world: World) {
   for (const row of world.rows) {
     for (const path of [row.logo_path, row.banner_path]) {
       if (!path) continue;
-      const anywhere = world.blob.has(path) || world.bucket.has(path) || world.served.has(path);
+      const anywhere = world.bucket.has(path) || world.served.has(path);
       expect({ path, anywhere }).toEqual({ path, anywhere: true });
     }
   }
@@ -230,51 +203,42 @@ test("a staged picture is written, published, confirmed serving, then cleared fr
   expect(result.promoted).toBe(2);
   expect(result.skipped).toBe(0);
   expect(world.served.has("games/SF/logo.webp")).toBe(true);
-  expect(world.blob.size).toBe(0);
+  expect(world.bucket.size).toBe(0);
   reachable(world);
 });
 
 test("the run happens in the order that never loses bytes", async () => {
   await run();
   // Read before write, write before publish, publish before serving is asked,
-  // and discard only after all of it.
+  // and the delete only after all of it.
   const order = world.trips.join(",");
-  expect(order.startsWith("read,")).toBe(true);
+  expect(order.startsWith("readStaged,")).toBe(true);
   expect(order.indexOf("write")).toBeGreaterThan(-1);
   expect(order.indexOf("write")).toBeLessThan(order.indexOf("publish"));
   expect(order.indexOf("publish")).toBeLessThan(order.indexOf("serving"));
-  expect(order.lastIndexOf("serving")).toBeLessThan(order.indexOf("discard"));
+  expect(order.lastIndexOf("serving")).toBeLessThan(order.indexOf("discardStaged"));
 });
 
 test("a picture already off staging is skipped without a write or a delete, and stops saying it is staged", async () => {
-  world.blob.clear();
+  world.bucket.clear();
   const result = await run();
   expect(result.promoted).toBe(0);
   expect(world.trips).not.toContain("write");
-  expect(world.trips).not.toContain("discard");
-  // Nothing writes to Blob any more, so the absence is permanent (#335).
-  expect(world.rows.map((row) => row.logo_staged_tier)).toEqual([null, null]);
-});
-
-test("a promoted Blob picture is deleted first and its staged tier cleared after", async () => {
-  await run();
-
-  const order = world.trips.join(",");
-  expect(order.lastIndexOf("discard")).toBeLessThan(order.lastIndexOf("clear"));
-  expect(world.rows.map((row) => row.logo_staged_tier)).toEqual([null, null]);
+  expect(world.trips).not.toContain("discardStaged");
+  expect(world.rows.map((row) => row.logo_staged_tier)).toEqual(["bucket", "bucket"]);
 });
 
 test("a store that refuses a read is said out loud rather than read as already promoted", async () => {
   const ports = fakePorts(world);
-  ports.read = async (url) => {
-    throw new StagingReadError(403, url);
+  ports.readStaged = async (path) => {
+    throw new StagingReadError(403, path);
   };
 
   const result = await runGameImagePromotion(fakeSupabase(world), ports);
 
   expect(result).toEqual({ promoted: 0, skipped: 2, unreadable: 2, removed: 0 });
   expect(world.said.join("\n")).toContain("403 reading");
-  expect(world.discarded).toEqual([]);
+  expect(world.discardedStaged).toEqual([]);
   reachable(world);
 });
 
@@ -282,12 +246,12 @@ test("staging bytes the row does not name are left alone and said out loud", asy
   world.put("games/SF/logo.webp", "somebody else's bytes");
   const result = await run();
 
-  // SF's logo skipped; BA's own still moved.
+  // SF's logo is skipped, and BA's own still moves.
   expect(result.promoted).toBe(1);
   expect(result.skipped).toBe(1);
   expect(world.said.join("\n")).toContain("does not name");
   expect(world.served.has("games/SF/logo.webp")).toBe(false);
-  expect(world.blob.get("games/SF/logo.webp")).toBeDefined();
+  expect(world.bucket.get("games/SF/logo.webp")).toBeDefined();
   reachable(world);
 });
 
@@ -301,7 +265,7 @@ test("a push the durable tier never serves throws before anything is deleted", a
   await expect(runGameImagePromotion(fakeSupabase(world), ports)).rejects.toThrow(
     /Nothing has been deleted/,
   );
-  expect(world.blob.size).toBe(2);
+  expect(world.bucket.size).toBe(2);
   reachable(world);
 });
 
@@ -320,7 +284,7 @@ test("a re-run after an interrupted one converges", async () => {
 
   const second = await run();
   expect(second.promoted).toBe(2);
-  expect(world.blob.size).toBe(0);
+  expect(world.bucket.size).toBe(0);
   reachable(world);
 });
 
@@ -331,7 +295,7 @@ test("rows with paths but no hashes are not offered for promotion", async () => 
         shortname: "EE",
         logo_path: "games/EE/logo.png",
         logo_hash: null,
-        logo_staged_tier: "blob",
+        logo_staged_tier: "bucket",
         banner_path: null,
         banner_hash: null,
         banner_staged_tier: null,
@@ -342,28 +306,8 @@ test("rows with paths but no hashes are not offered for promotion", async () => 
   expect(images).toEqual([]);
 });
 
-test("a picture staged in the bucket is read and deleted there and never in Blob, even when Blob holds the same bytes", async () => {
-  // The worst case for reading Blob at a bucket row's path: an older upload of
-  // identical bytes is still in Blob, so the hash matches, and promoting and
-  // deleting that would leave the bucket copy behind for good.
-  const bucket = bucketLogo("SF");
-  world = new World([bucket, stagedLogo("BA")]);
-  world.put("games/SF/logo.webp", "SF-logo-bytes");
-
-  const result = await run();
-
-  expect(result).toEqual({ promoted: 2, skipped: 0, unreadable: 0, removed: 0 });
-  expect(world.discarded).toEqual(["games/BA/logo.webp"]);
-  expect(world.discardedStaged).toEqual(["games/SF/logo.webp"]);
-  expect(world.blob.has("games/SF/logo.webp")).toBe(true);
-  expect(world.bucket.size).toBe(0);
-  expect(world.rows.map((row) => row.logo_staged_tier)).toEqual([null, null]);
-  expect(world.reservations.size).toBe(0);
-  reachable(world);
-});
-
 test("a bucket picture's staged tier is cleared before its object is reserved and deleted", async () => {
-  world = new World([bucketLogo("SF")]);
+  world = new World([stagedLogo("SF")]);
 
   await run();
 
@@ -376,7 +320,7 @@ test("an owner upload that lands while a bucket picture is promoted keeps the ne
   // the run read the old bytes. The conditional clear finds the row changed,
   // so neither the row nor the object is touched, and the next run promotes the
   // new art.
-  world = new World([bucketLogo("SF")]);
+  world = new World([stagedLogo("SF")]);
   const ports = fakePorts(world);
   const publish = ports.publish;
   ports.publish = async (paths) => {
@@ -399,7 +343,7 @@ test("an owner upload that lands while a bucket picture is promoted keeps the ne
 });
 
 test("a run killed between clearing a bucket picture and deleting it leaves an object the sweep can find", async () => {
-  world = new World([bucketLogo("SF")]);
+  world = new World([stagedLogo("SF")]);
   world.failAt = "reserve_staged_deletions";
 
   await expect(run()).rejects.toThrow("killed at reserve_staged_deletions");
@@ -413,7 +357,7 @@ test("a run killed between clearing a bucket picture and deleting it leaves an o
 });
 
 test("a row naming a bucket copy that is not there is said out loud and left as it is", async () => {
-  world = new World([bucketLogo("SF")]);
+  world = new World([stagedLogo("SF")]);
   world.bucket.clear();
 
   const result = await run();
@@ -468,7 +412,7 @@ test("a logo removed after it was promoted is deleted from the durable tier, wit
 });
 
 test("a logo removed before promotion is never written or pushed, and its bucket object is left for the sweep", async () => {
-  world = new World([bucketLogo("BA")]);
+  world = new World([stagedLogo("BA")]);
   removedLogo(world.rows[0]);
 
   const result = await run();
@@ -483,7 +427,7 @@ test("a logo removed before promotion is never written or pushed, and its bucket
 });
 
 test("a logo removed while the run reads its bytes is taken back out of the checkout and never pushed", async () => {
-  world = new World([bucketLogo("BA")]);
+  world = new World([stagedLogo("BA")]);
   const ports = fakePorts(world);
   const readStaged = ports.readStaged;
   ports.readStaged = async (path) => {
@@ -503,7 +447,7 @@ test("a logo removed while the run reads its bytes is taken back out of the chec
 });
 
 test("a logo removed after the rows were read again is pushed once, left unclaimed in the bucket, and deleted by the next run", async () => {
-  world = new World([bucketLogo("BA")]);
+  world = new World([stagedLogo("BA")]);
   const ports = fakePorts(world);
   const publish = ports.publish;
   ports.publish = async (paths) => {
@@ -527,7 +471,7 @@ test("a logo removed after the rows were read again is pushed once, left unclaim
 });
 
 test("a promoted picture the row still names is kept, and one at an old extension goes out in the same push as the new one", async () => {
-  const replaced = bucketLogo("BA");
+  const replaced = stagedLogo("BA");
   world = new World([replaced, promotedLogo("SF")]);
   for (const path of ["games/BA/logo.png", "games/SF/logo.webp"]) {
     world.checkout.add(path);

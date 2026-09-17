@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import type { MapFacts } from "@/lib/api/mapLookup";
 import type { AssetIdentity } from "@/lib/assets/asset";
-import { BLOB_TIER_BASE } from "@/lib/assets/blob";
 import { DEFAULT_ASSET_CDN_BASE } from "@/lib/assets/cdn";
 import { identityKey } from "@/lib/assets/have";
 import type { HeldAssets, HeldRow, ResolvedAsset } from "@/lib/assets/resolve";
+import { siteUrl } from "@/lib/site";
 import { mapPreview, readAppearance } from "./preview";
 
 const COMET = "Comet Catcher Remake 1.8";
@@ -120,16 +120,16 @@ test("a map with no height overlay has no preview", () => {
 });
 
 /** A pending overlay is indistinguishable from no overlay, which is the rule the
- *  resolver holds everywhere. Its Blob path is a working public URL and a
- *  preview must not become the second way to reach one. */
+ *  resolver holds everywhere. A preview must not become the second way to reach
+ *  bytes nobody has reviewed. */
 test("an overlay that is not approved is no overlay at all", () => {
   const pending = heldOf(
     [MINIMAP, row()],
     [
       OVERLAY,
       overlayRow({
-        tier: "blob",
-        path: "maps/overlay/height/ghi-Xy9.webp",
+        tier: "bucket",
+        path: "maps/overlay/height/ghi.webp",
         moderation: "pending",
       }),
     ],
@@ -137,7 +137,7 @@ test("an overlay that is not approved is no overlay at all", () => {
   const preview = mapPreview(COMET, facts(), pending, SERVED);
 
   expect(preview).toBeNull();
-  expect(JSON.stringify(preview)).not.toContain("ghi-Xy9");
+  expect(JSON.stringify(preview)).not.toContain("ghi.webp");
 });
 
 test("a rejected overlay is refused the same way", () => {
@@ -160,14 +160,14 @@ test("an overlay stored without a range decodes to nothing rather than to NaN", 
   expect(mapPreview(COMET, facts(), ranged, SERVED)).toBeNull();
 });
 
-test("a row still in Blob is previewed from the staging store", () => {
+test("a row still in the staging bucket is previewed from there", () => {
   const staged = heldOf(
     [MINIMAP, row()],
-    [OVERLAY, overlayRow({ tier: "blob", path: "maps/overlay/height/ghi-Xy9.webp" })],
+    [OVERLAY, overlayRow({ tier: "bucket", path: "maps/overlay/height/ghi.webp" })],
   );
 
   expect(mapPreview(COMET, facts(), staged, SERVED)?.heightUrl).toBe(
-    `${BLOB_TIER_BASE}maps/overlay/height/ghi-Xy9.webp`,
+    `${siteUrl()}/assets/staged/maps/overlay/height/ghi.webp`,
   );
 });
 

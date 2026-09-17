@@ -11,9 +11,7 @@ import type { CleanupPorts } from "./orphan";
  * below is a variation on which of the two went.
  */
 
-const { ABANDONED_RESERVATION_MINUTES, stagingPathsInUse, sweepStagedObjects } = await import(
-  "./orphan"
-);
+const { ABANDONED_RESERVATION_MINUTES, sweepStagedObjects } = await import("./orphan");
 
 interface AssetRow {
   path: string;
@@ -25,8 +23,6 @@ interface AssetRow {
 class World {
   assets: AssetRow[] = [];
   said: string[] = [];
-  /** Size of every `.in()` call made against `assets`, in request order. */
-  inBatchSizes: number[] = [];
   /** Objects in the Supabase bucket, by path. */
   bucket = new Set<string>();
   /** Game pictures whose staged copy the row says is in the bucket. */
@@ -47,11 +43,6 @@ class World {
       (queuedIsClaimed && this.assets.some((row) => row.blob_path === path)) ||
       this.stagedGamePaths.includes(path)
     );
-  }
-
-  live(path: string) {
-    this.assets.push({ path, tier: "bucket", blob_path: null });
-    return this;
   }
 }
 
@@ -87,7 +78,6 @@ function fakeSupabase(world: World): SupabaseClient {
         return builder;
       },
       in: (column: string, values: unknown[]) => {
-        if (name === "asset") world.inBatchSizes.push(values.length);
         matching = matching.filter((row) => values.includes(row[column]));
         return builder;
       },
@@ -164,22 +154,6 @@ let world: World;
 
 beforeEach(() => {
   world = new World();
-});
-
-test("a long list of pathnames is asked about in batches, not one request", async () => {
-  // #300: a queue of 200 pending deletions was enough to trip Supabase's
-  // gateway with a 400 before a single row-count answer came back. Every
-  // request has to stay well under that regardless of how large the queue
-  // gets.
-  const paths = Array.from({ length: 120 }, (_, i) => `units/bar/buildpic/${i}.webp`);
-  for (const path of paths) world.live(path);
-
-  const inUse = await stagingPathsInUse(fakeSupabase(world), paths);
-
-  expect(inUse.size).toBe(120);
-  expect(world.inBatchSizes.length).toBeGreaterThan(1);
-  expect(world.inBatchSizes.every((size) => size <= 50)).toBe(true);
-  expect(world.inBatchSizes.reduce((a, b) => a + b, 0)).toBe(120);
 });
 
 // ## The Supabase bucket (#335)
