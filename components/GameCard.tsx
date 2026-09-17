@@ -132,7 +132,7 @@ export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides
                 // underneath it, and a half transparent ring shows that
                 // portrait through, which is the smear the overlap is meant to
                 // avoid.
-                className="size-9 bg-black ring-2 ring-[#0b0b0c]"
+                className="size-9 bg-black ring-2 ring-[#131314]"
               />
             </li>
           ))}
