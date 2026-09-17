@@ -85,7 +85,8 @@ export const ASSET_MAX_OBJECT_BYTES = vocabulary.maxObjectBytes;
 /**
  * How much of the store one account may hold.
  *
- * The whole store is 1 GB, so this is a sixteenth of it. It is a ceiling on one
+ * The staging bucket is 1 GB, so this is a sixteenth of it. It sums every row
+ * the account ever uploaded, promoted ones included. It is a ceiling on one
  * account taking the store away from everybody else rather than a budget
  * anybody is expected to reach: the entire buildpic corpus is about 20 MB.
  */
@@ -115,9 +116,12 @@ export const UNIT_RENDER_CEILING = 8;
  * subject is a game for a unit asset and maps as a whole for a map asset.
  *
  * Backfill is meant to be lazy: the units a viewed blueprint actually
- * references, not the roster. A hundred an hour is far past that and is
- * insurance against a client looping rather than a pace anybody meets, in the
- * spirit of `enforce_publish_rate_limit` on `public.item`.
+ * references, not the roster. This is insurance against a client looping, in
+ * the spirit of `enforce_publish_rate_limit` on `public.item`. It was 100, and
+ * one account's backfill on 2026-09-16 reached 80 an hour on each of five games.
+ * Uploads go to the bucket, which has no operation allowance, and the byte caps
+ * and {@link ACCOUNT_STORAGE_QUOTA_BYTES} bound what a loop can store, so this
+ * only has to catch a loop and must stay well clear of a real backfill.
  *
  * Counted on `seen_at`, because a replacement (#106) writes a new object without
  * creating a row, so `created_at` would read a client looping on replacements
@@ -128,7 +132,7 @@ export const UNIT_RENDER_CEILING = 8;
  * scoped to a game and inventing a game for it would either exempt maps or
  * force a second limit that drifts from this one.
  */
-export const SUBJECT_UPLOADS_PER_HOUR = 100;
+export const SUBJECT_UPLOADS_PER_HOUR = 500;
 
 /**
  * What a client says it is uploading. Every field here ends up on the row
