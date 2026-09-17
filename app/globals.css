@@ -6,11 +6,24 @@
   color-scheme: dark;
   --background: #0b0b0d;
   --foreground: #fafafa;
+  /* Every card surface in the app points here, which is why it is a token and
+     not a utility class written out 46 times.
+
+     Half transparent, so a card over the art backdrop keeps the drawing behind
+     it rather than blanking it out. Over the page it composites to about
+     #131314, a step up from the background, which is what stops a card reading
+     as a hole cut in the page.
+
+     The alpha and the base are chosen together. Halving the alpha halves how
+     far the card sits above the page, so changing one means re-picking the
+     other by eye rather than by arithmetic. */
+  --card: #1a1a1a80;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

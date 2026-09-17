@@ -27,7 +27,7 @@ export function SnippetForm({
         defaultValue={snippet}
         placeholder="A sentence about this unit, in your own words"
         aria-label="Author snippet"
-        className="rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+        className="rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
       />
       <div className="flex items-center gap-3">
         <button

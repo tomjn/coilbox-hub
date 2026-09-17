@@ -38,7 +38,7 @@ export async function generateMetadata({
 const BACKDROP_STRENGTH = 0.05;
 
 const CONTROL =
-  "w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 export default async function Units({
   params,
@@ -140,7 +140,7 @@ export default async function Units({
             The catalog could not be read just now. Try again in a moment.
           </p>
         ) : units.length === 0 ? (
-          <div className="rounded-md border border-neutral-800 bg-neutral-950 p-8 text-center">
+          <div className="rounded-md border border-neutral-800 bg-card p-8 text-center">
             <p className="text-sm text-neutral-400">
               {count > 0
                 ? "That page is past the last unit."

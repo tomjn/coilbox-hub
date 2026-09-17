@@ -1,11 +1,12 @@
 import { StorageApiError, type SupabaseClient } from "@supabase/supabase-js";
+import type { GameImageKind } from "@/lib/api/gameBranding";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { encodedHash } from "@/lib/assets/hash";
 import { downloadStagedAsset } from "@/lib/assets/staging";
 
 /**
- * Where a game's logo or banner is drawn from, before and after promotion
- * (issue #345).
+ * Where a game's pictures are drawn from, before and after promotion (issue
+ * #345). Its logo, its banner and its card art all resolve the same way.
  *
  * An upload goes to the private staging bucket, and promotion copies it to
  * GitHub Pages overnight. Until then GitHub Pages has nothing at the path, so
@@ -44,7 +45,9 @@ import { downloadStagedAsset } from "@/lib/assets/staging";
  * addressed, so a later upload and promotion would put other bytes behind it.
  */
 
-export type GameArtKind = "logo" | "banner";
+/** The kinds live in `lib/api/gameBranding.ts`, because the branding route and
+ *  this file have to agree on them and one of them has to hold the list. */
+export type { GameImageKind as GameArtKind } from "@/lib/api/gameBranding";
 
 /** The three columns a game row keeps for one picture. */
 export interface GameArt {
@@ -62,7 +65,7 @@ export const GAME_ART_ROUTE_PREFIX = "/assets/games/";
  *
  * Root relative for a staged picture, because only the hub's own pages use it.
  */
-export function gameArtUrl(shortname: string, kind: GameArtKind, art: GameArt): string | null {
+export function gameArtUrl(shortname: string, kind: GameImageKind, art: GameArt): string | null {
   if (!art.path) return null;
   // No staged copy: promoted, or imported straight to the durable tier.
   if (art.staged_tier === null) return staticTierUrl(art.path);
@@ -91,7 +94,7 @@ function mimeForPath(path: string): string {
 }
 
 /**
- * The bytes of a game's staged logo or banner, only when the visible game row
+ * The bytes of one of a game's staged pictures, only when the visible game row
  * names this hash and says the bucket holds the copy, and only when the bucket
  * copy hashes to it. The durable tier URL when the row names this hash and has
  * no staged copy. Null for everything else, so the route answers every refusal
@@ -110,7 +113,7 @@ export async function fetchGameArt(
   anon: SupabaseClient,
   admin: SupabaseClient,
   shortname: string,
-  kind: GameArtKind,
+  kind: GameImageKind,
   hash: string,
 ): Promise<StagedGameArt | PromotedGameArt | null> {
   const { data, error } = await anon

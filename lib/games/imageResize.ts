@@ -33,11 +33,19 @@ import type { ImageHeader } from "@/lib/assets/imageHeader";
  *   else sits in. There is no CSS width to double for 2x, so the box uses 2x
  *   that column's width, 2048px, as the widest a banner is ever worth storing
  *   at. Height is 224px doubled, 448px.
+ * - Card: 16:9 art for the listing card. The hub itself never draws it wider
+ *   than about 315 CSS px - `max-w-5xl` is 1024px, less `px-6` each side and
+ *   two `gap-4` gutters, over three columns - so 640x360 would cover this site
+ *   alone. It is sized for `/api/v1/games` instead, which publishes it to
+ *   coilbox, whose own game cards draw 16:9 loading screen art larger than
+ *   anything here does. 1280x720 is a chosen ceiling for that, not a measured
+ *   one.
  */
 
 export const IMAGE_TARGETS: Record<GameImageKind, { maxWidth: number; maxHeight: number }> = {
   logo: { maxWidth: 128, maxHeight: 128 },
   banner: { maxWidth: 2048, maxHeight: 448 },
+  card: { maxWidth: 1280, maxHeight: 720 },
 };
 
 /**

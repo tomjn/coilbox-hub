@@ -58,7 +58,7 @@ export function ItemCard({
 }) {
   const cardTitle = title ?? { title: item.title, tail: null };
   return (
-    <article className="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-5">
+    <article className="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5">
       <ItemCardArt item={item} picture={picture} shape={shape} />
       <div className="flex items-start justify-between gap-3">
         {/* A title is one field of free text and nothing stops it being a single

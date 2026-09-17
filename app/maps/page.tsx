@@ -213,7 +213,7 @@ export default async function Maps({
 }
 
 const CONTROL =
-  "w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 /** Every step in the pager is the same box, so a number, a previous and a next
  *  are one row of equal targets rather than two words with digits between them.
@@ -351,7 +351,7 @@ function Empty({
 }) {
   if (total > 0) {
     return (
-      <div className="rounded-md border border-neutral-800 bg-neutral-950 p-8 text-center">
+      <div className="rounded-md border border-neutral-800 bg-card p-8 text-center">
         <p className="text-sm text-neutral-400">That page is past the last map.</p>
         <Link
           href={filterHref(filters, { page: 1 })}
@@ -364,7 +364,7 @@ function Empty({
   }
 
   return (
-    <div className="rounded-md border border-neutral-800 bg-neutral-950 p-8 text-center">
+    <div className="rounded-md border border-neutral-800 bg-card p-8 text-center">
       <p className="text-sm text-neutral-400">
         {filtered ? "No map matches that." : "The hub holds facts about no maps yet."}
       </p>

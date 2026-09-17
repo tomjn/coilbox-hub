@@ -42,7 +42,7 @@ export default async function Moderation() {
         <h1 className="text-3xl font-semibold tracking-tight">Reports</h1>
 
         {open.length === 0 ? (
-          <p className="rounded-md border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-400">
+          <p className="rounded-md border border-neutral-800 bg-card p-6 text-sm text-neutral-400">
             Nothing waiting.
           </p>
         ) : (
@@ -56,7 +56,7 @@ export default async function Moderation() {
               return (
                 <li
                   key={r.id}
-                  className="flex flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-5"
+                  className="flex flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5"
                 >
                   <div className="flex items-baseline justify-between gap-3">
                     <Link

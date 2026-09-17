@@ -14,6 +14,7 @@ import { staticTierUrl } from "@/lib/assets/cdn";
 import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle, itemCardLabel, saysMoreThanName } from "@/lib/games/labels";
 import { gamePageCached, gameSidesCached } from "@/lib/games/cached";
+import { downloadHref, type DownloadKind, type GameDownload } from "@/lib/games/download";
 import { editableGame } from "@/lib/games/editor";
 import type { GamePageFaction } from "@/lib/games/page";
 import type { SideCommander } from "@/lib/games/sides";
@@ -67,12 +68,47 @@ export async function generateMetadata({
 /** The card style the games listing uses, so the ways on from this page read
  *  as the same kind of thing as the cards that led here. */
 const CARD =
-  "group flex h-full rounded-md border border-neutral-800 bg-neutral-950 transition-colors hover:border-neutral-600 active:border-neutral-500";
+  "group flex h-full rounded-md border border-neutral-800 bg-card transition-colors hover:border-neutral-600 active:border-neutral-500";
+
+/** The controls this page offers beside the title: the owner's two, and the
+ *  download where a game names one. A link and a button doing neighbouring
+ *  jobs should not look like two different kinds of thing. */
+const CONTROL_BUTTON =
+  "rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60";
 
 /** A side's picture slot. Every tile in a row gets one when any side has a
  *  picture, so names line up, and the empty slot carries the games icon the way
  *  an empty logo tile does. */
 const SLOT = "size-12 shrink-0 rounded";
+
+/**
+ * Where to get the game, which is the one thing a visitor who does not have it
+ * yet came here for.
+ *
+ * A rapid tag is drawn as text rather than as a link, because there is nowhere
+ * for it to go. It is a string a lobby hands to its own downloader, and making
+ * it look clickable would promise something it cannot do.
+ */
+function Download({ download }: { download: GameDownload }) {
+  const href = downloadHref(download);
+  if (!href) {
+    return (
+      <p className="text-sm text-neutral-400">
+        Install with rapid:{" "}
+        <code className="rounded bg-neutral-900 px-2 py-1 font-mono text-neutral-200">
+          {download.value}
+        </code>
+      </p>
+    );
+  }
+  return (
+    <p className="text-sm">
+      <a href={href} className={CONTROL_BUTTON}>
+        {download.kind === "github" ? "Releases on GitHub" : "Download this game"}
+      </a>
+    </p>
+  );
+}
 
 /**
  * One side of the game, as a tile beside its fellows. The name is always
@@ -214,25 +250,26 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           {page.release ? (
             <p className="text-sm text-neutral-400">Game version {page.release}</p>
           ) : null}
-          {mayEdit ? (
-            <p className="text-sm">
-              <Link
-                href={`/games/${shortname}/edit`}
-                className="text-neutral-300 underline-offset-4 hover:underline active:underline"
-              >
-                Edit this game&rsquo;s words and images
-              </Link>
-              .
-            </p>
+          {page.download_kind && page.download_value ? (
+            <Download
+              download={{ kind: page.download_kind as DownloadKind, value: page.download_value }}
+            />
           ) : null}
           {mayEdit ? (
-            <div className="pt-1">
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Link href={`/games/${shortname}/edit`} className={CONTROL_BUTTON}>
+                Edit this game
+              </Link>
               <VisibilityToggleForm
                 action={setGameVisibility}
                 fields={{ shortname, hidden: "true", onSuccess: "edit" }}
                 label="Hide this game"
                 pendingLabel="Hiding…"
-                buttonClassName="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                // The default is a flex column, which stretches its button
+                // across the whole page. Only this call site needs fixing: the
+                // edit page and the moderation queue pass their own layout.
+                formClassName="flex flex-col items-start gap-1.5"
+                buttonClassName={CONTROL_BUTTON}
               />
             </div>
           ) : null}
@@ -325,7 +362,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
                 name="note"
                 rows={4}
                 maxLength={2000}
-                className="w-full resize-none rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                className="w-full resize-none rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
               />
               <button
                 type="submit"

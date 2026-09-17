@@ -74,7 +74,7 @@ export function MapCard({
   const players = playerCountLabel(map.start_positions);
 
   return (
-    <article className="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-4">
+    <article className="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-card p-4">
       <Link href={`/map/${map.slug}`} className="block">
         {picture.from === "placeholder" ? (
           <AssetPlaceholder of={picture} />

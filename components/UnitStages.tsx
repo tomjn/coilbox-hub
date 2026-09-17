@@ -41,7 +41,7 @@ export function StageStrip({
             className={`flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-start sm:gap-4 ${
               stage.current
                 ? "border-neutral-600 bg-neutral-900"
-                : "border-neutral-900 bg-neutral-950"
+                : "border-neutral-900 bg-card"
             }`}
           >
             {picture && picture.from !== "placeholder" ? (

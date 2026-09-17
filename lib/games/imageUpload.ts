@@ -1,5 +1,5 @@
 import type { GameImageKind } from "@/lib/api/gameBranding";
-import { GAME_BRANDING_MAX_BYTES } from "@/lib/api/gameBranding";
+import { GAME_BRANDING_MAX_BYTES, isGameImageKind } from "@/lib/api/gameBranding";
 import { IMAGE_HEADER_BYTES, readImageHeader } from "@/lib/assets/imageHeader";
 import { type ConvertResult, convertImageForUpload, IMAGE_TARGETS, planImageUpload } from "@/lib/games/imageResize";
 
@@ -30,6 +30,7 @@ export const UPLOAD_MESSAGES = {
   notAllowed: "You can no longer change this game. Only its owner or a moderator can upload its pictures.",
   notSaved: "The picture could not be saved. Try again in a few minutes.",
   notSent: "The upload did not reach the hub. Reload the page and try again.",
+  noKind: "The upload did not say which picture it is. Reload the page and try again.",
 } as const;
 
 /** What the remove control beside each upload form says (#360). Same shape of
@@ -103,7 +104,12 @@ export async function sendGameImage(
   if (missing) return missing;
   const file = entry as File;
 
-  const kind = (form.get("kind") === "logo" ? "logo" : "banner") as GameImageKind;
+  // A lookup rather than a ternary. The two-way form this replaces read every
+  // kind that was not "logo" as "banner", so a card would have been shrunk to
+  // the banner's box and sent under the banner's name.
+  const named = String(form.get("kind") ?? "");
+  if (!isGameImageKind(named)) return refused(UPLOAD_MESSAGES.noKind);
+  const kind: GameImageKind = named;
   const headerBytes = new Uint8Array(await file.slice(0, IMAGE_HEADER_BYTES).arrayBuffer());
   const header = readImageHeader(headerBytes);
   // A WebP logo always converts, even one already inside its box and under the

@@ -79,7 +79,7 @@ function PictureLink({ event }: { event: Pick<TrailEvent, "assetId" | "name" | "
   );
 }
 
-const ROW = "flex flex-col gap-1 rounded-md border border-neutral-800 bg-neutral-950 p-4 text-sm";
+const ROW = "flex flex-col gap-1 rounded-md border border-neutral-800 bg-card p-4 text-sm";
 
 function EventRow({ event }: { event: TrailEvent }) {
   return (
@@ -158,7 +158,7 @@ function AssetRow({ asset }: { asset: TrailAsset }) {
 
 function Empty({ children }: { children: string }) {
   return (
-    <p className="rounded-md border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-400">
+    <p className="rounded-md border border-neutral-800 bg-card p-6 text-sm text-neutral-400">
       {children}
     </p>
   );

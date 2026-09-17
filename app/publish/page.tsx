@@ -65,7 +65,7 @@ export default async function Publish() {
             <PublishForm />
           </>
         ) : (
-          <div className="flex flex-col items-start gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-6">
+          <div className="flex flex-col items-start gap-4 rounded-md border border-neutral-800 bg-card p-6">
             <p className="text-sm text-neutral-400">
               Signing in is only needed to publish, so your name is on it and
               you can change or withdraw it later.

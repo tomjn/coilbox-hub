@@ -52,7 +52,7 @@ const BUTTON =
  * than one caption at a time. Colour is the strongest signal available here and
  * these are colour pictures of terrain, so removing it is unmissable. */
 const TILE =
-  "flex cursor-pointer flex-col gap-2 rounded-md border border-neutral-800 bg-neutral-950 p-2 opacity-40 grayscale transition-all hover:border-neutral-600 active:border-neutral-500 has-checked:border-neutral-400 has-checked:opacity-100 has-checked:grayscale-0 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-neutral-300";
+  "flex cursor-pointer flex-col gap-2 rounded-md border border-neutral-800 bg-card p-2 opacity-40 grayscale transition-all hover:border-neutral-600 active:border-neutral-500 has-checked:border-neutral-400 has-checked:opacity-100 has-checked:grayscale-0 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-neutral-300";
 
 /** The two rejections a tile offers (issue #115). Quiet for the everyday one
  * and red for the one that cannot be undone, so the two are told apart before
@@ -117,7 +117,7 @@ export default async function PictureQueue() {
         </div>
 
         {waiting.length === 0 ? (
-          <p className="rounded-md border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-400">
+          <p className="rounded-md border border-neutral-800 bg-card p-6 text-sm text-neutral-400">
             Nothing waiting.
           </p>
         ) : (

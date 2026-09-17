@@ -3,7 +3,12 @@ import { redirect } from "next/navigation";
 import { ModerationNav } from "@/components/ModerationNav";
 import { VisibilityFlash } from "@/components/VisibilityFlash";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
-import { decideRequest, setGameVisibility, setVersionVisibility } from "@/app/games/actions";
+import {
+  decideRequest,
+  setGameFeatured,
+  setGameVisibility,
+  setVersionVisibility,
+} from "@/app/games/actions";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -43,14 +48,23 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
 
   // The visibility half of the page. A moderator's session sees through hides
   // at the policy layer, so these two reads are the full management lists.
-  const [hiddenGames, hiddenVersions] = await Promise.all([
+  const [hiddenGames, hiddenVersions, featuredGames] = await Promise.all([
     supabase.from("game").select("shortname,hidden_at").not("hidden_at", "is", null),
     supabase
       .from("game_version")
       .select("version,hidden_at,game(shortname)")
       .not("hidden_at", "is", null)
       .order("hidden_at", { ascending: false }),
+    // Alphabetical, matching the order the listing draws the block in, so this
+    // reads as the same list rather than a second one.
+    supabase
+      .from("game")
+      .select("shortname,featured_at")
+      .not("featured_at", "is", null)
+      .order("shortname"),
   ]);
+
+  const featuredRows = (featuredGames.data ?? []) as unknown as { shortname: string }[];
 
   const hiddenGameRows = (hiddenGames.data ?? []) as unknown as {
     shortname: string;
@@ -140,7 +154,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                 placeholder="Shortname, e.g. BA"
                 required
                 maxLength={64}
-                className="w-48 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                className="w-48 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
               />
             </div>
           </VisibilityToggleForm>
@@ -164,7 +178,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                   placeholder="Shortname"
                   required
                   maxLength={64}
-                  className="w-36 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                  className="w-36 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
                 />
                 <input
                   name="version"
@@ -172,7 +186,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                   required
                   maxLength={64}
                   aria-label="Release to hide"
-                  className="w-44 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                  className="w-44 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
                 />
               </div>
             </div>
@@ -231,6 +245,58 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
               ) : null}
             </div>
           ) : null}
+        </section>
+
+        <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6" aria-labelledby="mod-featured">
+          <h2 id="mod-featured" className="text-sm uppercase tracking-wide text-neutral-400">
+            Featured
+          </h2>
+          <p className="text-sm text-neutral-500">
+            A featured game sits above the rule on the games listing. Inside that block the order is
+            alphabetical, so there is no rank to keep in order.
+          </p>
+
+          <VisibilityToggleForm
+            action={setGameFeatured}
+            fields={{ featured: "true" }}
+            label="Feature"
+            pendingLabel="Featuring…"
+            formClassName="flex flex-wrap items-end gap-2"
+            buttonClassName="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+          >
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="feature-shortname" className="text-xs uppercase tracking-wide text-neutral-500">
+                Feature a game
+              </label>
+              <input
+                id="feature-shortname"
+                name="shortname"
+                placeholder="Shortname, e.g. BA"
+                required
+                maxLength={64}
+                className="w-48 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+              />
+            </div>
+          </VisibilityToggleForm>
+
+          {featuredRows.length > 0 ? (
+            <ul className="flex flex-col gap-1.5 pt-2">
+              {featuredRows.map((row) => (
+                <li key={row.shortname} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-mono text-neutral-300">{row.shortname}</span>
+                  <VisibilityToggleForm
+                    action={setGameFeatured}
+                    fields={{ shortname: row.shortname, featured: "false" }}
+                    label="Unfeature"
+                    pendingLabel="Removing…"
+                    buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-neutral-500">No game is featured right now.</p>
+          )}
         </section>
       </div>
     </main>

@@ -1,5 +1,5 @@
 import { expect, mock, test } from "bun:test";
-import { GAME_BRANDING_MAX_BYTES } from "@/lib/api/gameBranding";
+import { GAME_BRANDING_MAX_BYTES, type GameImageKind } from "@/lib/api/gameBranding";
 import type { ConvertResult } from "@/lib/games/imageResize";
 import { refuseImageFile, sendGameImage, UPLOAD_MESSAGES } from "./imageUpload";
 
@@ -16,7 +16,7 @@ const PNG = Buffer.from(
  *  makes, so it isolates the #366 rule that a logo converts regardless. */
 const WEBP = Buffer.from("UklGRjoAAABXRUJQVlA4IC4AAAAQAgCdASoDAAIAAUAmJaACdLoB+AH4AAPIAP7udn/+oLQ18vxov/U4MHPn4/wA", "base64");
 
-function form(file?: File, kind: "logo" | "banner" = "banner"): FormData {
+function form(file?: File, kind: GameImageKind = "banner"): FormData {
   const data = new FormData();
   data.set("shortname", "BA");
   data.set("kind", kind);
@@ -92,7 +92,7 @@ test("a WebP logo is always handed to convert, even inside its box and under the
   // assertion on `convert.mock.calls[0]` below reads.
   const convert = mock(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async (_file: File, _kind: "logo" | "banner"): Promise<ConvertResult> => ({
+    async (_file: File, _kind: GameImageKind): Promise<ConvertResult> => ({
       ok: true,
       file: converted,
       message: "Converted from WebP (1 KB) to PNG (1 KB).",
@@ -116,7 +116,7 @@ test("bytes that are not a readable PNG or WebP header are handed to convert", a
   // assertion on `convert.mock.calls[0]` below reads.
   const convert = mock(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async (_file: File, _kind: "logo" | "banner"): Promise<ConvertResult> => ({
+    async (_file: File, _kind: GameImageKind): Promise<ConvertResult> => ({
       ok: true,
       file: pngFile("banner.webp"),
       message: "Converted from JPEG (1 KB) to WebP (1 KB).",

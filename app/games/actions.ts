@@ -2,6 +2,7 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
+import { type GameImageKind, isGameImageKind } from "@/lib/api/gameBranding";
 import { readImageHeader, IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
 import { encodedHash } from "@/lib/assets/hash";
 import { putStagedGameImage } from "@/lib/assets/staging";
@@ -9,9 +10,11 @@ import { TAGS } from "@/lib/cache/tags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { GameLink } from "@/lib/games/catalog";
+import { parseDownload } from "@/lib/games/download";
 import { editableGame } from "@/lib/games/editor";
 import {
   EDIT_MESSAGES,
+  FEATURED_MESSAGES,
   type GameFormState,
   SNIPPET_MESSAGES,
   VISIBILITY_FLASH_MESSAGES,
@@ -36,6 +39,15 @@ import {
  * them against real roles. What is left here is reading the form, doing the one
  * check a policy cannot (who is asking at all), and writing.
  */
+
+/** What each picture is called in the sentence confirming it saved or went
+ *  away. A map rather than a ternary, so a fourth kind is a line here and a
+ *  compile error until it is added. */
+const IMAGE_LABELS: Record<GameImageKind, string> = {
+  logo: "Logo",
+  banner: "Banner",
+  card: "Card art",
+};
 
 /** The labelled links an edit form carries, as rows.
  *
@@ -185,6 +197,14 @@ export async function editGameDetails(
 
   const displayName = String(form.get("display_name") ?? "").trim().slice(0, 256);
 
+  // Refused before the write rather than after, so a mistyped tag says what is
+  // wrong with it instead of coming back as a constraint violation.
+  const download = parseDownload(
+    String(form.get("download_kind") ?? ""),
+    String(form.get("download_value") ?? ""),
+  );
+  if (!download.ok) return { ok: false, message: download.message };
+
   // The owner and moderator policies filter out every row a stranger may not
   // change, so a stranger's edit succeeds over nothing. Returning the rows is
   // how the action knows whether it was the owner or a moderator writing, or a
@@ -195,6 +215,8 @@ export async function editGameDetails(
       display_name: displayName || null,
       description: String(form.get("description") ?? "").trim().slice(0, 4000) || null,
       links: linksFromForm(form),
+      download_kind: download.download?.kind ?? null,
+      download_value: download.download?.value ?? null,
     })
     .eq("shortname", shortname)
     .select("shortname");
@@ -307,6 +329,71 @@ export async function setGameVisibility(
   return { ok: true, message: VISIBILITY_FLASH_MESSAGES[flashKey] };
 }
 
+/**
+ * Put a game at the top of the listing, or take it back down.
+ *
+ * Unlike `setGameVisibility` this does not call `editableGame`, and the
+ * difference is the whole point. `editableGame` answers true for a game's
+ * owner as well as a moderator, and an owner featuring their own game is
+ * exactly what the column grant refuses. So the question asked here is
+ * `is_moderator` and nothing else, with the visitor's own client, before the
+ * secret key is spent.
+ */
+export async function setGameFeatured(
+  _previous: GameFormState | null,
+  form: FormData,
+): Promise<GameFormState> {
+  const shortname = String(form.get("shortname") ?? "").trim();
+  const featured = form.get("featured") === "true";
+  if (!shortname) return { ok: false, message: FEATURED_MESSAGES.notSent };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: FEATURED_MESSAGES.signedOut };
+
+  const { data: moderator } = await supabase.rpc("is_moderator");
+  if (moderator !== true) return { ok: false, message: FEATURED_MESSAGES.notAllowed };
+
+  // Both columns ride one update, and unfeaturing clears both, so a game back
+  // on the ordinary side of the rule never carries a stale name.
+  const admin = createAdmin();
+  if (!admin) {
+    console.error(`setGameFeatured: no secret key, so ${shortname} was not updated`);
+    return { ok: false, message: FEATURED_MESSAGES.notSaved };
+  }
+
+  const { data, error } = await admin
+    .from("game")
+    .update(
+      featured
+        ? { featured_at: new Date().toISOString(), featured_by: user.id }
+        : { featured_at: null, featured_by: null },
+    )
+    .eq("shortname", shortname)
+    .select("shortname");
+
+  if (error) {
+    console.error(`setGameFeatured: ${shortname} was not updated`, error);
+    return { ok: false, message: FEATURED_MESSAGES.notSaved };
+  }
+  // The moderation form takes a shortname by hand, so a typo is the ordinary
+  // way to get here and deserves its own answer rather than a save error.
+  if (!data || data.length === 0) {
+    return { ok: false, message: FEATURED_MESSAGES.notFound };
+  }
+
+  updateTag(TAGS.games);
+  revalidatePath("/games");
+  revalidatePath("/moderation/games");
+
+  return {
+    ok: true,
+    message: featured ? FEATURED_MESSAGES.featured : FEATURED_MESSAGES.unfeatured,
+  };
+}
+
 /** Hide or show one release, on its game's edit page or the moderation queue
  *  (#242, #362). */
 export async function setVersionVisibility(
@@ -367,7 +454,7 @@ export async function uploadGameImage(
 ): Promise<GameImageUploadState> {
   const shortname = String(form.get("shortname") ?? "");
   const kind = String(form.get("kind") ?? "");
-  if (!shortname || (kind !== "logo" && kind !== "banner")) {
+  if (!shortname || !isGameImageKind(kind)) {
     return { ok: false, message: UPLOAD_MESSAGES.notSent };
   }
 
@@ -412,13 +499,14 @@ export async function uploadGameImage(
   // The hash is over the bytes, so a re-upload of the same picture is visible
   // as no change and a cache can key on it.
   const hash = await encodedHash(bytes.buffer as ArrayBuffer);
-  const column = kind === "logo" ? "logo_path" : "banner_path";
-  const hashColumn = kind === "logo" ? "logo_hash" : "banner_hash";
-  // Which store holds the staged copy, so promotion reads the bucket (#332).
-  const stagedColumn = kind === "logo" ? "logo_staged_tier" : "banner_staged_tier";
   const { error } = await admin
     .from("game")
-    .update({ [column]: path, [hashColumn]: hash, [stagedColumn]: "bucket" })
+    .update({
+      [`${kind}_path`]: path,
+      [`${kind}_hash`]: hash,
+      // Which store holds the staged copy, so promotion reads the bucket (#332).
+      [`${kind}_staged_tier`]: "bucket",
+    })
     .eq("id", owned.id);
   if (error) {
     console.error(`uploadGameImage: stored ${path} but the game row was not updated`, error);
@@ -432,7 +520,7 @@ export async function uploadGameImage(
   revalidatePath("/games");
   revalidatePath(`/games/${shortname}`);
 
-  return { ok: true, message: kind === "logo" ? "Logo uploaded." : "Banner uploaded." };
+  return { ok: true, message: `${IMAGE_LABELS[kind]} uploaded.` };
 }
 
 /**
@@ -452,7 +540,7 @@ export async function removeGameImage(
 ): Promise<GameImageUploadState> {
   const shortname = String(form.get("shortname") ?? "");
   const kind = String(form.get("kind") ?? "");
-  if (!shortname || (kind !== "logo" && kind !== "banner")) {
+  if (!shortname || !isGameImageKind(kind)) {
     return { ok: false, message: REMOVE_MESSAGES.notSent };
   }
 
@@ -489,5 +577,5 @@ export async function removeGameImage(
   revalidatePath("/games");
   revalidatePath(`/games/${shortname}`);
 
-  return { ok: true, message: kind === "logo" ? "Logo removed." : "Banner removed." };
+  return { ok: true, message: `${IMAGE_LABELS[kind]} removed.` };
 }

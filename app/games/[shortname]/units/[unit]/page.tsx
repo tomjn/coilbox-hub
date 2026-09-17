@@ -200,7 +200,7 @@ export default async function Unit({
         ) : null}
 
         {page.snippet && !page.shown_version ? (
-          <section className="flex flex-col gap-2 rounded-md border border-neutral-900 bg-neutral-950 p-4" aria-labelledby="unit-snippet">
+          <section className="flex flex-col gap-2 rounded-md border border-neutral-900 bg-card p-4" aria-labelledby="unit-snippet">
             <h2 id="unit-snippet" className="text-xs uppercase tracking-wide text-neutral-500">
               From the author
             </h2>
@@ -284,7 +284,7 @@ export default async function Unit({
                   <label htmlFor="compare-left" className="text-xs uppercase tracking-wide text-neutral-400">
                     Compare
                   </label>
-                  <select id="compare-left" name="left" defaultValue={page.versions[1]} className="rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100">
+                  <select id="compare-left" name="left" defaultValue={page.versions[1]} className="rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100">
                     {page.versions.map((version) => (
                       <option key={version} value={version}>
                         {version}
@@ -296,7 +296,7 @@ export default async function Unit({
                   <label htmlFor="compare-right" className="text-xs uppercase tracking-wide text-neutral-400">
                     With
                   </label>
-                  <select id="compare-right" name="right" defaultValue={page.versions[0]} className="rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100">
+                  <select id="compare-right" name="right" defaultValue={page.versions[0]} className="rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100">
                     {page.versions.map((version) => (
                       <option key={version} value={version}>
                         {version}

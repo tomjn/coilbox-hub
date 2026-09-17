@@ -57,7 +57,7 @@ export default async function Account() {
           </form>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-md border border-red-950 bg-neutral-950 p-5">
+        <div className="flex flex-col gap-3 rounded-md border border-red-950 bg-card p-5">
           <h2 className="text-sm font-medium">Delete your account</h2>
           <p className="text-sm text-neutral-400">
             This removes your account and everything you have published,
