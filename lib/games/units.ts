@@ -87,7 +87,7 @@ export async function loadUnitGrid(
     // armcom, whose full name says Commander and whose def key does not.
     query = query.or(`unit_name.ilike.%${filters.q}%,full_name.ilike.%${filters.q}%`);
   }
-  if (exclude.length > 0) {
+  if (exclude.length > 0 && (await gameFactions(supabase, shortname)).length > 0) {
     // Def keys are lowercased words, so no list here needs CSV quoting.
     query = query.not("unit_name", "in", `(${exclude.join(",")})`);
   }
