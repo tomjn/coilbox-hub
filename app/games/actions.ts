@@ -12,6 +12,7 @@ import type { GameLink } from "@/lib/games/catalog";
 import { editableGame } from "@/lib/games/editor";
 import {
   EDIT_MESSAGES,
+  FEATURED_MESSAGES,
   type GameFormState,
   SNIPPET_MESSAGES,
   VISIBILITY_FLASH_MESSAGES,
@@ -305,6 +306,71 @@ export async function setGameVisibility(
   const destination = visibilitySuccessDestination(String(form.get("onSuccess") ?? ""), shortname);
   if (destination) redirect(`${destination}?visibility=${flashKey}`);
   return { ok: true, message: VISIBILITY_FLASH_MESSAGES[flashKey] };
+}
+
+/**
+ * Put a game at the top of the listing, or take it back down.
+ *
+ * Unlike `setGameVisibility` this does not call `editableGame`, and the
+ * difference is the whole point. `editableGame` answers true for a game's
+ * owner as well as a moderator, and an owner featuring their own game is
+ * exactly what the column grant refuses. So the question asked here is
+ * `is_moderator` and nothing else, with the visitor's own client, before the
+ * secret key is spent.
+ */
+export async function setGameFeatured(
+  _previous: GameFormState | null,
+  form: FormData,
+): Promise<GameFormState> {
+  const shortname = String(form.get("shortname") ?? "").trim();
+  const featured = form.get("featured") === "true";
+  if (!shortname) return { ok: false, message: FEATURED_MESSAGES.notSent };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: FEATURED_MESSAGES.signedOut };
+
+  const { data: moderator } = await supabase.rpc("is_moderator");
+  if (moderator !== true) return { ok: false, message: FEATURED_MESSAGES.notAllowed };
+
+  // Both columns ride one update, and unfeaturing clears both, so a game back
+  // on the ordinary side of the rule never carries a stale name.
+  const admin = createAdmin();
+  if (!admin) {
+    console.error(`setGameFeatured: no secret key, so ${shortname} was not updated`);
+    return { ok: false, message: FEATURED_MESSAGES.notSaved };
+  }
+
+  const { data, error } = await admin
+    .from("game")
+    .update(
+      featured
+        ? { featured_at: new Date().toISOString(), featured_by: user.id }
+        : { featured_at: null, featured_by: null },
+    )
+    .eq("shortname", shortname)
+    .select("shortname");
+
+  if (error) {
+    console.error(`setGameFeatured: ${shortname} was not updated`, error);
+    return { ok: false, message: FEATURED_MESSAGES.notSaved };
+  }
+  // The moderation form takes a shortname by hand, so a typo is the ordinary
+  // way to get here and deserves its own answer rather than a save error.
+  if (!data || data.length === 0) {
+    return { ok: false, message: FEATURED_MESSAGES.notFound };
+  }
+
+  updateTag(TAGS.games);
+  revalidatePath("/games");
+  revalidatePath("/moderation/games");
+
+  return {
+    ok: true,
+    message: featured ? FEATURED_MESSAGES.featured : FEATURED_MESSAGES.unfeatured,
+  };
 }
 
 /** Hide or show one release, on its game's edit page or the moderation queue

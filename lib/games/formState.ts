@@ -41,6 +41,20 @@ export const VISIBILITY_MESSAGES = {
   notSent: "The form did not reach the hub. Reload the page and try again.",
 } as const;
 
+/** What the feature control says. Its own set rather than a reuse of
+ *  VISIBILITY_MESSAGES, because the refusal is a different one: an owner may
+ *  hide their own game and may not feature it, so "the owner or a moderator"
+ *  would be wrong here. */
+export const FEATURED_MESSAGES = {
+  featured: "Game featured.",
+  unfeatured: "Game no longer featured.",
+  signedOut: "You are signed out. Sign in, then try again.",
+  notAllowed: "Only a moderator can feature a game.",
+  notFound: "No game with that shortname.",
+  notSaved: "That could not be saved. Try again in a few minutes.",
+  notSent: "The form did not reach the hub. Reload the page and try again.",
+} as const;
+
 /**
  * The four confirmations a hide or show control's redirect can carry (#374).
  * `setGameVisibility` and `setVersionVisibility` send the visitor on to a

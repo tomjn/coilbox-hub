@@ -5,6 +5,8 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { GameCard } from "@/components/GameCard";
 import { gameSidesCached, gamesListing } from "@/lib/games/cached";
+import type { GameSummary } from "@/lib/games/query";
+import type { GameSides } from "@/lib/games/sides";
 
 /**
  * Every game the hub knows about (#225).
@@ -32,6 +34,41 @@ export const metadata: Metadata = {
  *  catalog page uses for this exact thing. */
 const BACKDROP_STRENGTH = 0.05;
 
+/**
+ * One block of cards.
+ *
+ * Two of these with a rule between them, rather than one grid with a divider
+ * item inside it. A presentational item in a list of games is a lie to a
+ * screen reader, and a list per block means `auto-rows-fr` applies per block,
+ * so a tall featured card no longer sets the row height of everything under
+ * it.
+ */
+function GameGrid({
+  heading,
+  rows,
+  sides,
+}: {
+  heading: string;
+  rows: GameSummary[];
+  sides: Map<string, GameSides>;
+}) {
+  return (
+    <section className="flex flex-col gap-4">
+      {/* The blocks are told apart by the rule and the order, which a sighted
+          reader can see and a screen reader cannot. */}
+      <h2 className="sr-only">{heading}</h2>
+      {/* Every row as tall as the tallest, so a last row holding one short card
+          does not end the block in a stub. Not in one column, where it would
+          pad every card out to the longest description. */}
+      <ul className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map((game) => (
+          <GameCard key={game.shortname} game={game} sides={sides.get(game.shortname)} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default async function Games() {
   // Defer to request time, like every other page that reads the catalog. The
   // header's session read makes the shell dynamic anyway; without this marker
@@ -42,6 +79,11 @@ export default async function Games() {
 
   const { games: rows, error } = await gamesListing();
   const sides = await gameSidesCached(rows.map((game) => game.shortname));
+
+  // `compareGames` has already put the featured ones first, so this is a split
+  // rather than a second sort.
+  const featured = rows.filter((game) => game.featured_at !== null);
+  const rest = rows.slice(featured.length);
 
   return (
     <main className="relative flex-1">
@@ -65,14 +107,16 @@ export default async function Games() {
             </p>
           </div>
         ) : (
-          // Every row as tall as the tallest, so a last row holding one short
-          // card does not end the grid in a stub. Not in one column, where it
-          // would pad every card out to the longest description.
-          <ul className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2 lg:grid-cols-3">
-            {rows.map((game) => (
-              <GameCard key={game.shortname} game={game} sides={sides.get(game.shortname)} />
-            ))}
-          </ul>
+          // Featured above the rule, everything else below it. Both blocks
+          // disappear when they are empty, so a hub with nothing featured
+          // draws one grid and no rule.
+          <div className="flex flex-col gap-6">
+            {featured.length > 0 ? (
+              <GameGrid heading="Featured games" rows={featured} sides={sides} />
+            ) : null}
+            {featured.length > 0 && rest.length > 0 ? <hr className="border-neutral-900" /> : null}
+            {rest.length > 0 ? <GameGrid heading="All games" rows={rest} sides={sides} /> : null}
+          </div>
         )}
 
         <p className="text-sm text-neutral-400">
