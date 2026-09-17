@@ -48,7 +48,7 @@ const INPUT =
 const BUTTON =
   "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white";
 
-const ROW = "flex flex-col gap-1 rounded-md border border-neutral-800 bg-neutral-950 p-4 text-sm";
+const ROW = "flex flex-col gap-1 rounded-md border border-neutral-800 bg-card p-4 text-sm";
 
 /**
  * What the last submission came to, in the moderator's words.
@@ -203,11 +203,11 @@ export default async function AuthorMerges({ searchParams }: PageProps<"/moderat
         </h2>
 
         {authors.length === 0 ? (
-          <p className="rounded-md border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-400">
+          <p className="rounded-md border border-neutral-800 bg-card p-6 text-sm text-neutral-400">
             The catalog credits nobody yet.
           </p>
         ) : (
-          <ul className="flex flex-col gap-2 rounded-md border border-neutral-800 bg-neutral-950 p-5">
+          <ul className="flex flex-col gap-2 rounded-md border border-neutral-800 bg-card p-5">
             {authors.map((author) => (
               <Author key={author.key} author={author} />
             ))}

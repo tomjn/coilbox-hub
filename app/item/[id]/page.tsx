@@ -226,7 +226,7 @@ export default async function Item({
           />
         )}
 
-        <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-5">
+        <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-card p-5">
           <ImportLink shareUrl={shareUrl} variant="solid" />
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-neutral-400">
@@ -239,7 +239,7 @@ export default async function Item({
         </div>
 
         {mine ? (
-          <div className="flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-950 px-5 py-3 text-sm">
+          <div className="flex items-center justify-between rounded-md border border-neutral-800 bg-card px-5 py-3 text-sm">
             <span className="text-neutral-500">
               {withdrawn ? "You have withdrawn this." : "This is yours."}
             </span>

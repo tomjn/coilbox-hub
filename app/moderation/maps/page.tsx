@@ -43,7 +43,7 @@ import { clearHeldFacts } from "./actions";
 
 const BACKDROP_STRENGTH = 0.08;
 
-const CARD = "flex flex-col gap-3 rounded-md border border-neutral-800 bg-neutral-950 p-5";
+const CARD = "flex flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5";
 
 const INPUT =
   "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-none";
@@ -210,7 +210,7 @@ export default async function MapConflicts({ searchParams }: PageProps<"/moderat
         </h2>
 
         {conflicts.length === 0 ? (
-          <p className="rounded-md border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-400">
+          <p className="rounded-md border border-neutral-800 bg-card p-6 text-sm text-neutral-400">
             Nobody disagrees about anything.
           </p>
         ) : (

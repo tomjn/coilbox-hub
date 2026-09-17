@@ -140,7 +140,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                 placeholder="Shortname, e.g. BA"
                 required
                 maxLength={64}
-                className="w-48 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                className="w-48 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
               />
             </div>
           </VisibilityToggleForm>
@@ -164,7 +164,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                   placeholder="Shortname"
                   required
                   maxLength={64}
-                  className="w-36 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                  className="w-36 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
                 />
                 <input
                   name="version"
@@ -172,7 +172,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                   required
                   maxLength={64}
                   aria-label="Release to hide"
-                  className="w-44 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                  className="w-44 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
                 />
               </div>
             </div>

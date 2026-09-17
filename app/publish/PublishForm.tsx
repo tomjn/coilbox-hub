@@ -4,7 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { publish, type PublishState } from "./actions";
 
 const field =
-  "w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none";
+  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none";
 
 /**
  * The round trip, shown as soon as something is published. The share URL is the
@@ -21,7 +21,7 @@ function Published({
   again: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-6">
+    <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-card p-6">
       <h2 className="text-lg font-medium">Published</h2>
       <p className="text-sm text-neutral-400">
         It is in the gallery, and anyone can import it without an account.

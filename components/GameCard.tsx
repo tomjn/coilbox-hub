@@ -58,7 +58,7 @@ export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides
     : [];
 
   return (
-    <li className="group relative flex h-full flex-col gap-4 rounded-md border border-neutral-800 bg-neutral-950 p-4 transition-colors hover:border-neutral-600 has-[a:active]:border-neutral-500 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-neutral-300">
+    <li className="group relative flex h-full flex-col gap-4 rounded-md border border-neutral-800 bg-card p-4 transition-colors hover:border-neutral-600 has-[a:active]:border-neutral-500 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-neutral-300">
       <div className="flex items-start gap-4">
         {/* Decorative here: the name beside it says which game this is. */}
         <GameLogo src={logo} alt="" />
@@ -97,7 +97,7 @@ export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides
             <li key={commander.unit_name}>
               <CommanderPicture
                 commander={commander}
-                className="size-9 bg-black ring-2 ring-neutral-950"
+                className="size-9 bg-black ring-2 ring-card"
               />
             </li>
           ))}

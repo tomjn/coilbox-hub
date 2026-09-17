@@ -80,7 +80,7 @@ export default async function Gallery({
             name="q"
             defaultValue={filters.q ?? ""}
             placeholder="Search titles and descriptions"
-            className="w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+            className="w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
           />
           <button
             type="submit"
@@ -278,7 +278,7 @@ function Chip({
 
 function Empty({ filtered }: { filtered: boolean }) {
   return (
-    <div className="rounded-md border border-neutral-800 bg-neutral-950 p-8 text-center">
+    <div className="rounded-md border border-neutral-800 bg-card p-8 text-center">
       <p className="text-sm text-neutral-400">
         {filtered
           ? "Nothing matches that yet."

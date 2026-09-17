@@ -34,7 +34,7 @@ const BUTTON =
   "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white";
 
 const CARD =
-  "flex flex-col gap-2 rounded-md border border-neutral-800 bg-neutral-950 p-4 text-sm";
+  "flex flex-col gap-2 rounded-md border border-neutral-800 bg-card p-4 text-sm";
 
 /** One capability chip. The list is short and fixed, so the full names from
  *  lib/access/capability.ts would be noise here; the raw strings are what a
@@ -125,11 +125,11 @@ export default async function Accounts({ searchParams }: PageProps<"/moderation/
         </form>
 
         {error ? (
-          <p role="alert" className="rounded-md border border-red-950 bg-neutral-950 p-6 text-sm text-red-300">
+          <p role="alert" className="rounded-md border border-red-950 bg-card p-6 text-sm text-red-300">
             The directory could not be read: {error}
           </p>
         ) : accounts.length === 0 ? (
-          <p className="rounded-md border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-400">
+          <p className="rounded-md border border-neutral-800 bg-card p-6 text-sm text-neutral-400">
             {term === ""
               ? "No account has signed in yet."
               : "No account matches that."}

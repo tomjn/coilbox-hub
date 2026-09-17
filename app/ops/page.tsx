@@ -67,7 +67,7 @@ import { createClient } from "@/lib/supabase/server";
 // drawing behind a chart competes with the columns.
 const BACKDROP_STRENGTH = 0.05;
 
-const CARD = "rounded-md border border-neutral-800 bg-neutral-950 p-5";
+const CARD = "rounded-md border border-neutral-800 bg-card p-5";
 
 /** What the three bases mean, in a phrase each, so the label is legible without
  *  reading the note underneath it. */

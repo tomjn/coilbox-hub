@@ -67,7 +67,7 @@ export async function generateMetadata({
 /** The card style the games listing uses, so the ways on from this page read
  *  as the same kind of thing as the cards that led here. */
 const CARD =
-  "group flex h-full rounded-md border border-neutral-800 bg-neutral-950 transition-colors hover:border-neutral-600 active:border-neutral-500";
+  "group flex h-full rounded-md border border-neutral-800 bg-card transition-colors hover:border-neutral-600 active:border-neutral-500";
 
 /** A side's picture slot. Every tile in a row gets one when any side has a
  *  picture, so names line up, and the empty slot carries the games icon the way
@@ -325,7 +325,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
                 name="note"
                 rows={4}
                 maxLength={2000}
-                className="w-full resize-none rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                className="w-full resize-none rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
               />
               <button
                 type="submit"

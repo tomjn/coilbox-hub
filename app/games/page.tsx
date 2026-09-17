@@ -59,7 +59,7 @@ export default async function Games() {
             The catalog could not be read just now. Try again in a moment.
           </p>
         ) : rows.length === 0 ? (
-          <div className="rounded-md border border-neutral-800 bg-neutral-950 p-8 text-center">
+          <div className="rounded-md border border-neutral-800 bg-card p-8 text-center">
             <p className="text-sm text-neutral-400">
               The hub holds facts about no games yet.
             </p>
