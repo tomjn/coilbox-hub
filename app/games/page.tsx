@@ -57,10 +57,13 @@ function GameGrid({
       {/* The blocks are told apart by the rule and the order, which a sighted
           reader can see and a screen reader cannot. */}
       <h2 className="sr-only">{heading}</h2>
-      {/* Every row as tall as the tallest, so a last row holding one short card
-          does not end the block in a stub. Not in one column, where it would
-          pad every card out to the longest description. */}
-      <ul className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2 lg:grid-cols-3">
+      {/* Rows size to their own content rather than all matching the tallest in
+          the grid. `h-full` on each card still squares up the cards within a
+          row, which is what the eye reads. Matching every row was fine when
+          cards differed by a line of description. Card art makes that gap about
+          200px, and a card with that much empty space under its text looks
+          broken rather than aligned. */}
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((game) => (
           <GameCard key={game.shortname} game={game} sides={sides.get(game.shortname)} />
         ))}

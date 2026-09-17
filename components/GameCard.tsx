@@ -81,7 +81,12 @@ export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides
         <img
           src={card}
           alt=""
-          className="-mx-4 -mt-4 aspect-video w-[calc(100%+2rem)] rounded-t-md object-cover"
+          // `max-w-none` because preflight caps every image at `max-width:
+          // 100%`, which is the padded width and clamps the calc below back to
+          // it, leaving the picture 2rem short of the card's right edge. The
+          // underscores are Tailwind's escape for the spaces `calc` needs
+          // around its `+`.
+          className="-mx-4 -mt-4 aspect-video w-[calc(100%_+_2rem)] max-w-none rounded-t-md object-cover"
         />
       ) : null}
       <div className="flex items-start gap-4">
