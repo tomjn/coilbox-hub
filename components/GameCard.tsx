@@ -127,7 +127,12 @@ export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides
             <li key={commander.unit_name}>
               <CommanderPicture
                 commander={commander}
-                className="size-9 bg-black ring-2 ring-card"
+                // The card colour composited over the page, rather than
+                // `ring-card` itself. The ring exists to mask the portrait
+                // underneath it, and a half transparent ring shows that
+                // portrait through, which is the smear the overlap is meant to
+                // avoid.
+                className="size-9 bg-black ring-2 ring-[#0b0b0c]"
               />
             </li>
           ))}

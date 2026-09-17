@@ -6,11 +6,16 @@
   color-scheme: dark;
   --background: #0b0b0d;
   --foreground: #fafafa;
-  /* One step up from the page, so a card reads as something sitting on the
-     background rather than a hole cut in it. Every card surface in the app
-     points here, which is why it is a token and not a utility class written
-     out 46 times. */
-  --card: #131317;
+  /* Every card surface in the app points here, which is why it is a token and
+     not a utility class written out 46 times.
+
+     Half transparent, so a card over the art backdrop settles what is behind
+     it rather than blanking it out. The base is the near black the cards used
+     to be painted in flat. Over the page it composites to about #0b0b0c, so a
+     card on a plain page is almost the background and the border draws the
+     edge. Over the backdrop it reads as a darker panel with the drawing still
+     showing through. */
+  --card: rgb(10 10 10 / 0.5);
 }
 
 @theme inline {

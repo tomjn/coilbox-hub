@@ -47,16 +47,22 @@ function GameGrid({
   heading,
   rows,
   sides,
+  ruled = false,
 }: {
   heading: string;
   rows: GameSummary[];
   sides: Map<string, GameSides>;
+  /** Draw the rule that separates this block from the one above it. */
+  ruled?: boolean;
 }) {
   return (
-    <section className="flex flex-col gap-4">
-      {/* The blocks are told apart by the rule and the order, which a sighted
-          reader can see and a screen reader cannot. */}
-      <h2 className="sr-only">{heading}</h2>
+    <section className={`flex flex-col gap-4${ruled ? " border-t border-neutral-800 pt-8" : ""}`}>
+      {/* Visible, in the same style every other section heading on the site
+          uses. A rule on its own in the gap between two grids had nothing to
+          read against and was missed entirely, and a line can only say that
+          something changed, never that the games above it are the featured
+          ones. */}
+      <h2 className="text-sm uppercase tracking-wide text-neutral-400">{heading}</h2>
       {/* Rows size to their own content rather than all matching the tallest in
           the grid. `h-full` on each card still squares up the cards within a
           row, which is what the eye reads. Matching every row was fine when
@@ -113,12 +119,20 @@ export default async function Games() {
           // Featured above the rule, everything else below it. Both blocks
           // disappear when they are empty, so a hub with nothing featured
           // draws one grid and no rule.
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-8">
             {featured.length > 0 ? (
-              <GameGrid heading="Featured games" rows={featured} sides={sides} />
+              <GameGrid heading="Featured" rows={featured} sides={sides} />
             ) : null}
-            {featured.length > 0 && rest.length > 0 ? <hr className="border-neutral-900" /> : null}
-            {rest.length > 0 ? <GameGrid heading="All games" rows={rest} sides={sides} /> : null}
+            {rest.length > 0 ? (
+              <GameGrid
+                heading={featured.length > 0 ? "All games" : "Games"}
+                rows={rest}
+                sides={sides}
+                // Only when there is something above to be separated from. A
+                // hub with nothing featured draws one block and no rule.
+                ruled={featured.length > 0}
+              />
+            ) : null}
           </div>
         )}
 
