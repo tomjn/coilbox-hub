@@ -14,6 +14,7 @@ import {
   ladderIdentities,
   resolveAsset,
   servable,
+  substituteIdentities,
 } from "./resolve";
 
 const BUILDPIC: AssetIdentity = {
@@ -24,6 +25,11 @@ const BUILDPIC: AssetIdentity = {
 };
 
 const RENDER: AssetIdentity = { ...BUILDPIC, variant: "render:270" };
+
+const ANGLED: AssetIdentity = { ...BUILDPIC, variant: "render:angled" };
+const FRONT: AssetIdentity = { ...BUILDPIC, variant: "render:front" };
+const SIDE: AssetIdentity = { ...BUILDPIC, variant: "render:side" };
+const TOP: AssetIdentity = { ...BUILDPIC, variant: "render:top" };
 
 const MINIMAP: AssetIdentity = {
   keyedOn: "map",
@@ -340,6 +346,61 @@ test("a buildpic does not stand in for itself", () => {
   expect(buildpicSubstitute(BUILDPIC)).toBeNull();
 });
 
+// The other direction. A unit whose archive carried renders but no
+// buildpic showed the placeholder, which read as "the hub holds nothing" when
+// it held four pictures of the thing.
+
+test("a missing buildpic is served a render of the same unit", () => {
+  const held = heldOf([
+    SIDE,
+    { tier: "static", path: "units/bar/render/side.webp", width: 512, height: 341, moderation: "approved" },
+  ]);
+
+  expect(resolveAsset(BUILDPIC, held)).toMatchObject({
+    from: "static",
+    served: SIDE,
+    substituted: true,
+    width: 512,
+    height: 341,
+  });
+});
+
+test("the angled render is preferred over every other angle", () => {
+  const row = (path: string) => ({
+    tier: "static" as const,
+    path,
+    width: 512,
+    height: 512,
+    moderation: "approved" as const,
+  });
+  const held = heldOf(
+    [TOP, row("units/bar/render/top.webp")],
+    [SIDE, row("units/bar/render/side.webp")],
+    [ANGLED, row("units/bar/render/angled.webp")],
+  );
+
+  expect(resolveAsset(BUILDPIC, held)).toMatchObject({ served: ANGLED, substituted: true });
+});
+
+test("a unit's own buildpic still beats any render of it", () => {
+  const held = heldOf(
+    [
+      BUILDPIC,
+      { tier: "static", path: "units/bar/buildpic/abc.webp", width: 256, height: 256, moderation: "approved" },
+    ],
+    [
+      ANGLED,
+      { tier: "static", path: "units/bar/render/angled.webp", width: 512, height: 512, moderation: "approved" },
+    ],
+  );
+
+  expect(resolveAsset(BUILDPIC, held)).toMatchObject({ served: BUILDPIC, substituted: false });
+});
+
+test("asking for a buildpic asks for every render angle, angled first", () => {
+  expect(ladderIdentities([BUILDPIC])).toEqual([BUILDPIC, ANGLED, FRONT, SIDE, TOP]);
+});
+
 test("every render angle falls back to the one buildpic for that unit", () => {
   expect(buildpicSubstitute(RENDER)).toEqual(BUILDPIC);
   expect(buildpicSubstitute({ ...RENDER, variant: "render:0" })).toEqual(BUILDPIC);
@@ -355,12 +416,29 @@ test("a buildpic asked for twice over is asked for once", () => {
   expect(ladderIdentities([RENDER, BUILDPIC, { ...RENDER, variant: "render:90" }])).toEqual([
     RENDER,
     BUILDPIC,
+    ANGLED,
+    FRONT,
+    SIDE,
+    TOP,
     { ...RENDER, variant: "render:90" },
   ]);
 });
 
 test("nothing is added for identities that have no substitute", () => {
-  expect(ladderIdentities([MINIMAP, BUILDPIC])).toEqual([MINIMAP, BUILDPIC]);
+  expect(ladderIdentities([MINIMAP])).toEqual([MINIMAP]);
+});
+
+/** The substitutes are read off the identity that was asked for and never off
+ *  each other, so a render does not drag in every angle behind its own
+ *  buildpic. */
+test("a substitute is not itself asked for a substitute", () => {
+  expect(ladderIdentities([RENDER])).not.toContain(ANGLED);
+  expect(substituteIdentities(BUILDPIC).flatMap(substituteIdentities)).toEqual([
+    BUILDPIC,
+    BUILDPIC,
+    BUILDPIC,
+    BUILDPIC,
+  ]);
 });
 
 // The query.
