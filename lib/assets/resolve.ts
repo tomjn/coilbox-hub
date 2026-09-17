@@ -4,6 +4,7 @@ import {
   type AssetModeration,
   type AssetTier,
   UNIT_BUILDPIC_VARIANT,
+  UNIT_RENDER_ANGLES,
   UNIT_RENDER_VARIANT_PREFIX,
 } from "./asset";
 import { bucketTierUrl } from "./bucket";
@@ -30,7 +31,8 @@ import { type Footprint, type MissingPicture, missingPicture } from "./placehold
  * 2. The durable tier on GitHub Pages, which is off Vercel's meters entirely.
  * 3. The staging tier, for anything not promoted yet: the private bucket,
  *    served through the hub's own route.
- * 4. The buildpic, when a render angle is missing.
+ * 4. Another view of the same unit: the buildpic when a render angle is
+ *    missing, and a render when the buildpic is.
  * 5. A placeholder drawn from the footprint and the name.
  *
  * Two and three are one lookup rather than two attempts. There is exactly one
@@ -200,19 +202,64 @@ export function buildpicSubstitute(identity: AssetIdentity): AssetIdentity | nul
 }
 
 /**
+ * Which angle makes the best stand-in for a missing buildpic, best first.
+ *
+ * A buildpic is a three quarter icon, so the angled render is the nearest thing
+ * the hub holds to one and a top down view is the furthest: it is the shape of a
+ * roof. The sort is stable, so an angle the vocabulary gains upstream lands
+ * after the four named here rather than dropping out.
+ */
+const PORTRAIT_PREFERENCE = ["angled", "front", "side", "top"];
+
+const PORTRAIT_ANGLES = [...UNIT_RENDER_ANGLES].sort((a, b) => {
+  const rank = (angle: string) => {
+    const at = PORTRAIT_PREFERENCE.indexOf(angle);
+    return at === -1 ? PORTRAIT_PREFERENCE.length : at;
+  };
+  return rank(a) - rank(b);
+});
+
+/** The renders that stand in for a missing buildpic, or nothing when the
+ *  identity is not a unit's buildpic. A unit with no icon of its own is better
+ *  drawn as a picture from the wrong angle than as a placeholder that says the
+ *  hub holds nothing. */
+export function renderSubstitutes(identity: AssetIdentity): AssetIdentity[] {
+  if (identity.keyedOn !== "unit") return [];
+  if (identity.variant !== UNIT_BUILDPIC_VARIANT) return [];
+
+  return PORTRAIT_ANGLES.map((angle) => ({
+    ...identity,
+    variant: `${UNIT_RENDER_VARIANT_PREFIX}${angle}`,
+  }));
+}
+
+/**
+ * Everything that may stand in for one identity, in the order rung 4 tries them.
+ *
+ * One level deep and never recursive. A render's substitute is the buildpic and
+ * a buildpic's substitutes are the renders, so asking a substitute for its own
+ * substitutes would walk back to where it started and ask for every angle twice
+ * over.
+ */
+export function substituteIdentities(identity: AssetIdentity): AssetIdentity[] {
+  const buildpic = buildpicSubstitute(identity);
+  return buildpic ? [buildpic] : renderSubstitutes(identity);
+}
+
+/**
  * Every identity the ladder may need in order to answer for these, deduplicated
  * and in the order they were asked for.
  *
- * The buildpic behind each render is added here rather than by the caller, so a
- * page asking for renders does not have to know that a substitute exists. The
- * substitution rung stays in this file, which is the whole point of the file.
+ * The substitutes behind each identity are added here rather than by the caller,
+ * so a page asking for renders does not have to know that a substitute exists.
+ * The substitution rung stays in this file, which is the whole point of the file.
  */
 export function ladderIdentities(identities: AssetIdentity[]): AssetIdentity[] {
   const wanted = new Map<string, AssetIdentity>();
 
   for (const identity of identities) {
-    for (const needed of [identity, buildpicSubstitute(identity)]) {
-      if (needed) wanted.set(identityKey(needed), needed);
+    for (const needed of [identity, ...substituteIdentities(identity)]) {
+      wanted.set(identityKey(needed), needed);
     }
   }
 
@@ -329,9 +376,8 @@ export function resolveAsset(
   const own = servable(held, identity);
   if (own) return serve(identity, identity, own);
 
-  // 4. The buildpic, when a render angle is missing.
-  const instead = buildpicSubstitute(identity);
-  if (instead) {
+  // 4. Another view of the same unit, best first.
+  for (const instead of substituteIdentities(identity)) {
     const row = servable(held, instead);
     if (row) return serve(identity, instead, row);
   }
