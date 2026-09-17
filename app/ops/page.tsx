@@ -3,12 +3,6 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { ModerationNav } from "@/components/ModerationNav";
 import {
-  BLOB_ADVANCED_OPERATIONS_ALLOWANCE,
-  BLOB_PUT_BUDGET,
-  type BlobPutDay,
-  fetchBlobPutDays,
-} from "@/lib/assets/blobLedger";
-import {
   formatBytes,
   headroom,
   METER_ALERT_FRACTION,
@@ -17,9 +11,10 @@ import {
 } from "@/lib/assets/meters";
 import {
   ABANDONED_RESERVATION_MINUTES,
+  CLEANUP_BATCH,
   fetchAbandonedStagedDeletions,
-  fetchOrphans,
-  type Orphan,
+  fetchUnclaimedStagedObjects,
+  type UnclaimedStagedObject,
 } from "@/lib/assets/orphan";
 import {
   fetchPromotionStatus,
@@ -42,18 +37,18 @@ import { createClient } from "@/lib/supabase/server";
  *
  * ## What it leads with
  *
- * Advanced operations, with the days they were spent on. In September 2026 the
- * store was suspended by one release's worth of uploads in late August, and a
- * single total would not have said that, or when the room would come back. Next
- * to it is promotion, because the staging tier only stays small while that job
- * keeps moving pictures out.
+ * Promotion, because the staging bucket only stays small while that job keeps
+ * moving pictures out, and next to it what the sweep has still to delete. Until
+ * September 2026 the page led with Vercel Blob's advanced operations. Uploads
+ * go to the Supabase bucket now (#332), so `lib/assets/meters.ts` has no Blob
+ * meters left to show.
  *
  * ## Why every number wears its basis
  *
- * Three of the meters are not measurable from here at all. Vercel publishes no
- * API for what a Hobby project has used, so they are dashboard readings and this
- * page says so instead of showing a plausible looking zero. They are kept small,
- * because there is nothing on them to read.
+ * Three of the meters are not measurable from here at all. Neither Vercel nor
+ * Supabase publishes an API for what a project has used, so they are dashboard
+ * readings and this page says so instead of showing a plausible looking zero.
+ * They are kept small, because there is nothing on them to read.
  *
  * ## Behind `is_moderator()`
  *
@@ -64,8 +59,8 @@ import { createClient } from "@/lib/supabase/server";
  * stranger needs to learn.
  *
  * The numbers themselves are read with the secret key, because they count
- * pending and rejected rows that `asset_read_approved` hides and read
- * `public.asset_orphan`, which nothing else holds select on.
+ * pending and rejected rows that `asset_read_approved` hides and list the
+ * bucket, which nothing else may do.
  */
 
 // Fainter than the text pages. This one is mostly figures and a chart, and a
@@ -73,17 +68,6 @@ import { createClient } from "@/lib/supabase/server";
 const BACKDROP_STRENGTH = 0.05;
 
 const CARD = "rounded-md border border-neutral-800 bg-neutral-950 p-5";
-
-/**
- * The two kinds of put, in the order they stack. Checked with the dataviz
- * palette validator against `bg-neutral-950`: both clear 3:1 on it, and the pair
- * is well apart for every kind of colour vision. Never the text colour of
- * anything: the legend and the tooltip name them in ink.
- */
-const SERIES = [
-  { key: "asset", label: "Pictures", swatch: "bg-[#3987e5]" },
-  { key: "gameImage", label: "Game logos and banners", swatch: "bg-[#d95926]" },
-] as const;
 
 /** What the three bases mean, in a phrase each, so the label is legible without
  *  reading the note underneath it. */
@@ -108,20 +92,13 @@ function stamp(at: string): string {
 }
 
 function used(meter: Meter): string {
-  if (meter.used === null) return "no figure";
-  return meter.unit === "bytes" ? formatBytes(meter.used) : number.format(meter.used);
-}
-
-function allowance(meter: Meter): string {
-  return meter.unit === "bytes"
-    ? formatBytes(meter.allowance)
-    : `${number.format(meter.allowance)} ${meter.unit}`;
+  return meter.used === null ? "no figure" : formatBytes(meter.used);
 }
 
 /** A state in words and a colour for the bar. The words carry it: the colour is
  *  never the only thing saying a meter is in trouble. */
-function standing(full: number, refusedAt: number) {
-  if (full >= refusedAt) return { label: "Refusing uploads", bar: "bg-red-400", ink: "text-red-300" };
+function standing(full: number) {
+  if (full >= 1) return { label: "Full", bar: "bg-red-400", ink: "text-red-300" };
   if (full >= METER_ALERT_FRACTION) {
     return {
       label: `Past ${Math.round(METER_ALERT_FRACTION * 100)}%, the daily job is failing`,
@@ -132,215 +109,20 @@ function standing(full: number, refusedAt: number) {
   return { label: "Room to spare", bar: "bg-neutral-300", ink: "text-neutral-400" };
 }
 
-/** A fill bar with ticks where something happens. */
-function MeterBar({
-  full,
-  bar,
-  ticks = [],
-}: {
-  full: number;
-  bar: string;
-  ticks?: { at: number; label: string }[];
-}) {
+/** A fill bar with a tick where the daily job starts failing. */
+function MeterBar({ full, bar }: { full: number; bar: string }) {
   return (
     <div className="relative mt-3 h-2 rounded-full bg-neutral-800">
       <div
         className={`h-full rounded-full ${bar}`}
         style={{ width: `${Math.min(full, 1) * 100}%` }}
       />
-      {ticks.map((tick) => (
-        <div
-          key={tick.label}
-          title={tick.label}
-          className="absolute -top-1 h-4 w-px bg-neutral-500"
-          style={{ left: `${tick.at * 100}%` }}
-        />
-      ))}
+      <div
+        title={`The daily job fails from ${Math.round(METER_ALERT_FRACTION * 100)}%`}
+        className="absolute -top-1 h-4 w-px bg-neutral-500"
+        style={{ left: `${METER_ALERT_FRACTION * 100}%` }}
+      />
     </div>
-  );
-}
-
-function PutChart({ days }: { days: BlobPutDay[] }) {
-  const peak = Math.max(1, ...days.map((day) => day.asset + day.gameImage));
-
-  return (
-    <figure className="mt-6">
-      <figcaption className="flex flex-wrap items-baseline justify-between gap-3 text-sm">
-        <span className="text-neutral-300">Puts by day, UTC</span>
-        <span className="flex flex-wrap gap-4 text-xs text-neutral-400">
-          {SERIES.map((series) => (
-            <span key={series.key} className="flex items-center gap-1.5">
-              <span className={`h-2.5 w-2.5 rounded-sm ${series.swatch}`} aria-hidden />
-              {series.label}
-            </span>
-          ))}
-        </span>
-      </figcaption>
-
-      <div className="relative mt-3">
-        <span className="absolute left-0 top-0 text-xs tabular-nums text-neutral-500">
-          {number.format(peak)}
-        </span>
-        <ol
-          className="flex h-44 items-end gap-[2px] border-b border-neutral-800 pt-5"
-          aria-label="Puts by day. The table below has the same figures."
-        >
-          {days.map((day) => {
-            const total = day.asset + day.gameImage;
-            return (
-              <li
-                key={day.day}
-                tabIndex={0}
-                className="group relative flex h-full flex-1 flex-col justify-end rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"
-              >
-                <span className="sr-only">
-                  {shortDate(day.day)}: {total} puts
-                </span>
-                {total > 0 ? (
-                  <span className="flex flex-col gap-[2px]" style={{ height: `${(total / peak) * 100}%` }}>
-                    {day.gameImage > 0 ? (
-                      <span
-                        className={`${SERIES[1].swatch} rounded-t-[4px]`}
-                        style={{ flexGrow: day.gameImage }}
-                      />
-                    ) : null}
-                    {day.asset > 0 ? (
-                      <span
-                        className={`${SERIES[0].swatch} ${day.gameImage > 0 ? "" : "rounded-t-[4px]"}`}
-                        style={{ flexGrow: day.asset }}
-                      />
-                    ) : null}
-                  </span>
-                ) : null}
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-200 shadow-[0_4px_12px_rgb(0_0_0/0.5)] group-hover:block group-focus-visible:block"
-                >
-                  <span className="block font-medium">{shortDate(day.day)}</span>
-                  <span className="block tabular-nums text-neutral-400">
-                    {number.format(day.asset)} pictures, {number.format(day.gameImage)} game
-                  </span>
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-        <ol className="mt-1.5 flex gap-[2px] text-xs text-neutral-500" aria-hidden>
-          {days.map((day, index) => (
-            <li key={day.day} className="relative flex-1">
-              {/* Weekly, and the last day, but not a weekly one so close to the
-                  last that the two labels would overlap on a phone. */}
-              {index === days.length - 1 || (index % 7 === 0 && days.length - 1 - index >= 5) ? (
-                <span
-                  className={`absolute whitespace-nowrap ${index === days.length - 1 ? "right-0" : "left-0"}`}
-                >
-                  {shortDate(day.day)}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      <details className="mt-8 text-sm">
-        <summary className="cursor-pointer text-neutral-400 hover:text-neutral-200">
-          The same figures as a table
-        </summary>
-        <table className="mt-3 w-full max-w-md tabular-nums">
-          <thead className="text-left text-neutral-500">
-            <tr>
-              <th className="py-1 font-normal">Day</th>
-              <th className="py-1 text-right font-normal">Pictures</th>
-              <th className="py-1 text-right font-normal">Game</th>
-            </tr>
-          </thead>
-          <tbody>
-            {days
-              .filter((day) => day.asset + day.gameImage > 0)
-              .map((day) => (
-                <tr key={day.day} className="border-t border-neutral-900">
-                  <td className="py-1">{day.day}</td>
-                  <td className="py-1 text-right">{number.format(day.asset)}</td>
-                  <td className="py-1 text-right">{number.format(day.gameImage)}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </details>
-    </figure>
-  );
-}
-
-function OperationsPanel({ meter, days }: { meter: Meter; days: BlobPutDay[] | null }) {
-  const full = headroom(meter);
-  const refusedAt = BLOB_PUT_BUDGET / BLOB_ADVANCED_OPERATIONS_ALLOWANCE;
-  const state = full === null ? null : standing(full, refusedAt);
-  const busiest = days
-    ? days.reduce<BlobPutDay | null>(
-        (best, day) =>
-          day.asset + day.gameImage > (best ? best.asset + best.gameImage : 0) ? day : best,
-        null,
-      )
-    : null;
-
-  return (
-    <section className={`${CARD} xl:col-span-2`} aria-labelledby="operations">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 id="operations" className="text-lg font-semibold tracking-tight">
-          {meter.name}
-        </h2>
-        <span className="text-xs text-neutral-500">{BASIS_LABEL[meter.basis]}</span>
-      </div>
-
-      <p className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="text-4xl font-semibold tabular-nums tracking-tight">{used(meter)}</span>
-        <span className="text-neutral-400">of {allowance(meter)}</span>
-        {state ? <span className={`text-sm ${state.ink}`}>{state.label}</span> : null}
-      </p>
-
-      {full === null || !state ? (
-        <p className="mt-3 text-sm text-red-300">The count could not be read.</p>
-      ) : (
-        <>
-          <MeterBar
-            full={full}
-            bar={state.bar}
-            ticks={[
-              {
-                at: METER_ALERT_FRACTION,
-                label: `The daily job fails from ${number.format(METER_ALERT_FRACTION * BLOB_ADVANCED_OPERATIONS_ALLOWANCE)}`,
-              },
-              { at: refusedAt, label: `Uploads are refused from ${number.format(BLOB_PUT_BUDGET)}` },
-            ]}
-          />
-          <p className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-neutral-500">
-            <span>
-              The daily job fails from{" "}
-              {number.format(METER_ALERT_FRACTION * BLOB_ADVANCED_OPERATIONS_ALLOWANCE)}
-            </span>
-            <span>Uploads are refused from {number.format(BLOB_PUT_BUDGET)}</span>
-          </p>
-        </>
-      )}
-
-      {/* No "uploads are refused until" line here. #332 moved uploads to the
-          Supabase bucket, so nothing the hub does today spends a Blob put,
-          and a resume date worked out from this ledger would describe a
-          refusal that cannot happen (#337). */}
-      <p className="mt-4 max-w-[70ch] text-sm text-neutral-300">
-        {busiest
-          ? `The busiest day was ${shortDate(busiest.day)}, with ${number.format(busiest.asset + busiest.gameImage)} puts. Each day stops counting 30 days after it.`
-          : "Nothing has been put in the last 30 days."}
-      </p>
-
-      {days ? (
-        <PutChart days={days} />
-      ) : (
-        <p className="mt-6 text-sm text-red-300">The puts by day could not be read.</p>
-      )}
-
-      <p className="mt-4 max-w-[70ch] text-sm text-neutral-500">{meter.note}</p>
-    </section>
   );
 }
 
@@ -359,11 +141,11 @@ function PromotionPanel({
   const rows: { label: string; value: string; detail?: string; alarm?: boolean }[] = [
     { label: "Waiting for review", value: figure(status.pending) },
     {
-      label: "Lost in the Blob store",
+      label: "Waiting for Coilbox to upload again",
       value: figure(status.missing),
       detail:
         status.missing
-          ? "The store would not return these, so promotion skips them until Coilbox uploads them again."
+          ? "Their bytes were only in Vercel Blob, which will not return them. Pages and promotion skip them, and Coilbox uploads each one into the bucket the next time it offers that picture."
           : undefined,
     },
     {
@@ -406,8 +188,8 @@ function PromotionPanel({
         Promotion
       </h2>
       <p className="mt-2 max-w-[70ch] text-sm text-neutral-400">
-        Approved pictures move out of the Blob store and into the durable tier. The store
-        only stays small while this keeps moving.
+        Approved pictures move out of the staging bucket and into the durable tier. The
+        bucket only stays small while this keeps moving.
       </p>
       <dl className="mt-4 flex flex-col">
         {rows.map((row) => (
@@ -432,7 +214,7 @@ function PromotionPanel({
 
 function StorageMeter({ meter }: { meter: Meter }) {
   const full = headroom(meter);
-  const state = full === null ? null : standing(full, Number.POSITIVE_INFINITY);
+  const state = full === null ? null : standing(full);
 
   return (
     <li className={CARD}>
@@ -442,7 +224,7 @@ function StorageMeter({ meter }: { meter: Meter }) {
       </div>
       <p className="mt-2 text-sm text-neutral-300">
         <span className="text-xl font-semibold tabular-nums text-neutral-100">{used(meter)}</span>{" "}
-        of {allowance(meter)}
+        of {formatBytes(meter.allowance)}
         {full === null ? null : ` (${Math.round(full * 100)}%)`}
       </p>
       {full !== null && state ? <MeterBar full={full} bar={state.bar} /> : null}
@@ -497,22 +279,16 @@ function Table({
   );
 }
 
-/** Orphans by reason. A list of 200 suffixed paths says less than two lines. */
-function orphanGroups(orphans: Orphan[]) {
-  const groups = new Map<string, { reason: string; objects: number; bytes: number; since: string }>();
-  for (const orphan of orphans) {
-    const held = groups.get(orphan.reason) ?? {
-      reason: orphan.reason,
-      objects: 0,
-      bytes: 0,
-      since: orphan.at,
-    };
-    held.objects++;
-    held.bytes += orphan.bytes;
-    if (orphan.at < held.since) held.since = orphan.at;
-    groups.set(orphan.reason, held);
-  }
-  return [...groups.values()];
+/** The unclaimed bucket objects as one line: a list of 200 hashes says less. */
+function unclaimedSummary(objects: UnclaimedStagedObject[]) {
+  return {
+    objects: objects.length,
+    bytes: objects.reduce((sum, object) => sum + object.bytes, 0),
+    since: objects.reduce<string | null>(
+      (oldest, object) => (oldest === null || object.created_at < oldest ? object.created_at : oldest),
+      null,
+    ),
+  };
 }
 
 export default async function Ops() {
@@ -522,21 +298,17 @@ export default async function Ops() {
 
   const admin = createAdminClient();
   const now = new Date();
-  const [report, orphans, days, promotion, stuckDeletions] = await Promise.all([
+  const [report, unclaimed, promotion, stuckDeletions] = await Promise.all([
     fetchMeters(admin, now),
-    fetchOrphans(admin),
-    fetchBlobPutDays(admin, now),
+    fetchUnclaimedStagedObjects(admin, CLEANUP_BATCH),
     fetchPromotionStatus(admin, now),
     fetchAbandonedStagedDeletions(admin, now),
   ]);
 
-  const operations = report.meters.find((meter) => meter.unit === "operations");
-  const measured = report.meters.filter(
-    (meter) => meter.unit !== "operations" && meter.basis !== "dashboard",
-  );
+  const measured = report.meters.filter((meter) => meter.basis !== "dashboard");
   const dashboard = report.meters.filter((meter) => meter.basis === "dashboard");
   const durableTotal = report.durable.reduce((sum, held) => sum + held.bytes, 0);
-  const groups = orphanGroups(orphans);
+  const swept = unclaimedSummary(unclaimed);
 
   return (
     <main className="relative flex-1">
@@ -547,18 +319,43 @@ export default async function Ops() {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">Allowances</h1>
             <p className="mt-2 max-w-[70ch] text-sm text-neutral-400">
-              Going over {number.format(BLOB_ADVANCED_OPERATIONS_ALLOWANCE)} Blob advanced
-              operations in any 30 days suspends the store for 30 days and cannot be paid
-              through, so that is the one to watch. The daily sweep fails on purpose once a
-              counted meter passes {Math.round(METER_ALERT_FRACTION * 100)}%.
+              What the hub holds and serves, against the free plan allowances. The daily sweep
+              fails on purpose once a counted meter passes{" "}
+              {Math.round(METER_ALERT_FRACTION * 100)}%.
             </p>
           </div>
           <p className="text-xs text-neutral-500">Read {stamp(report.at)} UTC</p>
         </header>
 
-        <div className="grid items-start gap-6 xl:grid-cols-3">
-          {operations ? <OperationsPanel meter={operations} days={days} /> : null}
+        <div className="grid items-start gap-6 lg:grid-cols-2">
           <PromotionPanel status={promotion} stuckDeletions={stuckDeletions.length} />
+          <section className={CARD} aria-labelledby="swept">
+            <h2 id="swept" className="text-lg font-semibold tracking-tight">
+              Waiting to be swept
+            </h2>
+            <p className="mt-2 mb-4 max-w-[70ch] text-sm text-neutral-400">
+              Bucket objects no row points at: bytes superseded by a newer archive, and uploads
+              whose row was never written. The daily sweep deletes them.
+            </p>
+            {swept.objects === 0 ? (
+              <p className="text-sm text-neutral-400">Nothing unclaimed.</p>
+            ) : (
+              <Table
+                head={["Objects", "Size", "Oldest"]}
+                rows={[
+                  {
+                    key: "unclaimed",
+                    cells: [
+                      // The listing stops at one sweep's worth, so a full one is a floor.
+                      `${swept.objects === CLEANUP_BATCH ? "at least " : ""}${number.format(swept.objects)}`,
+                      formatBytes(swept.bytes),
+                      swept.since ? shortDate(swept.since) : "",
+                    ],
+                  },
+                ]}
+              />
+            )}
+          </section>
         </div>
 
         <section className="flex flex-col gap-4" aria-labelledby="storage">
@@ -586,7 +383,7 @@ export default async function Ops() {
               <li key={meter.name} className="border-t border-neutral-800 pt-3">
                 <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                   <span className="font-medium">{meter.name}</span>
-                  <span className="text-neutral-500">{allowance(meter)}</span>
+                  <span className="text-neutral-500">{formatBytes(meter.allowance)}</span>
                 </p>
                 <p className="mt-1 text-xs text-neutral-500">{meter.note}</p>
               </li>
@@ -628,33 +425,6 @@ export default async function Ops() {
             )}
           </section>
 
-          <section className={CARD} aria-labelledby="swept">
-            <h2 id="swept" className="text-lg font-semibold tracking-tight">
-              Waiting to be swept
-            </h2>
-            <p className="mt-2 mb-4 max-w-[70ch] text-sm text-neutral-400">
-              Staging objects no row points at: bytes superseded by a newer archive, and
-              uploads whose row was never written. The daily sweep deletes them, which is free.
-              An object the hub never managed to write down at all is not here and cannot be,
-              because finding it would mean listing the store.
-            </p>
-            {groups.length === 0 ? (
-              <p className="text-sm text-neutral-400">Nothing unclaimed.</p>
-            ) : (
-              <Table
-                head={["Reason", "Objects", "Size", "Oldest"]}
-                rows={groups.map((group) => ({
-                  key: group.reason,
-                  cells: [
-                    group.reason,
-                    number.format(group.objects),
-                    formatBytes(group.bytes),
-                    shortDate(group.since),
-                  ],
-                }))}
-              />
-            )}
-          </section>
         </div>
       </div>
     </main>
