@@ -1,12 +1,9 @@
--- Rows on the Supabase bucket tier, and what the Blob era functions do with
--- them (issue #332).
---
--- The orphan queue only knows Blob. What can be proved here is that replacing a
--- `bucket` row never queues its path for the Blob sweep. Promotion moves bucket
+-- Rows on the Supabase bucket tier (issue #332), and the stores that are no
+-- longer allowed since Vercel Blob was removed (#338). Promotion moves bucket
 -- rows since #335, and staged_pictures_promotion.test.sql covers the rest.
 
 begin;
-select plan(12);
+select plan(13);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -17,9 +14,7 @@ insert into public.asset (id, game, unit_name, variant, source_hash, hash, encod
 values
   -- Approved long ago on the bucket, which is everything promotion looks for
   -- apart from the tier.
-  ('0f8fad5b-4444-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-a', 'enc-a', 'webp-lossless-256', 'units/bar/buildpic/enc-a.webp', 'bucket', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111', now() - interval '3 days'),
-  -- Still in Blob, and about to be replaced by an upload to the bucket.
-  ('0f8fad5b-4444-4000-8000-00000000000b', 'bar', 'armllt', 'buildpic', 'src-b', 'enc-b', 'webp-lossless-256', 'units/bar/buildpic/enc-b-Zx91Kp2w.webp', 'blob', 'uploaded', 'image/webp', 2048, 128, 128, 'bar_1.2.sdz', 'pending', null, '11111111-1111-1111-1111-111111111111', now());
+  ('0f8fad5b-4444-4000-8000-00000000000a', 'bar', 'armsolar', 'buildpic', 'src-a', 'enc-a', 'webp-lossless-256', 'units/bar/buildpic/enc-a.webp', 'bucket', 'uploaded', 'image/webp', 4096, 128, 128, 'bar_1.2.sdz', 'approved', 'moderator', '11111111-1111-1111-1111-111111111111', now() - interval '3 days');
 
 -- ## The tier values
 
@@ -37,6 +32,21 @@ select throws_ok(
   'and nowhere the hub does not know about'
 );
 
+select throws_ok(
+  $$insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, tier, origin, mime, bytes, width, height, source_archive)
+    values ('bar', 'armpw', 'buildpic', 'src-d', 'enc-d', 'webp-lossless-256', 'units/bar/buildpic/enc-d.webp', 'blob', 'uploaded', 'image/webp', 1024, 128, 128, 'bar_1.2.sdz')$$,
+  '23514',
+  null,
+  'including Vercel Blob, which is gone'
+);
+
+select is(
+  (select column_default from information_schema.columns
+   where table_schema = 'public' and table_name = 'asset' and column_name = 'tier'),
+  '''bucket''::text',
+  'a row inserted without a tier says it is in the bucket'
+);
+
 -- ## Promotion moves a bucket row (#335)
 
 select is(
@@ -51,29 +61,7 @@ select is(
 select is(
   (select tier || ' ' || path || ' ' || blob_path || ' ' || blob_path_tier from public.asset where id = '0f8fad5b-4444-4000-8000-00000000000a'),
   'static units/bar/buildpic/enc-a.webp units/bar/buildpic/enc-a.webp bucket',
-  'and queues its path for deletion from the bucket, not from Blob'
-);
-
--- ## Replacements and the Blob sweep's queue
-
-update public.asset
-set tier = 'bucket', path = 'units/bar/buildpic/enc-b2.webp', hash = 'enc-b2', source_hash = 'src-b2'
-where id = '0f8fad5b-4444-4000-8000-00000000000b';
-
-select is(
-  (select reason from public.asset_orphan where path = 'units/bar/buildpic/enc-b-Zx91Kp2w.webp'),
-  'superseded',
-  'a Blob row replaced by a bucket upload queues its old Blob object'
-);
-
-update public.asset
-set path = 'units/bar/buildpic/enc-b3.webp', hash = 'enc-b3', source_hash = 'src-b3'
-where id = '0f8fad5b-4444-4000-8000-00000000000b';
-
-select is(
-  (select count(*) from public.asset_orphan where path = 'units/bar/buildpic/enc-b2.webp')::int,
-  0,
-  'a bucket row replaced again queues nothing, because the queue is swept out of Blob'
+  'and queues its path for deletion from the bucket'
 );
 
 -- ## Game rows
@@ -88,9 +76,16 @@ select is(
 );
 
 select lives_ok(
-  $$update public.game set logo_staged_tier = 'bucket', banner_staged_tier = 'blob'
+  $$update public.game set logo_staged_tier = 'bucket', banner_staged_tier = 'bucket'
     where id = '0f8fad5b-4444-4000-8000-000000000001'$$,
-  'a game row may say its staged logo is in the bucket and its banner in Blob'
+  'a game row may say its staged logo and banner are in the bucket'
+);
+
+select throws_ok(
+  $$update public.game set logo_staged_tier = 'blob' where id = '0f8fad5b-4444-4000-8000-000000000001'$$,
+  '23514',
+  null,
+  'but not in Vercel Blob'
 );
 
 select throws_ok(

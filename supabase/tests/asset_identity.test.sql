@@ -241,7 +241,7 @@ select lives_ok(
 -- Defaults. Everything arrives unapproved and in the staging tier, and the seed
 -- and the promotion job are what move it.
 select is(
-  (select tier from public.asset where hash = 'enc-m'), 'blob',
+  (select tier from public.asset where hash = 'enc-m'), 'bucket',
   'an asset starts in the staging tier'
 );
 

@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(90);
+select plan(84);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -103,30 +103,6 @@ select table_privs_are('public', 'asset_withdrawal', 'authenticated', ARRAY[]::n
   'authenticated holds no table privilege on asset_withdrawal');
 select table_privs_are('public', 'asset_withdrawal', 'service_role', ARRAY['SELECT'],
   'service_role reads the takedown queue and can neither add to it nor settle a row by hand');
-
--- public.asset_orphan: staging objects nothing points at, waiting to be swept
--- (issue #113). Select only, and only server side. A row names a reachable
--- object in a public store holding bytes nobody has reviewed, so handing a
--- browser this list would hand it the pending pictures the moderation queue
--- exists to keep out of sight. The trigger and the two functions in
--- 20260814250000 are the only writers.
-select table_privs_are('public', 'asset_orphan', 'anon', ARRAY[]::name[],
-  'anon holds no table privilege on asset_orphan');
-select table_privs_are('public', 'asset_orphan', 'authenticated', ARRAY[]::name[],
-  'authenticated holds no table privilege on asset_orphan');
-select table_privs_are('public', 'asset_orphan', 'service_role', ARRAY['SELECT'],
-  'service_role reads the sweep queue and can neither add to it nor settle a row by hand');
-
--- public.blob_put: one row per put() into the staging store, which is what the
--- upload budget and the operations meter count. Select only, for the meters.
--- public.reserve_blob_put and public.release_blob_put are the only writers, so
--- the count cannot be edited down by hand to make room (20260914120000).
-select table_privs_are('public', 'blob_put', 'anon', ARRAY[]::name[],
-  'anon holds no table privilege on blob_put');
-select table_privs_are('public', 'blob_put', 'authenticated', ARRAY[]::name[],
-  'authenticated holds no table privilege on blob_put');
-select table_privs_are('public', 'blob_put', 'service_role', ARRAY['SELECT'],
-  'service_role reads the put() count and can neither add to it nor take from it by hand');
 
 -- public.staged_object_deletion: bucket objects a deleter has reserved (issue
 -- #335). Select only, for the sweep to finish what a dead run reserved. The
