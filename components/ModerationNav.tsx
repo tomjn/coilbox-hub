@@ -31,6 +31,7 @@ const SECTIONS = {
   maps: { label: "Maps", href: "/moderation/maps" },
   games: { label: "Games", href: "/moderation/games" },
   authors: { label: "Authors", href: "/moderation/authors" },
+  users: { label: "Users", href: "/moderation/users" },
   // The meters live outside the moderation folder because they are the hub's
   // bill rather than a queue, but they sit behind the same check and this is
   // the only place anybody would look for them.
@@ -47,6 +48,7 @@ const ORDER: readonly ModerationSection[] = [
   "maps",
   "games",
   "authors",
+  "users",
   "allowances",
 ];
 

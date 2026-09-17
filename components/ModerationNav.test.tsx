@@ -12,6 +12,7 @@ const DESTINATIONS = [
   "/moderation/maps",
   "/moderation/games",
   "/moderation/authors",
+  "/moderation/users",
   "/ops",
 ];
 
@@ -21,6 +22,7 @@ const SECTIONS: ModerationSection[] = [
   "maps",
   "games",
   "authors",
+  "users",
   "allowances",
 ];
 
@@ -60,7 +62,7 @@ test("a link sets exactly one border colour", () => {
     classes.includes("border-b-2"),
   );
 
-  expect(links).toHaveLength(6);
+  expect(links).toHaveLength(SECTIONS.length);
   for (const link of links) {
     expect(link.match(/border-(transparent|neutral-500)/g)).toHaveLength(1);
   }
