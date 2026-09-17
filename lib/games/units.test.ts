@@ -39,7 +39,10 @@ const ROWS: Row[] = [
  * anything. That refusal is the whole of what this proves, so a fake that
  * quietly accepted it would pass while the site stayed broken.
  */
-function fakeUnits(rows: Row[]): SupabaseClient {
+function fakeUnits(
+  rows: Row[],
+  factions: { key: string; name: string }[] = [],
+): SupabaseClient {
   const build = (held: Row[], refused: string | null) => {
     const answer = (data: Row[] | null, count: number | null) => ({
       data: refused ? null : data,
@@ -67,6 +70,10 @@ function fakeUnits(rows: Row[]): SupabaseClient {
         );
       },
       or: () => build(held, refused),
+      not: (_column: string, _operator: string, value: string) => {
+        const excluded = value.slice(1, -1).split(",");
+        return build(held.filter((row) => !excluded.includes(row.unit_name)), refused);
+      },
       order: () => build(held, refused),
       range: (from: number, to: number) =>
         Promise.resolve(answer(held.slice(from, to + 1), held.length)),
@@ -76,7 +83,13 @@ function fakeUnits(rows: Row[]): SupabaseClient {
     return builder;
   };
 
-  return { from: () => build(rows, null) } as unknown as SupabaseClient;
+  const factionQuery = {
+    select: () => factionQuery,
+    eq: () => Promise.resolve({ data: factions, error: null }),
+  };
+  return {
+    from: (table: string) => table === "game_faction" ? factionQuery : build(rows, null),
+  } as unknown as SupabaseClient;
 }
 
 /**
@@ -186,6 +199,60 @@ test("a faction filter narrows the grid to that side (#258)", async () => {
 
   expect(grid.error).toBeNull();
   expect(grid.units.map((u) => u.unit_name)).toEqual(["corcom", "corsolar"]);
+});
+
+test("a game without sides lists unassigned units despite exclusions", async () => {
+  const rows = ROWS.map((row) => ({ ...row, faction_key: null }));
+  const grid = await loadUnitGrid(
+    fakeUnits(rows),
+    "BA",
+    parseUnitGridFilters({}),
+    rows.map((row) => row.unit_name),
+  );
+
+  expect(grid.error).toBeNull();
+  expect(grid.units.map((unit) => unit.unit_name)).toEqual(["armcom", "armsolar"]);
+  expect(grid.count).toBe(grid.units.length);
+});
+
+test("a game without sides can still show retired units", async () => {
+  const rows = ROWS.map((row) => ({ ...row, faction_key: null }));
+  const grid = await loadUnitGrid(
+    fakeUnits(rows),
+    "BA",
+    parseUnitGridFilters({ retired: "1" }),
+    rows.map((row) => row.unit_name),
+  );
+
+  expect(grid.error).toBeNull();
+  expect(grid.units).toEqual(rows);
+  expect(grid.count).toBe(rows.length);
+});
+
+test("a Random option alone does not count as a playable side", async () => {
+  const grid = await loadUnitGrid(
+    fakeUnits(ROWS, [{ key: "random", name: "Random" }]),
+    "BA",
+    parseUnitGridFilters({}),
+    ["armcom", "armsolar"],
+  );
+
+  expect(grid.error).toBeNull();
+  expect(grid.units.map((unit) => unit.unit_name)).toEqual(["armcom", "armsolar"]);
+  expect(grid.count).toBe(grid.units.length);
+});
+
+test("a game with a side still excludes units before counting", async () => {
+  const grid = await loadUnitGrid(
+    fakeUnits(ROWS, [{ key: "arm", name: "Arm" }]),
+    "BA",
+    parseUnitGridFilters({}),
+    ["armsolar"],
+  );
+
+  expect(grid.error).toBeNull();
+  expect(grid.units.map((unit) => unit.unit_name)).toEqual(["armcom"]);
+  expect(grid.count).toBe(grid.units.length);
 });
 
 test("the faction filter parses to null when nothing is chosen", () => {
