@@ -85,7 +85,7 @@ const GALAXY_SHAPE: CardShape = {
   galaxy: {
     systems: [{ x: 0.5, y: 0.5, faction: 0, capital: true }],
     lanes: [],
-    factionColors: ["#ffffff"],
+    factions: [{ color: "#ffffff" }],
   },
 };
 

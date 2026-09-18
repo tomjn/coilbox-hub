@@ -119,6 +119,32 @@ export const CARD_SHAPE_COLUMNS =
  * what they would have seen reading the container itself. `mode` comes off the
  * row, where the database already generated it from the same payload.
  */
+/**
+ * The galaxy without the words on it, which is all a card ever draws.
+ *
+ * A card's frame is a fraction of the item page's width, so it draws no system
+ * names and has no legend to name a faction in (`components/ItemPreview.tsx`).
+ * Carrying them here would only fatten what crosses the cache boundary: a
+ * galaxy at the 80 system cap measures 7,457 bytes of JSON without them and
+ * 11,835 with them and their maps, and a page holds 24.
+ *
+ * The full settings are still handed to the generator above, names and all, so
+ * a card runs exactly the check the item page runs and the two cannot disagree
+ * about whether there is a galaxy to draw.
+ */
+function unnamed(galaxy: GalaxyShape): GalaxyShape {
+  return {
+    ...galaxy,
+    systems: galaxy.systems.map(({ x, y, faction, capital }) => ({
+      x,
+      y,
+      faction,
+      capital,
+    })),
+    factions: galaxy.factions.map(({ color }) => ({ color })),
+  };
+}
+
 export function cardShape(
   item: Pick<ItemSummary, "kind" | "mode">,
   parts: CardShapeParts,
@@ -127,7 +153,7 @@ export function cardShape(
     const payload = { mode: item.mode, settings: parts.settings };
     if (item.mode === "conquest") {
       const galaxy = conquestGalaxy(payload);
-      return galaxy ? { type: "galaxy", galaxy } : null;
+      return galaxy ? { type: "galaxy", galaxy: unnamed(galaxy) } : null;
     }
     if (item.mode === "warpath") {
       const run = warpathRun(payload);

@@ -76,7 +76,7 @@ const GALAXY_SHAPE: CardShape = {
       [0, 1],
       [1, 2],
     ],
-    factionColors: ["#ffffff", "#ff0000"],
+    factions: [{ color: "#ffffff" }, { color: "#ff0000" }],
   },
 };
 

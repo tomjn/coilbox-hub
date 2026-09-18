@@ -128,7 +128,7 @@ test("each faction holds exactly one capital, the player's first", () => {
   const capitals = shape.systems.filter((s) => s.capital);
   expect(capitals).toHaveLength(4);
   expect(capitals.map((c) => c.faction).sort()).toEqual([0, 1, 2, 3]);
-  expect(shape.factionColors).toHaveLength(4);
+  expect(shape.factions).toHaveLength(4);
 });
 
 test("systems are fitted into the unit square without being stretched", () => {
@@ -173,11 +173,111 @@ test("a payload missing the knobs the generator needs degrades to nothing", () =
   expect(conquestGalaxy(payload({ factionCount: undefined }))).toBeNull();
 });
 
+/** Name every system of a payload's galaxy, the way coilbox writes the field:
+ *  all of them or none. */
+const namesFor = (systems: number, name = (i: number) => `Star ${i}`) =>
+  Object.fromEntries(
+    Array.from({ length: systems }, (_, i) => [`node-${i}`, name(i)]),
+  );
+
+test("a payload carrying no names still draws the graph", () => {
+  // Every galaxy shared before coilbox published names hits this, so it is the
+  // ordinary case rather than the edge one.
+  const shape = conquestGalaxy(payload({}))!;
+  expect(shape.systems.length).toBeGreaterThan(0);
+  expect(shape.systems.every((s) => s.name === undefined)).toBe(true);
+  expect(shape.systems.every((s) => s.map === undefined)).toBe(true);
+  expect(shape.factions.every((f) => f.name === undefined)).toBe(true);
+  // The palette is still the generator's own, so territory reads in colour.
+  expect(shape.factions.map((f) => f.color)).toEqual(["#2f7dff", "#ff3524", "#ffb300"]);
+});
+
+test("the names the payload carries are the names drawn", () => {
+  const plain = conquestGalaxy(payload({}))!;
+  const shape = conquestGalaxy(
+    payload({
+      nodeNames: namesFor(plain.systems.length),
+      nodeMaps: { "node-0": "Comet Catcher", "node-2": "Red Comet" },
+      factions: [
+        { name: "Arm", color: "#22aa44" },
+        { name: "Core" },
+        { name: "Legion", color: "not a colour" },
+      ],
+    }),
+  )!;
+
+  expect(shape.systems.map((s) => s.name)).toEqual(
+    plain.systems.map((_, i) => `Star ${i}`),
+  );
+  expect(shape.systems[0].map).toBe("Comet Catcher");
+  expect(shape.systems[1].map).toBeUndefined();
+  expect(shape.factions.map((f) => f.name)).toEqual(["Arm", "Core", "Legion"]);
+  // The payload's colour wins where it gives one, the generator's palette slot
+  // stands where it does not or where what it gives is not a colour.
+  expect(shape.factions.map((f) => f.color)).toEqual([
+    "#22aa44",
+    "#ff3524",
+    "#ffb300",
+  ]);
+  // Only the words move. The graph underneath is the one drawn without them.
+  expect(shape.lanes).toEqual(plain.lanes);
+  expect(shape.systems.map((s) => s.x)).toEqual(plain.systems.map((s) => s.x));
+});
+
+test("a faction entry with no name leaves its own slot empty", () => {
+  // Skipping it would hand the second faction's name to the third, which is
+  // the one failure mode worse than drawing no names at all.
+  const shape = conquestGalaxy(
+    payload({ factions: [{ name: "Arm" }, { color: "#ff0000" }, { name: "Legion" }] }),
+  )!;
+  expect(shape.factions.map((f) => f.name)).toEqual([
+    "Arm",
+    undefined,
+    "Legion",
+  ]);
+});
+
+test("names for systems this rebuild does not have mean nothing is drawn", () => {
+  // Coilbox names every system or none, so a set that does not match means the
+  // vendored generator has fallen behind and the galaxy here is not the galaxy
+  // that was shared. Drawing it would be a confident picture of something else.
+  const systems = conquestGalaxy(payload({}))!.systems.length;
+  expect(conquestGalaxy(payload({ nodeNames: namesFor(systems + 1) }))).toBeNull();
+  expect(conquestGalaxy(payload({ nodeNames: namesFor(systems - 1) }))).toBeNull();
+  expect(
+    conquestGalaxy(payload({ nodeNames: { ...namesFor(systems), "node-0": undefined } })),
+  ).toBeNull();
+  // A map for a system that is not there is dropped on its own, because coilbox
+  // only writes maps for systems that resolved to one.
+  expect(
+    conquestGalaxy(payload({ nodeMaps: { "node-9000": "Nowhere" } }))?.systems,
+  ).toHaveLength(systems);
+});
+
+test("a malformed names payload is ignored rather than fatal", () => {
+  const plain = conquestGalaxy(payload({}))!;
+  for (const nodeNames of [[], "names", 7, null, { "": "x" }, { "node-0": 4 }]) {
+    expect(conquestGalaxy(payload({ nodeNames })), String(nodeNames)).toEqual(plain);
+  }
+  for (const factions of ["Arm", 7, null, [null, 4, { name: "  " }]]) {
+    expect(conquestGalaxy(payload({ factions })), String(factions)).toEqual(plain);
+  }
+});
+
+test("a hostile names payload is bounded", () => {
+  // The 256 cap coilbox's own reader uses, well clear of its 113 system
+  // real-star ceiling. Nothing is drawn, because a capped read can no longer
+  // name every system.
+  const nodeNames = namesFor(5000);
+  expect(Object.keys(nodeNames)).toHaveLength(5000);
+  expect(conquestGalaxy(payload({ nodeNames }))).toBeNull();
+});
+
 test("out-of-range counts are clamped rather than refused", () => {
   // A newer coilbox could widen these. Clamping keeps a drawing on screen and
   // matches what the app itself does with the same payload.
   expect(conquestGalaxy(payload({ nodeCount: 5000 }))?.systems).toHaveLength(80);
   expect(conquestGalaxy(payload({ nodeCount: -3 }))?.systems).toHaveLength(8);
   const many = conquestGalaxy(payload({ factionCount: 99 }))!;
-  expect(many.factionColors).toHaveLength(4);
+  expect(many.factions).toHaveLength(4);
 });
