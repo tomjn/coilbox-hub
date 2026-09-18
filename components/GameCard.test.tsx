@@ -108,7 +108,18 @@ const SIDES: GameSides = {
       },
     ],
   ]),
+  sample: [],
 };
+
+/** A unit the hub holds no picture for, as the ladder in `lib/assets/resolve.ts`
+ *  answers for one. */
+function unpictured(unitName: string) {
+  return {
+    unit_name: unitName,
+    label: unitName,
+    picture: { from: "placeholder", keyedOn: "unit", name: unitName, footprint: null },
+  } as const;
+}
 
 /** A description that is only the game's own name reads as a placeholder, so
  *  the card says which sides a player can pick instead. */
@@ -121,7 +132,7 @@ test("a game with no real description says which sides a player can pick", () =>
   expect(described).not.toContain("Play as");
 });
 
-test("the foot of the card draws each side's start unit it holds a picture for", () => {
+test("the foot of the card draws each side's start unit", () => {
   const html = renderToStaticMarkup(<GameCard game={GAME} sides={SIDES} />);
   expect(html).toContain('src="https://tomjn.github.io/coilbox-assets/units/BA/armcom.webp"');
   expect(html.match(/coilbox-assets\/units/g)).toHaveLength(1);
@@ -130,4 +141,34 @@ test("the foot of the card draws each side's start unit it holds a picture for",
     <GameCard game={GAME} sides={{ ...SIDES, commanders: new Map() }} />,
   );
   expect(none).not.toContain("<img");
+  expect(none).not.toContain("stroke-dasharray");
+});
+
+/** A start unit whose buildpic has not been uploaded keeps its place in the row
+ *  and draws the dashed outline, rather than dropping out of it. */
+test("a start unit with no picture held draws a placeholder in the same tile", () => {
+  const html = renderToStaticMarkup(
+    <GameCard game={GAME} sides={{ ...SIDES, commanders: new Map([["arm", unpictured("armcom")]]) }} />,
+  );
+  expect(html).not.toContain("<img");
+  expect(html).toContain("stroke-dasharray");
+  expect(html).toContain("size-9");
+});
+
+/** A game nobody has reported start units for shows three of its own units
+ *  instead of ending in an empty band. */
+test("a game with no start units draws its sampled units instead", () => {
+  const sample = ["armflash", "corraid", "armstump"].map(unpictured);
+  const html = renderToStaticMarkup(
+    <GameCard game={GAME} sides={{ ...SIDES, commanders: new Map(), sample }} />,
+  );
+  expect(html.match(/stroke-dasharray/g)).toHaveLength(3);
+});
+
+/** The sample is a stand-in, so it never rides alongside the real thing. */
+test("a game with start units ignores any sample beside them", () => {
+  const html = renderToStaticMarkup(
+    <GameCard game={GAME} sides={{ ...SIDES, sample: [unpictured("armflash")] }} />,
+  );
+  expect(html.match(/<li>/g)).toHaveLength(1);
 });
