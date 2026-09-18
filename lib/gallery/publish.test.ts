@@ -493,6 +493,7 @@ test("publishItem inserts as the given author and returns the stored item on suc
     tags: ["eco"],
     author_name: "Someone",
     created_at: "2026-01-01T00:00:00Z",
+    featured_at: null,
   };
   const supabase = fakeSupabase({ data: storedRow }, inserted);
 

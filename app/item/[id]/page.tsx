@@ -9,6 +9,7 @@ import { KindIcon } from "@/components/KindIcon";
 import { MapMinimap } from "@/components/MapMinimap";
 import { ReportButton } from "@/components/ReportButton";
 import { type PackMap, SetupPackContents } from "@/components/SetupPackContents";
+import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { itemArt } from "@/lib/gallery/itemArt";
 import {
   DETAIL_COLUMNS,
@@ -25,6 +26,7 @@ import { unitNameLabelsCached, type UnitNameLabel } from "@/lib/games/cached";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/supabase/user";
+import { setItemFeatured } from "../actions";
 
 /**
  * Everything the page draws, and where it came from.
@@ -127,6 +129,14 @@ export default async function Item({
     : { data: null };
   const mine = Boolean(owned);
   const withdrawn = Boolean(owned?.deleted_at);
+
+  // Asked only of a signed in visitor, so a reader arriving from a Discord link
+  // pays nothing for a control they will never see. The answer only decides
+  // whether the control is drawn: `public.set_item_featured` asks again, as the
+  // session, before it writes anything.
+  const { data: moderator } = user
+    ? await supabase.rpc("is_moderator")
+    : { data: null };
 
   const origin = await requestOrigin();
   const shareUrl = `${origin}/i/${item.id}`;
@@ -249,6 +259,27 @@ export default async function Item({
             >
               Edit or withdraw
             </Link>
+          </div>
+        ) : null}
+
+        {moderator === true ? (
+          <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-800 bg-card px-5 py-3 text-sm">
+            <span className="text-neutral-500">
+              {item.featured_at
+                ? "Featured, so the gallery lists this first."
+                : "Not featured."}
+            </span>
+            <VisibilityToggleForm
+              action={setItemFeatured}
+              fields={{
+                id: item.id,
+                featured: item.featured_at ? "false" : "true",
+              }}
+              label={item.featured_at ? "Unfeature" : "Feature"}
+              pendingLabel={item.featured_at ? "Removing…" : "Featuring…"}
+              formClassName="flex flex-wrap items-center justify-end gap-2"
+              buttonClassName="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+            />
           </div>
         ) : null}
 

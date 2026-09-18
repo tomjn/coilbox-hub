@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { ModerationNav } from "@/components/ModerationNav";
+import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
+import { setItemFeatured } from "@/app/item/actions";
 import { createClient } from "@/lib/supabase/server";
 import { actOnReport } from "./actions";
 
@@ -22,14 +24,29 @@ export default async function Moderation() {
   // to learn.
   if (!allowed) notFound();
 
-  const { data: reports } = await supabase
-    .from("report")
-    .select("id,item_id,reason,created_at,item(id,title,kind,deleted_at)")
-    .is("handled_at", null)
-    .order("created_at", { ascending: false })
-    .limit(100);
+  // The queue, and the short answer to "what is featured right now". Featuring
+  // is done from an item's own page, which is where a moderator is standing
+  // when they decide, so what is missing without this is the way back: an item
+  // featured last month is not one anybody would think to open again.
+  const [{ data: reports }, { data: featured }] = await Promise.all([
+    supabase
+      .from("report")
+      .select("id,item_id,reason,created_at,item(id,title,kind,deleted_at)")
+      .is("handled_at", null)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("item")
+      .select("id,title,featured_at")
+      .not("featured_at", "is", null)
+      .order("featured_at", { ascending: false }),
+  ]);
 
   const open = reports ?? [];
+  const featuredRows = (featured ?? []) as unknown as {
+    id: string;
+    title: string;
+  }[];
 
   return (
     <main className="relative flex-1">
@@ -106,6 +123,51 @@ export default async function Moderation() {
             })}
           </ul>
         )}
+
+        <section
+          className="flex flex-col gap-3 border-t border-neutral-900 pt-6"
+          aria-labelledby="mod-featured"
+        >
+          <h2
+            id="mod-featured"
+            className="text-sm uppercase tracking-wide text-neutral-400"
+          >
+            Featured
+          </h2>
+          <p className="text-sm text-neutral-500">
+            A featured item sits above the rest of the gallery, whatever the
+            reader has sorted or filtered by. Feature one from its own page.
+          </p>
+
+          {featuredRows.length > 0 ? (
+            <ul className="flex flex-col gap-1.5">
+              {featuredRows.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
+                  <Link
+                    href={`/item/${row.id}`}
+                    className="min-w-0 break-words text-neutral-300 underline-offset-4 hover:underline active:underline"
+                  >
+                    {row.title}
+                  </Link>
+                  <VisibilityToggleForm
+                    action={setItemFeatured}
+                    fields={{ id: row.id, featured: "false" }}
+                    label="Unfeature"
+                    pendingLabel="Removing…"
+                    buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-neutral-500">
+              Nothing is featured right now.
+            </p>
+          )}
+        </section>
       </div>
     </main>
   );
