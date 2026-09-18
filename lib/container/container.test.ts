@@ -50,24 +50,26 @@ test("campaigns are deliberately not carried", () => {
   expect(GALLERY_KINDS as readonly string[]).not.toContain("campaign");
 });
 
-/** The kinds `public.item` will store, read from the last migration that sets
+/** The kinds `public.item` will store, read from the last statement that sets
  * the check on `kind`.
  *
  * Anchored on a word boundary, because `asset.rejection_kind` (#115) also ends
  * in `kind` and its list is nothing to do with what the gallery carries.
  *
- * Scoped to migrations that name the table as well, because `map_point.kind`
- * (#182) is spelled the same and is a list of what a point on a map is. A
- * migration that widened the item list would have to name `public.item` to do
- * it, so the filter costs nothing the search was relying on. */
+ * Statements rather than whole files, because `map_point.kind` (#182) and
+ * `game_download_source.kind` (#396) are spelled the same and answer different
+ * questions, and a file can hold one of those beside a mention of
+ * `public.item` for an unrelated reason. Only a statement creating or altering
+ * the table can set the check on it, so that is what this looks at. */
 const KIND_LIST = /\bkind in \(([^)]*)\)/;
+const TOUCHES_ITEM = /\b(create|alter) table public\.item\b/;
 
 function kindsTheDatabaseAccepts(): string[] {
   const dir = "supabase/migrations";
   const constraint = readdirSync(dir)
     .sort()
-    .map((file) => readFileSync(`${dir}/${file}`, "utf8"))
-    .filter((sql) => sql.includes("public.item") && KIND_LIST.test(sql))
+    .flatMap((file) => readFileSync(`${dir}/${file}`, "utf8").split(";"))
+    .filter((statement) => TOUCHES_ITEM.test(statement) && KIND_LIST.test(statement))
     .at(-1);
   const list = constraint?.match(KIND_LIST)?.[1] ?? "";
   return [...list.matchAll(/'([^']+)'/g)].map((match) => match[1]);
