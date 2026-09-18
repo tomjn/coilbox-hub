@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ItemPreview, type UnitNameLink } from "@/components/ItemPreview";
+import { ItemPreview, placeLabels, type UnitNameLink } from "@/components/ItemPreview";
 
 /**
  * What a blueprint's lists say about its buildings, proved by rendering them.
@@ -145,4 +145,69 @@ test("a galaxy with no names in its payload still draws (issue #397)", () => {
   expect(html).not.toContain("<text");
   // No legend either: swatches with nothing beside them name nobody.
   expect(html).not.toContain("<ul");
+});
+
+/**
+ * Three systems close enough together that not every name fits both above
+ * and below its own star (issue #403).
+ *
+ * Alpha is the capital, so it goes first and keeps the spot every name used
+ * to take: below its star. Beta collides with Alpha there and moves above.
+ * Gamma collides with both Alpha's spot and Beta's new one, so it is left
+ * off the drawing rather than printed over either.
+ */
+test("a name that would land on one already placed moves above, or drops if that collides too", () => {
+  const systems = [
+    {
+      x: 20,
+      y: 20,
+      radius: 2.1,
+      anchor: "middle" as const,
+      capital: true,
+      name: "Alpha",
+    },
+    {
+      x: 20.3,
+      y: 20,
+      radius: 1.2,
+      anchor: "middle" as const,
+      capital: false,
+      name: "Beta",
+    },
+    {
+      x: 19.7,
+      y: 20,
+      radius: 1.2,
+      anchor: "middle" as const,
+      capital: false,
+      name: "Gamma",
+    },
+  ];
+
+  expect(placeLabels(systems)).toEqual(["below", "above", null]);
+});
+
+test("a galaxy at the 80 system cap still names every system somewhere, on the drawing or in its tooltip (issue #403)", () => {
+  const names = Object.fromEntries(
+    Array.from({ length: 80 }, (_, i) => [`node-${i}`, `System ${i}`]),
+  );
+  const html = renderToStaticMarkup(
+    <ItemPreview
+      kind="challenge"
+      container={challenge({
+        nodeCount: 80,
+        factionCount: 3,
+        layout: "spiral",
+        nodeNames: names,
+      })}
+    />,
+  );
+
+  for (let i = 0; i < 80; i++) expect(html).toContain(`System ${i}`);
+  // A galaxy this dense cannot fit every name on the drawing itself. Some are
+  // only reachable through the tooltip, which is what makes this the crowded
+  // case rather than the 8 system one above.
+  const drawn = html.match(/<text[^>]*>System \d+<\/text>/g) ?? [];
+  expect(drawn.length).toBeLessThan(80);
+  expect(drawn.length).toBeGreaterThan(0);
 });
