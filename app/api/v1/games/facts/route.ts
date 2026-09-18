@@ -10,7 +10,11 @@ import {
 } from "@/lib/api/gameFacts";
 import { apiError } from "@/lib/api/response";
 import { TAGS } from "@/lib/cache/tags";
-import { buildGameSubmission, submitGameFacts } from "@/lib/games/submit";
+import {
+  buildGameSubmission,
+  offerGameDownloadSources,
+  submitGameFacts,
+} from "@/lib/games/submit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticateBearer } from "@/lib/supabase/bearer";
 import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
@@ -93,9 +97,16 @@ export async function POST(request: Request) {
     return apiError(parsed.error, parsed.status);
   }
 
+  // Where the client says the game can be fetched from travels apart from the
+  // facts it arrived with, and never enters `submit_game_facts`. That function
+  // replaces what it covers, and a download source is not the hub's reading of
+  // an archive: it is an instruction to fetch and run code, so it is offered
+  // and held rather than written (#408).
+  const { downloads, ...facts } = parsed.submission;
+
   // The hub's own derivation, all of it before any database work: the digest
   // that decides whether each unit's facts are the ones already held.
-  const submission = await buildGameSubmission(parsed.submission);
+  const submission = await buildGameSubmission(facts);
 
   // A deployment without the secret key cannot write at all, and without this
   // check the client gets Next's generic HTML 500 rather than a reason.
@@ -109,6 +120,23 @@ export async function POST(request: Request) {
   const written = await submitGameFacts(admin, submission, auth.user.id);
   if (!written.ok) {
     return apiError("The game catalog could not be written just now.", 503);
+  }
+
+  // After the facts, because the game may not have existed until they landed,
+  // and after rather than inside so a queue the hub could not write never costs
+  // a client the submission it rode in with. Nothing here changes the answer:
+  // an offer is invisible until somebody accepts it, so there is nothing to
+  // tell the client that it could act on.
+  if (downloads && downloads.length > 0) {
+    const held = await offerGameDownloadSources(
+      admin,
+      submission.shortname,
+      downloads,
+      auth.user.id,
+    );
+    if (held === null) {
+      console.error(`POST /api/v1/games/facts: ${submission.shortname} offered nowhere to download`);
+    }
   }
 
   // The games pages read through their own tag, so a backfill shows up on the

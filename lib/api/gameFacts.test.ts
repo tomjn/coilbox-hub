@@ -5,6 +5,7 @@ import {
   GAME_FACTS_MAX_UNITS,
   parseGameFactsBody,
 } from "./gameFacts";
+import { MAX_DOWNLOADS } from "@/lib/games/download";
 
 /**
  * The wire shape of a game facts submission (#224), and the strictness the map
@@ -326,4 +327,88 @@ test("morph targets must be objects of bounded size", () => {
   );
   expect(tooBig.ok).toBe(false);
   if (!tooBig.ok) expect(tooBig.error).toContain("morphTargets");
+});
+
+// #408: where the client says the game can be fetched from. The one field on
+// this route that is not a reading of an archive, so it goes through the same
+// per-kind check an owner's own typing does on the edit form, and what it
+// parses to is offered rather than written.
+
+test("downloads parse into the shape the source table holds", () => {
+  const parsed = parseGameFactsBody(
+    body({
+      downloads: [
+        { kind: "rapid", value: " metalfactions:stable " },
+        { kind: "github", value: "springraaar/metal_factions", asset: "metal_factions" },
+        { kind: "url", value: "https://example.test/mf.sdz", filename: "mf.sdz" },
+      ],
+    }),
+  );
+
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.downloads).toEqual([
+    { kind: "rapid", value: "metalfactions:stable" },
+    { kind: "github", value: "springraaar/metal_factions", asset: "metal_factions" },
+    { kind: "url", value: "https://example.test/mf.sdz", filename: "mf.sdz" },
+  ]);
+});
+
+test("absent downloads stay absent rather than becoming an empty set", () => {
+  const parsed = parseGameFactsBody(body());
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.downloads).toBeNull();
+});
+
+test("a submitted source goes through the same per-kind check the edit form applies", () => {
+  // A rapid tag that is not a name, a colon and a branch.
+  const rapid = parseGameFactsBody(body({ downloads: [{ kind: "rapid", value: "metalfactions" }] }));
+  expect(rapid.ok).toBe(false);
+
+  // A repo path given as a whole address.
+  const repo = parseGameFactsBody(
+    body({ downloads: [{ kind: "github", value: "https://github.com/a/b" }] }),
+  );
+  expect(repo.ok).toBe(false);
+
+  // An address with nothing to save it as, which the client cannot fetch.
+  const noFilename = parseGameFactsBody(
+    body({ downloads: [{ kind: "url", value: "https://example.test/mf.sdz" }] }),
+  );
+  expect(noFilename.ok).toBe(false);
+
+  // The one that would end up on a page the hub serves to everybody.
+  const script = parseGameFactsBody(
+    body({ downloads: [{ kind: "url", value: "javascript:alert(1)", filename: "mf.sdz" }] }),
+  );
+  expect(script.ok).toBe(false);
+
+  // A filename that could write outside the folder the client meant.
+  const traversal = parseGameFactsBody(
+    body({
+      downloads: [
+        { kind: "url", value: "https://example.test/mf.sdz", filename: "../../mf.sdz" },
+      ],
+    }),
+  );
+  expect(traversal.ok).toBe(false);
+});
+
+test("a download with an unknown field is refused rather than dropped", () => {
+  const parsed = parseGameFactsBody(
+    body({ downloads: [{ kind: "rapid", value: "mf:stable", checksum: "deadbeef" }] }),
+  );
+  expect(parsed.ok).toBe(false);
+  if (!parsed.ok) expect(parsed.error).toContain("checksum");
+});
+
+test("downloads past the cap are refused", () => {
+  const downloads = Array.from({ length: MAX_DOWNLOADS + 1 }, (_, i) => ({
+    kind: "rapid",
+    value: `game${i}:stable`,
+  }));
+  const parsed = parseGameFactsBody(body({ downloads }));
+  expect(parsed.ok).toBe(false);
+  if (!parsed.ok) expect(parsed.error).toContain("downloads");
 });
