@@ -34,9 +34,12 @@ import { richTextToPlainText } from "@/lib/text/richText";
  *
  * The foot of the card is a row of the units each side starts with, drawn from
  * their buildpics: a BAR commander and a Spring 1944 army HQ tell two games
- * apart where two logos only name them. A game with no description, or one
- * that only repeats its name, says which sides a player can pick instead of
- * leaving a hole where the blurb goes.
+ * apart where two logos only name them. A game whose start units nobody has
+ * reported draws three of its units at random instead, and a unit with no
+ * buildpic held yet draws the dashed outline the rest of the site uses for a
+ * picture that does not exist. A game with no description, or one that only
+ * repeats its name, says which sides a player can pick instead of leaving a
+ * hole where the blurb goes.
  *
  * ## The name is the link
  *
@@ -67,6 +70,10 @@ export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides
   const commanders = sides
     ? sides.factions.flatMap((faction) => sides.commanders.get(faction.key) ?? [])
     : [];
+  // A game that has never reported its start units falls back to a few of its
+  // own units, picked at random. `sample` is empty whenever the commanders are
+  // not, so this is one row or the other.
+  const units = commanders.length > 0 ? commanders : (sides?.sample ?? []);
 
   return (
     <li className="group relative flex h-full flex-col gap-4 rounded-md border border-neutral-800 bg-card p-4 transition-colors hover:border-neutral-600 has-[a:active]:border-neutral-500 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-neutral-300">
@@ -118,12 +125,12 @@ export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides
       ) : playAs ? (
         <p className={BLURB}>{playAs}</p>
       ) : null}
-      {commanders.length > 0 ? (
+      {units.length > 0 ? (
         // Overlapped, so the nine sides Spring 1944 has still fit one row of
         // the narrowest card. Each picture is ringed in the card's own colour so
         // the overlap reads as a line up rather than a smear.
         <ul aria-hidden className="mt-auto flex -space-x-2.5">
-          {commanders.map((commander) => (
+          {units.map((commander) => (
             <li key={commander.unit_name}>
               <CommanderPicture
                 commander={commander}
