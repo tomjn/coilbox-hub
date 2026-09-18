@@ -224,6 +224,12 @@ export default async function Item({
             // can run to two hundred rows. These are for the reader who has
             // already decided.
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              <a
+                href="#coilbox"
+                className="py-1 text-neutral-300 underline underline-offset-4 hover:text-white active:text-white"
+              >
+                Open it in Coilbox
+              </a>
               {commands && commands.lines.length > 0 ? (
                 <a
                   href="#lobby"
@@ -232,12 +238,6 @@ export default async function Item({
                   Autohost commands
                 </a>
               ) : null}
-              <a
-                href="#coilbox"
-                className="py-1 text-neutral-300 underline underline-offset-4 hover:text-white active:text-white"
-              >
-                Open it in Coilbox
-              </a>
             </p>
           ) : null}
         </div>
@@ -268,29 +268,41 @@ export default async function Item({
           />
         )}
 
-        {commands ? <LobbyCommands commands={commands} /> : null}
-
+        {/* The two ways to get it, Coilbox first: it applies every edit, and the
+            commands only what a lobby can carry. The row breaks out of the
+            reading column to the width of the page, and a card that would
+            drop below 28rem goes under the other one. Each is as tall as what
+            it holds, not as tall as its neighbour. */}
         <div
-          id="coilbox"
-          className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-card p-5"
+          className={
+            commands
+              ? "relative left-1/2 grid w-[calc(100vw-3rem)] -translate-x-1/2 grid-cols-[repeat(auto-fit,minmax(min(100%,28rem),1fr))] items-start gap-8"
+              : undefined
+          }
         >
-          {project ? (
+          <div
+            id="coilbox"
+            className="flex min-w-0 flex-col gap-4 rounded-md border border-neutral-800 bg-card p-5"
+          >
+            {project ? (
+              <div className="flex flex-col gap-1.5">
+                <h2 className="text-lg font-semibold tracking-tight">Open it in Coilbox</h2>
+                <p className="text-sm text-neutral-400">
+                  Coilbox applies every edit, to any game it runs, and lets you change them.
+                </p>
+              </div>
+            ) : null}
+            <ImportLink shareUrl={shareUrl} variant="solid" />
             <div className="flex flex-col gap-1.5">
-              <h2 className="text-lg font-semibold tracking-tight">Open it in Coilbox</h2>
-              <p className="text-sm text-neutral-400">
-                Coilbox applies every edit, to any game it runs, and lets you change them.
-              </p>
+              <span className="text-xs text-neutral-400">
+                Or share this link. It opens in Coilbox and needs no account.
+              </span>
+              <code className="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-xs text-neutral-400">
+                {shareUrl}
+              </code>
             </div>
-          ) : null}
-          <ImportLink shareUrl={shareUrl} variant="solid" />
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-neutral-400">
-              Or share this link. It opens in Coilbox and needs no account.
-            </span>
-            <code className="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-xs text-neutral-400">
-              {shareUrl}
-            </code>
           </div>
+          {commands ? <LobbyCommands commands={commands} /> : null}
         </div>
 
         {mine ? (

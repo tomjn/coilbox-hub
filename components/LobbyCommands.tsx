@@ -16,7 +16,7 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
   return (
     <section
       id="lobby"
-      className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-card p-5"
+      className="flex min-w-0 flex-col gap-4 rounded-md border border-neutral-800 bg-card p-5"
     >
       <div className="flex flex-col gap-1.5">
         <h2 className="text-lg font-semibold tracking-tight">Autohost commands</h2>
