@@ -32,7 +32,7 @@ const ITEM_LIFE = "hours";
 /** The columns an item page reads. Wider than a listing's: this is the page
  *  that draws the container. */
 export const DETAIL_COLUMNS =
-  "id,kind,mode,container,title,description,game_name,game_key,map_name,tags,author_name,created_at,updated_at,import_count";
+  "id,kind,mode,container,title,description,game_name,game_key,map_name,tags,author_name,created_at,updated_at,import_count,featured_at";
 
 export interface ItemDetail {
   id: string;
@@ -56,6 +56,11 @@ export interface ItemDetail {
    * ping. Nothing before that, and nothing outside a hub link, was ever
    * countable. */
   import_count: number;
+  /** When a moderator featured it, or null (#395). Read so the page draws its
+   *  feature control the right way round. Nothing else on the page shows it:
+   *  a reader who followed a link here is not choosing between this item and
+   *  another, which is the only question the gallery's badge answers. */
+  featured_at: string | null;
 }
 
 /** The picture lookups as they cross a cache boundary. */
