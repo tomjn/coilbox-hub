@@ -28,7 +28,7 @@ test("no lines at all when part of the project would be missing from them", () =
     },
   });
   expect(commands?.lines).toEqual([]);
-  expect(commands?.withheld).toEqual(['"1 unit added" is too long for one lobby line.']);
+  expect(commands?.withheld).toEqual(['"1 unit added" is too long for one autohost command.']);
   // The Lua is still there to read.
   expect(commands?.chunks).toHaveLength(2);
 });
