@@ -78,6 +78,40 @@ export async function newestItems(): Promise<NewestItems> {
   return { items, pictures: [...pictures], shapes: [...shapes] };
 }
 
+export interface FeaturedItems {
+  items: ItemSummary[];
+  /** Same shape as `NewestItems` carries, and for the same reason. */
+  pictures: CardPictureEntries;
+  shapes: CardShapeEntries;
+}
+
+/** The top three a moderator has featured, for the landing page's second row
+ *  (issue #399). Three rather than six: the row exists to point at a
+ *  moderator's judgement, not to fill the same grid the newest row already
+ *  fills, and a reader who wants more of them has "See all" straight to the
+ *  gallery, which already leads with every featured item under any sort. */
+export async function featuredItems(): Promise<FeaturedItems> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.items, TAGS.assets);
+
+  const supabase = createAnonClient();
+  const { data } = await supabase
+    .from("item")
+    .select(ITEM_SUMMARY_COLUMNS)
+    .not("featured_at", "is", null)
+    .order("featured_at", { ascending: false })
+    .limit(3);
+
+  const items = (data ?? []) as unknown as ItemSummary[];
+  const [pictures, shapes] = await Promise.all([
+    cardMapPictures(supabase, items),
+    cardShapes(supabase, items),
+  ]);
+
+  return { items, pictures: [...pictures], shapes: [...shapes] };
+}
+
 export interface GalleryPage {
   items: ItemSummary[];
   count: number;

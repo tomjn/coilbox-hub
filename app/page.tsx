@@ -6,7 +6,7 @@ import { COILBOX_URL } from "@/lib/coilbox";
 import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
 import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
 import { cardTitles } from "@/lib/gallery/cardTitles";
-import { newestItems } from "@/lib/gallery/cached";
+import { featuredItems, newestItems } from "@/lib/gallery/cached";
 import { kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { parseFilters } from "@/lib/gallery/query";
@@ -30,6 +30,21 @@ export default async function Home() {
   // into the gallery is not visible here, so it earns no tail here (#311).
   const titles = cardTitles(items);
   const filters = parseFilters({});
+
+  // A row of its own below "Newest" rather than folded into it (#399): the
+  // heading above the first row promises the newest six, and mixing a
+  // moderator's pick into that row would make the promise false. Read after
+  // `newestItems()` rather than alongside it with `Promise.all`, since
+  // neither is on the request's critical path: both are `"use cache"` reads
+  // that only block the render once, whichever order they run in.
+  const {
+    items: featured,
+    pictures: featuredEntries,
+    shapes: featuredShapeEntries,
+  } = await featuredItems();
+  const featuredPictures = cardPicturesFromEntries(featuredEntries);
+  const featuredShapes = cardShapesFromEntries(featuredShapeEntries);
+  const featuredTitles = cardTitles(featured);
 
   return (
     <main className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col gap-12 px-6 py-16">
@@ -108,6 +123,48 @@ export default async function Home() {
                   picture={item.map_name ? pictures.get(item.map_name) : undefined}
                   shape={shapes.get(item.id)}
                   title={titles.get(item.id)}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {/* Absent rather than an empty heading when nobody has featured
+          anything yet (#399): a heading over nothing tells a reader the hub
+          is missing content instead of telling them a moderator has not
+          picked anything to lead with. */}
+      {featured.length > 0 ? (
+        <section className="relative z-10 flex flex-col gap-4">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm uppercase tracking-wide text-neutral-500">
+              Featured
+            </h2>
+            {/* Straight to the gallery's own default order, not a query
+                string of our own: `applyOrder` in lib/gallery/query.ts
+                already puts every featured item first under whichever sort
+                a reader picks, so `/gallery` already is "more of these" and
+                a bespoke filter would only repeat what the listing already
+                does. */}
+            <Link
+              href="/gallery"
+              className="text-sm text-neutral-400 transition-colors hover:text-white active:text-white"
+            >
+              See all
+            </Link>
+          </div>
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {featured.map((item) => (
+              <li key={item.id}>
+                <ItemCard
+                  item={item}
+                  filters={filters}
+                  origin={origin}
+                  picture={
+                    item.map_name ? featuredPictures.get(item.map_name) : undefined
+                  }
+                  shape={featuredShapes.get(item.id)}
+                  title={featuredTitles.get(item.id)}
                 />
               </li>
             ))}
