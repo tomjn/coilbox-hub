@@ -219,12 +219,30 @@ export default async function Item({
               {item.description}
             </p>
           ) : null}
+          {project ? (
+            // What a project changes comes before how to get it, and that list
+            // can run to two hundred rows. These are for the reader who has
+            // already decided.
+            <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              {commands && commands.lines.length > 0 ? (
+                <a
+                  href="#lobby"
+                  className="py-1 text-neutral-300 underline underline-offset-4 hover:text-white active:text-white"
+                >
+                  Play it without Coilbox
+                </a>
+              ) : null}
+              <a
+                href="#coilbox"
+                className="py-1 text-neutral-300 underline underline-offset-4 hover:text-white active:text-white"
+              >
+                Open it in Coilbox
+              </a>
+            </p>
+          ) : null}
         </div>
 
-        {/* A project's changelog can run to two hundred rows, so the two ways to
-            use it come first. Every other kind has a preview short enough to
-            lead with. */}
-        {project ? null : item.kind === "setup-pack" ? (
+        {item.kind === "setup-pack" ? (
           <SetupPackContents container={item.container} maps={packMaps} />
         ) : minimap ? (
           // Where and who, side by side: the two halves of what a preset is.
@@ -252,7 +270,10 @@ export default async function Item({
 
         {commands ? <LobbyCommands commands={commands} /> : null}
 
-        <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-card p-5">
+        <div
+          id="coilbox"
+          className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-card p-5"
+        >
           {project ? (
             <div className="flex flex-col gap-1.5">
               <h2 className="text-lg font-semibold tracking-tight">Open it in Coilbox</h2>
@@ -271,15 +292,6 @@ export default async function Item({
             </code>
           </div>
         </div>
-
-        {project ? (
-          <ItemPreview
-            kind={item.kind}
-            container={item.container}
-            units={pictures.units}
-            names={unitNames}
-          />
-        ) : null}
 
         {mine ? (
           <div className="flex items-center justify-between rounded-md border border-neutral-800 bg-card px-5 py-3 text-sm">

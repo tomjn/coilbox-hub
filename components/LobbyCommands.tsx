@@ -14,7 +14,7 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
   const { lines, withheld, notCarried, chunks } = commands;
 
   return (
-    <section className="flex flex-col gap-4">
+    <section id="lobby" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <h2 className="text-lg font-semibold tracking-tight">Play it without Coilbox</h2>
         {lines.length > 0 ? (
