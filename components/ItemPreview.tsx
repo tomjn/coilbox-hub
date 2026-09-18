@@ -126,6 +126,137 @@ const UNCLAIMED = "#6b7280";
  */
 const SYSTEM_LABEL = "#d4d4d4";
 
+/** The label's font size, in viewBox units. Used both to draw the text and to
+ *  estimate how much room it takes up (see {@link placeLabels}). */
+const LABEL_FONT_SIZE = 2.4;
+
+/** How far a label's baseline sits from its star's edge, above or below. */
+const LABEL_GAP_FROM_STAR = 3;
+
+/**
+ * A server component has no DOM to measure text against, so a label's width
+ * is estimated from its character count. The estimate leans wide on purpose.
+ * Overestimating hides a name that would in fact have fit, which is the safe
+ * side to be wrong on, rather than underestimating and letting two names
+ * print on top of each other anyway.
+ */
+const LABEL_CHAR_WIDTH = LABEL_FONT_SIZE * 0.62;
+
+/** Clearance kept between one label's box and the next, so two names that
+ *  just miss colliding still read as two words rather than one. */
+const LABEL_PADDING = 0.6;
+
+/** How far a label's text rises above its own baseline and dips below it,
+ *  in viewBox units, for a single line with no descenders in most names. */
+const LABEL_ASCENT = LABEL_FONT_SIZE * 0.8;
+const LABEL_DESCENT = LABEL_FONT_SIZE * 0.3;
+
+export type LabelSide = "above" | "below";
+
+interface LabelBox {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** Where a name reads relative to its star: flush against the edge nearest
+ *  the drawing's own edge, so a centred name at the rim is not cut in half. */
+function labelAnchor(x: number): "start" | "middle" | "end" {
+  return x > 0.85 ? "end" : x < 0.15 ? "start" : "middle";
+}
+
+function labelBox(
+  x: number,
+  baselineY: number,
+  anchor: "start" | "middle" | "end",
+  width: number,
+): LabelBox {
+  const left = anchor === "start" ? x : anchor === "end" ? x - width : x - width / 2;
+  return {
+    left: left - LABEL_PADDING,
+    right: left + width + LABEL_PADDING,
+    top: baselineY - LABEL_ASCENT,
+    bottom: baselineY + LABEL_DESCENT,
+  };
+}
+
+function boxesOverlap(a: LabelBox, b: LabelBox): boolean {
+  return (
+    a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+  );
+}
+
+/**
+ * Where to draw each system's name, or nowhere for one that would land on a
+ * name already placed.
+ *
+ * Under about 30 systems there is room for every name below its star, which
+ * is how this drawing always read. Past that, a name is tried above its star
+ * next, which alone accounts for most of what would otherwise collide. A name
+ * that collides both ways is left off the drawing rather than printed over
+ * another one. Its star still carries it as the tooltip `ConquestGalaxyArt`
+ * already gives every named star, so the name stays reachable rather than
+ * lost.
+ *
+ * Capitals are decided first, so the brighter, bigger star keeps its name
+ * when a packed galaxy cannot fit them all. The rest follow in generation
+ * order, which is fixed for a given seed, so which names survive a crowded
+ * galaxy is deterministic rather than a coin flip on every render.
+ */
+export function placeLabels(
+  systems: readonly {
+    x: number;
+    y: number;
+    radius: number;
+    anchor: "start" | "middle" | "end";
+    capital: boolean;
+    name?: string;
+  }[],
+): (LabelSide | null)[] {
+  const order = systems
+    .map((_, i) => i)
+    .filter((i) => systems[i].name)
+    .sort((a, b) => Number(systems[b].capital) - Number(systems[a].capital));
+
+  const placed: LabelBox[] = [];
+  const result: (LabelSide | null)[] = systems.map(() => null);
+
+  for (const i of order) {
+    const system = systems[i];
+    const width = system.name!.length * LABEL_CHAR_WIDTH;
+    const candidates: [LabelSide, LabelBox][] = [
+      [
+        "below",
+        labelBox(
+          system.x,
+          system.y + system.radius + LABEL_GAP_FROM_STAR,
+          system.anchor,
+          width,
+        ),
+      ],
+      [
+        "above",
+        labelBox(
+          system.x,
+          system.y - system.radius - LABEL_GAP_FROM_STAR,
+          system.anchor,
+          width,
+        ),
+      ],
+    ];
+    const fit = candidates.find(
+      ([, box]) => !placed.some((p) => boxesOverlap(p, box)),
+    );
+    if (fit) {
+      placed.push(fit[1]);
+      result[i] = fit[0];
+    }
+  }
+
+  return result;
+}
+
 /**
  * The galaxy itself, rebuilt from the seed (see `lib/gallery/conquestGalaxy`).
  *
@@ -133,12 +264,20 @@ const SYSTEM_LABEL = "#d4d4d4";
  * recognise. Systems sit where the generator puts them, lanes are the jumps
  * between them, and colour is who holds what on turn one.
  *
- * `labelled` writes each system's name under its star, and hangs the map the
- * system resolved to off the star as a tooltip. Only the item page asks for it.
- * A card's frame is a fraction of the width and the names would land on top of
- * each other.
+ * `labelled` writes each system's name above or below its star, and hangs the
+ * map the system resolved to off the star as a tooltip. Only the item page
+ * asks for it. A card's frame is a fraction of the width and the names would
+ * land on top of each other.
  * Names are absent on a challenge shared before coilbox published them, which
  * draws exactly the galaxy this drew before (issue #397).
+ *
+ * A conquest can hold up to 80 systems, dense enough that not every name fits
+ * both readably and below its star the way a small galaxy's does. Where two
+ * names would collide, {@link placeLabels} tries the second one above its
+ * star instead, and drops it rather than print it over the first if it
+ * collides there too (issue #403). A dropped name is not lost. Every star
+ * still carries its name (and its map, from coilbox#1393) as a tooltip, the
+ * same one a kept name's star carries too.
  *
  * The `viewBox` is the unit square the shape was fitted to, scaled up and
  * inset so a capital's ring at the edge is not clipped. Stroke widths and
@@ -178,12 +317,27 @@ export function ConquestGalaxyArt({
     faction === null ? UNCLAIMED : (shape.factions[faction]?.color ?? UNCLAIMED);
   const held = shape.systems.filter((s) => s.faction !== null).length;
   const glow = useId();
+  // Names above a star need the same room below the box's top edge that
+  // names below a star always needed above its bottom edge, since a crowded
+  // galaxy now uses both (issue #403).
+  const labelPlacements = labelled
+    ? placeLabels(
+        shape.systems.map((system) => ({
+          x: at(system.x),
+          y: at(system.y),
+          radius: system.capital ? 2.1 : 1.2,
+          anchor: labelAnchor(system.x),
+          capital: system.capital,
+          name: system.name,
+        })),
+      )
+    : [];
 
   return (
     <svg
-      // Four units taller when labelled, because a name sits under its star and
-      // the bottom row's would otherwise be cut off by the box.
-      viewBox={labelled ? "0 0 100 104" : "0 0 100 100"}
+      // Four units taller on each side when labelled, so a name sits clear of
+      // the box whether it lands above its star or below.
+      viewBox={labelled ? "0 -4 100 108" : "0 0 100 100"}
       className={className}
       {...(decorative
         ? { "aria-hidden": true as const }
@@ -236,18 +390,25 @@ export function ConquestGalaxyArt({
         ))}
       </g>
       {labelled
-        ? shape.systems.map((system, i) =>
-            system.name ? (
+        ? shape.systems.map((system, i) => {
+            const side = labelPlacements[i];
+            // A name with no room either above or below its star is left off
+            // the drawing (issue #403). Its star still names it in the
+            // tooltip above, so the name stays reachable rather than lost.
+            if (!system.name || !side) return null;
+            const radius = system.capital ? 2.1 : 1.2;
+            const y =
+              at(system.y) +
+              (side === "below" ? 1 : -1) * (radius + LABEL_GAP_FROM_STAR);
+            return (
               <text
                 key={i}
                 x={at(system.x)}
-                y={at(system.y) + (system.capital ? 2.1 : 1.2) + 3}
-                // Centred under its star, except at the two edges, where a
+                y={y}
+                // Centred on its star, except at the two edges, where a
                 // centred name would run out of the box and be cut in half.
-                textAnchor={
-                  system.x > 0.85 ? "end" : system.x < 0.15 ? "start" : "middle"
-                }
-                fontSize={2.4}
+                textAnchor={labelAnchor(system.x)}
+                fontSize={LABEL_FONT_SIZE}
                 fill={SYSTEM_LABEL}
                 // Outlined in the page's own black so two names that land near
                 // each other stay readable instead of blurring together.
@@ -258,8 +419,8 @@ export function ConquestGalaxyArt({
               >
                 {system.name}
               </text>
-            ) : null,
-          )
+            );
+          })
         : null}
     </svg>
   );
