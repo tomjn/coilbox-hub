@@ -75,6 +75,7 @@ import type { MapFacts } from "@/lib/api/mapLookup";
 import {
   type AssetIdentity,
   MAP_MINIMAP_VARIANT,
+  UNIT_BUILDPIC_VARIANT,
   UNIT_TOP_RENDER_VARIANT,
 } from "@/lib/assets/asset";
 import type { Footprint } from "@/lib/assets/placeholder";
@@ -87,6 +88,7 @@ import {
 import { parseBlueprintPayload } from "@/lib/blueprint/payload";
 import { mapSquares } from "@/lib/maps/labels";
 import { fetchMapFacts } from "@/lib/maps/lookup";
+import { CHANGELOG_ROW_LIMIT, modProjectChangelog } from "./modProjectPreview";
 import { setupPackMaps } from "./setupPackPreview";
 
 /** As much of an item as choosing its pictures depends on. */
@@ -176,6 +178,27 @@ export function blueprintUnitIdentities(item: PicturedItem): UnitIdentity[] {
 }
 
 /**
+ * One buildpic identity per unit a project's changelog draws a row for, so a
+ * reader meets a unit by its picture as well as its internal name. The
+ * buildpic and not the top render a blueprint asks for: a row is a portrait,
+ * not a footprint on a plan. Stops where the changelog stops drawing rows.
+ */
+export function projectUnitIdentities(item: PicturedItem): UnitIdentity[] {
+  const game = item.game_key;
+  if (item.kind !== "mod-project" || !game) return [];
+
+  const payload = (item.container as { payload?: unknown } | null)?.payload;
+  return modProjectChangelog(payload)
+    .slice(0, CHANGELOG_ROW_LIMIT)
+    .map(({ unit }) => ({
+      keyedOn: "unit",
+      game,
+      unitName: unit,
+      variant: UNIT_BUILDPIC_VARIANT,
+    }));
+}
+
+/**
  * What the catalog holds for these maps, or nothing at all when it could not be
  * asked.
  *
@@ -214,7 +237,8 @@ export async function itemPictures(
     ? { keyedOn: "map", mapName: item.map_name, variant: MAP_MINIMAP_VARIANT }
     : null;
   const packIdentities = packMapIdentities(item);
-  const unitIdentities = blueprintUnitIdentities(item);
+  // An item is one kind, so at most one of these is not empty.
+  const unitIdentities = [...blueprintUnitIdentities(item), ...projectUnitIdentities(item)];
   if (!mapIdentity && packIdentities.length === 0 && unitIdentities.length === 0) {
     return NOTHING;
   }

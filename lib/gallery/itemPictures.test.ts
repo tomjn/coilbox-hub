@@ -8,6 +8,7 @@ import {
   blueprintUnitIdentities,
   itemPictures,
   packMapIdentities,
+  projectUnitIdentities,
   type PicturedItem,
 } from "./itemPictures";
 
@@ -200,6 +201,22 @@ test("only a blueprint has units in it", () => {
   };
 
   expect(blueprintUnitIdentities(preset)).toEqual([]);
+});
+
+test("a project asks for a buildpic for every unit its changelog names", () => {
+  const project: PicturedItem = {
+    kind: "mod-project",
+    game_key: "BA",
+    map_name: null,
+    container: { payload: { edits: { disabled: ["CorAK"], overrides: { armpw: { speed: 1 } } } } },
+  };
+
+  expect(projectUnitIdentities(project)).toEqual([
+    { keyedOn: "unit", game: "BA", unitName: "armpw", variant: "buildpic" },
+    { keyedOn: "unit", game: "BA", unitName: "corak", variant: "buildpic" },
+  ]);
+  expect(projectUnitIdentities({ ...project, game_key: null })).toEqual([]);
+  expect(projectUnitIdentities({ ...project, kind: "blueprint" })).toEqual([]);
 });
 
 test("an item with nothing to look up makes no query at all", async () => {

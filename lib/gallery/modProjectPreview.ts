@@ -23,6 +23,8 @@
  * against "40 units".
  */
 
+import { type Json, luaLiteral } from "@/lib/workshop/lua";
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -230,21 +232,100 @@ export function modProjectChangelog(payload: unknown): ProjectUnitChange[] {
   return changelogFromParsed(parseProjectEdits(asRecord(payload)?.edits));
 }
 
-/** One row's change, in words: "3 fields changed, disabled". Mirrors
- *  coilbox's own `describeEdits` sentence, one unit at a time rather than for
- *  the whole project. */
-export function describeUnitChange(change: ProjectUnitChange): string {
+/** The scale of a whole project in one sentence, for the top of its page:
+ *  "Changes 12 fields on 4 units, adds 2 units and switches off 1 unit." */
+export function describeProject(counts: ModProjectCounts): string {
+  const n = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   const parts = [
-    change.fields > 0 &&
-      `${change.fields} field${change.fields === 1 ? "" : "s"} changed`,
-    change.textFields > 0 &&
-      `${change.textFields} text field${change.textFields === 1 ? "" : "s"} changed`,
-    change.added && (change.source ? `copied from ${change.source}` : "added"),
-    change.menuOps > 0 &&
-      `${change.menuOps} build menu edit${change.menuOps === 1 ? "" : "s"}`,
-    change.disabled && "disabled",
+    counts.fields > 0 && `changes ${n(counts.fields, "field")} on ${n(counts.unitsTouched, "unit")}`,
+    counts.clones > 0 && `adds ${n(counts.clones, "unit")}`,
+    counts.menuOps > 0 && `makes ${n(counts.menuOps, "build menu edit")}`,
+    counts.disabled > 0 && `switches off ${n(counts.disabled, "unit")}`,
   ].filter((part): part is string => typeof part === "string");
-  return parts.length === 0 ? "changed" : parts.join(", ");
+  if (parts.length === 0) return "";
+  const sentence =
+    parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  return `${sentence[0].toUpperCase()}${sentence.slice(1)}.`;
+}
+
+/** One build menu operation, in the order the author made it. */
+export type ProjectMenuOp =
+  | { op: "add" | "remove"; unit: string }
+  | { op: "move"; unit: string; before: string | null };
+
+/** What one unit's row spells out under its summary: the values themselves,
+ *  which the counts above deliberately leave behind. */
+export interface ProjectUnitDetail {
+  /** Dotted field path to the value set, as Lua source, in path order. */
+  fields: Array<[string, string]>;
+  /** Language, then `name` or `description`, then the new words. */
+  text: Array<[string, string, string]>;
+  menu: ProjectMenuOp[];
+}
+
+function parseMenuOps(value: unknown): ProjectMenuOp[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): ProjectMenuOp[] => {
+    const op = asRecord(entry);
+    if (!op || typeof op.unit !== "string") return [];
+    if (op.op === "add" || op.op === "remove") return [{ op: op.op, unit: op.unit }];
+    if (op.op === "move") {
+      return [{ op: "move", unit: op.unit, before: typeof op.before === "string" ? op.before : null }];
+    }
+    return [];
+  });
+}
+
+/** A value as the Lua a modder would write. A payload nested deep enough to
+ *  run the stack out is nothing an editor produces, and it costs its own row
+ *  its value, not the page. */
+function fieldValue(value: Json): string {
+  try {
+    return luaLiteral(value, "");
+  } catch (error) {
+    if (error instanceof RangeError) return "{ ... }";
+    throw error;
+  }
+}
+
+/** The values behind every row of the changelog, keyed the way the changelog
+ *  keys its units. Read as defensively as the counts are: an entry that is
+ *  not the shape coilbox writes is left out, never thrown on. */
+export function modProjectDetails(payload: unknown): Map<string, ProjectUnitDetail> {
+  const edits = asRecord(asRecord(payload)?.edits);
+  const out = new Map<string, ProjectUnitDetail>();
+  const detail = (raw: string): ProjectUnitDetail | null => {
+    const key = unitKey(raw);
+    if (!key) return null;
+    const held = out.get(key) ?? { fields: [], text: [], menu: [] };
+    out.set(key, held);
+    return held;
+  };
+
+  for (const [raw, fields] of Object.entries(asRecord(edits?.overrides) ?? {})) {
+    const record = asRecord(fields);
+    const held = record && detail(raw);
+    if (!record || !held) continue;
+    for (const path of Object.keys(record).sort()) {
+      held.fields.push([path, fieldValue(record[path] as Json)]);
+    }
+  }
+  for (const [raw, languages] of Object.entries(asRecord(edits?.text) ?? {})) {
+    const record = asRecord(languages);
+    const held = record && detail(raw);
+    if (!record || !held) continue;
+    for (const [language, fields] of Object.entries(record)) {
+      for (const [field, words] of Object.entries(asRecord(fields) ?? {})) {
+        if (typeof words === "string") held.text.push([language, field, words]);
+      }
+    }
+  }
+  for (const [raw, ops] of Object.entries(asRecord(edits?.menus) ?? {})) {
+    const parsed = parseMenuOps(ops);
+    const held = parsed.length > 0 ? detail(raw) : null;
+    if (held) held.menu.push(...parsed);
+  }
+  return out;
 }
 
 /**

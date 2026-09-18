@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
 import {
   CHANGELOG_ROW_LIMIT,
-  describeUnitChange,
+  describeProject,
   modProjectChangelog,
   modProjectCounts,
+  modProjectDetails,
 } from "./modProjectPreview";
 
 /** A payload as coilbox writes one, with only the fields the module reads. */
@@ -119,65 +120,50 @@ test("a unit touched by more than one store carries all of it in one row", () =>
   });
 });
 
-test("describeUnitChange reads as a changelog line, joining only what changed", () => {
+test("describeProject says the scale of a project in one sentence", () => {
+  const none = { unitsTouched: 0, fields: 0, clones: 0, menuOps: 0, disabled: 0 };
+  expect(describeProject({ ...none, disabled: 1 })).toBe("Switches off 1 unit.");
   expect(
-    describeUnitChange({
-      unit: "armsolar",
-      fields: 3,
-      textFields: 0,
-      added: false,
-      disabled: false,
-      menuOps: 0,
-    }),
-  ).toBe("3 fields changed");
-
-  expect(
-    describeUnitChange({
-      unit: "armsolar2",
-      fields: 0,
-      textFields: 0,
-      added: true,
-      source: "armsolar",
-      disabled: false,
-      menuOps: 0,
-    }),
-  ).toBe("copied from armsolar");
-
-  expect(
-    describeUnitChange({
-      unit: "armsolar2",
-      fields: 0,
-      textFields: 0,
-      added: true,
-      disabled: false,
-      menuOps: 0,
-    }),
-  ).toBe("added");
-
-  expect(
-    describeUnitChange({
-      unit: "armwar",
-      fields: 0,
-      textFields: 0,
-      added: false,
-      disabled: true,
-      menuOps: 0,
-    }),
-  ).toBe("disabled");
-
-  expect(
-    describeUnitChange({
-      unit: "armlab",
-      fields: 1,
-      textFields: 2,
-      added: true,
-      source: "corlab",
-      disabled: true,
-      menuOps: 3,
-    }),
+    describeProject({ unitsTouched: 4, fields: 12, clones: 2, menuOps: 1, disabled: 3 }),
   ).toBe(
-    "1 field changed, 2 text fields changed, copied from corlab, 3 build menu edits, disabled",
+    "Changes 12 fields on 4 units, adds 2 units, makes 1 build menu edit and switches off 3 units.",
   );
+  expect(describeProject(none)).toBe("");
+});
+
+test("details carry the values the counts leave behind, and skip what is malformed", () => {
+  const details = modProjectDetails(
+    payload({
+      overrides: {
+        ArmCom: { maxDamage: 5000, "weapons.0.name": "LASER", colour: { r: 1, g: 0 } },
+        broken: "not a table",
+      },
+      text: { armcom: { en: { name: "Commander", description: 5 } } },
+      menus: {
+        armlab: [
+          { op: "add", unit: "armpw" },
+          { op: "move", unit: "armrock" },
+          { op: "swap", unit: "armham" },
+          "junk",
+        ],
+      },
+    }),
+  );
+
+  expect(details.get("armcom")).toEqual({
+    fields: [
+      ["colour", "{ g = 0, r = 1 }"],
+      ["maxDamage", "5000"],
+      ["weapons.0.name", '"LASER"'],
+    ],
+    text: [["en", "name", "Commander"]],
+    menu: [],
+  });
+  expect(details.get("armlab")?.menu).toEqual([
+    { op: "add", unit: "armpw" },
+    { op: "move", unit: "armrock", before: null },
+  ]);
+  expect(details.has("broken")).toBe(false);
 });
 
 test("the row limit is a real cap the changelog itself does not apply", () => {
