@@ -165,6 +165,30 @@ export async function unbuildableUnits(
     .sort();
 }
 
+/**
+ * Whether this game has ever retired a unit.
+ *
+ * The grid's retired toggle offers something most games do not have, and a
+ * checkbox that can only ever redraw the same shelf is a control asking to be
+ * tried. Counted rather than listed, since the page only wants to know whether
+ * to draw it.
+ *
+ * True on a failed read, so a toggle the reader may need stays where it is
+ * rather than disappearing on a bad moment.
+ */
+export async function hasRetiredUnits(
+  supabase: SupabaseClient,
+  shortname: string,
+): Promise<boolean> {
+  const { count, error } = await supabase
+    .from("game_unit")
+    .select("unit_name,game!inner(shortname)", { count: "exact", head: true })
+    .eq("game.shortname", shortname)
+    .not("removed_at", "is", null);
+  if (error) return true;
+  return (count ?? 0) > 0;
+}
+
 /** One unit as the morph walk reads it. */
 interface MorphRow {
   unit_name: string;

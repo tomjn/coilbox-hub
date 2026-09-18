@@ -10,6 +10,7 @@ import {
   loadUnitGrid,
   loadUnitPage,
   gameFactions,
+  hasRetiredUnits,
   morphedAwayUnits,
   unitBuildpic,
   unitBuildpics,
@@ -108,6 +109,17 @@ export async function unitGridCached(
 
 function resolvePlaceholder(unitName: string): ResolvedAsset {
   return { from: "placeholder", keyedOn: "unit", name: unitName, footprint: null };
+}
+
+/** Whether this game has retired a unit, which is whether its grid draws the
+ *  retired toggle at all. Filter independent, so it is its own read rather than
+ *  one recomputed for every combination of the grid's filters. */
+export async function retiredUnitsHeldCached(shortname: string): Promise<boolean> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games);
+
+  return hasRetiredUnits(createAnonClient(), shortname);
 }
 
 /** One unit's page. Null when neither the game nor the unit is held. */

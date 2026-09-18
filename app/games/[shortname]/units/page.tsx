@@ -7,7 +7,7 @@ import { archives } from "@/components/art/drawings";
 import { FactionToggles, type FactionToggleOption } from "@/components/FactionToggles";
 import { UnitCard } from "@/components/UnitCard";
 import { PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
-import { gamePageCached, unitGridCached } from "@/lib/games/cached";
+import { gamePageCached, retiredUnitsHeldCached, unitGridCached } from "@/lib/games/cached";
 import { parseUnitGridFilters, UNIT_PAGE_SIZE } from "@/lib/games/units";
 
 /**
@@ -56,7 +56,13 @@ export default async function Units({
   const game = await gamePageCached(shortname);
   if (!game) notFound();
   const filters = parseUnitGridFilters(await searchParams);
-  const { units, count, error } = await unitGridCached(shortname, filters);
+  // The retired toggle only exists for a game that has retired something, and
+  // whether it has is not a function of the filters, so the two reads go
+  // together rather than one waiting on the other.
+  const [{ units, count, error }, retiredHeld] = await Promise.all([
+    unitGridCached(shortname, filters),
+    retiredUnitsHeldCached(shortname),
+  ]);
   const lastPage = Math.max(1, Math.ceil(count / UNIT_PAGE_SIZE));
 
   const pageHref = (page: number) => {
@@ -121,10 +127,12 @@ export default async function Units({
               </label>
               <input id="units-q" type="search" name="q" defaultValue={filters.q ?? ""} className={CONTROL} />
             </div>
-            <label className="flex items-center gap-2 pb-2 text-sm text-neutral-400">
-              <input type="checkbox" name="retired" value="1" defaultChecked={filters.retired} className="size-4" />
-              Show retired units
-            </label>
+            {retiredHeld ? (
+              <label className="flex items-center gap-2 pb-2 text-sm text-neutral-400">
+                <input type="checkbox" name="retired" value="1" defaultChecked={filters.retired} className="size-4" />
+                Show retired units
+              </label>
+            ) : null}
             {filters.faction ? <input type="hidden" name="faction" value={filters.faction} /> : null}
             <button
               type="submit"

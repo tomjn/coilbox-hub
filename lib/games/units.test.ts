@@ -7,6 +7,7 @@ import {
   parseUnitGridFilters,
   loadUnitPage,
   loadUnitStages,
+  hasRetiredUnits,
   morphedAwayUnits,
   unbuildableUnits,
   unitBuilders,
@@ -323,6 +324,37 @@ test("a game reporting no build options at all hides nothing", async () => {
   ];
 
   expect(await unbuildableUnits(fakeCatalog(flat, ["carrier"]), "THIS")).toEqual([]);
+});
+
+/**
+ * The retired toggle only belongs on a game that has retired something. A read
+ * that fails keeps the toggle, because a control the reader may need should not
+ * vanish on a bad moment.
+ */
+
+function fakeRetired(count: number | null, error: string | null): SupabaseClient {
+  const builder = {
+    select: () => builder,
+    eq: () => builder,
+    not: () => builder,
+    then: (resolve: (value: unknown) => unknown) =>
+      Promise.resolve(
+        resolve({ data: null, count, error: error ? { message: error } : null }),
+      ),
+  };
+  return { from: () => builder } as unknown as SupabaseClient;
+}
+
+test("a game with retired units keeps the toggle", async () => {
+  expect(await hasRetiredUnits(fakeRetired(4, null), "SF")).toBe(true);
+});
+
+test("a game that has never retired a unit loses the toggle", async () => {
+  expect(await hasRetiredUnits(fakeRetired(0, null), "THIS")).toBe(false);
+});
+
+test("a failed count leaves the toggle where it is", async () => {
+  expect(await hasRetiredUnits(fakeRetired(null, "boom"), "BA")).toBe(true);
 });
 
 /**
