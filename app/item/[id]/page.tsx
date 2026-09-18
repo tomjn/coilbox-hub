@@ -268,10 +268,18 @@ export default async function Item({
           />
         )}
 
-        {/* The two ways to get it, side by side where there is room for both.
-            Coilbox first: it applies every edit, and the commands only what a
-            lobby can carry. */}
-        <div className={commands ? "grid gap-8 md:grid-cols-2" : undefined}>
+        {/* The two ways to get it, Coilbox first: it applies every edit, and the
+            commands only what a lobby can carry. The row breaks out of the
+            reading column to the width of the page, and a card that would
+            drop below 28rem goes under the other one. Each is as tall as what
+            it holds, not as tall as its neighbour. */}
+        <div
+          className={
+            commands
+              ? "relative left-1/2 grid w-[calc(100vw-3rem)] -translate-x-1/2 grid-cols-[repeat(auto-fit,minmax(min(100%,28rem),1fr))] items-start gap-8"
+              : undefined
+          }
+        >
           <div
             id="coilbox"
             className="flex min-w-0 flex-col gap-4 rounded-md border border-neutral-800 bg-card p-5"
