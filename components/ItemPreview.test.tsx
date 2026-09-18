@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ItemPreview, placeLabels, type UnitNameLink } from "@/components/ItemPreview";
+import {
+  ItemPreview,
+  placeLabels,
+  placeReveal,
+  type UnitNameLink,
+} from "@/components/ItemPreview";
 
 /**
  * What a blueprint's lists say about its buildings, proved by rendering them.
@@ -187,7 +192,51 @@ test("a name that would land on one already placed moves above, or drops if that
   expect(placeLabels(systems)).toEqual(["below", "above", null]);
 });
 
-test("a galaxy at the 80 system cap still names every system somewhere, on the drawing or in its tooltip (issue #403)", () => {
+/**
+ * A capital's revealed placement is worked out against a fixed set of
+ * capital boxes, not a running one, because only one system is ever pointed
+ * at at a time (issue #409). Capital sits below its own star, so a system
+ * pointed at right next to it has to move above, exactly as a colliding
+ * second capital would have under the old rule.
+ */
+test("a revealed name avoids a capital's already-drawn box, moving above if below collides", () => {
+  const capitalBox = {
+    left: 18,
+    right: 22,
+    top: 22,
+    bottom: 26,
+  };
+  const pointedAt = {
+    x: 20.3,
+    y: 20,
+    radius: 1.2,
+    anchor: "middle" as const,
+    name: "Beta",
+  };
+
+  expect(placeReveal(pointedAt, [capitalBox])).toBe("above");
+});
+
+test("a revealed name that collides with a capital both above and below has nowhere to draw", () => {
+  const above = { left: 18, right: 22, top: 14, bottom: 18 };
+  const below = { left: 18, right: 22, top: 22, bottom: 26 };
+  const pointedAt = {
+    x: 20,
+    y: 20,
+    radius: 1.2,
+    anchor: "middle" as const,
+    name: "Gamma",
+  };
+
+  expect(placeReveal(pointedAt, [above, below])).toBeNull();
+});
+
+/**
+ * A shared conquest galaxy names only its capitals by default, whatever its
+ * size (issue #409). `factionCount: 3` on an 80 system galaxy makes 4
+ * capitals: the player and 3 enemies.
+ */
+test("an 80 system galaxy draws only its capitals' names, and keeps every name in its tooltip", () => {
   const names = Object.fromEntries(
     Array.from({ length: 80 }, (_, i) => [`node-${i}`, `System ${i}`]),
   );
@@ -203,11 +252,56 @@ test("a galaxy at the 80 system cap still names every system somewhere, on the d
     />,
   );
 
+  // Every name is still read out by its star's tooltip, capital or not.
   for (let i = 0; i < 80; i++) expect(html).toContain(`System ${i}`);
-  // A galaxy this dense cannot fit every name on the drawing itself. Some are
-  // only reachable through the tooltip, which is what makes this the crowded
-  // case rather than the 8 system one above.
+  // Only the 2 to 4 capitals draw their name on the galaxy itself.
   const drawn = html.match(/<text[^>]*>System \d+<\/text>/g) ?? [];
-  expect(drawn.length).toBeLessThan(80);
   expect(drawn.length).toBeGreaterThan(0);
+  expect(drawn.length).toBeLessThanOrEqual(4);
+});
+
+/**
+ * The same rule at the other end: an 8 system galaxy has room to print every
+ * name below its star with nothing colliding, but this draws only its
+ * capitals anyway. One rule everywhere is simpler to explain than a second
+ * rule that only exists for the room a small galaxy happens to have (issue
+ * #409).
+ */
+test("an 8 system galaxy names only its capitals too, even though every name would fit", () => {
+  const html = renderToStaticMarkup(
+    <ItemPreview
+      kind="challenge"
+      container={challenge({ nodeNames: NODE_NAMES, factionCount: 1 })}
+    />,
+  );
+
+  const drawn = html.match(/<text[^>]*>Star \d+<\/text>/g) ?? [];
+  // factionCount: 1 makes 2 capitals: the player and its one enemy.
+  expect(drawn.length).toBe(2);
+  for (let i = 0; i < 8; i++) expect(html).toContain(`Star ${i}`);
+});
+
+/**
+ * Every named star is reachable from the keyboard, not only the ones whose
+ * name is already on the drawing (issue #409): focus is what a revealed
+ * name answers to along with hover and touch, and focus needs somewhere to
+ * land in the first place.
+ */
+test("every named system is a keyboard focus stop, not only its capitals", () => {
+  const html = renderToStaticMarkup(
+    <ItemPreview
+      kind="challenge"
+      container={challenge({ nodeNames: NODE_NAMES, factionCount: 1 })}
+    />,
+  );
+
+  expect(html.match(/tabindex="0"/g)?.length).toBe(8);
+});
+
+test("a system with no name is not a focus stop, and unlabelled cards are never interactive", () => {
+  const html = renderToStaticMarkup(
+    <ItemPreview kind="challenge" container={challenge({})} />,
+  );
+
+  expect(html).not.toContain('tabindex="0"');
 });
