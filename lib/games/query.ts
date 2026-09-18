@@ -25,10 +25,10 @@ export interface GameSummary {
    *  reads it as a flag. The time is kept because who and when are part of the
    *  fact, the same way `hidden_at` is. */
   featured_at: string | null;
-  /** Where a lobby fetches the game from, or null when nobody has said. Both
-   *  columns are set or neither is, which the table's own check enforces. */
-  download_kind: string | null;
-  download_value: string | null;
+  /** Where coilbox fetches the game, best source first (#396). Always an
+   *  array, empty when the game names nowhere. `readDownloads` in
+   *  `./download` turns it into `GameDownload[]`. */
+  downloads: unknown;
   /** The 16:9 picture the card draws above the name, resolved by the same
    *  three columns the logo uses. */
   card_path: string | null;
@@ -46,7 +46,7 @@ export interface GameSummary {
    supabase-js select is typed off the literal, and a `+` widens it to `string`,
    at which point the rows come back as an error type. */
 export const GAME_SUMMARY_COLUMNS =
-  "shortname,display_name,description,logo_path,logo_hash,logo_staged_tier,featured_at,download_kind,download_value,card_path,card_hash,card_staged_tier,faction_count,unit_count,item_count";
+  "shortname,display_name,description,logo_path,logo_hash,logo_staged_tier,featured_at,downloads,card_path,card_hash,card_staged_tier,faction_count,unit_count,item_count";
 
 /**
  * Featured first, then alphabetical.

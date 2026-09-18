@@ -24,6 +24,11 @@ const GAME_ROW = {
     { color: "#ff3524" },
     "junk",
   ],
+  game_download_source: [
+    { kind: "github", value: "springraaar/metal_factions", asset: "metal_factions", filename: null },
+    { kind: "rapid", value: "metalfactions:stable", asset: null, filename: null },
+    { kind: "torrent", value: "whatever", asset: null, filename: null },
+  ],
   game_faction: [
     { key: "armada", name: "Armada", logo_path: null },
     { key: "cortex", name: "Cortex", logo_path: "factions/cortex.webp" },
@@ -33,19 +38,16 @@ const GAME_ROW = {
 };
 
 function fakeSupabase(row: unknown, counts: unknown): SupabaseClient {
-  const answer = (data: unknown) => ({
-    select: () => ({
-      eq: () => ({
-        maybeSingle: () => Promise.resolve({ data, error: null }),
-        order: () => ({
-          order: () => ({
-            limit: () => ({ maybeSingle: () => Promise.resolve({ data, error: null }) }),
-          }),
-        }),
-      }),
+  // `order` and `limit` answer themselves, so the double does not have to be
+  // rewritten every time the real query sorts one more embedded table.
+  const answer = (data: unknown) => {
+    const chain = {
       maybeSingle: () => Promise.resolve({ data, error: null }),
-    }),
-  });
+      order: () => chain,
+      limit: () => chain,
+    };
+    return { select: () => ({ eq: () => chain, maybeSingle: chain.maybeSingle }) };
+  };
   return {
     from: (table: string) => (table === "game_browse" ? answer(counts) : answer(row)),
   } as unknown as SupabaseClient;
@@ -61,6 +63,12 @@ test("a page carries the row's facts with the junk and the Random side dropped",
   expect(page.links).toEqual([{ label: "Forum", url: "https://example.test" }]);
   expect(page.conquest_factions).toEqual([{ name: "Arm", color: "#2f7dff", side: "ARM" }]);
   expect(page.factions.map((faction) => faction.name)).toEqual(["Armada", "Cortex"]);
+  // In the order the query asked for, with the kind nothing knows what to do
+  // with left out.
+  expect(page.downloads).toEqual([
+    { kind: "github", value: "springraaar/metal_factions", asset: "metal_factions" },
+    { kind: "rapid", value: "metalfactions:stable" },
+  ]);
   expect(page.release).toBe("2.0.0");
   expect(page.unit_count).toBe(340);
 });

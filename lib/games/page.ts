@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ConquestFaction, parseConquestFactions, parseGameLinks, type GameLink } from "./catalog";
+import { type GameDownload, readDownloads } from "./download";
 import { isRandomFaction } from "./factions";
 
 /**
@@ -54,8 +55,9 @@ export interface GamePage {
   card_path: string | null;
   card_hash: string | null;
   card_staged_tier: string | null;
-  download_kind: string | null;
-  download_value: string | null;
+  /** Where coilbox fetches the game, best source first (#396). Empty when the
+   *  game names nowhere. */
+  downloads: GameDownload[];
 }
 
 /** The row as the query hands it back, before the page shapes it. */
@@ -76,8 +78,7 @@ interface GameRow {
   card_path: string | null;
   card_hash: string | null;
   card_staged_tier: string | null;
-  download_kind: string | null;
-  download_value: string | null;
+  game_download_source: unknown;
   game_faction: { key: string; name: string; logo_path: string | null }[];
   game_version: { version: string }[];
 }
@@ -97,11 +98,14 @@ export async function loadGamePage(
       .select(
         "shortname,display_name,description,links,conquest_factions,owner_user_id,hidden_at," +
           "logo_path,logo_hash,logo_staged_tier,banner_path,banner_hash,banner_staged_tier," +
-          "card_path,card_hash,card_staged_tier,download_kind,download_value," +
+          "card_path,card_hash,card_staged_tier," +
+          "game_download_source(kind,value,asset,filename,sort_order)," +
           "game_faction(key,name,logo_path)," +
           "game_version(version,last_seen_at)",
       )
       .eq("shortname", shortname)
+      .order("sort_order", { referencedTable: "game_download_source", ascending: true })
+      .order("id", { referencedTable: "game_download_source", ascending: true })
       .order("name", { referencedTable: "game_faction", ascending: true })
       .order("last_seen_at", { referencedTable: "game_version", ascending: false })
       .limit(1, { referencedTable: "game_version" })
@@ -138,7 +142,6 @@ export async function loadGamePage(
     card_path: held.card_path,
     card_hash: held.card_hash,
     card_staged_tier: held.card_staged_tier,
-    download_kind: held.download_kind,
-    download_value: held.download_value,
+    downloads: readDownloads(held.game_download_source),
   };
 }
