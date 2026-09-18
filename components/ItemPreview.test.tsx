@@ -85,3 +85,64 @@ test("the plan draws in its own fixed colour, not grey (issue #318)", () => {
   );
   expect(html).toContain("text-blue-500");
 });
+
+/** A conquest challenge container, with the names a galaxy resolved to when
+ *  the payload carries them. */
+function challenge(extra: Record<string, unknown>) {
+  return {
+    payload: {
+      mode: "conquest",
+      settings: {
+        seed: 12345,
+        game: { shortname: "ba" },
+        title: "A Conquest",
+        nodeCount: 8,
+        factionCount: 1,
+        layout: "scatter",
+        skin: "galaxy",
+        ...extra,
+      },
+    },
+  };
+}
+
+const NODE_NAMES = Object.fromEntries(
+  Array.from({ length: 8 }, (_, i) => [`node-${i}`, `Star ${i}`]),
+);
+
+test("a galaxy names its systems and its factions from the payload", () => {
+  const html = renderToStaticMarkup(
+    <ItemPreview
+      kind="challenge"
+      container={challenge({
+        nodeNames: NODE_NAMES,
+        nodeMaps: { "node-0": "Comet Catcher" },
+        factions: [
+          { name: "Arm", color: "#22aa44" },
+          { name: "Cortex" },
+        ],
+      })}
+    />,
+  );
+
+  for (let i = 0; i < 8; i++) expect(html).toContain(`Star ${i}`);
+  expect(html).toContain("Comet Catcher");
+  expect(html).toContain("Arm");
+  expect(html).toContain("Cortex");
+  // The payload's colour is what the player faction is drawn in.
+  expect(html).toContain("#22aa44");
+});
+
+test("a galaxy with no names in its payload still draws (issue #397)", () => {
+  // Every conquest shared before coilbox published names, so this is the case
+  // the change must not break rather than an edge of it.
+  const html = renderToStaticMarkup(
+    <ItemPreview kind="challenge" container={challenge({})} />,
+  );
+
+  expect(html).toContain("<svg");
+  expect(html).toContain("8 systems joined by");
+  expect(html).not.toContain("<text");
+  // No legend either: swatches with nothing beside them name nobody.
+  expect(html).not.toContain("<ul");
+});

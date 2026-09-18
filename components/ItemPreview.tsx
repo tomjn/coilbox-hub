@@ -118,8 +118,14 @@ const UNCLAIMED = "#6b7280";
  *
  * Drawn rather than described because the galaxy is the thing a person would
  * recognise. Systems sit where the generator puts them, lanes are the jumps
- * between them, and colour is who holds what on turn one. Nothing else is
- * drawn: names and maps come from installed content the hub does not have.
+ * between them, and colour is who holds what on turn one.
+ *
+ * `labelled` writes each system's name under its star, owner tinted the way
+ * coilbox's own galaxy view writes them, and hangs the map the system resolved
+ * to off the star as a tooltip. Only the item page asks for it. A card's frame
+ * is a fraction of the width and the names would land on top of each other.
+ * Names are absent on a challenge shared before coilbox published them, which
+ * draws exactly the galaxy this drew before (issue #397).
  *
  * The `viewBox` is the unit square the shape was fitted to, scaled up and
  * inset so a capital's ring at the edge is not clipped. Stroke widths and
@@ -142,18 +148,21 @@ export function ConquestGalaxyArt({
   shape,
   className,
   decorative = false,
+  labelled = false,
 }: {
   shape: GalaxyShape;
   className: string;
   /** True for a card, where the kind badge already names the thing in
    *  words and the drawing itself has nothing left to announce. */
   decorative?: boolean;
+  /** True on the item page, which has the width to name every system. */
+  labelled?: boolean;
 }) {
   const inset = 4;
   const scale = 100 - inset * 2;
   const at = (v: number) => inset + v * scale;
   const colorOf = (faction: number | null) =>
-    faction === null ? UNCLAIMED : (shape.factionColors[faction] ?? UNCLAIMED);
+    faction === null ? UNCLAIMED : (shape.factions[faction]?.color ?? UNCLAIMED);
   const held = shape.systems.filter((s) => s.faction !== null).length;
   const glow = useId();
 
@@ -202,25 +211,90 @@ export function ConquestGalaxyArt({
             // the work, so it needs no ring to stand out.
             r={system.capital ? 2.1 : 1.2}
             fill={colorOf(system.faction)}
-          />
+          >
+            {labelled && system.name ? (
+              <title>
+                {system.map ? `${system.name} — ${system.map}` : system.name}
+              </title>
+            ) : null}
+          </circle>
         ))}
       </g>
+      {labelled
+        ? shape.systems.map((system, i) =>
+            system.name ? (
+              <text
+                key={i}
+                x={at(system.x)}
+                y={at(system.y) + (system.capital ? 2.1 : 1.2) + 3}
+                textAnchor="middle"
+                fontSize={2.4}
+                fill={colorOf(system.faction)}
+                // Outlined in the page's own black so two names that land near
+                // each other stay readable instead of blurring together.
+                stroke="#000000"
+                strokeWidth={0.7}
+                strokeLinejoin="round"
+                paintOrder="stroke"
+              >
+                {system.name}
+              </text>
+            ) : null,
+          )
+        : null}
     </svg>
   );
 }
 
 /**
  * The item page's own galaxy: {@link ConquestGalaxyArt}, capped to a
- * comfortable reading width rather than the card's fixed frame.
+ * comfortable reading width rather than the card's fixed frame, with the
+ * factions named underneath.
  *
  * Capped rather than full width. The shape is square, so at the page's own
  * width it would be taller than the screen and read as a diagram rather than
  * an illustration of the thing being shared. No frame and no fill: the
  * page's own starfield is a better backdrop than a black box, and a box
  * around it made it read as a chart.
+ *
+ * The legend is the same device `WarpathRunMap` uses below, for the same
+ * reason: territory is drawn in colour, and a colour nobody has named is a
+ * blob. It only appears once the challenge says who the factions are, since a
+ * legend of swatches with no names beside them says nothing the map does not.
  */
 function ConquestGalaxy({ shape }: { shape: GalaxyShape }) {
-  return <ConquestGalaxyArt shape={shape} className="mx-auto w-full max-w-md" />;
+  // Keyed on the slot rather than the name, because two of a game's lore
+  // factions can be called the same thing when they differ by side.
+  const named = shape.factions
+    .map((faction, i) => ({ ...faction, slot: i }))
+    .filter((faction) => faction.name);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <ConquestGalaxyArt
+        shape={shape}
+        className="mx-auto w-full max-w-md"
+        labelled
+      />
+      {named.length > 0 ? (
+        <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5">
+          {named.map((faction) => (
+            <li
+              key={faction.slot}
+              className="flex items-center gap-1.5 text-xs text-neutral-400"
+            >
+              <span
+                aria-hidden="true"
+                className="size-2 shrink-0 rounded-full"
+                style={{ background: faction.color }}
+              />
+              {faction.name}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 /**

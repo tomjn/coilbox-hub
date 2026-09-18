@@ -15,13 +15,18 @@
  * coilbox's catalog sets it.
  *
  * What is deliberately not rebuilt is anything installed content decides: the
- * map on each system, and the names and colours of a game's lore factions.
- * Factions are drawn in the generator's own default palette and identified by
- * position rather than name. Maps are coilbox#1393, which would put the
- * resolved map names in the payload. Until that lands the hub does not know
- * them and has no business guessing.
+ * name of each system, the map on each system, and the names and colours of a
+ * game's lore factions. Those are read out of the payload when the challenge
+ * carries them and left blank when it does not.
+ *
+ * Read and not regenerated, even though the payload names the game and the
+ * catalog holds naming pools for a few of them. Reproducing the pools would be
+ * right for those few and confidently wrong for every other game, including any
+ * that takes its factions from what is installed. A galaxy wearing the wrong
+ * names is worse than one wearing none (issue #397).
  */
 
+import { type NodeMaps, parseNodeMaps } from "@/lib/challenge/nodeMaps";
 import { generateGalaxy } from "@/lib/conquest/generate";
 import type { GalaxyDoc, NodePos } from "@/lib/conquest/model";
 import { NEUTRAL } from "@/lib/conquest/model";
@@ -30,17 +35,30 @@ import { NEUTRAL } from "@/lib/conquest/model";
 export interface GalaxySystem {
   x: number;
   y: number;
-  /** Index into {@link GalaxyShape.factionColors}, or null for neutral. */
+  /** Index into {@link GalaxyShape.factions}, or null for neutral. */
   faction: number | null;
   capital: boolean;
+  /** What the game called this system. Absent when the payload does not say. */
+  name?: string;
+  /** The map this system resolved to (coilbox#1393). Absent when the payload
+   *  does not say, and when it names a system this rebuild does not have. */
+  map?: string;
+}
+
+/** A faction as it is drawn: always a colour, a name only when the payload
+ *  carries one. */
+export interface GalaxyFaction {
+  color: string;
+  name?: string;
 }
 
 export interface GalaxyShape {
   systems: GalaxySystem[];
   /** Jump lanes, as index pairs into {@link GalaxyShape.systems}. */
   lanes: [number, number][];
-  /** Player first, then enemies, in the generator's default palette. */
-  factionColors: string[];
+  /** Player first, then enemies. The payload's colour where it gives one, the
+   *  generator's default palette slot where it does not. */
+  factions: GalaxyFaction[];
 }
 
 /**
@@ -102,6 +120,64 @@ function readKnobs(payload: Record<string, unknown>): ChallengeKnobs | null {
   };
 }
 
+/**
+ * The part of a galaxy the seed cannot reproduce, as the challenge recorded it.
+ *
+ * Every field is optional and every field is absent on a challenge shared
+ * before coilbox published any of this, which is why nothing here is allowed to
+ * stop a galaxy being drawn.
+ */
+interface ResolvedContent {
+  /** System name by node id. */
+  names: NodeMaps;
+  /** Map name by node id (coilbox#1393). */
+  maps: NodeMaps;
+  /** Player first, then enemies, in the order the generator builds them. Null
+   *  in a slot the payload did not usably fill, so the rest keep their
+   *  positions rather than shuffling up into the wrong faction. */
+  factions: ({ name: string; color?: string } | null)[];
+}
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/**
+ * The factions a challenge records, player first.
+ *
+ * Read by position rather than by id, because that is the order the generator
+ * builds them in on both sides: the player is always first and the enemies
+ * follow. An entry with no usable name leaves its slot empty rather than being
+ * skipped over, so a bad second entry cannot hand the second faction's name to
+ * the third.
+ *
+ * Four is the most the generator ever builds, a player plus three enemies.
+ */
+function readFactions(value: unknown): ResolvedContent["factions"] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 4).map((entry) => {
+    if (typeof entry !== "object" || entry === null) return null;
+    const { name, color } = entry as Record<string, unknown>;
+    if (typeof name !== "string" || name.trim() === "") return null;
+    return {
+      name: name.trim(),
+      color:
+        typeof color === "string" && HEX_COLOR.test(color) ? color : undefined,
+    };
+  });
+}
+
+/**
+ * `parseNodeMaps` reads both by-node objects, because both are the same thing:
+ * one bounded string per node id. It is coilbox's own reader, vendored, so the
+ * hub drops exactly what the app drops and stops counting where the app stops.
+ */
+function readContent(settings: Record<string, unknown>): ResolvedContent {
+  return {
+    names: parseNodeMaps(settings.nodeNames) ?? {},
+    maps: parseNodeMaps(settings.nodeMaps) ?? {},
+    factions: readFactions(settings.factions),
+  };
+}
+
 /** Scatter positions are 2D and real-star ones are 3D light years. Both are
  * drawn on the same plane the app draws them on, which is x against y. */
 const plane = (pos: NodePos): [number, number] => [pos[0], pos[1]];
@@ -129,7 +205,7 @@ function normalise(points: [number, number][]): [number, number][] {
   ]);
 }
 
-function shapeOf(galaxy: GalaxyDoc): GalaxyShape {
+function shapeOf(galaxy: GalaxyDoc, content: ResolvedContent): GalaxyShape {
   const index = new Map(galaxy.nodes.map((node, i) => [node.id, i]));
   const factionIndex = new Map(galaxy.factions.map((f, i) => [f.id, i]));
   const positions = normalise(galaxy.nodes.map((node) => plane(node.pos)));
@@ -141,9 +217,10 @@ function shapeOf(galaxy: GalaxyDoc): GalaxyShape {
       faction:
         node.owner === NEUTRAL ? null : (factionIndex.get(node.owner) ?? null),
       capital: node.kind === "capital",
-      // SEAM FOR coilbox#1393: when a challenge payload names the map each
-      // system resolved to, it belongs on this object, read from the payload
-      // rather than generated. Nothing else here has to change.
+      // The generated node's own name is not used. It comes from the built-in
+      // pool, which is not the pool the galaxy was named from.
+      name: content.names[node.id],
+      map: content.maps[node.id],
     })),
     lanes: galaxy.links.flatMap(([a, b]) => {
       const from = index.get(a);
@@ -152,7 +229,10 @@ function shapeOf(galaxy: GalaxyDoc): GalaxyShape {
         ? []
         : [[from, to] as [number, number]];
     }),
-    factionColors: galaxy.factions.map((f) => f.color),
+    factions: galaxy.factions.map((f, i) => {
+      const said = content.factions[i];
+      return { color: said?.color ?? f.color, name: said?.name };
+    }),
   };
 }
 
@@ -163,18 +243,27 @@ function shapeOf(galaxy: GalaxyDoc): GalaxyShape {
  * newer coilbox whose settings no longer parse, and for a seed the generator
  * refuses. The caller falls back to the counts it can read straight off the
  * payload, so a challenge shows less rather than nothing.
+ *
+ * It is also the answer when the payload names systems this rebuild does not
+ * have, or leaves one of its systems unnamed. Coilbox writes `nodeNames` from
+ * the galaxy's own nodes, all of them or none, so a set that does not match
+ * means the two galaxies are not the same galaxy and the vendored generator has
+ * fallen behind. That is the check coilbox#1393 asked a by-node payload for:
+ * drawing the graph anyway would be a confident picture of something else.
  */
 export function conquestGalaxy(
   payload: Record<string, unknown>,
 ): GalaxyShape | null {
   const knobs = readKnobs(payload);
   if (!knobs) return null;
+  const content = readContent(payload.settings as Record<string, unknown>);
   try {
     const galaxy = generateGalaxy({
       seed: knobs.seed,
       game: { shortname: "" },
       // No maps and no naming pools: everything the graph is made of is
-      // decided before the generator reads either.
+      // decided before the generator reads either, and everything they would
+      // have decided is read off the payload instead.
       maps: [],
       nodeCount: knobs.nodeCount,
       factionCount: knobs.factionCount,
@@ -182,7 +271,16 @@ export function conquestGalaxy(
       radiusLy: knobs.radiusLy,
       startingSystems: knobs.startingSystems,
     });
-    return galaxy.nodes.length > 0 ? shapeOf(galaxy) : null;
+    if (galaxy.nodes.length === 0) return null;
+    const named = Object.keys(content.names).length;
+    if (
+      named > 0 &&
+      (named !== galaxy.nodes.length ||
+        !galaxy.nodes.every((node) => node.id in content.names))
+    ) {
+      return null;
+    }
+    return shapeOf(galaxy, content);
   } catch {
     return null;
   }

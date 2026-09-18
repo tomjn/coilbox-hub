@@ -92,6 +92,41 @@ test("a conquest challenge rebuilds its galaxy from the settings alone", () => {
   expect(shape.galaxy.lanes.length).toBeGreaterThan(0);
 });
 
+test("a card's galaxy carries no names, since a card has nowhere to draw them", () => {
+  const nodeNames = Object.fromEntries(
+    Array.from({ length: 24 }, (_, i) => [`node-${i}`, `Star ${i}`]),
+  );
+  const shape = cardShape(
+    { kind: "challenge", mode: "conquest" },
+    {
+      ...empty,
+      settings: {
+        ...conquestSettings,
+        nodeNames,
+        nodeMaps: { "node-0": "Comet Catcher" },
+        factions: [{ name: "Arm", color: "#22aa44" }],
+      },
+    },
+  );
+
+  expect(shape?.type).toBe("galaxy");
+  if (shape?.type !== "galaxy") throw new Error("expected a galaxy");
+  expect(shape.galaxy.systems.every((s) => s.name === undefined)).toBe(true);
+  expect(shape.galaxy.systems.every((s) => s.map === undefined)).toBe(true);
+  expect(shape.galaxy.factions.every((f) => f.name === undefined)).toBe(true);
+  // The payload's own faction colour survives, because a card does draw that.
+  expect(shape.galaxy.factions[0].color).toBe("#22aa44");
+  // The names were still read: they are what says whether this rebuild is the
+  // galaxy that was shared, and a card must answer that the way the item page
+  // answers it.
+  expect(
+    cardShape(
+      { kind: "challenge", mode: "conquest" },
+      { ...empty, settings: { ...conquestSettings, nodeNames: { "node-0": "Sol" } } },
+    ),
+  ).toBeNull();
+});
+
 test("a warpath challenge rebuilds its run from the settings alone", () => {
   const shape = cardShape(
     { kind: "challenge", mode: "warpath" },
