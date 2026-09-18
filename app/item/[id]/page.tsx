@@ -6,6 +6,7 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { ImportLink } from "@/components/ImportLink";
 import { ItemPreview, type UnitNameLink } from "@/components/ItemPreview";
 import { KindIcon } from "@/components/KindIcon";
+import { LobbyCommands } from "@/components/LobbyCommands";
 import { MapMinimap } from "@/components/MapMinimap";
 import { ReportButton } from "@/components/ReportButton";
 import { type PackMap, SetupPackContents } from "@/components/SetupPackContents";
@@ -24,6 +25,7 @@ import { startPosNote } from "@/lib/gallery/presetPreview";
 import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
 import { unitNameLabelsCached, type UnitNameLabel } from "@/lib/games/cached";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { lobbyCommands } from "@/lib/workshop/lobbyCommands";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/supabase/user";
 import { setItemFeatured } from "../actions";
@@ -162,6 +164,14 @@ export default async function Item({
     ]),
   );
 
+  // A project is the one kind somebody can use without coilbox (issue #418):
+  // its edits compile to lines a lobby takes. Nothing when the payload is not
+  // a project coilbox could compile, and the page then offers the import alone.
+  const project = item.kind === "mod-project";
+  const commands = project
+    ? lobbyCommands((item.container as { payload?: unknown } | null)?.payload)
+    : null;
+
   // Every map this page names: the one on the row, and a setup pack's own list
   // (issue #176).
   const packMapNames = setupPackMaps(item.container);
@@ -211,7 +221,10 @@ export default async function Item({
           ) : null}
         </div>
 
-        {item.kind === "setup-pack" ? (
+        {/* A project's changelog can run to two hundred rows, so the two ways to
+            use it come first. Every other kind has a preview short enough to
+            lead with. */}
+        {project ? null : item.kind === "setup-pack" ? (
           <SetupPackContents container={item.container} maps={packMaps} />
         ) : minimap ? (
           // Where and who, side by side: the two halves of what a preset is.
@@ -237,7 +250,17 @@ export default async function Item({
           />
         )}
 
+        {commands ? <LobbyCommands commands={commands} /> : null}
+
         <div className="flex flex-col gap-4 rounded-md border border-neutral-800 bg-card p-5">
+          {project ? (
+            <div className="flex flex-col gap-1.5">
+              <h2 className="text-lg font-semibold tracking-tight">Open it in Coilbox</h2>
+              <p className="text-sm text-neutral-400">
+                Coilbox applies every edit, to any game it runs, and lets you change them.
+              </p>
+            </div>
+          ) : null}
           <ImportLink shareUrl={shareUrl} variant="solid" />
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-neutral-400">
@@ -248,6 +271,15 @@ export default async function Item({
             </code>
           </div>
         </div>
+
+        {project ? (
+          <ItemPreview
+            kind={item.kind}
+            container={item.container}
+            units={pictures.units}
+            names={unitNames}
+          />
+        ) : null}
 
         {mine ? (
           <div className="flex items-center justify-between rounded-md border border-neutral-800 bg-card px-5 py-3 text-sm">
@@ -302,7 +334,9 @@ export default async function Item({
             <Fact term="Imported via hub link">{item.import_count}</Fact>
           ) : null}
           {item.game_name ? (
-            <Fact term="Game">
+            // "Made with" on a project, because the build named here is what
+            // the author had and not what a player needs (issue #419).
+            <Fact term={project ? "Made with" : "Game"}>
               {item.game_key ? (
                 <Link
                   href={`/gallery?game=${encodeURIComponent(item.game_key)}`}
@@ -329,6 +363,18 @@ export default async function Item({
             </Fact>
           ) : null}
         </dl>
+
+        {project && item.game_name ? (
+          // The listings already group on the versionless `game_key` (issue
+          // #50), so a game update orphans nothing. Only this page implied it
+          // did, by naming a build and saying nothing else (issue #419).
+          <p className="max-w-prose text-sm text-neutral-400">
+            The version above is the one the author had, not one you need. A project names only
+            what it changes, so it usually still works after the game updates. If an edit no longer
+            applies, for example to a unit the game has removed, the Checks panel in
+            Coilbox&rsquo;s workshop says which.
+          </p>
+        ) : null}
 
         {item.tags.length > 0 ? (
           <ul className="flex flex-wrap gap-1.5">

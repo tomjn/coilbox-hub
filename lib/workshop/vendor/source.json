@@ -1,0 +1,11 @@
+{
+  "repo": "tomjn/coilbox",
+  "ref": "main",
+  "dir": "crates/tauri-plugin-coilbox-workshop/tests/fixtures",
+  "files": {
+    "bar-pack-golden.json": "8e9c90cc6004b2f4ba344a08afd7064d5d06bddd"
+  },
+  "sha256": {
+    "bar-pack-golden.json": "04296fce6d5f5d25862b6ab89696c3e7cee360e614f9031847df0e45b1f17510"
+  }
+}

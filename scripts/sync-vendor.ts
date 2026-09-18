@@ -175,6 +175,16 @@ const GROUPS: VendorGroup[] = [
     vendor: "lib/challenge",
     files: ["nodeMaps.ts"],
   },
+  {
+    // What coilbox's Rust compiler and packer make of a set of projects (#418).
+    // The one group that vendors a test fixture and no code: the packer is
+    // Rust, so `lib/workshop` is a port of it, and this file is what holds the
+    // port to the original. `lib/workshop/barPack.test.ts` runs it, so a change
+    // to what coilbox emits turns that test red on the next sync.
+    dir: "crates/tauri-plugin-coilbox-workshop/tests/fixtures",
+    vendor: "lib/workshop/vendor",
+    files: ["bar-pack-golden.json"],
+  },
 ];
 
 interface SourceRecord {
