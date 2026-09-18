@@ -92,8 +92,10 @@ const revalidated = mock<(path: string) => void>(() => {});
 const realCache = await import("next/cache");
 mock.module("next/cache", () => ({ ...realCache, revalidatePath: revalidated, updateTag: mock(() => {}) }));
 
-const { editGameDetails, setSnippet, setGameVisibility, setVersionVisibility } = await import("./actions");
-const { EDIT_MESSAGES, SNIPPET_MESSAGES, VISIBILITY_MESSAGES } = await import("@/lib/games/formState");
+const { editConquestFactions, editGameDetails, setSnippet, setGameVisibility, setVersionVisibility } =
+  await import("./actions");
+const { CONQUEST_FACTIONS_MESSAGES, EDIT_MESSAGES, SNIPPET_MESSAGES, VISIBILITY_MESSAGES } =
+  await import("@/lib/games/formState");
 
 function form(fields: Record<string, string>): FormData {
   const data = new FormData();
@@ -150,6 +152,59 @@ test("a write the database refuses is reported as not saved", async () => {
 
 test("an edit form with no shortname never reaches the write", async () => {
   expect(await editGameDetails(null, form({}))).toEqual({ ok: false, message: EDIT_MESSAGES.notSent });
+});
+
+test("a saved faction list tells the form and revalidates the game", async () => {
+  const factions = JSON.stringify([
+    { name: "House Arm-1", side: "ARM" },
+    { name: "House Arm-2", side: "ARM" },
+  ]);
+
+  const state = await editConquestFactions(null, form({ shortname: "BA", factions }));
+
+  expect(state).toEqual({ ok: true, message: CONQUEST_FACTIONS_MESSAGES.saved });
+  expect(revalidated.mock.calls.map(([path]) => path).sort()).toEqual(["/games/BA", "/games/BA/edit"]);
+});
+
+test("a signed out faction save says so and writes nothing", async () => {
+  visitor = null;
+
+  expect(await editConquestFactions(null, form({ shortname: "BA", factions: "[]" }))).toEqual({
+    ok: false,
+    message: CONQUEST_FACTIONS_MESSAGES.signedOut,
+  });
+  expect(revalidated).not.toHaveBeenCalled();
+});
+
+test("a faction save the ownership policy filters out to zero rows is refused", async () => {
+  gameUpdateResult = { data: [], error: null };
+
+  expect(await editConquestFactions(null, form({ shortname: "BA", factions: "[]" }))).toEqual({
+    ok: false,
+    message: CONQUEST_FACTIONS_MESSAGES.notAllowed,
+  });
+});
+
+test("a faction write the database refuses is reported as not saved", async () => {
+  gameUpdateResult = { data: null, error: new Error("db down") };
+
+  expect(await editConquestFactions(null, form({ shortname: "BA", factions: "[]" }))).toEqual({
+    ok: false,
+    message: CONQUEST_FACTIONS_MESSAGES.notSaved,
+  });
+});
+
+test("a faction form with no shortname never reaches the write", async () => {
+  expect(await editConquestFactions(null, form({ factions: "[]" }))).toEqual({
+    ok: false,
+    message: CONQUEST_FACTIONS_MESSAGES.notSent,
+  });
+});
+
+test("factions that fail to parse are treated as an empty list rather than a crash", async () => {
+  const state = await editConquestFactions(null, form({ shortname: "BA", factions: "not json" }));
+
+  expect(state).toEqual({ ok: true, message: CONQUEST_FACTIONS_MESSAGES.saved });
 });
 
 test("a saved snippet tells the form", async () => {

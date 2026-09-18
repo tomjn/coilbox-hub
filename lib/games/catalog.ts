@@ -14,12 +14,27 @@ export interface GameLink {
   url: string;
 }
 
+/**
+ * A game's own conquest faction (#393): a name plus an optional colour and an
+ * optional in-game side, in the order `lib/conquest/names.ts`'s
+ * `FactionPreset` assigns them - player first, then enemies. Several entries
+ * may share one `side`, which is the whole reason this is not `game_faction`:
+ * a game with two in-game sides can still want four warring houses that all
+ * field one of them.
+ */
+export interface ConquestFaction {
+  name: string;
+  color?: string;
+  side?: string;
+}
+
 export interface GameRow {
   id: string;
   shortname: string;
   display_name: string | null;
   description: string | null;
   links: GameLink[];
+  conquest_factions: ConquestFaction[];
   start_units: string[] | null;
   submitted_by: string | null;
   created_at: string;
@@ -101,4 +116,32 @@ export function parseGameLinks(value: unknown): GameLink[] {
     links.push({ label, url });
   }
   return links;
+}
+
+/** `#rrggbb`, case insensitive, matching the pattern the edit form's colour
+ *  input enforces. */
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/**
+ * The conquest factions a game row carries, as factions.
+ *
+ * jsonb arrives as whatever was stored, and the column only insists it is an
+ * array (`game_conquest_factions_array_check`). An entry with no usable name
+ * is dropped rather than rendered, the same rule `parseGameLinks` follows.
+ * A malformed colour or side is dropped on its own rather than taking the
+ * whole entry with it, since a name alone is still a usable faction.
+ */
+export function parseConquestFactions(value: unknown): ConquestFaction[] {
+  if (!Array.isArray(value)) return [];
+  const factions: ConquestFaction[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { name, color, side } = entry as Record<string, unknown>;
+    if (typeof name !== "string" || name.trim() === "") continue;
+    const faction: ConquestFaction = { name: name.trim() };
+    if (typeof color === "string" && HEX_COLOR.test(color)) faction.color = color;
+    if (typeof side === "string" && side.trim() !== "") faction.side = side.trim();
+    factions.push(faction);
+  }
+  return factions;
 }

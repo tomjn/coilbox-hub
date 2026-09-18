@@ -19,6 +19,11 @@ const GAME_ROW = {
     { label: "", url: "https://example.test/empty" },
     "junk",
   ],
+  conquest_factions: [
+    { name: "Arm", color: "#2f7dff", side: "ARM" },
+    { color: "#ff3524" },
+    "junk",
+  ],
   game_faction: [
     { key: "armada", name: "Armada", logo_path: null },
     { key: "cortex", name: "Cortex", logo_path: "factions/cortex.webp" },
@@ -54,6 +59,7 @@ test("a page carries the row's facts with the junk and the Random side dropped",
   expect(page).not.toBeNull();
   if (!page) return;
   expect(page.links).toEqual([{ label: "Forum", url: "https://example.test" }]);
+  expect(page.conquest_factions).toEqual([{ name: "Arm", color: "#2f7dff", side: "ARM" }]);
   expect(page.factions.map((faction) => faction.name)).toEqual(["Armada", "Cortex"]);
   expect(page.release).toBe("2.0.0");
   expect(page.unit_count).toBe(340);

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseGameLinks, type GameLink } from "./catalog";
+import { type ConquestFaction, parseConquestFactions, parseGameLinks, type GameLink } from "./catalog";
 import { isRandomFaction } from "./factions";
 
 /**
@@ -23,6 +23,9 @@ export interface GamePage {
   display_name: string | null;
   description: string | null;
   links: GameLink[];
+  /** The owner or moderator authored conquest faction list (#393), holding it
+   *  rather than using it - drawing a shared galaxy from it is #397. */
+  conquest_factions: ConquestFaction[];
   faction_count: number;
   unit_count: number;
   /** Live community content filed under this shortname (#244). */
@@ -61,6 +64,7 @@ interface GameRow {
   display_name: string | null;
   description: string | null;
   links: unknown;
+  conquest_factions: unknown;
   owner_user_id: string | null;
   hidden_at: string | null;
   logo_path: string | null;
@@ -91,7 +95,7 @@ export async function loadGamePage(
     supabase
       .from("game")
       .select(
-        "shortname,display_name,description,links,owner_user_id,hidden_at," +
+        "shortname,display_name,description,links,conquest_factions,owner_user_id,hidden_at," +
           "logo_path,logo_hash,logo_staged_tier,banner_path,banner_hash,banner_staged_tier," +
           "card_path,card_hash,card_staged_tier,download_kind,download_value," +
           "game_faction(key,name,logo_path)," +
@@ -117,6 +121,7 @@ export async function loadGamePage(
     display_name: held.display_name,
     description: held.description,
     links: parseGameLinks(held.links),
+    conquest_factions: parseConquestFactions(held.conquest_factions),
     faction_count: counts.data.faction_count,
     unit_count: counts.data.unit_count,
     item_count: counts.data.item_count,

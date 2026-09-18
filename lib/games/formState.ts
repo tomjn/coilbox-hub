@@ -22,6 +22,15 @@ export const EDIT_MESSAGES = {
   notSent: "The form did not reach the hub. Reload the page and try again.",
 } as const;
 
+/** What the conquest factions form says (#393). */
+export const CONQUEST_FACTIONS_MESSAGES = {
+  saved: "Factions saved.",
+  signedOut: "You are signed out. Sign in, then save your changes again.",
+  notAllowed: "You can no longer change this game. Only its owner or a moderator can save its factions.",
+  notSaved: "The factions could not be saved. Try again in a few minutes.",
+  notSent: "The form did not reach the hub. Reload the page and try again.",
+} as const;
+
 /** What a unit's author snippet form says. */
 export const SNIPPET_MESSAGES = {
   saved: "Snippet saved.",
