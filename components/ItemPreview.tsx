@@ -23,6 +23,10 @@
 
 import Link from "next/link";
 import { useId } from "react";
+import {
+  ConquestGalaxySystems,
+  type SystemDraw,
+} from "@/components/ConquestGalaxySystems";
 import type { ServedAsset } from "@/lib/assets/resolve";
 import type { PayloadFootprint } from "@/lib/blueprint/payload";
 import {
@@ -123,11 +127,18 @@ const UNCLAIMED = "#6b7280";
  * The star sits directly above its name and the legend underneath says which
  * faction each colour is, so the tint was saying a second time what is already
  * on screen, at the cost of the names being hard to read.
+ *
+ * Passed to {@link ConquestGalaxySystems} rather than imported there, so the
+ * server component that estimates label boxes from this and the client
+ * component that draws them stay in sync through one prop rather than
+ * through two files agreeing to import the same constant.
  */
 const SYSTEM_LABEL = "#d4d4d4";
 
 /** The label's font size, in viewBox units. Used both to draw the text and to
- *  estimate how much room it takes up (see {@link placeLabels}). */
+ *  estimate how much room it takes up (see {@link placeLabels}). Passed down
+ *  rather than imported, for the same reason {@link SYSTEM_LABEL} is: the
+ *  estimate and the drawn size must never drift apart. */
 const LABEL_FONT_SIZE = 2.4;
 
 /** How far a label's baseline sits from its star's edge, above or below. */
@@ -191,18 +202,18 @@ function boxesOverlap(a: LabelBox, b: LabelBox): boolean {
  * Where to draw each system's name, or nowhere for one that would land on a
  * name already placed.
  *
- * Under about 30 systems there is room for every name below its star, which
- * is how this drawing always read. Past that, a name is tried above its star
- * next, which alone accounts for most of what would otherwise collide. A name
- * that collides both ways is left off the drawing rather than printed over
- * another one. Its star still carries it as the tooltip `ConquestGalaxyArt`
- * already gives every named star, so the name stays reachable rather than
- * lost.
+ * Only capitals are named on the drawing itself now (issue #409): a handful
+ * of systems, few enough that this rarely has anything to resolve, but two
+ * capitals can still land close enough to collide, most likely on a galaxy
+ * generated with a small radius. A name tries below its star first, then
+ * above, and is left off the drawing rather than printed over another one if
+ * both collide. Its star still carries it as a tooltip, and gives it up on
+ * the drawing too the moment somebody points at it (see
+ * {@link placeReveal} and {@link ConquestGalaxySystems}).
  *
- * Capitals are decided first, so the brighter, bigger star keeps its name
- * when a packed galaxy cannot fit them all. The rest follow in generation
- * order, which is fixed for a given seed, so which names survive a crowded
- * galaxy is deterministic rather than a coin flip on every render.
+ * Sorted by capital first, so a galaxy that ever calls this with a mixed set
+ * keeps the same result it always did. Called with capitals alone since
+ * #409, which makes the sort a no-op, but it costs nothing to leave in.
  */
 export function placeLabels(
   systems: readonly {
@@ -257,6 +268,57 @@ export function placeLabels(
   return result;
 }
 
+/** A system's name box, at the side {@link placeLabels} or
+ *  {@link placeReveal} chose for it. */
+function boxFor(
+  system: {
+    x: number;
+    y: number;
+    radius: number;
+    anchor: "start" | "middle" | "end";
+    name: string;
+  },
+  side: LabelSide,
+): LabelBox {
+  const baselineY =
+    system.y + (side === "below" ? 1 : -1) * (system.radius + LABEL_GAP_FROM_STAR);
+  return labelBox(
+    system.x,
+    baselineY,
+    system.anchor,
+    system.name.length * LABEL_CHAR_WIDTH,
+  );
+}
+
+/**
+ * Where a name gives itself up when somebody points at its system, or
+ * nowhere if it cannot without landing on a name already on the drawing
+ * (issue #409).
+ *
+ * Only a capital's name is ever already on the drawing, so `taken` is that
+ * capital set's own boxes. The same below-then-above order {@link
+ * placeLabels} tries is tried here, against that fixed set rather than a
+ * running one: only one system is ever being pointed at at a time, so a
+ * revealed name never has to make room for another revealed name, only for
+ * what is drawn regardless of anybody pointing at anything.
+ */
+export function placeReveal(
+  system: {
+    x: number;
+    y: number;
+    radius: number;
+    anchor: "start" | "middle" | "end";
+    name: string;
+  },
+  taken: readonly LabelBox[],
+): LabelSide | null {
+  const below = boxFor(system, "below");
+  if (!taken.some((box) => boxesOverlap(box, below))) return "below";
+  const above = boxFor(system, "above");
+  if (!taken.some((box) => boxesOverlap(box, above))) return "above";
+  return null;
+}
+
 /**
  * The galaxy itself, rebuilt from the seed (see `lib/gallery/conquestGalaxy`).
  *
@@ -264,20 +326,34 @@ export function placeLabels(
  * recognise. Systems sit where the generator puts them, lanes are the jumps
  * between them, and colour is who holds what on turn one.
  *
- * `labelled` writes each system's name above or below its star, and hangs the
- * map the system resolved to off the star as a tooltip. Only the item page
- * asks for it. A card's frame is a fraction of the width and the names would
- * land on top of each other.
+ * `labelled` names every capital under or over its star, always, and hangs
+ * the map each system resolved to off its star as a tooltip. Only the item
+ * page asks for it. A card's frame is a fraction of the width and the names
+ * would land on top of each other.
  * Names are absent on a challenge shared before coilbox published them, which
  * draws exactly the galaxy this drew before (issue #397).
  *
- * A conquest can hold up to 80 systems, dense enough that not every name fits
- * both readably and below its star the way a small galaxy's does. Where two
- * names would collide, {@link placeLabels} tries the second one above its
- * star instead, and drops it rather than print it over the first if it
- * collides there too (issue #403). A dropped name is not lost. Every star
- * still carries its name (and its map, from coilbox#1393) as a tooltip, the
- * same one a kept name's star carries too.
+ * A capital is the handful of systems that matter at a glance and there are
+ * few enough of them, two to four, that they always fit (issue #409). On the
+ * 80 system galaxy that made #403 necessary, naming every system left 31 of
+ * 80 names absent with no way to tell which or why. Naming only capitals
+ * replaces that with a rule a reader can work out by looking: the few
+ * systems named are the ones that matter, and any other gives up its name
+ * the moment you point at it, by mouse, keyboard or touch. The same rule
+ * runs whatever the galaxy's size. An 8 system galaxy has room to print
+ * every name below its star with nothing colliding, which naming only
+ * capitals there does not need, but one rule that behaves the same
+ * everywhere is simpler to explain, and simpler to build, than a second
+ * small-galaxy rule that only exists to use the room a big galaxy does not
+ * have.
+ *
+ * {@link placeLabels} still decides where a capital's name goes, since two
+ * capitals can still collide, most likely on a galaxy generated with a small
+ * radius. {@link placeReveal} decides where a pointed-at system's name goes
+ * against that same, fixed set of capital boxes, and {@link
+ * ConquestGalaxySystems} is the client component that does the pointing at:
+ * a server component cannot hold the "what is somebody pointing at right
+ * now" state this needs.
  *
  * The `viewBox` is the unit square the shape was fitted to, scaled up and
  * inset so a capital's ring at the edge is not clipped. Stroke widths and
@@ -290,7 +366,8 @@ export function placeLabels(
  * galaxy the item page does, without its own copy of the geometry. The item
  * page's own `ConquestGalaxy` below is the only other caller, and is what
  * gives this its `role="img"` label. A card marks it `decorative` instead,
- * because the card's kind badge already says "Conquest" in words.
+ * because the card's kind badge already says "Conquest" in words, and never
+ * passes `labelled`, so a card never pays for the interactive path below.
  *
  * The glow filter's id comes from `useId` rather than a fixed string, because
  * a gallery page can draw many of these in one document, and two `<filter>`
@@ -307,7 +384,8 @@ export function ConquestGalaxyArt({
   /** True for a card, where the kind badge already names the thing in
    *  words and the drawing itself has nothing left to announce. */
   decorative?: boolean;
-  /** True on the item page, which has the width to name every system. */
+  /** True on the item page, which has the width to name a capital and the
+   *  reach to reveal anything else. */
   labelled?: boolean;
 }) {
   const inset = 4;
@@ -317,21 +395,61 @@ export function ConquestGalaxyArt({
     faction === null ? UNCLAIMED : (shape.factions[faction]?.color ?? UNCLAIMED);
   const held = shape.systems.filter((s) => s.faction !== null).length;
   const glow = useId();
-  // Names above a star need the same room below the box's top edge that
-  // names below a star always needed above its bottom edge, since a crowded
-  // galaxy now uses both (issue #403).
-  const labelPlacements = labelled
-    ? placeLabels(
-        shape.systems.map((system) => ({
-          x: at(system.x),
-          y: at(system.y),
-          radius: system.capital ? 2.1 : 1.2,
-          anchor: labelAnchor(system.x),
-          capital: system.capital,
+
+  // Capitals are the only names ever on the drawing at once, so they are the
+  // only ones `placeLabels` needs to run its collision-avoiding loop over.
+  const capitals = shape.systems
+    .map((system, i) => ({ system, i }))
+    .filter(({ system }) => system.capital && system.name);
+  const capitalGeometry = capitals.map(({ system }) => ({
+    x: at(system.x),
+    y: at(system.y),
+    radius: 2.1,
+    anchor: labelAnchor(system.x),
+    capital: true,
+    name: system.name!,
+  }));
+  const capitalSides = labelled ? placeLabels(capitalGeometry) : [];
+  // What a revealed name has to avoid: every capital box that actually made
+  // it onto the drawing.
+  const capitalBoxes = capitalGeometry.flatMap((geometry, idx) => {
+    const side = capitalSides[idx];
+    return side ? [boxFor(geometry, side)] : [];
+  });
+  const capitalSideByIndex = new Map<number, LabelSide>();
+  capitals.forEach(({ i }, idx) => {
+    const side = capitalSides[idx];
+    if (side) capitalSideByIndex.set(i, side);
+  });
+
+  // One draw spec per system, geometry already resolved to viewBox units, so
+  // the client component below needs no knowledge of `at` or the shape.
+  const systems: SystemDraw[] | null = labelled
+    ? shape.systems.map((system, i) => {
+        const radius = system.capital ? 2.1 : 1.2;
+        const anchor = labelAnchor(system.x);
+        const x = at(system.x);
+        const y = at(system.y);
+        const side = !system.name
+          ? null
+          : system.capital
+            ? (capitalSideByIndex.get(i) ?? null)
+            : placeReveal({ x, y, radius, anchor, name: system.name }, capitalBoxes);
+        return {
+          x,
+          y,
+          radius,
+          fill: colorOf(system.faction),
           name: system.name,
-        })),
-      )
-    : [];
+          map: system.map,
+          capital: system.capital,
+          anchor,
+          textY: side
+            ? y + (side === "below" ? 1 : -1) * (radius + LABEL_GAP_FROM_STAR)
+            : null,
+        };
+      })
+    : null;
 
   return (
     <svg
@@ -370,58 +488,28 @@ export function ConquestGalaxyArt({
           strokeWidth={0.4}
         />
       ))}
-      <g filter={`url(#${glow})`}>
-        {shape.systems.map((system, i) => (
-          <circle
-            key={i}
-            cx={at(system.x)}
-            cy={at(system.y)}
-            // A capital is a brighter, bigger star. The glow does the rest of
-            // the work, so it needs no ring to stand out.
-            r={system.capital ? 2.1 : 1.2}
-            fill={colorOf(system.faction)}
-          >
-            {labelled && system.name ? (
-              <title>
-                {system.map ? `${system.name} — ${system.map}` : system.name}
-              </title>
-            ) : null}
-          </circle>
-        ))}
-      </g>
-      {labelled
-        ? shape.systems.map((system, i) => {
-            const side = labelPlacements[i];
-            // A name with no room either above or below its star is left off
-            // the drawing (issue #403). Its star still names it in the
-            // tooltip above, so the name stays reachable rather than lost.
-            if (!system.name || !side) return null;
-            const radius = system.capital ? 2.1 : 1.2;
-            const y =
-              at(system.y) +
-              (side === "below" ? 1 : -1) * (radius + LABEL_GAP_FROM_STAR);
-            return (
-              <text
-                key={i}
-                x={at(system.x)}
-                y={y}
-                // Centred on its star, except at the two edges, where a
-                // centred name would run out of the box and be cut in half.
-                textAnchor={labelAnchor(system.x)}
-                fontSize={LABEL_FONT_SIZE}
-                fill={SYSTEM_LABEL}
-                // Outlined in the page's own black so two names that land near
-                // each other stay readable instead of blurring together.
-                stroke="#000000"
-                strokeWidth={0.7}
-                strokeLinejoin="round"
-                paintOrder="stroke"
-              >
-                {system.name}
-              </text>
-            );
-          })
-        : null}
+      {systems ? (
+        <ConquestGalaxySystems
+          systems={systems}
+          glow={glow}
+          fontSize={LABEL_FONT_SIZE}
+          labelColor={SYSTEM_LABEL}
+        />
+      ) : (
+        <g filter={`url(#${glow})`}>
+          {shape.systems.map((system, i) => (
+            <circle
+              key={i}
+              cx={at(system.x)}
+              cy={at(system.y)}
+              // A capital is a brighter, bigger star. The glow does the rest
+              // of the work, so it needs no ring to stand out.
+              r={system.capital ? 2.1 : 1.2}
+              fill={colorOf(system.faction)}
+            />
+          ))}
+        </g>
+      )}
     </svg>
   );
 }
