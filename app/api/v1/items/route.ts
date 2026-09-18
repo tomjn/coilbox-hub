@@ -7,10 +7,10 @@ import { buildItemBody, buildItemsListBody, parseApiFilters } from "@/lib/api/it
 import { parsePublishBody, statusForPublishFailure } from "@/lib/api/publish";
 import {
   applyFilters,
+  applyOrder,
   fetchPage,
   ITEM_SUMMARY_COLUMNS,
   type ItemSummary,
-  orderBy,
   PAGE_SIZE,
 } from "@/lib/gallery/query";
 import { publishItem } from "@/lib/gallery/publish";
@@ -36,15 +36,13 @@ export async function GET(request: NextRequest) {
     return apiError(parsed.error, 400);
   }
   const { filters } = parsed;
-  const { column, ascending } = orderBy(filters.sort);
 
   const supabase = await createClient();
   const query = applyFilters(
-    supabase
-      .from("item")
-      .select(ITEM_SUMMARY_COLUMNS, { count: "exact" })
-      .order(column, { ascending })
-      .range((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE - 1),
+    applyOrder(
+      supabase.from("item").select(ITEM_SUMMARY_COLUMNS, { count: "exact" }),
+      filters.sort,
+    ).range((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE - 1),
     filters,
   );
 

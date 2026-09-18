@@ -29,6 +29,7 @@ function item(overrides: Partial<ItemSummary> = {}): ItemSummary {
     tags: [],
     author_name: "somebody",
     created_at: "2026-08-01T00:00:00Z",
+    featured_at: null,
     ...overrides,
   };
 }

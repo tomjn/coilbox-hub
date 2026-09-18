@@ -23,6 +23,7 @@ const SUMMARY: ItemSummary = {
   tags: ["eco"],
   author_name: "Someone",
   created_at: "2026-01-01T00:00:00Z",
+  featured_at: null,
 };
 
 test("a list body carries the format marker, version and paging", () => {

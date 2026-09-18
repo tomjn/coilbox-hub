@@ -151,10 +151,15 @@ export interface ItemSummary {
   tags: string[];
   author_name: string;
   created_at: string;
+  /** When a moderator said this one is worth seeing first, or null (#395). A
+   *  listing reads it as a flag and orders on it. The card says so too, since
+   *  an item sitting at the top for a reason nobody can see just looks like
+   *  the newest one. */
+  featured_at: string | null;
 }
 
 export const ITEM_SUMMARY_COLUMNS =
-  "id,kind,mode,title,description,game_name,game_key,map_name,tags,author_name,created_at";
+  "id,kind,mode,title,description,game_name,game_key,map_name,tags,author_name,created_at,featured_at";
 
 /** The two orderings a listing offers. Newest first is the default, since a
  *  gallery is "what's new" until asked otherwise. Title is the one an
@@ -168,6 +173,41 @@ export function orderBy(sort: SortOrder): { column: string; ascending: boolean }
   return sort === "title"
     ? { column: "title", ascending: true }
     : { column: "created_at", ascending: false };
+}
+
+/** The subset of a Postgrest query builder that ordering needs. */
+interface OrderableQuery<Query> {
+  order(
+    column: string,
+    options: { ascending: boolean; nullsFirst?: boolean },
+  ): Query;
+}
+
+/**
+ * Featured first, then whichever order the reader asked for.
+ *
+ * Ordered in the database rather than in TypeScript, because the gallery is
+ * paged: sorting the two dozen rows a page already holds would only lift a
+ * featured item above the others it happens to share a page with. The games
+ * listing can sort its rows in memory (`lib/games/query.ts`) because it reads
+ * every game in one go, and a gallery is the thing a catalog of games is not.
+ *
+ * `nullsFirst: false` is the whole of the "featured first" rule and is not a
+ * default. Postgres sorts nulls first on a descending column, which without
+ * this would put every item nobody has featured above the ones somebody has.
+ *
+ * Applied here rather than written out twice, so `/gallery` and the API list
+ * stay in the same order as each other the way `applyFilters` keeps them
+ * filtering alike.
+ */
+export function applyOrder<Query extends OrderableQuery<Query>>(
+  query: Query,
+  sort: SortOrder,
+): Query {
+  const { column, ascending } = orderBy(sort);
+  return query
+    .order("featured_at", { ascending: false, nullsFirst: false })
+    .order(column, { ascending });
 }
 
 export interface Filters {

@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   applyFilters,
+  applyOrder,
   fetchAllPages,
   fetchPage,
   filterHref,
@@ -121,6 +122,45 @@ test("tag filters with .overlaps(), matching any of the given tags", () => {
     column: "tags",
     value: ["eco", "pvp"],
   });
+});
+
+/** A fake query builder that records the `.order()` calls in the order they
+ *  were made, which is the order Postgres applies them in. */
+function orderingQuery() {
+  const calls: { column: string; ascending: boolean; nullsFirst?: boolean }[] = [];
+  const query = {
+    order(column: string, options: { ascending: boolean; nullsFirst?: boolean }) {
+      calls.push({ column, ...options });
+      return query;
+    },
+  };
+  return { query, calls };
+}
+
+test("featured items are ordered above the reader's own sort", () => {
+  const { query, calls } = orderingQuery();
+  applyOrder(query, "newest");
+
+  expect(calls[0]?.column).toBe("featured_at");
+  expect(calls[1]).toEqual({ column: "created_at", ascending: false });
+});
+
+/**
+ * Postgres sorts nulls first on a descending column, so leaving this to the
+ * default would put every item nobody has featured above the ones somebody
+ * has: the rule backwards, and silently, since the page would still look
+ * sorted.
+ */
+test("items nobody has featured sort last, not first", () => {
+  const { query, calls } = orderingQuery();
+  applyOrder(query, "title");
+
+  expect(calls[0]).toEqual({
+    column: "featured_at",
+    ascending: false,
+    nullsFirst: false,
+  });
+  expect(calls[1]).toEqual({ column: "title", ascending: true });
 });
 
 test("changing a filter keeps the others and drops the page", () => {

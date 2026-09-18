@@ -5,11 +5,11 @@ import { type CardPictureEntries, cardMapPictures } from "./cardPictures";
 import { type CardShapeEntries, cardShapes } from "./cardShapes";
 import {
   applyFilters,
+  applyOrder,
   fetchPage,
   type Filters,
   ITEM_SUMMARY_COLUMNS,
   type ItemSummary,
-  orderBy,
   PAGE_SIZE,
 } from "./query";
 
@@ -106,14 +106,12 @@ export async function galleryPage(filters: Filters): Promise<GalleryPage> {
   cacheTag(TAGS.items, TAGS.assets);
 
   const supabase = createAnonClient();
-  const { column, ascending } = orderBy(filters.sort);
 
   const query = applyFilters(
-    supabase
-      .from("item")
-      .select(ITEM_SUMMARY_COLUMNS, { count: "exact" })
-      .order(column, { ascending })
-      .range((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE - 1),
+    applyOrder(
+      supabase.from("item").select(ITEM_SUMMARY_COLUMNS, { count: "exact" }),
+      filters.sort,
+    ).range((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE - 1),
     filters,
   );
 
