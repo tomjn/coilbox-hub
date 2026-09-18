@@ -1,3 +1,4 @@
+import { type GameDownload, MAX_DOWNLOADS, parseDownload } from "@/lib/games/download";
 import { canonicalJson } from "@/lib/maps/facts";
 
 /**
@@ -36,6 +37,17 @@ import { canonicalJson } from "@/lib/maps/facts";
  * computes it over the normalised entry. A declared digest reads as unchanged
  * facts forever, which is the one failure versioning cannot repair after the
  * fact.
+ *
+ * ## `downloads` is the one field that is not a fact
+ *
+ * Everything else here is descriptive: a unit's armour value, a faction's name,
+ * what the game calls itself. A download source is an instruction to fetch and
+ * run code, and anybody who can submit facts for a game they have installed can
+ * send one. So it is parsed here with the same `parseDownload` an owner's own
+ * typing goes through on the edit form, and what it parses to is offered rather
+ * than written: `public.offer_game_download_sources` holds it for a person to
+ * accept and nothing that arrives on this route ever reaches
+ * `public.game_download_source` (#408).
  */
 export const GAME_FACTS_FORMAT = "coilbox-hub-games";
 export const GAME_FACTS_VERSION = 1;
@@ -121,6 +133,10 @@ export interface GameFactsSubmission {
   display_name: string | null;
   description: string | null;
   links: SubmittedLink[] | null;
+  /** Where the client believes the game can be fetched from (#408). Held for a
+   * person to accept rather than written, so absent and empty mean the same
+   * thing here: nothing to offer. */
+  downloads: GameDownload[] | null;
 }
 
 export type ParsedGameFactsBody =
@@ -139,9 +155,12 @@ const BODY_FIELDS = [
   "name",
   "description",
   "links",
+  "downloads",
 ] as const;
 
 const LINK_FIELDS = ["label", "url"] as const;
+
+const DOWNLOAD_FIELDS = ["kind", "value", "asset", "filename"] as const;
 
 const FACTION_FIELDS = ["key", "name"] as const;
 
@@ -409,6 +428,56 @@ function readLinks(record: Record<string, unknown>): Read<SubmittedLink[] | null
 }
 
 /**
+ * Where the client believes the game can be fetched from (#408).
+ *
+ * `parseDownload` is the whole check, and it is the same call
+ * `editDownloadSources` makes on what an owner types into the edit form. A
+ * submission must not reach the table down a path that skips a rule a person's
+ * own typing is held to, so there is one rule here and no second reading of it:
+ * a rapid tag is still a name, a colon and a branch, a url source still carries
+ * the filename to save it as, and a github source is still `owner/repo`.
+ *
+ * A source the check refuses is a 400 for the request, the way a malformed
+ * `links` entry is, rather than a per-entry refusal the way a unit is. A unit
+ * the hub cannot store is one row out of nine hundred a sweep would otherwise
+ * have to throw away. A download list is four entries a client built from its
+ * own catalog, and a client sending one the hub will not take has a bug worth
+ * being told about plainly.
+ */
+function readDownloadSources(record: Record<string, unknown>): Read<GameDownload[] | null> {
+  const value = record.downloads;
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (!Array.isArray(value)) {
+    return { ok: false, error: "`downloads` must be an array of {kind, value} objects." };
+  }
+  if (value.length > MAX_DOWNLOADS) {
+    return { ok: false, error: `\`downloads\` may hold at most ${MAX_DOWNLOADS} entries.` };
+  }
+
+  const downloads: GameDownload[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) {
+      return { ok: false, error: "A download must be a JSON object." };
+    }
+    const extra = unknownField(entry, DOWNLOAD_FIELDS);
+    if (extra) return { ok: false, error: `A download has an unknown field: ${extra}` };
+
+    const parsed = parseDownload(
+      typeof entry.kind === "string" ? entry.kind : "",
+      typeof entry.value === "string" ? entry.value : "",
+      typeof entry.asset === "string" ? entry.asset : "",
+      typeof entry.filename === "string" ? entry.filename : "",
+    );
+    if (!parsed.ok) return { ok: false, error: `A download: ${parsed.message}` };
+    // A blank value parses to nothing, which on the edit form is a row somebody
+    // added and left empty. From a client it is a source it could not work out,
+    // and there is nothing to offer either way.
+    if (parsed.download) downloads.push(parsed.download);
+  }
+  return { ok: true, value: downloads };
+}
+
+/**
  * The whole request, normalised.
  *
  * `complete` defaults to false, and false removes nothing: a partial backfill
@@ -536,6 +605,11 @@ export function parseGameFactsBody(body: unknown): ParsedGameFactsBody {
     return { ok: false, error: links.error, status: 400 };
   }
 
+  const downloads = readDownloadSources(body);
+  if (!downloads.ok) {
+    return { ok: false, error: downloads.error, status: 400 };
+  }
+
   return {
     ok: true,
     submission: {
@@ -548,6 +622,7 @@ export function parseGameFactsBody(body: unknown): ParsedGameFactsBody {
       display_name: displayName.value,
       description: description.value,
       links: links.value,
+      downloads: downloads.value,
     },
   };
 }

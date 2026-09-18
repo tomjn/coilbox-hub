@@ -5,6 +5,7 @@ import type {
   SubmittedUnit,
 } from "@/lib/api/gameFacts";
 import { encodedHash } from "@/lib/assets/hash";
+import type { GameDownload } from "@/lib/games/download";
 import { canonicalJson } from "@/lib/maps/facts";
 
 /**
@@ -135,4 +136,41 @@ export async function submitGameFacts(
   for (const unit of submission.units) push("unit", unit.unit.name);
 
   return { ok: true, results };
+}
+
+/**
+ * Where the client says the game can be fetched from, offered rather than
+ * written (#408).
+ *
+ * A separate call from `submitGameFacts`, and deliberately not a field inside
+ * `p_submission`. That function replaces what it covers, which is right for a
+ * unit list read off an archive and wrong for anything a person authors - the
+ * reason #393 kept a game's conquest factions out of it as well. Nothing on
+ * this path writes to `public.game_download_source`: every source lands in
+ * `public.game_download_offer` and waits for the owner or a moderator to accept
+ * it.
+ *
+ * Answered with how many offers are newly held, which the route logs. A source
+ * the game already carries and a source already waiting in the queue both count
+ * for nothing, so a client sweeping on a timer adds a row the first time and
+ * nothing ever again.
+ *
+ * A failure here is the caller's to shrug at. The facts are already written and
+ * committed by the time this runs, and an offer that did not land is one the
+ * next sweep offers again.
+ */
+export async function offerGameDownloadSources(
+  supabase: SupabaseClient,
+  shortname: string,
+  downloads: GameDownload[],
+  offeredBy: string,
+): Promise<number | null> {
+  const { data, error } = await supabase.rpc("offer_game_download_sources", {
+    p_shortname: shortname,
+    p_sources: downloads,
+    p_offered_by: offeredBy,
+  });
+
+  if (error) return null;
+  return typeof data === "number" ? data : 0;
 }

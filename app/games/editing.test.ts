@@ -72,10 +72,21 @@ const upload = mock(async (): Promise<{ data: unknown; error: Error | null }> =>
 const rowWrite = mock(async (): Promise<{ error: Error | null }> => ({ error: null }));
 const update = mock(() => ({ eq: rowWrite }));
 
+/** The secret key client. It writes the picture rows, and since #408 the edit
+ *  page also reads the download offers held for this game through it, so a read
+ *  that answers with nothing is enough for every test here. */
 mock.module("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     storage: { from: () => ({ upload }) },
-    from: () => ({ update }),
+    from: () => {
+      const query = {
+        select: () => query,
+        eq: () => query,
+        order: () => query,
+        then: (resolve: (value: unknown) => void) => resolve({ data: [], error: null }),
+      };
+      return { ...query, update };
+    },
   }),
 }));
 
