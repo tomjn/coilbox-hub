@@ -263,6 +263,9 @@ export interface ModeratedMap {
    *  out here. The migration for that view says why a second copy of the
    *  thresholds is the failure to avoid. */
   derivedTags: string[];
+  /** When a moderator put this map above the rest of the catalog, or null
+   *  (#394). Read so the page draws its feature control the right way round. */
+  featuredAt: string | null;
 }
 
 /**
@@ -278,7 +281,11 @@ export async function fetchModeratedMap(
   slug: string,
 ): Promise<ModeratedMap | null> {
   const [row, listing] = await Promise.all([
-    supabase.from("map").select("id, map_name, slug, display_name, curated_tags").eq("slug", slug).maybeSingle(),
+    supabase
+      .from("map")
+      .select("id, map_name, slug, display_name, curated_tags, featured_at")
+      .eq("slug", slug)
+      .maybeSingle(),
     supabase.from("map_listing").select("tags").eq("slug", slug).maybeSingle(),
   ]);
 
@@ -290,6 +297,7 @@ export async function fetchModeratedMap(
     slug: string;
     display_name: string | null;
     curated_tags: string[];
+    featured_at: string | null;
   };
 
   const tags = ((listing.data as unknown as { tags: string[] } | null)?.tags ?? []).filter(
@@ -303,6 +311,7 @@ export async function fetchModeratedMap(
     displayName: map.display_name,
     curatedTags: map.curated_tags,
     derivedTags: tags,
+    featuredAt: map.featured_at,
   };
 }
 

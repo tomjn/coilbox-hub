@@ -73,10 +73,15 @@ export interface MapSummary {
   /** In step with {@link author_keys}: the name at position two belongs to the
    *  key at position two. */
   author_names: string[];
+  /** When a moderator put this map above the rest of the catalog, or null
+   *  (#394). The listing reads it as a flag and orders on it, the same way
+   *  `lib/games/query.ts`'s `GameSummary.featured_at` does for the games
+   *  listing. */
+  featured_at: string | null;
 }
 
 export const MAP_SUMMARY_COLUMNS =
-  "id,map_name,slug,display_name,width_elmos,height_elmos,tags,start_positions,author_keys,author_names";
+  "id,map_name,slug,display_name,width_elmos,height_elmos,tags,start_positions,author_keys,author_names,featured_at";
 
 /** The three bands `20260818120000_map_listing.sql` cuts the catalog into, which
  *  are tags rather than a column, and the only values a size filter may take. */
@@ -230,9 +235,11 @@ export function applyFilters<Query extends FilterableQuery<Query>>(
   return next;
 }
 
-/** The subset of the query builder that ordering needs. */
+/** The subset of the query builder that ordering needs. `nullsFirst` is
+ *  optional here because `applySort` itself never sets it - only
+ *  {@link applyOrder} does - but the same query chain has to satisfy both. */
 interface SortableQuery<Query> {
-  order(column: string, options?: { ascending?: boolean }): Query;
+  order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }): Query;
 }
 
 /** Which column each order reads, and which way. Written down once, because a
@@ -261,6 +268,26 @@ export function applySort<Query extends SortableQuery<Query>>(
   const { column, ascending } = SORT_COLUMNS[sort];
   const ordered = query.order(column, { ascending });
   return column === "map_name" ? ordered : ordered.order("map_name", { ascending: true });
+}
+
+/**
+ * Featured first, then whichever order the reader asked for (#394).
+ *
+ * The same call `lib/gallery/query.ts`'s `applyOrder` makes for the gallery,
+ * for the same reason: a moderator's judgement about what leads the catalog
+ * has to win over every one of the four sorts, not only the default one, or a
+ * reader who switched to "largest first" would lose the feature the moment
+ * they touched the sort control.
+ *
+ * `nullsFirst: false` is the whole of the rule and is not a default. Postgres
+ * sorts nulls first on a descending column, which without this would put
+ * every map nobody has featured above the ones somebody has.
+ */
+export function applyOrder<Query extends SortableQuery<Query>>(
+  query: Query,
+  sort: MapSort,
+): Query {
+  return applySort(query.order("featured_at", { ascending: false, nullsFirst: false }), sort);
 }
 
 /**

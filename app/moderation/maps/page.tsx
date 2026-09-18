@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { ModerationNav } from "@/components/ModerationNav";
+import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import {
   type ConflictedMap,
   fetchMapConflicts,
@@ -12,7 +13,7 @@ import {
 } from "@/lib/maps/moderation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { clearHeldFacts } from "./actions";
+import { clearHeldFacts, setMapFeatured } from "./actions";
 
 /**
  * The maps two clients disagree about (issue #193).
@@ -150,12 +151,25 @@ export default async function MapConflicts({ searchParams }: PageProps<"/moderat
   const term = typeof q === "string" ? q : "";
 
   // The conflicts with the secret key, because `public.map_source_conflict` is
-  // server side on both sides. The search with the moderator's own client,
-  // because the catalog is public and nothing about a map's name is private.
-  const [conflicts, matches] = await Promise.all([
+  // server side on both sides. The search and the featured list with the
+  // moderator's own client, because `public.map` is public and nothing about a
+  // map's name or its featured state is private.
+  const [conflicts, matches, featured] = await Promise.all([
     fetchMapConflicts(createAdminClient()),
     searchMaps(supabase, term),
+    supabase
+      .from("map")
+      .select("id,slug,map_name,display_name,featured_at")
+      .not("featured_at", "is", null)
+      .order("featured_at", { ascending: false }),
   ]);
+
+  const featuredRows = (featured.data ?? []) as unknown as {
+    id: string;
+    slug: string;
+    map_name: string;
+    display_name: string | null;
+  }[];
 
   return (
     <main className="relative flex-1">
@@ -220,6 +234,51 @@ export default async function MapConflicts({ searchParams }: PageProps<"/moderat
             ))}
           </ul>
         )}
+
+        <section
+          className="flex flex-col gap-3 border-t border-neutral-900 pt-6"
+          aria-labelledby="mod-featured"
+        >
+          <h2
+            id="mod-featured"
+            className="text-sm uppercase tracking-wide text-neutral-400"
+          >
+            Featured
+          </h2>
+          <p className="text-sm text-neutral-500">
+            A featured map sits above the rest of the catalog listing, whatever
+            the reader has sorted by. Feature one from its own page, above.
+          </p>
+
+          {featuredRows.length > 0 ? (
+            <ul className="flex flex-col gap-1.5">
+              {featuredRows.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
+                  <Link
+                    href={`/moderation/maps/${row.slug}`}
+                    className="min-w-0 break-words text-neutral-300 underline-offset-4 hover:underline active:underline"
+                  >
+                    {row.display_name ?? row.map_name}
+                  </Link>
+                  <VisibilityToggleForm
+                    action={setMapFeatured}
+                    fields={{ id: row.id, slug: row.slug, featured: "false" }}
+                    label="Unfeature"
+                    pendingLabel="Removing…"
+                    buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-neutral-500">
+              Nothing is featured right now.
+            </p>
+          )}
+        </section>
       </div>
     </main>
   );

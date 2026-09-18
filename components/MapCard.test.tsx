@@ -16,6 +16,7 @@ const MAP: MapSummary = {
   start_positions: 2,
   author_keys: [],
   author_names: [],
+  featured_at: null,
 };
 
 const PICTURE: ResolvedAsset = {
@@ -41,4 +42,18 @@ test("a card the reader sees first loads its minimap at once", () => {
   );
   expect(html).not.toContain("loading=");
   expect(html).toContain('decoding="async"');
+});
+
+test("a featured map says so on its card", () => {
+  const html = renderToStaticMarkup(
+    <MapCard map={{ ...MAP, featured_at: "2026-09-18T00:00:00Z" }} picture={PICTURE} filters={parseFilters({})} />,
+  );
+  expect(html).toContain("Featured");
+});
+
+test("an ordinary map carries no such claim", () => {
+  const html = renderToStaticMarkup(
+    <MapCard map={MAP} picture={PICTURE} filters={parseFilters({})} />,
+  );
+  expect(html).not.toContain("Featured");
 });

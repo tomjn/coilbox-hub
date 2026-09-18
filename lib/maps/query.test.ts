@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { PAGE_SIZE } from "@/lib/gallery/query";
 import {
   applyFilters,
+  applyOrder,
   applySort,
   filterHref,
   isFiltered,
@@ -400,6 +401,39 @@ test("every sort names a column the listing view carries", () => {
       { column: "map_name", ascending: true },
     ],
   ]);
+});
+
+/** A fake query builder that records the `.order()` calls in the order they
+ *  were made, which is the order Postgres applies them in. The heavier `Fake`
+ *  above proves what a sort does to real rows. This proves what `applyOrder`
+ *  asks the database for, the same split `lib/gallery/query.test.ts` makes for
+ *  its own `applyOrder`. */
+function orderingQuery() {
+  const calls: { column: string; ascending: boolean; nullsFirst?: boolean }[] = [];
+  const query = {
+    order(column: string, options: { ascending: boolean; nullsFirst?: boolean }) {
+      calls.push({ column, ...options });
+      return query;
+    },
+  };
+  return { query, calls };
+}
+
+test("featured maps are ordered above whatever the reader sorted by", () => {
+  const { query, calls } = orderingQuery();
+  applyOrder(query, "name");
+
+  expect(calls[0]).toEqual({ column: "featured_at", ascending: false, nullsFirst: false });
+  expect(calls[1]).toEqual({ column: "map_name", ascending: true });
+});
+
+test("a sort with its own tie break still puts featured first", () => {
+  const { query, calls } = orderingQuery();
+  applyOrder(query, "size");
+
+  expect(calls[0]).toEqual({ column: "featured_at", ascending: false, nullsFirst: false });
+  expect(calls[1]).toEqual({ column: "longer_edge_elmos", ascending: false });
+  expect(calls[2]).toEqual({ column: "map_name", ascending: true });
 });
 
 test("sorting by size puts the map that plays largest first", async () => {

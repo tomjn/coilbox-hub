@@ -75,7 +75,11 @@ export function MapCard({
 
   return (
     <article className="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-card p-4">
-      <Link href={`/map/${map.slug}`} className="block">
+      {/* Relative on the link itself rather than a wrapping div, since the
+          picture is already the whole of what the link contains. A featured
+          card at the top of the catalog for a reason nobody can see reads as
+          the map that merely sorts first (#394). */}
+      <Link href={`/map/${map.slug}`} className="relative block">
         {picture.from === "placeholder" ? (
           <AssetPlaceholder of={picture} />
         ) : (
@@ -100,6 +104,11 @@ export function MapCard({
             />
           </div>
         )}
+        {map.featured_at ? (
+          <span className="absolute left-2 top-2 rounded border border-neutral-700 bg-black/80 px-2 py-1 text-xs text-neutral-100">
+            Featured
+          </span>
+        ) : null}
       </Link>
 
       <div className="flex flex-col gap-1">
