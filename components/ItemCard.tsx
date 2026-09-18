@@ -6,6 +6,7 @@ import type { ResolvedAsset } from "@/lib/assets/resolve";
 import type { CardShape } from "@/lib/gallery/cardShapes";
 import type { CardTitle } from "@/lib/gallery/cardTitles";
 import { itemLabel } from "@/lib/gallery/label";
+import type { ModProjectCounts } from "@/lib/gallery/modProjectPreview";
 import type { Filters, ItemSummary } from "@/lib/gallery/query";
 import { filterHref } from "@/lib/gallery/query";
 
@@ -26,12 +27,48 @@ import { filterHref } from "@/lib/gallery/query";
  * decoration, which is the distinction #68 was drawing, and this issue does
  * not undo it.
  */
+/** What a project's card says about it, in the order `modProjectPreview.ts`
+ *  counts them: the singular and the plural, since a card sits close enough
+ *  to "1 clones" for it to read as a typo rather than a count. A store
+ *  nothing changed is left out rather than shown as zero, the way
+ *  `ScenarioPreview` (`components/ItemPreview.tsx`) hides an empty stat. */
+const PROJECT_COUNT_LABELS: [key: keyof ModProjectCounts, singular: string, plural: string][] = [
+  ["unitsTouched", "unit", "units"],
+  ["fields", "field", "fields"],
+  ["clones", "clone", "clones"],
+  ["menuOps", "menu edit", "menu edits"],
+  ["disabled", "disabled", "disabled"],
+];
+
+/**
+ * A project's counts, as one line under its description (issue #324).
+ *
+ * A project has no picture, so unlike a challenge's galaxy or a blueprint's
+ * layout its edits have nowhere to draw in `ItemCardArt`'s picture slot. This
+ * is text instead, the game already being said by the generic `dl` below.
+ */
+function ProjectCounts({ counts }: { counts: ModProjectCounts }) {
+  const shown = PROJECT_COUNT_LABELS.filter(([key]) => counts[key] > 0);
+  if (shown.length === 0) return null;
+  return (
+    <p className="text-xs text-neutral-400">
+      {shown
+        .map(([key, singular, plural]) => {
+          const n = counts[key];
+          return `${n} ${n === 1 ? singular : plural}`;
+        })
+        .join(" · ")}
+    </p>
+  );
+}
+
 export function ItemCard({
   item,
   filters,
   origin,
   picture,
   shape,
+  counts,
   title,
 }: {
   item: ItemSummary;
@@ -49,6 +86,10 @@ export function ItemCard({
    *  and for one that could not be rebuilt. Drawn by `ItemCardArt`: a
    *  challenge's galaxy or run (#309), and a blueprint's layout (#310). */
   shape?: CardShape;
+  /** This card's edit counts, when `item.kind` is `mod-project` - the same
+   *  page level batching as `shape` (`lib/gallery/cardCounts.ts`). Undefined
+   *  for every other kind, and for a project row nothing was looked up for. */
+  counts?: ModProjectCounts;
   /** What to show in place of `item.title`, worked out for the whole page at
    *  once against every other title on it (`lib/gallery/cardTitles.ts`,
    *  issue #311). Falls back to `item.title` with no tail when a caller has
@@ -99,6 +140,8 @@ export function ItemCard({
           {item.description}
         </p>
       ) : null}
+
+      {counts ? <ProjectCounts counts={counts} /> : null}
 
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400">
         {item.game_name ? (

@@ -143,12 +143,13 @@ export default async function Item({
   const published = new Date(item.created_at).toISOString().slice(0, 10);
   const { drawing, strength } = itemArt(item.kind, item.mode);
 
-  // What the catalog calls each unit in a blueprint, so the roster reads as
-  // "Cold Fusion Power Plant" and links to its encyclopedia page rather than
-  // spelling the def key. A blueprint without a game, or in a game the hub
-  // holds no catalog for, gets an empty map and keeps the raw keys.
+  // What the catalog calls each unit in a blueprint or a mod-project, so a
+  // roster or a changelog reads as "Cold Fusion Power Plant" and links to its
+  // encyclopedia page rather than spelling the def key. An item without a
+  // game, or in a game the hub holds no catalog for, gets an empty map and
+  // keeps the raw keys.
   const names: ReadonlyMap<string, UnitNameLabel> =
-    item.kind === "blueprint" && item.game_key
+    (item.kind === "blueprint" || item.kind === "mod-project") && item.game_key
       ? await unitNameLabelsCached(item.game_key)
       : new Map();
   const unitNames: ReadonlyMap<string, UnitNameLink> = new Map(
