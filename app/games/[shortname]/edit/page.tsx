@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { setGameVisibility, setVersionVisibility } from "@/app/games/actions";
+import { DownloadOffers } from "@/components/DownloadOffers";
 import { VisibilityFlash } from "@/components/VisibilityFlash";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { editableGame } from "@/lib/games/editor";
+import { fetchDownloadOffers } from "@/lib/games/offers";
 import { loadGamePage } from "@/lib/games/page";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ConquestFactionsForm } from "./ConquestFactionsForm";
 import { DownloadSourcesForm } from "./DownloadSourcesForm";
@@ -59,7 +62,16 @@ export default async function EditGame({
 
   // Neither the owner nor a moderator (#350)? The route exists but holds
   // nothing for them, which is the same answer an unknown shortname gets.
-  if (!(await editableGame(supabase, user.id, shortname))) notFound();
+  const editable = await editableGame(supabase, user.id, shortname);
+  if (!editable) notFound();
+
+  // What coilbox has offered and nobody has decided (#408). Read with the
+  // secret key, because `public.game_download_offer` grants a browser session
+  // nothing and carries no policy: a held source is one somebody untrusted
+  // wrote, and no grant that could carry it to a reader is the point. The line
+  // above is what makes it safe to ask - who is looking is answered through row
+  // level security first, and only then is the secret key spent.
+  const offers = await fetchDownloadOffers(createAdminClient(), editable.id);
 
   // Every release reported so far, including hidden ones, since managing them
   // is what this page is for. The public pickers filter those themselves.
@@ -98,6 +110,17 @@ export default async function EditGame({
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Downloads</h2>
+          {offers.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-neutral-400">
+                Coilbox has offered {offers.length === 1 ? "a place" : "these places"} to fetch{" "}
+                {shortname} from. Nobody sees {offers.length === 1 ? "it" : "them"} until you add{" "}
+                {offers.length === 1 ? "it" : "them"}, and adding puts{" "}
+                {offers.length === 1 ? "it" : "them"} at the end of the list below.
+              </p>
+              <DownloadOffers offers={offers} />
+            </div>
+          ) : null}
           <DownloadSourcesForm shortname={shortname} downloads={page.downloads} />
         </section>
 

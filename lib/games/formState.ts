@@ -42,6 +42,20 @@ export const DOWNLOADS_MESSAGES = {
   notSent: "The form did not reach the hub. Reload the page and try again.",
 } as const;
 
+/** What the control on an offered download source says (#408). `gone` rather
+ *  than an error for an offer already decided, because the commonest way to
+ *  reach it is two people working the same queue, and the work really is
+ *  done. */
+export const DOWNLOAD_OFFER_MESSAGES = {
+  accepted: "Added to this game's downloads.",
+  declined: "Offer turned down.",
+  signedOut: "You are signed out. Sign in, then decide again.",
+  notAllowed: "Only the game's owner or a moderator can decide an offered download.",
+  gone: "Somebody has already decided that one.",
+  notSaved: "That could not be saved. Try again in a few minutes.",
+  notSent: "The form did not reach the hub. Reload the page and try again.",
+} as const;
+
 /** What a unit's author snippet form says. */
 export const SNIPPET_MESSAGES = {
   saved: "Snippet saved.",

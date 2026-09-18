@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { DownloadOffers } from "@/components/DownloadOffers";
 import { ModerationNav } from "@/components/ModerationNav";
 import { VisibilityFlash } from "@/components/VisibilityFlash";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
@@ -9,6 +10,8 @@ import {
   setGameVisibility,
   setVersionVisibility,
 } from "@/app/games/actions";
+import { fetchDownloadOffers } from "@/lib/games/offers";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -31,6 +34,19 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
 
   const { visibility } = await searchParams;
   const flash = typeof visibility === "string" ? visibility : undefined;
+
+  // Every download source coilbox has offered and nobody has decided (#408).
+  // The secret key, because the table grants a browser session nothing and
+  // carries no policy: a held source must not be reachable through a grant at
+  // all, so a moderator's own session reads none of them either. The
+  // `is_moderator` check three lines up is what makes it safe to ask here, the
+  // same order `fetchPictureQueue` follows on the pictures queue.
+  //
+  // This page rather than a section of its own in the bar, because it is the
+  // page for decisions about a game and the offers for a game nobody owns have
+  // nowhere else to be found. A game with an owner gets them on its edit page
+  // too, where the owner already stands.
+  const offers = await fetchDownloadOffers(createAdminClient());
 
   const { data: requests } = await supabase
     .from("game_ownership_request")
@@ -129,6 +145,22 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             ))}
           </ul>
         )}
+
+        <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6" aria-labelledby="mod-downloads">
+          <h2 id="mod-downloads" className="text-sm uppercase tracking-wide text-neutral-400">
+            Offered downloads
+          </h2>
+          <p className="text-sm text-neutral-500">
+            Where a coilbox client says a game can be fetched from. A reader sees none of these
+            until somebody adds one, and adding puts it at the end of that game&rsquo;s list rather
+            than over anything already there.
+          </p>
+          {offers.length === 0 ? (
+            <p className="text-sm text-neutral-500">Nothing offered right now.</p>
+          ) : (
+            <DownloadOffers offers={offers} showGame />
+          )}
+        </section>
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6" aria-labelledby="mod-visibility">
           <h2 id="mod-visibility" className="text-sm uppercase tracking-wide text-neutral-400">

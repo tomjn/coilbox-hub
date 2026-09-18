@@ -12,8 +12,10 @@ import { createClient } from "@/lib/supabase/server";
 import { type ConquestFaction, parseConquestFactions, type GameLink } from "@/lib/games/catalog";
 import { parseDownloads } from "@/lib/games/download";
 import { editableGame } from "@/lib/games/editor";
+import { decideDownloadOffer } from "@/lib/games/offers";
 import {
   CONQUEST_FACTIONS_MESSAGES,
+  DOWNLOAD_OFFER_MESSAGES,
   DOWNLOADS_MESSAGES,
   EDIT_MESSAGES,
   FEATURED_MESSAGES,
@@ -372,6 +374,62 @@ export async function editDownloadSources(
   revalidatePath(`/games/${shortname}/edit`);
   revalidatePath("/games");
   return { ok: true, message: DOWNLOADS_MESSAGES.saved };
+}
+
+/**
+ * Accept a download source coilbox offered for a game, or turn it down (#408).
+ *
+ * The explicit act the whole feature turns on. A client may offer a place to
+ * fetch the game from, and nothing it offers reaches a reader until this runs
+ * and somebody with the right pressed the button.
+ *
+ * No `editableGame` and no `is_moderator` here, unlike every action above.
+ * `public.decide_game_download_offer` asks both questions itself, of
+ * `auth.uid()`, because the table it writes grants a browser session nothing to
+ * express the rule as a policy over. Asking again here would be a second copy
+ * of a rule that has to be in the function anyway, and the copy is the one that
+ * drifts. What is left is reading the form and turning the one answer into a
+ * sentence.
+ */
+export async function actOnDownloadOffer(
+  _previous: GameFormState | null,
+  form: FormData,
+): Promise<GameFormState> {
+  const offerId = Number(form.get("offer"));
+  if (!Number.isSafeInteger(offerId) || offerId < 1) {
+    return { ok: false, message: DOWNLOAD_OFFER_MESSAGES.notSent };
+  }
+  const accept = form.get("accept") === "true";
+  const shortname = String(form.get("shortname") ?? "");
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: DOWNLOAD_OFFER_MESSAGES.signedOut };
+
+  const decision = await decideDownloadOffer(supabase, offerId, accept);
+  if (decision === "refused") return { ok: false, message: DOWNLOAD_OFFER_MESSAGES.notAllowed };
+  if (decision === "gone") return { ok: false, message: DOWNLOAD_OFFER_MESSAGES.gone };
+  if (decision === "failed") return { ok: false, message: DOWNLOAD_OFFER_MESSAGES.notSaved };
+
+  // Both queues, because an offer decided from one of them has left the other.
+  revalidatePath("/moderation/games");
+  if (shortname) {
+    revalidatePath(`/games/${shortname}/edit`);
+    // Only an accepted offer changes what a reader sees, and only then is there
+    // a cached page anywhere holding a download list that is now short one.
+    if (accept) {
+      revalidatePath(`/games/${shortname}`);
+      revalidatePath("/games");
+      updateTag(TAGS.games);
+    }
+  }
+
+  return {
+    ok: true,
+    message: accept ? DOWNLOAD_OFFER_MESSAGES.accepted : DOWNLOAD_OFFER_MESSAGES.declined,
+  };
 }
 
 /** A unit's author snippet, on its own page (#362). Same shape of answer as
