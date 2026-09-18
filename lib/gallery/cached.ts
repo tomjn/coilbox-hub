@@ -1,6 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { TAGS } from "@/lib/cache/tags";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { type CardCountEntries, cardCounts } from "./cardCounts";
 import { type CardPictureEntries, cardMapPictures } from "./cardPictures";
 import { type CardShapeEntries, cardShapes } from "./cardShapes";
 import {
@@ -51,6 +52,9 @@ export interface NewestItems {
    *  render time so a page of two dozen costs one set of generator runs per
    *  cache fill: `lib/gallery/cardShapes.ts` has the numbers. */
   shapes: CardShapeEntries;
+  /** How much each mod-project among `items` changes, the same batching
+   *  `lib/gallery/cardCounts.ts` does for a project's card. */
+  counts: CardCountEntries;
 }
 
 /** The newest few, for the landing page. Six fills two full rows of three at
@@ -69,13 +73,14 @@ export async function newestItems(): Promise<NewestItems> {
     .limit(6);
 
   const items = (data ?? []) as unknown as ItemSummary[];
-  // Two batched lookups over the same rows, neither depending on the other.
-  const [pictures, shapes] = await Promise.all([
+  // Three batched lookups over the same rows, none depending on the others.
+  const [pictures, shapes, counts] = await Promise.all([
     cardMapPictures(supabase, items),
     cardShapes(supabase, items),
+    cardCounts(supabase, items),
   ]);
 
-  return { items, pictures: [...pictures], shapes: [...shapes] };
+  return { items, pictures: [...pictures], shapes: [...shapes], counts: [...counts] };
 }
 
 export interface FeaturedItems {
@@ -83,6 +88,7 @@ export interface FeaturedItems {
   /** Same shape as `NewestItems` carries, and for the same reason. */
   pictures: CardPictureEntries;
   shapes: CardShapeEntries;
+  counts: CardCountEntries;
 }
 
 /** The top three a moderator has featured, for the landing page's second row
@@ -104,12 +110,13 @@ export async function featuredItems(): Promise<FeaturedItems> {
     .limit(3);
 
   const items = (data ?? []) as unknown as ItemSummary[];
-  const [pictures, shapes] = await Promise.all([
+  const [pictures, shapes, counts] = await Promise.all([
     cardMapPictures(supabase, items),
     cardShapes(supabase, items),
+    cardCounts(supabase, items),
   ]);
 
-  return { items, pictures: [...pictures], shapes: [...shapes] };
+  return { items, pictures: [...pictures], shapes: [...shapes], counts: [...counts] };
 }
 
 export interface GalleryPage {
@@ -125,6 +132,8 @@ export interface GalleryPage {
   pictures: CardPictureEntries;
   /** A drawing per challenge or blueprint among `items`, the same. */
   shapes: CardShapeEntries;
+  /** How much each mod-project among `items` changes, the same. */
+  counts: CardCountEntries;
 }
 
 /**
@@ -171,11 +180,12 @@ export async function galleryPage(filters: Filters): Promise<GalleryPage> {
   ]);
 
   const items = data as unknown as ItemSummary[];
-  // Two more batched lookups for the whole page rather than one per card. Both
-  // read the rows the page already has, so neither waits on the other.
-  const [pictures, shapes] = await Promise.all([
+  // Three more batched lookups for the whole page rather than one per card.
+  // All read the rows the page already has, so none waits on the others.
+  const [pictures, shapes, counts] = await Promise.all([
     cardMapPictures(supabase, items),
     cardShapes(supabase, items),
+    cardCounts(supabase, items),
   ]);
 
   return {
@@ -186,6 +196,7 @@ export async function galleryPage(filters: Filters): Promise<GalleryPage> {
     maps: distinct(facetRows?.map((row) => row.map_name)),
     pictures: [...pictures],
     shapes: [...shapes],
+    counts: [...counts],
   };
 }
 

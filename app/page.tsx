@@ -3,6 +3,7 @@ import { CoilLogo } from "@/components/CoilLogo";
 import { HubArt } from "@/components/HubArt";
 import { ItemCard } from "@/components/ItemCard";
 import { COILBOX_URL } from "@/lib/coilbox";
+import { cardCountsFromEntries } from "@/lib/gallery/cardCounts";
 import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
 import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
 import { cardTitles } from "@/lib/gallery/cardTitles";
@@ -23,9 +24,15 @@ const outlineButton =
 
 export default async function Home() {
   const origin = await requestOrigin();
-  const { items, pictures: entries, shapes: shapeEntries } = await newestItems();
+  const {
+    items,
+    pictures: entries,
+    shapes: shapeEntries,
+    counts: countEntries,
+  } = await newestItems();
   const pictures = cardPicturesFromEntries(entries);
   const shapes = cardShapesFromEntries(shapeEntries);
+  const counts = cardCountsFromEntries(countEntries);
   // Computed over these six rather than globally: a duplicate two pages
   // into the gallery is not visible here, so it earns no tail here (#311).
   const titles = cardTitles(items);
@@ -41,9 +48,11 @@ export default async function Home() {
     items: featured,
     pictures: featuredEntries,
     shapes: featuredShapeEntries,
+    counts: featuredCountEntries,
   } = await featuredItems();
   const featuredPictures = cardPicturesFromEntries(featuredEntries);
   const featuredShapes = cardShapesFromEntries(featuredShapeEntries);
+  const featuredCounts = cardCountsFromEntries(featuredCountEntries);
   const featuredTitles = cardTitles(featured);
 
   return (
@@ -122,6 +131,7 @@ export default async function Home() {
                   origin={origin}
                   picture={item.map_name ? pictures.get(item.map_name) : undefined}
                   shape={shapes.get(item.id)}
+                  counts={counts.get(item.id)}
                   title={titles.get(item.id)}
                 />
               </li>
@@ -164,6 +174,7 @@ export default async function Home() {
                     item.map_name ? featuredPictures.get(item.map_name) : undefined
                   }
                   shape={featuredShapes.get(item.id)}
+                  counts={featuredCounts.get(item.id)}
                   title={featuredTitles.get(item.id)}
                 />
               </li>

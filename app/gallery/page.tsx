@@ -5,6 +5,7 @@ import { hub } from "@/components/art/drawings";
 import { BusyForm } from "@/components/BusyForm";
 import { ItemCard } from "@/components/ItemCard";
 import { LinkPending } from "@/components/LinkPending";
+import { cardCountsFromEntries } from "@/lib/gallery/cardCounts";
 import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
 import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
 import { cardTitles } from "@/lib/gallery/cardTitles";
@@ -44,9 +45,11 @@ export default async function Gallery({
     maps,
     pictures: entries,
     shapes: shapeEntries,
+    counts: countEntries,
   } = await galleryPage(filters);
   const pictures = cardPicturesFromEntries(entries);
   const shapes = cardShapesFromEntries(shapeEntries);
+  const counts = cardCountsFromEntries(countEntries);
   // Computed here rather than in `galleryPage()`: two titles only collide on
   // the page a reader can see, and this page's rows are exactly that (#311).
   const titles = cardTitles(items);
@@ -196,6 +199,7 @@ export default async function Gallery({
                     origin={origin}
                     picture={item.map_name ? pictures.get(item.map_name) : undefined}
                     shape={shapes.get(item.id)}
+                    counts={counts.get(item.id)}
                     title={titles.get(item.id)}
                   />
                 </li>

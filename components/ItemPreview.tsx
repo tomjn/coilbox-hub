@@ -41,6 +41,13 @@ import {
   type PlanBox,
 } from "@/lib/gallery/blueprintPreview";
 import { conquestGalaxy, type GalaxyShape } from "@/lib/gallery/conquestGalaxy";
+import {
+  CHANGELOG_ROW_LIMIT,
+  describeUnitChange,
+  modProjectChangelog,
+  modProjectCounts,
+  type ProjectUnitChange,
+} from "@/lib/gallery/modProjectPreview";
 import { type RunShape, warpathRun } from "@/lib/gallery/warpathRun";
 import type { RunNodeType } from "@/lib/runlite/model";
 import {
@@ -1258,6 +1265,125 @@ function ScenarioPreview({ payload }: { payload: Record<string, unknown> }) {
   );
 }
 
+/**
+ * A project's counts and its changelog (issue #324): the five numbers
+ * `modProjectPreview.ts` counts up top, then every unit the project says
+ * something about, alphabetically, the way a reader scans a changelog.
+ *
+ * A project has no picture, the same as a scenario, but unlike a scenario's
+ * counts alone a reader deciding whether to import a rebalance wants to know
+ * which units it touches, not only how many, so the counts are followed by
+ * the list {@link ProjectChangelog} draws.
+ */
+function ModProjectPreview({
+  payload,
+  names,
+}: {
+  payload: Record<string, unknown>;
+  names: ReadonlyMap<string, UnitNameLink>;
+}) {
+  const counts = modProjectCounts(payload);
+  const stats: Array<[string, number]> = [
+    ["Units touched", counts.unitsTouched],
+    ["Fields changed", counts.fields],
+    ["Clones", counts.clones],
+    ["Menu edits", counts.menuOps],
+    ["Disabled", counts.disabled],
+  ];
+  const shown = stats.filter(([, n]) => n > 0);
+  const changes = modProjectChangelog(payload);
+  if (shown.length === 0 && changes.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {shown.length > 0 ? (
+        <dl className="grid grid-cols-2 gap-3 rounded-md border border-neutral-800 bg-black p-4 sm:grid-cols-3">
+          {shown.map(([label, n]) => (
+            <Stat key={label} n={n} label={label} />
+          ))}
+        </dl>
+      ) : null}
+      {changes.length > 0 ? (
+        <ProjectChangelog changes={changes} names={names} />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * One changelog row's name: the catalog's human name beside the game's own
+ * internal one, linked to the unit's encyclopedia page where the hub holds
+ * one - issue #324 asks for both together, unlike {@link UnitName}'s
+ * blueprint roster line, which a reader scans against the def a layout
+ * already draws and so shows only the one name that reads best there. A
+ * changelog names units nowhere else, and a project's edits are keyed on the
+ * internal name, so a reader checking one against their own game needs it on
+ * screen even where the catalog also has a nicer name to offer. A def the
+ * catalog does not know keeps the raw key alone, the same fallback
+ * {@link UnitName} gives.
+ */
+function ChangelogUnitName({
+  def,
+  names,
+}: {
+  def: string;
+  names: ReadonlyMap<string, UnitNameLink>;
+}) {
+  const known = names.get(def);
+  if (!known) return <>{def}</>;
+  return (
+    <>
+      <Link href={known.href} className="hover:text-white active:text-white">
+        {known.label}
+      </Link>{" "}
+      <span className="text-neutral-500">({def})</span>
+    </>
+  );
+}
+
+/**
+ * Every unit the project has something to say about, alphabetically: what
+ * changed, in a sentence from {@link describeUnitChange}, beside the name the
+ * game catalog knows it by where the hub holds one.
+ *
+ * Capped at {@link CHANGELOG_ROW_LIMIT}: a full-roster rebalance can touch
+ * every unit a game has, and a page rendering all of them is one nobody can
+ * read. The remainder is said as a count rather than dropped silently.
+ */
+function ProjectChangelog({
+  changes,
+  names,
+}: {
+  changes: ProjectUnitChange[];
+  names: ReadonlyMap<string, UnitNameLink>;
+}) {
+  const shown = changes.slice(0, CHANGELOG_ROW_LIMIT);
+  const hidden = changes.length - shown.length;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-1.5">
+        {shown.map((change) => (
+          <li
+            key={change.unit}
+            className="flex flex-wrap items-baseline gap-x-2 text-xs"
+          >
+            <span className="min-w-0 break-all text-neutral-200">
+              <ChangelogUnitName def={change.unit} names={names} />
+            </span>
+            <span className="text-neutral-500">{describeUnitChange(change)}</span>
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 ? (
+        <p className="text-xs text-neutral-500">
+          and {hidden} more unit{hidden === 1 ? "" : "s"}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function ItemPreview({
   kind,
   container,
@@ -1281,6 +1407,7 @@ export function ItemPreview({
   if (kind === "preset") return <PresetPreview payload={record} />;
   if (kind === "challenge") return <ChallengePreview payload={record} />;
   if (kind === "scenario") return <ScenarioPreview payload={record} />;
+  if (kind === "mod-project") return <ModProjectPreview payload={record} names={names} />;
   if (kind === "blueprint") {
     const shape = blueprintShape(record);
     return shape ? (
