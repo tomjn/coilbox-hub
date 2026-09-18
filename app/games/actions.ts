@@ -9,10 +9,11 @@ import { putStagedGameImage } from "@/lib/assets/staging";
 import { TAGS } from "@/lib/cache/tags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import type { GameLink } from "@/lib/games/catalog";
+import { type ConquestFaction, parseConquestFactions, type GameLink } from "@/lib/games/catalog";
 import { parseDownload } from "@/lib/games/download";
 import { editableGame } from "@/lib/games/editor";
 import {
+  CONQUEST_FACTIONS_MESSAGES,
   EDIT_MESSAGES,
   FEATURED_MESSAGES,
   type GameFormState,
@@ -64,6 +65,26 @@ function linksFromForm(form: FormData): GameLink[] {
     links.push({ label: label.trim(), url: url.trim() });
   }
   return links.slice(0, 12);
+}
+
+/**
+ * The conquest factions posted from the edit page's form (#393): one JSON
+ * array in a hidden field, because the list is reordered and resized in the
+ * browser before it is ever sent, and a set of parallel name[]/color[]/side[]
+ * fields would only have to be zipped back into the same shape here. Anything
+ * that fails to parse, or does not parse as an array of plausible entries, is
+ * treated the same as `parseConquestFactions` treats a malformed stored row:
+ * as nothing rather than as a refusal. Capped at 12, the same bound
+ * `linksFromForm` puts on its own row.
+ */
+function conquestFactionsFromForm(form: FormData): ConquestFaction[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(String(form.get("factions") ?? "[]"));
+  } catch {
+    parsed = [];
+  }
+  return parseConquestFactions(parsed).slice(0, 12);
 }
 
 /** The secret key client, or null when this deployment has none. Two actions
@@ -232,6 +253,45 @@ export async function editGameDetails(
   revalidatePath(`/games/${shortname}`);
   revalidatePath("/games");
   return { ok: true, message: EDIT_MESSAGES.saved };
+}
+
+/**
+ * The conquest factions form on a game's edit page (#393): an ordered list a
+ * person authors, distinct from `game_faction`, which a facts submission
+ * replaces wholesale. Same shape of answer as `editGameDetails` - the owner
+ * and moderator update policies filter out anything a stranger may not touch,
+ * so an update over zero rows is how a refusal reads rather than an error.
+ */
+export async function editConquestFactions(
+  _previous: GameFormState | null,
+  form: FormData,
+): Promise<GameFormState> {
+  const shortname = String(form.get("shortname") ?? "");
+  if (!shortname) return { ok: false, message: CONQUEST_FACTIONS_MESSAGES.notSent };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: CONQUEST_FACTIONS_MESSAGES.signedOut };
+
+  const { data, error } = await supabase
+    .from("game")
+    .update({ conquest_factions: conquestFactionsFromForm(form) })
+    .eq("shortname", shortname)
+    .select("shortname");
+
+  if (error) {
+    console.error(`editConquestFactions: ${shortname} was not updated`, error);
+    return { ok: false, message: CONQUEST_FACTIONS_MESSAGES.notSaved };
+  }
+  if (!data || data.length === 0) {
+    return { ok: false, message: CONQUEST_FACTIONS_MESSAGES.notAllowed };
+  }
+
+  revalidatePath(`/games/${shortname}`);
+  revalidatePath(`/games/${shortname}/edit`);
+  return { ok: true, message: CONQUEST_FACTIONS_MESSAGES.saved };
 }
 
 /** A unit's author snippet, on its own page (#362). Same shape of answer as
