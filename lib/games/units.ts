@@ -118,6 +118,12 @@ export async function loadUnitGrid(
  * A mention counts only from a living row: the one build option a retired unit
  * holds is not a live path either. The answer feeds an exclusion list, so it
  * stays empty on any read that fails rather than taking the grid down with it.
+ *
+ * A game where no unit reports a build option at all has no build tree to be
+ * unreachable in, and every unit it ships would be a ghost by this rule. THIS
+ * is such a game: 39 units, not one build option among them, and the grid drew
+ * the two start units. So no build options means no answer here, and the whole
+ * shelf stands.
  */
 export async function unbuildableUnits(
   supabase: SupabaseClient,
@@ -151,6 +157,8 @@ export async function unbuildableUnits(
       if (key) referenced.add(key);
     }
   }
+  if (referenced.size === 0) return [];
+
   return rows
     .map((row) => row.unit_name)
     .filter((name) => !referenced.has(name.toLowerCase()) && !starts.has(name.toLowerCase()))

@@ -313,6 +313,18 @@ test("a start unit never hides, however lonely it is", async () => {
   expect(ghosts).toEqual([]);
 });
 
+test("a game reporting no build options at all hides nothing", async () => {
+  // THIS: 39 units, not one build option among them, and this rule called 37
+  // of them ghosts. No build tree means no reachability to judge.
+  const flat: Referencing[] = [
+    { unit_name: "carrier", build_options: [], removed_at: null },
+    { unit_name: "dagger", build_options: [], removed_at: null },
+    { unit_name: "sword", build_options: [], removed_at: null },
+  ];
+
+  expect(await unbuildableUnits(fakeCatalog(flat, ["carrier"]), "THIS")).toEqual([]);
+});
+
 /**
  * A morph chain is one cell (#295). Every level but the base joins the same
  * exclusion list the ghosts ride, so the grid's paging and its count are
