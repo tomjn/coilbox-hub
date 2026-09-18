@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(87);
+select plan(90);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -196,6 +196,23 @@ select table_privs_are('public', 'game_download_source', 'authenticated',
 select table_privs_are('public', 'game_download_source', 'service_role',
   ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
   'service_role can repair a game''s download sources');
+
+-- public.game_download_offer: a download source a client offered, held until a
+-- person accepts it (#408). The one table in the game catalog that grants a
+-- browser nothing at all, and the assertion that matters most in this file:
+-- an offer is an instruction to fetch and run code, written by anybody who can
+-- submit facts, so there must be no grant a reader could reach it through and
+-- no policy that could let one past. A moderator's own session is included in
+-- that - the queue is read with the secret key. Deciding is
+-- decide_game_download_offer, which authenticated holds execute on and which
+-- asks who is calling for itself.
+select table_privs_are('public', 'game_download_offer', 'anon', ARRAY[]::name[],
+  'anon has no table privilege on game_download_offer, so a held source is not one predicate from a reader');
+select table_privs_are('public', 'game_download_offer', 'authenticated', ARRAY[]::name[],
+  'authenticated has no table privilege on game_download_offer, a moderator''s own session included');
+select table_privs_are('public', 'game_download_offer', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE'],
+  'service_role queues an offer and marks it decided, and can never delete the record of one');
 
 select table_privs_are('public', 'map_mirror_host', 'anon', ARRAY['SELECT'],
   'anon can only select on map_mirror_host, since a download link is the point of the table');
