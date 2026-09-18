@@ -7,7 +7,7 @@ import { createAnonClient } from "@/lib/supabase/anon";
 import { loadMapPage, type MapPage } from "./page";
 import {
   applyFilters,
-  applySort,
+  applyOrder,
   type Filters,
   MAP_PAGE_SIZE,
   MAP_SUMMARY_COLUMNS,
@@ -66,7 +66,7 @@ export async function mapsPage(filters: Filters): Promise<MapsPage> {
   const authorKey = await resolveAuthorKey(supabase, filters.author);
 
   const listing = () =>
-    applySort(
+    applyOrder(
       applyFilters(
         supabase.from("map_browse").select(MAP_SUMMARY_COLUMNS, { count: "exact" }),
         filters,

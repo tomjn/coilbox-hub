@@ -3,13 +3,14 @@ import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { ModerationCrumb, ModerationNav } from "@/components/ModerationNav";
+import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import {
   CURATED_TAG_LIMIT,
   curatedTagsField,
   fetchModeratedMap,
 } from "@/lib/maps/moderation";
 import { createClient } from "@/lib/supabase/server";
-import { saveCuratedTags } from "../actions";
+import { saveCuratedTags, setMapFeatured } from "../actions";
 
 /**
  * The tags on one map that no measurement produces (issue #193).
@@ -76,6 +77,28 @@ export default async function MapCuratedTags({
         </div>
 
         <p className="text-sm text-neutral-500">{map.mapName}</p>
+
+        {/* Where a moderator already works on this one map, so featuring it
+            costs no second page and no id typed by hand (#394). */}
+        <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-800 bg-card px-5 py-3 text-sm">
+          <span className="text-neutral-500">
+            {map.featuredAt
+              ? "Featured, so the catalog lists this above the rest."
+              : "Not featured."}
+          </span>
+          <VisibilityToggleForm
+            action={setMapFeatured}
+            fields={{
+              id: map.id,
+              slug: map.slug,
+              featured: map.featuredAt ? "false" : "true",
+            }}
+            label={map.featuredAt ? "Unfeature" : "Feature"}
+            pendingLabel={map.featuredAt ? "Removing…" : "Featuring…"}
+            formClassName="flex flex-wrap items-center justify-end gap-2"
+            buttonClassName="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+          />
+        </div>
 
         <form action={saveCuratedTags} className="flex flex-col gap-3">
           <input type="hidden" name="map" value={map.id} />
