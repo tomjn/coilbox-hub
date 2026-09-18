@@ -376,18 +376,6 @@ export default async function Item({
           ) : null}
         </dl>
 
-        {project && item.game_name ? (
-          // The listings already group on the versionless `game_key` (issue
-          // #50), so a game update orphans nothing. Only this page implied it
-          // did, by naming a build and saying nothing else (issue #419).
-          <p className="max-w-prose text-sm text-neutral-400">
-            The version above is the one the author had, not one you need. A project names only
-            what it changes, so it usually still works after the game updates. If an edit no longer
-            applies, for example to a unit the game has removed, the Checks panel in
-            Coilbox&rsquo;s workshop says which.
-          </p>
-        ) : null}
-
         {item.tags.length > 0 ? (
           <ul className="flex flex-wrap gap-1.5">
             {item.tags.map((tag) => (
