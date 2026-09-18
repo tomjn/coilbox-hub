@@ -6,10 +6,14 @@ import type { GameFormState } from "@/lib/games/formState";
 import type { GameLink } from "@/lib/games/catalog";
 
 /**
- * The words on a game's edit page: display name, description, links, and where
- * the game is downloaded from. A client component only for the save message
- * beside the button (#362) - everything else here still works exactly as a
- * plain form.
+ * The words on a game's edit page: display name, description and links. A
+ * client component only for the save message beside the button (#362) -
+ * everything else here still works exactly as a plain form.
+ *
+ * Where the game is downloaded from used to be a fieldset here. It became an
+ * ordered list with its own form and its own save in #396, the way the
+ * conquest factions did, because a list is reordered and resized in the browser
+ * before it is ever sent.
  */
 
 const CONTROL =
@@ -24,15 +28,11 @@ export function GameDetailsForm({
   displayName,
   description,
   links,
-  downloadKind,
-  downloadValue,
 }: {
   shortname: string;
   displayName: string;
   description: string;
   links: GameLink[];
-  downloadKind: string;
-  downloadValue: string;
 }) {
   const [state, action, pending] = useActionState<GameFormState | null, FormData>(editGameDetails, null);
 
@@ -92,36 +92,6 @@ export function GameDetailsForm({
             />
           </div>
         ))}
-      </fieldset>
-
-      <fieldset className="flex flex-col gap-2">
-        <legend className={LABEL}>Download</legend>
-        <p className="text-xs text-neutral-500">
-          How a lobby fetches this game. A rapid tag looks like{" "}
-          <code className="font-mono">metalfactions:stable</code>, a GitHub repo like{" "}
-          <code className="font-mono">owner/repo</code>, and an address starts with https. Leave the
-          box empty for no download.
-        </p>
-        <div className="flex gap-2">
-          <select
-            name="download_kind"
-            defaultValue={downloadKind}
-            aria-label="How the game is downloaded"
-            className={`${CONTROL} w-40`}
-          >
-            <option value="rapid">Rapid tag</option>
-            <option value="url">Address</option>
-            <option value="github">GitHub repo</option>
-          </select>
-          <input
-            name="download_value"
-            defaultValue={downloadValue}
-            maxLength={512}
-            placeholder="metalfactions:stable"
-            aria-label="Download tag, address or repo"
-            className={CONTROL}
-          />
-        </div>
       </fieldset>
 
       <div className="flex items-center gap-3">

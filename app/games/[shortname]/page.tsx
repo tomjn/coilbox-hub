@@ -14,7 +14,7 @@ import { staticTierUrl } from "@/lib/assets/cdn";
 import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle, itemCardLabel, saysMoreThanName } from "@/lib/games/labels";
 import { gamePageCached, gameSidesCached } from "@/lib/games/cached";
-import { downloadHref, type DownloadKind, type GameDownload } from "@/lib/games/download";
+import { downloadHref, type GameDownload } from "@/lib/games/download";
 import { editableGame } from "@/lib/games/editor";
 import type { GamePageFaction } from "@/lib/games/page";
 import type { SideCommander } from "@/lib/games/sides";
@@ -93,20 +93,39 @@ function Download({ download }: { download: GameDownload }) {
   const href = downloadHref(download);
   if (!href) {
     return (
-      <p className="text-sm text-neutral-400">
+      <li className="text-sm text-neutral-400">
         Install with rapid:{" "}
         <code className="rounded bg-neutral-900 px-2 py-1 font-mono text-neutral-200">
           {download.value}
         </code>
-      </p>
+      </li>
     );
   }
   return (
-    <p className="text-sm">
+    <li className="text-sm">
       <a href={href} className={CONTROL_BUTTON}>
         {download.kind === "github" ? "Releases on GitHub" : "Download this game"}
       </a>
-    </p>
+    </li>
+  );
+}
+
+/**
+ * Every source the game names, in the order to try them (#396).
+ *
+ * A list, because they are not alternatives a reader picks between on taste: a
+ * repo with no release archive and a rapid tag for the same game are two
+ * chances at the same file, and coilbox walks them in this order. The reader
+ * gets the same order, so the first thing on the page is the one most likely to
+ * work.
+ */
+function Downloads({ downloads }: { downloads: GameDownload[] }) {
+  return (
+    <ul className="flex flex-wrap items-center gap-3">
+      {downloads.map((download, index) => (
+        <Download key={`${download.kind}-${download.value}-${index}`} download={download} />
+      ))}
+    </ul>
   );
 }
 
@@ -250,11 +269,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           {page.release ? (
             <p className="text-sm text-neutral-400">Game version {page.release}</p>
           ) : null}
-          {page.download_kind && page.download_value ? (
-            <Download
-              download={{ kind: page.download_kind as DownloadKind, value: page.download_value }}
-            />
-          ) : null}
+          {page.downloads.length > 0 ? <Downloads downloads={page.downloads} /> : null}
           {mayEdit ? (
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <Link href={`/games/${shortname}/edit`} className={CONTROL_BUTTON}>

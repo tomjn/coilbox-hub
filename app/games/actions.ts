@@ -10,10 +10,11 @@ import { TAGS } from "@/lib/cache/tags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { type ConquestFaction, parseConquestFactions, type GameLink } from "@/lib/games/catalog";
-import { parseDownload } from "@/lib/games/download";
+import { parseDownloads } from "@/lib/games/download";
 import { editableGame } from "@/lib/games/editor";
 import {
   CONQUEST_FACTIONS_MESSAGES,
+  DOWNLOADS_MESSAGES,
   EDIT_MESSAGES,
   FEATURED_MESSAGES,
   type GameFormState,
@@ -202,6 +203,9 @@ export async function decideRequest(form: FormData): Promise<void> {
  * silently touched nothing was the same bug: the owner or moderator who lost
  * their grant while the page sat open had no way to tell a refused save from
  * a successful one.
+ *
+ * The download source moved out to `editDownloadSources` when it became a list
+ * (#396), the way the conquest factions did.
  */
 export async function editGameDetails(
   _previous: GameFormState | null,
@@ -218,14 +222,6 @@ export async function editGameDetails(
 
   const displayName = String(form.get("display_name") ?? "").trim().slice(0, 256);
 
-  // Refused before the write rather than after, so a mistyped tag says what is
-  // wrong with it instead of coming back as a constraint violation.
-  const download = parseDownload(
-    String(form.get("download_kind") ?? ""),
-    String(form.get("download_value") ?? ""),
-  );
-  if (!download.ok) return { ok: false, message: download.message };
-
   // The owner and moderator policies filter out every row a stranger may not
   // change, so a stranger's edit succeeds over nothing. Returning the rows is
   // how the action knows whether it was the owner or a moderator writing, or a
@@ -236,8 +232,6 @@ export async function editGameDetails(
       display_name: displayName || null,
       description: String(form.get("description") ?? "").trim().slice(0, 4000) || null,
       links: linksFromForm(form),
-      download_kind: download.download?.kind ?? null,
-      download_value: download.download?.value ?? null,
     })
     .eq("shortname", shortname)
     .select("shortname");
@@ -292,6 +286,92 @@ export async function editConquestFactions(
   revalidatePath(`/games/${shortname}`);
   revalidatePath(`/games/${shortname}/edit`);
   return { ok: true, message: CONQUEST_FACTIONS_MESSAGES.saved };
+}
+
+/**
+ * The download sources form on a game's edit page (#396): an ordered list of
+ * places coilbox can fetch the game, replaced whole on every save.
+ *
+ * Replaced rather than reconciled. The order is part of what is being edited,
+ * and a reorder is not a set of independent row updates - it is the list as it
+ * now reads. That is also why `authenticated` holds insert and delete on the
+ * table and no update at all.
+ *
+ * `editableGame` first, unlike the two forms above. They write columns on
+ * `public.game` and can read a refusal off an update that matched no row. Here
+ * a stranger's delete matches no row either, and an empty list makes no insert,
+ * so a refusal and a save that emptied the list would be the same silence.
+ * Asking who is asking is the only way to tell them apart, and the policies
+ * still refuse the write behind it.
+ */
+export async function editDownloadSources(
+  _previous: GameFormState | null,
+  form: FormData,
+): Promise<GameFormState> {
+  const shortname = String(form.get("shortname") ?? "");
+  if (!shortname) return { ok: false, message: DOWNLOADS_MESSAGES.notSent };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: DOWNLOADS_MESSAGES.signedOut };
+
+  // Refused before the write rather than after, so a mistyped tag says what is
+  // wrong with it and which source it is, instead of coming back as a
+  // constraint violation.
+  const parsed = parseDownloads(String(form.get("downloads") ?? "[]"));
+  if (!parsed.ok) return { ok: false, message: parsed.message };
+
+  const game = await editableGame(supabase, user.id, shortname);
+  if (!game) return { ok: false, message: DOWNLOADS_MESSAGES.notAllowed };
+
+  // The new list goes in before the old one comes out, and the old rows are
+  // named by the ids read a moment ago rather than by "everything on this
+  // game". Two writes cannot be one transaction from here, so this picks which
+  // half-done state to land in: an insert that fails leaves the list the owner
+  // already had, and a delete that fails leaves the list twice over. A
+  // duplicate is something they can see and save away. A list that vanished
+  // because the second write timed out is not.
+  const { data: held, error: read } = await supabase
+    .from("game_download_source")
+    .select("id")
+    .eq("game_id", game.id);
+  if (read) {
+    console.error(`editDownloadSources: ${shortname} could not be read`, read);
+    return { ok: false, message: DOWNLOADS_MESSAGES.notSaved };
+  }
+
+  if (parsed.downloads.length > 0) {
+    const { error } = await supabase.from("game_download_source").insert(
+      parsed.downloads.map((download, index) => ({
+        game_id: game.id,
+        kind: download.kind,
+        value: download.value,
+        asset: download.asset ?? null,
+        filename: download.filename ?? null,
+        sort_order: index,
+      })),
+    );
+    if (error) {
+      console.error(`editDownloadSources: ${shortname} was not saved`, error);
+      return { ok: false, message: DOWNLOADS_MESSAGES.notSaved };
+    }
+  }
+
+  const replaced = (held ?? []).map((row) => (row as { id: number }).id);
+  if (replaced.length > 0) {
+    const { error } = await supabase.from("game_download_source").delete().in("id", replaced);
+    if (error) {
+      console.error(`editDownloadSources: ${shortname} kept its old sources`, error);
+      return { ok: false, message: DOWNLOADS_MESSAGES.notSaved };
+    }
+  }
+
+  revalidatePath(`/games/${shortname}`);
+  revalidatePath(`/games/${shortname}/edit`);
+  revalidatePath("/games");
+  return { ok: true, message: DOWNLOADS_MESSAGES.saved };
 }
 
 /** A unit's author snippet, on its own page (#362). Same shape of answer as
