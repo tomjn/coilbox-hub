@@ -118,6 +118,12 @@ export async function loadUnitGrid(
  * A mention counts only from a living row: the one build option a retired unit
  * holds is not a live path either. The answer feeds an exclusion list, so it
  * stays empty on any read that fails rather than taking the grid down with it.
+ *
+ * A game where no unit reports a build option at all has no build tree to be
+ * unreachable in, and every unit it ships would be a ghost by this rule. THIS
+ * is such a game: 39 units, not one build option among them, and the grid drew
+ * the two start units. So no build options means no answer here, and the whole
+ * shelf stands.
  */
 export async function unbuildableUnits(
   supabase: SupabaseClient,
@@ -151,10 +157,36 @@ export async function unbuildableUnits(
       if (key) referenced.add(key);
     }
   }
+  if (referenced.size === 0) return [];
+
   return rows
     .map((row) => row.unit_name)
     .filter((name) => !referenced.has(name.toLowerCase()) && !starts.has(name.toLowerCase()))
     .sort();
+}
+
+/**
+ * Whether this game has ever retired a unit.
+ *
+ * The grid's retired toggle offers something most games do not have, and a
+ * checkbox that can only ever redraw the same shelf is a control asking to be
+ * tried. Counted rather than listed, since the page only wants to know whether
+ * to draw it.
+ *
+ * True on a failed read, so a toggle the reader may need stays where it is
+ * rather than disappearing on a bad moment.
+ */
+export async function hasRetiredUnits(
+  supabase: SupabaseClient,
+  shortname: string,
+): Promise<boolean> {
+  const { count, error } = await supabase
+    .from("game_unit")
+    .select("unit_name,game!inner(shortname)", { count: "exact", head: true })
+    .eq("game.shortname", shortname)
+    .not("removed_at", "is", null);
+  if (error) return true;
+  return (count ?? 0) > 0;
 }
 
 /** One unit as the morph walk reads it. */
