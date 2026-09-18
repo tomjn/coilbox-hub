@@ -114,16 +114,29 @@ function count(value: unknown): number {
 const UNCLAIMED = "#6b7280";
 
 /**
+ * System names, in one readable grey rather than tinted by who holds the
+ * system.
+ *
+ * Coilbox's own galaxy view tints them, and that is right on a view you can pan
+ * and zoom. Here the names are small and fixed, and half the palette lands
+ * under 4.5:1 against the page's black, with neutral grey worst of all at 4.0.
+ * The star sits directly above its name and the legend underneath says which
+ * faction each colour is, so the tint was saying a second time what is already
+ * on screen, at the cost of the names being hard to read.
+ */
+const SYSTEM_LABEL = "#d4d4d4";
+
+/**
  * The galaxy itself, rebuilt from the seed (see `lib/gallery/conquestGalaxy`).
  *
  * Drawn rather than described because the galaxy is the thing a person would
  * recognise. Systems sit where the generator puts them, lanes are the jumps
  * between them, and colour is who holds what on turn one.
  *
- * `labelled` writes each system's name under its star, owner tinted the way
- * coilbox's own galaxy view writes them, and hangs the map the system resolved
- * to off the star as a tooltip. Only the item page asks for it. A card's frame
- * is a fraction of the width and the names would land on top of each other.
+ * `labelled` writes each system's name under its star, and hangs the map the
+ * system resolved to off the star as a tooltip. Only the item page asks for it.
+ * A card's frame is a fraction of the width and the names would land on top of
+ * each other.
  * Names are absent on a challenge shared before coilbox published them, which
  * draws exactly the galaxy this drew before (issue #397).
  *
@@ -168,7 +181,9 @@ export function ConquestGalaxyArt({
 
   return (
     <svg
-      viewBox="0 0 100 100"
+      // Four units taller when labelled, because a name sits under its star and
+      // the bottom row's would otherwise be cut off by the box.
+      viewBox={labelled ? "0 0 100 104" : "0 0 100 100"}
       className={className}
       {...(decorative
         ? { "aria-hidden": true as const }
@@ -227,9 +242,13 @@ export function ConquestGalaxyArt({
                 key={i}
                 x={at(system.x)}
                 y={at(system.y) + (system.capital ? 2.1 : 1.2) + 3}
-                textAnchor="middle"
+                // Centred under its star, except at the two edges, where a
+                // centred name would run out of the box and be cut in half.
+                textAnchor={
+                  system.x > 0.85 ? "end" : system.x < 0.15 ? "start" : "middle"
+                }
                 fontSize={2.4}
-                fill={colorOf(system.faction)}
+                fill={SYSTEM_LABEL}
                 // Outlined in the page's own black so two names that land near
                 // each other stay readable instead of blurring together.
                 stroke="#000000"
