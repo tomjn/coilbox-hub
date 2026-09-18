@@ -44,7 +44,7 @@ function contestedNames(clones: Iterable<{ key: string }>): string[] {
 
 function missing(pack: BarSlotPack): string[] {
   return [
-    ...pack.oversized.map((title) => `"${title}" is too long for one lobby line.`),
+    ...pack.oversized.map((title) => `"${title}" is too long for one autohost command.`),
     ...pack.unplaced.map((title) => `"${title}" did not fit in the slots a lobby has.`),
   ];
 }
@@ -77,7 +77,7 @@ export function lobbyCommands(payload: unknown): LobbyCommands | null {
   const { textEdits } = project.edits;
   const notCarried = [
     textEdits > 0 &&
-      `${textEdits} name or description edit${plural(textEdits)}. A lobby line cannot change a unit's words.`,
+      `${textEdits} name or description edit${plural(textEdits)}. An autohost command cannot change a unit's words.`,
     project.readOnlyLua > 0 &&
       `${project.readOnlyLua} block${plural(project.readOnlyLua)} of Lua the author imported read-only. Coilbox never runs it.`,
     compiled.leftOut.length > 0 &&

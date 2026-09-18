@@ -229,7 +229,7 @@ export default async function Item({
                   href="#lobby"
                   className="py-1 text-neutral-300 underline underline-offset-4 hover:text-white active:text-white"
                 >
-                  Play it without Coilbox
+                  Autohost commands
                 </a>
               ) : null}
               <a
