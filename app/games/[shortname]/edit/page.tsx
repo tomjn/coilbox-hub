@@ -7,6 +7,7 @@ import { editableGame } from "@/lib/games/editor";
 import { loadGamePage } from "@/lib/games/page";
 import { createClient } from "@/lib/supabase/server";
 import { ConquestFactionsForm } from "./ConquestFactionsForm";
+import { DownloadSourcesForm } from "./DownloadSourcesForm";
 import { GameDetailsForm } from "./GameDetailsForm";
 import { GameImageForm } from "./GameImageForm";
 import { GameImageRemoveForm } from "./GameImageRemoveForm";
@@ -14,22 +15,21 @@ import { GameImageRemoveForm } from "./GameImageRemoveForm";
 /**
  * The edit page for a game's owner or a moderator (#229, #350).
  *
- * Five forms, because they are three different kinds of write: words (a
- * plain update through row level security), the conquest faction list (the
- * same update, but a reordered and resized array rather than fixed fields,
- * #393), and three pictures (bytes to the staging bucket, then a path onto
- * the row). One form per job means a failed upload never takes the
- * description with it.
+ * Six forms, because they are four different kinds of write: words (a plain
+ * update through row level security), two ordered lists that are reordered and
+ * resized in the browser before they are sent (the conquest factions, #393, and
+ * the download sources, #396), and three pictures (bytes to the staging bucket,
+ * then a path onto the row). One form per job means a failed upload never takes
+ * the description with it.
  *
  * Everything here is ordinary forms posting to server actions, except the three
  * uploads, which check a file's size in the browser first (`GameImageForm`),
- * the controls that remove a picture (`GameImageRemoveForm`, #360), and the
- * faction list, which needs its own state for adding, removing and reordering
- * rows (`ConquestFactionsForm`).
+ * the controls that remove a picture (`GameImageRemoveForm`, #360), and the two
+ * lists, which need their own state for adding, removing and reordering rows.
  * The links rows are a fixed set of five pairs rather than a dynamic add
  * button, because a button that needs a bundle to work is a worse trade than
- * five rows nobody has to fill in - the faction list needs one anyway, since
- * order is part of what it means.
+ * five rows nobody has to fill in - the two lists need one anyway, since order
+ * is part of what they mean.
  */
 
 export default async function EditGame({
@@ -94,9 +94,12 @@ export default async function EditGame({
           displayName={page.display_name ?? ""}
           description={page.description ?? ""}
           links={page.links}
-          downloadKind={page.download_kind ?? "rapid"}
-          downloadValue={page.download_value ?? ""}
         />
+
+        <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
+          <h2 className="text-sm uppercase tracking-wide text-neutral-400">Downloads</h2>
+          <DownloadSourcesForm shortname={shortname} downloads={page.downloads} />
+        </section>
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Conquest factions</h2>

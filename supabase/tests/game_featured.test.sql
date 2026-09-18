@@ -8,12 +8,11 @@
 -- difference holds at the data layer rather than in whichever page remembered
 -- to check.
 --
--- The download source is the other half. It is a fact about the game told by
--- the people who ship it, so it joins the columns an owner has always been
--- able to write, and both of its columns move together or not at all.
+-- Where the game is downloaded from used to be the other half of this file.
+-- It became public.game_download_source in #396, and its own test with it.
 
 begin;
-select plan(6);
+select plan(5);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -41,14 +40,6 @@ select is(
   (select featured_at is not null from public.game where shortname = 'BA'),
   true,
   'service_role can feature a game'
-);
-
--- A kind naming no value would draw a download control pointing nowhere.
-select throws_ok(
-  $$update public.game set download_kind = 'url', download_value = null where shortname = 'BA'$$,
-  '23514',
-  null,
-  'a download kind with no value is refused'
 );
 
 -- anon reads it, because the listing has to draw the featured block for a
@@ -82,11 +73,10 @@ select throws_ok(
   'the owner may not unfeature their own game'
 );
 
--- The owner may still write the columns they have always written, and the
--- download source now among them.
+-- The owner may still write the columns they have always written.
 select lives_ok(
-  $$update public.game set display_name = 'Balanced Annihilation', download_kind = 'rapid', download_value = 'ba:stable' where shortname = 'BA'$$,
-  'the owner may set the display name and the download source'
+  $$update public.game set display_name = 'Balanced Annihilation' where shortname = 'BA'$$,
+  'the owner may set the display name'
 );
 
 select * from finish();

@@ -11,8 +11,7 @@ function game(fields: Partial<GameSummary> & Pick<GameSummary, "shortname">): Ga
     logo_hash: null,
     logo_staged_tier: null,
     featured_at: null,
-    download_kind: null,
-    download_value: null,
+    downloads: [],
     card_path: null,
     card_hash: null,
     card_staged_tier: null,
@@ -38,7 +37,7 @@ test("a bare game answers nulls rather than being left out", () => {
     title: "BA",
     description: null,
     featured: false,
-    download: null,
+    downloads: [],
     logo: null,
     card: null,
     faction_count: 0,
@@ -54,13 +53,33 @@ test("the title falls back to the shortname the way every page does", () => {
   expect(row.title).toBe("Beyond All Reason");
 });
 
-test("a download is published as the kind and the value, not as an address", () => {
+test("downloads are published as kinds and values, not as addresses", () => {
   const [row] = buildGameListBody([
-    game({ shortname: "MF", download_kind: "rapid", download_value: "metalfactions:stable" }),
+    game({
+      shortname: "MF",
+      downloads: [
+        { kind: "github", value: "springraaar/metal_factions", asset: "metal_factions" },
+        { kind: "rapid", value: "metalfactions:stable" },
+      ],
+    }),
   ]).games;
   // The caller decides what a rapid tag means. Handing it a link here would
-  // mean inventing one.
-  expect(row.download).toEqual({ kind: "rapid", value: "metalfactions:stable" });
+  // mean inventing one. The order is the order to try, so it is published as
+  // given rather than sorted into some shape of the hub's own.
+  expect(row.downloads).toEqual([
+    { kind: "github", value: "springraaar/metal_factions", asset: "metal_factions" },
+    { kind: "rapid", value: "metalfactions:stable" },
+  ]);
+});
+
+test("a stored source the form would refuse today is still published", () => {
+  // A url source carried over from the single column has no filename. It is
+  // the address its owner recorded, and dropping it here would take a game's
+  // only download off the listing without telling anybody.
+  const [row] = buildGameListBody([
+    game({ shortname: "MF", downloads: [{ kind: "url", value: "https://example.test/mf.sdz" }] }),
+  ]).games;
+  expect(row.downloads).toEqual([{ kind: "url", value: "https://example.test/mf.sdz" }]);
 });
 
 test("promoted art is published as its durable address", () => {

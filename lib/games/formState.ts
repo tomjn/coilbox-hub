@@ -31,6 +31,17 @@ export const CONQUEST_FACTIONS_MESSAGES = {
   notSent: "The form did not reach the hub. Reload the page and try again.",
 } as const;
 
+/** What the download sources form says (#396). A refusal naming a bad source
+ *  comes from `parseDownloads` instead, since only it knows which row and what
+ *  is wrong with it. */
+export const DOWNLOADS_MESSAGES = {
+  saved: "Downloads saved.",
+  signedOut: "You are signed out. Sign in, then save your changes again.",
+  notAllowed: "You can no longer change this game. Only its owner or a moderator can save its downloads.",
+  notSaved: "The downloads could not be saved. Try again in a few minutes.",
+  notSent: "The form did not reach the hub. Reload the page and try again.",
+} as const;
+
 /** What a unit's author snippet form says. */
 export const SNIPPET_MESSAGES = {
   saved: "Snippet saved.",

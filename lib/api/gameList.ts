@@ -1,5 +1,5 @@
 import { gameArtUrl } from "@/lib/games/art";
-import type { DownloadKind } from "@/lib/games/download";
+import { type GameDownload, readDownloads } from "@/lib/games/download";
 import { gameTitle } from "@/lib/games/labels";
 import type { GameSummary } from "@/lib/games/query";
 
@@ -21,11 +21,25 @@ import type { GameSummary } from "@/lib/games/query";
  * listing that demanded an account would put a lobby's download screen behind a
  * sign in, which is the rung of coilbox's ladder that has no account yet.
  *
- * ## Why the download is a kind and a value
+ * ## Why the downloads are a list of kinds and values
  *
  * Resolving a rapid tag to an address is not something the hub can do. The
- * caller hands the tag to its own downloader, so the honest answer is the pair
- * that was stored, and the caller decides what a kind means.
+ * caller hands the tag to its own downloader, so the honest answer is what was
+ * stored, and the caller decides what a kind means.
+ *
+ * A list rather than one, best source first, because they are not
+ * interchangeable and the caller is expected to try the next one when a source
+ * comes up empty (#396). Each entry maps onto coilbox's own `SuggestedDownload`
+ * without translation: `{kind, value, asset?}` is its github download,
+ * `{kind, value, filename}` its url one, `{kind, value}` its rapid one.
+ *
+ * ## The version stays at 1 while `download` becomes `downloads`
+ *
+ * A bump would be the tidy thing and it would do harm. Coilbox refuses a body
+ * whose version is above the one it was built against, so bumping would take
+ * the whole games listing away from every client already shipped. Its `HubGame`
+ * type reads neither the old field nor the new one - it uses this route for
+ * unit and faction counts - so no caller loses an answer it was reading.
  *
  * ## One limit worth knowing
  *
@@ -46,7 +60,8 @@ export interface GameListEntry {
   title: string;
   description: string | null;
   featured: boolean;
-  download: { kind: DownloadKind; value: string } | null;
+  /** Best source first, empty when the game names nowhere. */
+  downloads: GameDownload[];
   /** Resolved addresses, so a caller never has to know about tiers or staging.
    *  The banner is not here: it is not a column `public.game_browse` publishes,
    *  and a field that is structurally always null is worse than no field. */
@@ -74,10 +89,7 @@ export function buildGameListBody(games: GameSummary[]): GameListResponseBody {
       title: gameTitle(game),
       description: game.description,
       featured: game.featured_at !== null,
-      download:
-        game.download_kind && game.download_value
-          ? { kind: game.download_kind as DownloadKind, value: game.download_value }
-          : null,
+      downloads: readDownloads(game.downloads),
       logo: gameArtUrl(game.shortname, "logo", {
         path: game.logo_path,
         hash: game.logo_hash,

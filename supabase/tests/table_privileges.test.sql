@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(84);
+select plan(87);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -181,6 +181,21 @@ select table_privs_are('public', 'author_alias', 'authenticated', ARRAY['SELECT'
 select table_privs_are('public', 'author_alias', 'service_role',
   ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
   'service_role records that two keys are one person, and can withdraw the merge again');
+
+-- public.game_download_source: where coilbox fetches a game (#396). Everybody
+-- reads it, because a download link is the point of the table. The write side
+-- is the opposite way round from map_mirror_host below: a mirror is the hub's
+-- row about somebody else's server and service_role keeps it, while a download
+-- source is the game's own fact and its owner writes it. Insert and delete and
+-- no update, because a save replaces the list rather than editing a row.
+select table_privs_are('public', 'game_download_source', 'anon', ARRAY['SELECT'],
+  'anon can only select on game_download_source');
+select table_privs_are('public', 'game_download_source', 'authenticated',
+  ARRAY['SELECT', 'INSERT', 'DELETE'],
+  'authenticated may add and remove a source and may never edit one in place');
+select table_privs_are('public', 'game_download_source', 'service_role',
+  ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  'service_role can repair a game''s download sources');
 
 select table_privs_are('public', 'map_mirror_host', 'anon', ARRAY['SELECT'],
   'anon can only select on map_mirror_host, since a download link is the point of the table');
