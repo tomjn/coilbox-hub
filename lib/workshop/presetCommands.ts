@@ -138,17 +138,40 @@ function botName(label: string, taken: Set<string>): string {
 }
 
 /**
- * The side to ask `!addBot` for. SPADS reads a digit as an index and anything
- * else as a name to match, and it splits the command on spaces, so a faction
- * whose name has one in it cannot be asked for at all. `null` means say `0`,
- * the game's first, and tell the reader that is what happened.
+ * The side to ask `!addBot` for.
+ *
+ * SPADS splits a command on spaces, so a faction of two words cannot be sent
+ * whole. It does not have to be: `translateSideIfNeeded` matches a side by
+ * prefix rather than in full, so the first word alone reaches the same faction.
+ * The preset stores the game's own side name and not a label of coilbox's, so
+ * that word is a real prefix of what the host will compare against.
+ *
+ * The one way that goes wrong is a game with two factions starting on the same
+ * word, where the host takes whichever it lists first. Given the game's
+ * factions this checks for that, and the check does not need them in the game's
+ * own order, only all of them. `null` means fall back to `0`.
  */
-function botSide(side: string | undefined): string | null {
+function botSide(side: string | undefined, factions: readonly Faction[]): string | null {
   if (!side || side === RANDOM_SIDE) return null;
-  return /\s/.test(side) ? null : side;
+  if (!/\s/.test(side)) return side;
+
+  const first = side.split(/\s+/)[0];
+  const shared = factions.filter((f) =>
+    f.name.toLowerCase().startsWith(first.toLowerCase()),
+  );
+  return shared.length > 1 ? null : first;
 }
 
-export function presetCommands(payload: unknown): LobbyCommands | null {
+/** A game's factions as the hub holds them, for the collision check in
+ *  {@link botSide}. Empty when the hub has no catalog for the game. */
+export interface Faction {
+  name: string;
+}
+
+export function presetCommands(
+  payload: unknown,
+  factions: readonly Faction[] = [],
+): LobbyCommands | null {
   const preset = readPreset(payload);
   if (!preset) return null;
 
@@ -182,8 +205,10 @@ export function presetCommands(payload: unknown): LobbyCommands | null {
   const addBot: string[] = [];
   const force: string[] = [];
   let renamed = 0;
-  let unnamedSides = 0;
   let randomSides = 0;
+  /** First words more than one of the game's factions start with, and how many
+   *  bots lost their faction to each. */
+  const contested = new Map<string, number>();
 
   for (const bot of bots) {
     const shortName = bot.ai?.shortName ?? "";
@@ -199,10 +224,13 @@ export function presetCommands(payload: unknown): LobbyCommands | null {
     taken.add(name);
     if (name !== label) renamed += 1;
 
-    const side = botSide(bot.side);
-    if (side === null) {
+    const side = botSide(bot.side, factions);
+    if (side === null && bot.side) {
       if (bot.side === RANDOM_SIDE) randomSides += 1;
-      else if (bot.side) unnamedSides += 1;
+      else {
+        const word = bot.side.split(/\s+/)[0];
+        contested.set(word, (contested.get(word) ?? 0) + 1);
+      }
     }
 
     addBot.push(`!addBot ${name} ${side ?? "0"} ${shortName}`);
@@ -233,9 +261,11 @@ export function presetCommands(payload: unknown): LobbyCommands | null {
       (p) => p.kind !== "ai" && p.side && p.side !== RANDOM_SIDE,
     ) && "The faction each person plays. Only a bot's can be set from the chat.",
     randomSides > 0 &&
-      `${randomSides} bot${plural(randomSides)} had a random faction. A lobby cannot roll one, so they get the game's first.`,
-    unnamedSides > 0 &&
-      `${unnamedSides} bot faction${plural(unnamedSides)} cannot be named in a command, so they get the game's first.`,
+      `${randomSides} bot${plural(randomSides)} had a random faction. A lobby cannot roll one, so ${randomSides === 1 ? "it gets" : "they get"} the game's first. Set ${randomSides === 1 ? "it" : "them"} in the lobby by hand.`,
+    ...[...contested].map(
+      ([word, n]) =>
+        `${n} bot${plural(n)} get${n === 1 ? "s" : ""} the game's first faction, because this game has more than one starting "${word}". Set ${n === 1 ? "it" : "them"} in the lobby by hand.`,
+    ),
     renamed > 0 &&
       `${renamed} bot${plural(renamed)} ${renamed === 1 ? "was" : "were"} renamed. A lobby only takes letters, digits and brackets in a bot's name.`,
     [...shared.values()].some((n) => n > 1) &&

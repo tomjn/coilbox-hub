@@ -110,7 +110,7 @@ test("a side rolled at launch is asked for as the game's first, and said so", ()
   const commands = presetCommands(preset({ participants: [ai({ side: "__random__" })] }));
   expect(commands?.lines).toContain("!addBot Barbarian 0 BARb");
   expect(commands?.notCarried).toContain(
-    "1 bot had a random faction. A lobby cannot roll one, so they get the game's first.",
+    "1 bot had a random faction. A lobby cannot roll one, so it gets the game's first. Set it in the lobby by hand.",
   );
 });
 
@@ -169,12 +169,36 @@ test("shared control is named rather than guessed at", () => {
   expect(commands?.lines.some((line) => line.includes(" id "))).toBe(false);
 });
 
-test("a faction whose name would split into two words is not asked for", () => {
+test("a faction of two words is asked for by its first, which a host matches on", () => {
   const commands = presetCommands(preset({ participants: [ai({ side: "Legion Core" })] }));
+  expect(commands?.lines).toContain("!addBot Barbarian Legion BARb");
+  expect(commands?.notCarried).toEqual(
+    expect.not.arrayContaining([expect.stringContaining("faction")]),
+  );
+});
+
+test("the first word is still used when the hub knows nothing of the game's factions", () => {
+  const commands = presetCommands(preset({ participants: [ai({ side: "Federation of Kala" })] }), []);
+  expect(commands?.lines).toContain("!addBot Barbarian Federation BARb");
+});
+
+test("a first word that two of the game's factions share picks neither", () => {
+  const commands = presetCommands(
+    preset({ participants: [ai({ side: "Federation of Kala" })] }),
+    [{ name: "Federation of Kala" }, { name: "Federation of Zog" }, { name: "Loz Alliance" }],
+  );
   expect(commands?.lines).toContain("!addBot Barbarian 0 BARb");
   expect(commands?.notCarried).toContain(
-    "1 bot faction cannot be named in a command, so they get the game's first.",
+    "1 bot gets the game's first faction, because this game has more than one starting \"Federation\". Set it in the lobby by hand.",
   );
+});
+
+test("a first word only one faction starts with is sent as it is", () => {
+  const commands = presetCommands(
+    preset({ participants: [ai({ side: "Federation of Kala" })] }),
+    [{ name: "Federation of Kala" }, { name: "Loz Alliance" }],
+  );
+  expect(commands?.lines).toContain("!addBot Barbarian Federation BARb");
 });
 
 test("a team's income multiplier does not carry either", () => {
