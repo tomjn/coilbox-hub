@@ -56,6 +56,31 @@ test("what a lobby cannot carry is said beside the lines", () => {
   expect(commands?.notCarried[0]).toStartWith("2 name or description edits.");
 });
 
+test("imported Lua the decoder proved parses is in the lines, not listed as missing", () => {
+  const commands = lobbyCommands({
+    edits: { disabled: ["corak"] },
+    readOnlyLua: [
+      { title: "tweakdefs", lua: "do local imported = 1 end", note: "n", form: "block" },
+    ],
+  });
+  expect(commands?.notCarried).toEqual([]);
+  const lua = commands?.chunks.map((chunk) => chunk.lua).join("\n");
+  expect(lua).toContain("local imported = 1");
+  // First, because the import is the baseline the author edited on top of.
+  expect(commands?.chunks[0].title).toBe("tweakdefs");
+});
+
+test("imported Lua that never parsed is left out and said so", () => {
+  const commands = lobbyCommands({
+    edits: { disabled: ["corak"] },
+    readOnlyLua: [{ title: "t", lua: "not lua {{{", note: "n", form: "unrecognised" }],
+  });
+  expect(commands?.notCarried).toEqual([
+    "1 block of imported Lua that never parsed, so it is not in these lines.",
+  ]);
+  expect(commands?.chunks.map((chunk) => chunk.lua).join("\n")).not.toContain("not lua");
+});
+
 test("nothing is offered for a payload that is not a project, or holds no edit", () => {
   expect(lobbyCommands(null)).toBeNull();
   expect(lobbyCommands({ edits: {} })).toBeNull();

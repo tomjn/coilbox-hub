@@ -3,9 +3,9 @@
   "ref": "main",
   "dir": "crates/tauri-plugin-coilbox-workshop/tests/fixtures",
   "files": {
-    "bar-pack-golden.json": "8e9c90cc6004b2f4ba344a08afd7064d5d06bddd"
+    "bar-pack-golden.json": "de921a37e9a25749c1e1ea777c2427d1b8d4aeeb"
   },
   "sha256": {
-    "bar-pack-golden.json": "04296fce6d5f5d25862b6ab89696c3e7cee360e614f9031847df0e45b1f17510"
+    "bar-pack-golden.json": "79114402325ff466f0d5a3f062d9c476ee1eaf24223431f4c3f5fd9471bb135a"
   }
 }

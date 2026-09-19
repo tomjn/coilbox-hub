@@ -40,11 +40,27 @@ export interface GameEdits {
   disabled: string[];
 }
 
+/**
+ * A block of Lua the project carries but cannot edit, from a decoded import.
+ *
+ * Read only is about editing, not about compiling. Coilbox compiles a block
+ * its decoder proved is a Lua chunk, because most of a real imported tweak
+ * set is program rather than data and a project that dropped it would keep
+ * the small editable part and lose the rest. `form` is that decoder's own
+ * verdict, and only `"block"` is compiled. Anything else never parsed, and
+ * writing it into a slot would break the slot rather than only itself.
+ */
+export interface ReadOnlyLuaBlock {
+  title: string;
+  lua: string;
+  form: "block" | "unrecognised" | null;
+}
+
 export interface ModProject {
   name: string;
   edits: GameEdits;
-  /** Blocks of Lua the project carries but coilbox never compiles. */
-  readOnlyLua: number;
+  /** Lua the project carries but does not edit, in the order it runs. */
+  readOnlyLua: ReadOnlyLuaBlock[];
 }
 
 type Shape = Record<string, unknown>;
@@ -144,11 +160,22 @@ export function readModProject(payload: unknown): ModProject | null {
       readOnlyLua: field(
         source.readOnlyLua,
         (v) =>
-          listOf(v, (block) => {
+          listOf(v, (block): ReadOnlyLuaBlock => {
             const b = object(block);
-            return [text(b.title), text(b.lua), text(b.note)];
-          }).length,
-        0,
+            // `note` is read to refuse what coilbox would refuse, and
+            // dropped: it is a sentence for a reader in the app, and the
+            // hub writes its own words for the one case it mentions.
+            text(b.note);
+            return {
+              title: text(b.title),
+              lua: text(b.lua),
+              // Only the decoder's own two words. A payload written by hand
+              // does not get to invent a third and have it read as
+              // permission to put the Lua in a slot.
+              form: b.form === "block" || b.form === "unrecognised" ? b.form : null,
+            };
+          }),
+        [],
       ),
     };
   } catch (error) {

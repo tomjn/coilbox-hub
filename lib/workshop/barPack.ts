@@ -36,28 +36,95 @@ export interface BarSlotPack {
 }
 
 /**
+ * The level of a long bracket opening at `start`, counting the `=` signs
+ * between its two `[`. `0` for `[[`, `2` for `[==[`, and null for an
+ * ordinary `[`, which is how an index is told from a string.
+ */
+function longBracketLevel(chars: string[], start: number): number | null {
+  if (chars[start] !== "[") return null;
+  let level = 0;
+  while (chars[start + 1 + level] === "=") level += 1;
+  return chars[start + 1 + level] === "[" ? level : null;
+}
+
+/** Where the long bracket opened at `level` closes, as the index one past
+ *  its final `]`, or null when it never does. */
+function longBracketClose(chars: string[], from: number, level: number): number | null {
+  for (let i = from; i < chars.length; i += 1) {
+    if (chars[i] !== "]") continue;
+    let matched = true;
+    for (let n = 0; n < level; n += 1) if (chars[i + 1 + n] !== "=") matched = false;
+    if (matched && chars[i + 1 + level] === "]") return i + level + 2;
+  }
+  return null;
+}
+
+/**
  * Strip comments and collapse whitespace to single spaces, without touching a
- * string literal. Only `"` is tracked because the compiler writes no other
- * kind of string. A removed run becomes one space and never nothing, or `end`
+ * string literal. A removed run becomes one space and never nothing, or `end`
  * and `if` on their own lines would merge into one identifier.
+ *
+ * All three of Lua's string forms are tracked, not just `"`. The compiler
+ * writes no other kind, but a project can carry Lua somebody else wrote, and
+ * the tools BAR players use quote with `'` throughout. Missing that would let
+ * a `--` inside a single-quoted string read as the start of a comment and
+ * swallow the rest of the line, turning working Lua into a syntax error in
+ * the exported slot, where nothing would notice until a game failed to start.
  */
 export function minifyLua(source: string): string {
   const chars = [...source];
   let out = "";
-  let inString = false;
+  /** The quote character of a short string, the level of a long one, or null. */
+  let short: string | null = null;
+  let long: number | null = null;
   let pendingSpace = false;
 
   for (let i = 0; i < chars.length; i += 1) {
     const c = chars[i];
-    if (inString) {
+    if (short !== null) {
       out += c;
       if (c === "\\" && i + 1 < chars.length) out += chars[(i += 1)];
-      else if (c === '"') inString = false;
+      else if (c === short) short = null;
+      continue;
+    }
+    if (long !== null) {
+      const end = longBracketClose(chars, i, long);
+      if (end === null) {
+        out += c;
+      } else {
+        out += chars.slice(i, end).join("");
+        i = end - 1;
+        long = null;
+      }
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      if (pendingSpace) out += " ";
+      pendingSpace = false;
+      short = c;
+      out += c;
       continue;
     }
     if (c === "-" && chars[i + 1] === "-") {
-      while (i < chars.length && chars[i] !== "\n") i += 1;
+      // A long comment runs to its matching bracket, across as many lines as
+      // it likes. A plain one ends at the first newline.
+      const level = longBracketLevel(chars, i + 2);
+      if (level !== null) {
+        i = (longBracketClose(chars, i + 2 + level + 2, level) ?? chars.length) - 1;
+      } else {
+        while (i < chars.length && chars[i] !== "\n") i += 1;
+      }
       pendingSpace = out !== "";
+      continue;
+    }
+    const level = longBracketLevel(chars, i);
+    if (level !== null) {
+      if (pendingSpace) out += " ";
+      pendingSpace = false;
+      const body = i + level + 2;
+      out += chars.slice(i, body).join("");
+      i = body - 1;
+      long = level;
       continue;
     }
     if (/\s/.test(c)) {
@@ -66,17 +133,39 @@ export function minifyLua(source: string): string {
     }
     if (pendingSpace) out += " ";
     pendingSpace = false;
-    if (c === '"') inString = true;
     out += c;
   }
   return out;
 }
 
-/** UTF-8 text to URL-safe base64, padding stripped. */
-function encode(text: string): string {
+/** UTF-8 text to unpadded standard base64, which is what `btoa` already
+ *  spells once its padding is dropped. */
+function base64(text: string): string {
   let binary = "";
   for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  return btoa(binary).replaceAll("=", "");
+}
+
+/** The alphabet a `tweakdefs` slot carries. BAR hands that slot straight to
+ *  its own decoder, which reads this. */
+function encode(text: string): string {
+  return base64(text).replaceAll("+", "-").replaceAll("/", "_");
+}
+
+/**
+ * The same bytes for a `tweakunits` slot, which BAR reads through one step
+ * more and that step destroys the URL-safe alphabet.
+ *
+ * `CustomKeyToUsefulTable` runs `string.gsub(dataRaw, "_", "=")` before it
+ * decodes, so every `_` becomes padding, which its table maps to nil, and
+ * the byte is dropped. The standard alphabet goes through untouched, because
+ * it spells 62 and 63 as `+` and `/`, and BAR's decoder reads both: its
+ * table holds `['+'] = 62, ['/'] = 63` beside the URL-safe pair. Padding
+ * stays off, since that decoder walks its input four characters at a time
+ * and a short final group simply yields fewer bytes.
+ */
+function encodeTweakunits(text: string): string {
+  return base64(text);
 }
 
 function prefix(kind: "tweakdefs" | "tweakunits", slot: number): string {
@@ -99,7 +188,7 @@ export function packBarSlots(chunks: Chunk[]): BarSlotPack {
       pack.unplaced.push(chunk.title);
       continue;
     }
-    const payload = encode(minifyLua(chunk.lua));
+    const payload = encodeTweakunits(minifyLua(chunk.lua));
     if (fits(prefix("tweakunits", slot), payload)) {
       pack.tweakunits.push(`${prefix("tweakunits", slot)}${payload}`);
     } else {
