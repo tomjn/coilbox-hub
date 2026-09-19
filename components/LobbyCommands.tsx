@@ -2,16 +2,22 @@ import type { LobbyCommands as Commands } from "@/lib/workshop/lobbyCommands";
 import { CopyLine } from "./CopyLine";
 
 /**
- * The way to play a project without coilbox (issue #418): the autohost
- * commands, one per line, each with its own copy button because a lobby chat
- * takes one line at a time.
+ * The way to use an item without coilbox (issue #418): the autohost commands,
+ * one per line, each with its own copy button because a lobby chat takes one
+ * line at a time.
+ *
+ * Two items reach here and they are not read the same way. A project's lines
+ * each set one option, so their order is only for reading. A preset's rebuild a
+ * game setup step by step, and the map has to be set before the lines that
+ * resolve against it, so the page asks for them in order.
  *
  * Whether the game in question reads tweak options is not checked here, and
  * the page names no game: more than one reads them, and which do is coilbox's
  * to know.
  */
 export function LobbyCommands({ commands }: { commands: Commands }) {
-  const { lines, withheld, notCarried, chunks } = commands;
+  const { kind, lines, withheld, notCarried, chunks } = commands;
+  const preset = kind === "preset";
 
   return (
     <section
@@ -22,9 +28,19 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
         <h2 className="text-lg font-semibold tracking-tight">Autohost commands</h2>
         {lines.length > 0 ? (
           <p className="text-sm text-neutral-400">
-            Paste {lines.length === 1 ? "this command" : `these ${lines.length} commands`} into
-            a lobby&rsquo;s chat and everyone in it plays with the changes. No download, for you
-            or for them.
+            {preset ? (
+              <>
+                Paste {lines.length === 1 ? "this command" : `these ${lines.length} commands`}{" "}
+                into a lobby&rsquo;s chat and it comes out set up the way this preset is. The
+                people who join take the slots the AI do not.
+              </>
+            ) : (
+              <>
+                Paste {lines.length === 1 ? "this command" : `these ${lines.length} commands`}{" "}
+                into a lobby&rsquo;s chat and everyone in it plays with the changes. No download,
+                for you or for them.
+              </>
+            )}
           </p>
         ) : null}
       </div>
@@ -35,10 +51,26 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
             <li>Open a multiplayer lobby for this game. You may need to be its boss.</li>
             <li>
               Copy {lines.length === 1 ? "the command" : "each command"} below and send it as a chat
-              message{lines.length === 1 ? "" : ", one at a time"}.
+              message
+              {preset
+                ? ", in the order they are given"
+                : lines.length === 1
+                  ? ""
+                  : ", one at a time"}
+              .
             </li>
-            <li>Start the game.</li>
+            <li>
+              {preset
+                ? "Wait for the other players, then start the game."
+                : "Start the game."}
+            </li>
           </ol>
+          {preset ? (
+            <p className="text-sm text-neutral-400">
+              A host decides for itself which AI it will run. If it turns one down, that bot is
+              the only thing missing and the rest of the setup stands.
+            </p>
+          ) : null}
           <ul className="flex flex-col gap-2">
             {lines.map((line, index) => (
               <CopyLine key={line} line={line} index={index} total={lines.length} />
@@ -47,13 +79,17 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
         </>
       ) : (
         <div className="flex flex-col gap-1.5 text-sm text-neutral-400">
-          <p>This project cannot be pasted into a lobby whole, so no commands are offered.</p>
+          <p>
+            This {preset ? "preset" : "project"} cannot be{" "}
+            {preset ? "rebuilt in a lobby" : "pasted into a lobby whole"}, so no commands are
+            offered.
+          </p>
           <ul className="list-disc pl-5">
             {withheld.map((reason) => (
               <li key={reason}>{reason}</li>
             ))}
           </ul>
-          <p>Import it into Coilbox to play with it.</p>
+          <p>Import it into Coilbox to play {preset ? "it" : "with it"}.</p>
         </div>
       )}
 
@@ -68,6 +104,9 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
         </div>
       ) : null}
 
+      {/* A preset carries no Lua at all: its commands name a map, an option or
+          a bot, and there is nothing behind them to read. */}
+      {chunks.length === 0 ? null : (
       <details className="group text-sm">
         <summary className="cursor-pointer self-start text-neutral-300 underline-offset-4 hover:text-white hover:underline">
           Read the Lua {lines.length > 0 ? "these commands carry" : "it compiles to"}
@@ -86,6 +125,7 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
           ))}
         </div>
       </details>
+      )}
     </section>
   );
 }
