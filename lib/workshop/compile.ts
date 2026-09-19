@@ -181,6 +181,29 @@ function table(entries: Array<[string, string]>): string {
   return `{\n${entries.map(([key, lua]) => `  [${luaString(key)}] = ${lua},`).join("\n")}\n}`;
 }
 
+/**
+ * Every unit a project adds, as assignments.
+ *
+ * Assignment rather than a merge because there is nothing to merge onto: the
+ * game has no unit of this name, which is the whole point of a copy, and
+ * BAR's `tweakunits` merge would find no key and drop it. One table and one
+ * loop rather than a line per unit, so a project adding sixty units does not
+ * write `UnitDefs[...] =` sixty times into a slot with a size cap on it.
+ */
+function addedBlock(entries: Array<[string, string]>): string {
+  const body = entries.map(([key, lua]) => `    [${luaString(key)}] = ${lua},`).join("\n");
+  return [
+    "-- Units added. Assigned directly: none of these existed before, so there is",
+    "-- nothing to merge onto.",
+    "do",
+    `  local added = {\n${body}\n  }`,
+    "  for name, def in pairs(added) do",
+    "    UnitDefs[name] = def",
+    "  end",
+    "end",
+  ].join("\n");
+}
+
 /** A whole definition standing in for one the game already loaded. */
 function replaceBlock(clone: UnitClone, def: Json): string {
   const from = clone.source === null ? "" : ` Copied from ${commentText(clone.source)}.`;
@@ -313,17 +336,35 @@ export function compile(project: ModProject): CompiledProject {
   const leftOut = clones.filter((clone) => !validUnitKey(clone.key)).map((clone) => clone.key);
   const usable = clones.filter((clone) => validUnitKey(clone.key));
 
-  // A copy under a name nothing else uses. Its definition is whole and owned,
-  // so the plain table says all of it.
+  // Lua the project carries but cannot edit, compiled first so everything
+  // the author did in coilbox lands on top of it. The import is the baseline
+  // they started from: a program that scales every unit's health has to run
+  // before the one unit they then typed a number into.
+  for (const block of project.readOnlyLua) {
+    if (block.form !== "block") continue;
+    chunks.push({
+      form: "block",
+      title: block.title,
+      reason:
+        "Carried from a decoded import as it stands. Coilbox never runs it, and cannot edit it either, so it is written out the way it arrived.",
+      lua: block.lua,
+    });
+  }
+
+  // A copy under a name nothing else uses. Assigned rather than left as a
+  // plain table: BAR's tweakunits route walks the units the game already has
+  // and merges a tweak into each one it finds a key for, so a key naming a
+  // unit the game does not have matches nothing and the added unit is
+  // dropped with no error. Only an assignment creates one.
   const added = usable.filter((clone) => !clone.replacesGameUnit);
   if (added.length > 0) {
     chunks.push({
-      form: "table",
+      form: "block",
       title: `${added.length} unit${plural(added.length)} added`,
       reason:
-        "A copy owns its whole definition, so nothing about it depends on what the game says.",
-      lua: table(
-        added.map((clone) => [clone.key, luaLiteral(resolvedCloneDef(clone, edits), "  ")]),
+        "A copy owns its whole definition, and the game has no unit of that name to merge onto, so it has to be assigned rather than merged.",
+      lua: addedBlock(
+        added.map((clone) => [clone.key, luaLiteral(resolvedCloneDef(clone, edits), "    ")]),
       ),
     });
   }

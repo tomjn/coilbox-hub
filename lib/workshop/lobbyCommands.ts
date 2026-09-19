@@ -75,11 +75,15 @@ export function lobbyCommands(payload: unknown): LobbyCommands | null {
   ];
 
   const { textEdits } = project.edits;
+  const leftBehind = project.readOnlyLua.filter((block) => block.form !== "block").length;
   const notCarried = [
     textEdits > 0 &&
       `${textEdits} name or description edit${plural(textEdits)}. An autohost command cannot change a unit's words.`,
-    project.readOnlyLua > 0 &&
-      `${project.readOnlyLua} block${plural(project.readOnlyLua)} of Lua the author imported read-only. Coilbox never runs it.`,
+    // Only the ones left out. A carried block that parsed is compiled into
+    // the lines above like any other, so listing it here would tell a host
+    // something is missing when it is in their hands.
+    leftBehind > 0 &&
+      `${leftBehind} block${plural(leftBehind)} of imported Lua that never parsed, so it is not in these lines.`,
     compiled.leftOut.length > 0 &&
       `${compiled.leftOut.length} cop${compiled.leftOut.length === 1 ? "y" : "ies"} with a name a unit cannot have.`,
   ].filter((note): note is string => typeof note === "string");

@@ -29,6 +29,31 @@ test("a comment marker inside a string is not a comment", () => {
   expect(minifyLua('x = "a -- b"  -- gone\ny = 1')).toBe('x = "a -- b" y = 1');
 });
 
+// Coilbox's own compiler writes no single-quoted or long-bracket string, but
+// a project can carry Lua somebody else wrote, and the tools BAR players use
+// quote with `'` throughout.
+test("every Lua string form survives minifying", () => {
+  expect(minifyLua("do x = 'a -- b' end")).toBe("do x = 'a -- b' end");
+  expect(minifyLua("x = 'she said \"hi\"' y = 2")).toBe("x = 'she said \"hi\"' y = 2");
+  expect(minifyLua("x = [[ two  spaces ]] y = 3")).toBe("x = [[ two  spaces ]] y = 3");
+  expect(minifyLua("x = [==[ ]] inside ]==] y = 4")).toBe("x = [==[ ]] inside ]==] y = 4");
+  expect(minifyLua("do --[[ across\nlines ]] x = 1 end")).toBe("do x = 1 end");
+  expect(minifyLua("x = a[b[1]]")).toBe("x = a[b[1]]");
+});
+
+// BAR reads a tweakunits payload through `gsub(dataRaw, "_", "=")` before
+// decoding, so an underscore is a byte the game loses. Its decoder reads the
+// standard alphabet too, which that gsub leaves alone.
+test("a tweakunits payload carries no character BAR would rewrite", () => {
+  const project = readModProject({
+    edits: { overrides: { corak: { name: "Танк?" } } },
+  });
+  const { chunks } = compile(project!);
+  const payload = packBarSlots(chunks).tweakunits[0].split(" ").pop()!;
+  expect(payload).not.toContain("_");
+  expect(payload).toContain("/");
+});
+
 test("a project coilbox could not parse is not read at all", () => {
   expect(readModProject({ edits: { disabled: ["corak", 5] } })).toBeNull();
   expect(readModProject({ edits: { menus: { armlab: [{ op: "swap", unit: "a" }] } } })).toBeNull();
