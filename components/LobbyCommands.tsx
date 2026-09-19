@@ -28,18 +28,8 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
         <h2 className="text-lg font-semibold tracking-tight">Autohost commands</h2>
         {lines.length > 0 ? (
           <p className="text-sm text-neutral-400">
-            {preset ? (
-              <>
-                Paste {lines.length === 1 ? "this command" : `these ${lines.length} commands`}{" "}
-                into a lobby&rsquo;s chat.
-              </>
-            ) : (
-              <>
-                Paste {lines.length === 1 ? "this command" : `these ${lines.length} commands`}{" "}
-                into a lobby&rsquo;s chat and everyone in it plays with the changes. No download,
-                for you or for them.
-              </>
-            )}
+            Paste {lines.length === 1 ? "this command" : `these ${lines.length} commands`} into
+            a lobby&rsquo;s chat.
           </p>
         ) : null}
       </div>
