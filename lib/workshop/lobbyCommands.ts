@@ -19,8 +19,12 @@ import { type Chunk, compile, TooLarge } from "./compile";
 import { readModProject } from "./project";
 
 export interface LobbyCommands {
-  /** Every line, `tweakunits` first. Each sets its own option, so the order
-   *  they are pasted in does not change what the game loads. */
+  /** Which item the lines came from. A preset's read the same way but are
+   *  ordered, carry no Lua, and are described differently on the page. */
+  kind: "project" | "preset";
+  /** Every line, in the order they are meant to be sent. A project's set one
+   *  option each, so its order is only for reading. A preset's has to be kept,
+   *  because the map is what the lines after it resolve against. */
   lines: string[];
   /** Why there are no lines, in words for the page. Empty when there are. */
   withheld: string[];
@@ -89,6 +93,7 @@ export function lobbyCommands(payload: unknown): LobbyCommands | null {
   ].filter((note): note is string => typeof note === "string");
 
   return {
+    kind: "project",
     lines: withheld.length > 0 ? [] : [...pack.tweakunits, ...pack.tweakdefs],
     withheld,
     notCarried,
