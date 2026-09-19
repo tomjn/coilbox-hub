@@ -1,5 +1,5 @@
 import type { LobbyCommands as Commands } from "@/lib/workshop/lobbyCommands";
-import { CopyLine } from "./CopyLine";
+import { CopyCommands } from "./CopyCommands";
 
 /**
  * The way to use an item without coilbox (issue #418): the autohost commands,
@@ -46,37 +46,7 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
       </div>
 
       {lines.length > 0 ? (
-        <>
-          <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm text-neutral-300 marker:text-neutral-500">
-            <li>Open a multiplayer lobby for this game. You may need to be its boss.</li>
-            <li>
-              Copy {lines.length === 1 ? "the command" : "each command"} below and send it as a chat
-              message
-              {preset
-                ? ", in the order they are given"
-                : lines.length === 1
-                  ? ""
-                  : ", one at a time"}
-              .
-            </li>
-            <li>
-              {preset
-                ? "Wait for the other players, then start the game."
-                : "Start the game."}
-            </li>
-          </ol>
-          {preset ? (
-            <p className="text-sm text-neutral-400">
-              A host decides for itself which AI it will run. If it turns one down, that bot is
-              the only thing missing and the rest of the setup stands.
-            </p>
-          ) : null}
-          <ul className="flex flex-col gap-2">
-            {lines.map((line, index) => (
-              <CopyLine key={line} line={line} index={index} total={lines.length} />
-            ))}
-          </ul>
-        </>
+        <CopyCommands lines={lines} />
       ) : (
         <div className="flex flex-col gap-1.5 text-sm text-neutral-400">
           <p>
@@ -95,7 +65,7 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
 
       {lines.length > 0 && notCarried.length > 0 ? (
         <div className="flex flex-col gap-1.5 text-sm text-neutral-400">
-          <p>The commands leave out what a lobby cannot carry:</p>
+          <p>What these commands cannot set:</p>
           <ul className="list-disc pl-5">
             {notCarried.map((note) => (
               <li key={note}>{note}</li>
