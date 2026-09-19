@@ -31,8 +31,7 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
             {preset ? (
               <>
                 Paste {lines.length === 1 ? "this command" : `these ${lines.length} commands`}{" "}
-                into a lobby&rsquo;s chat and it comes out set up the way this preset is. The
-                people who join take the slots the AI do not.
+                into a lobby&rsquo;s chat.
               </>
             ) : (
               <>
@@ -65,7 +64,7 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
 
       {lines.length > 0 && notCarried.length > 0 ? (
         <div className="flex flex-col gap-1.5 text-sm text-neutral-400">
-          <p>What these commands cannot set:</p>
+          <p>What these commands could not set:</p>
           <ul className="list-disc pl-5">
             {notCarried.map((note) => (
               <li key={note}>{note}</li>
