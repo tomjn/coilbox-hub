@@ -23,7 +23,11 @@ import { itemLabel } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { startPosNote } from "@/lib/gallery/presetPreview";
 import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
-import { unitNameLabelsCached, type UnitNameLabel } from "@/lib/games/cached";
+import {
+  gameFactionsCached,
+  unitNameLabelsCached,
+  type UnitNameLabel,
+} from "@/lib/games/cached";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lobbyCommands } from "@/lib/workshop/lobbyCommands";
 import { presetCommands } from "@/lib/workshop/presetCommands";
@@ -171,10 +175,15 @@ export default async function Item({
   // coilbox wrote, and the page then offers the import alone.
   const project = item.kind === "mod-project";
   const payload = (item.container as { payload?: unknown } | null)?.payload;
+  // A preset names its factions in the game's own words, and a host matches
+  // one by its first word. The game's full list is what says whether that word
+  // reaches one faction or two, so it is read here and handed over.
+  const factions =
+    item.kind === "preset" && item.game_key ? await gameFactionsCached(item.game_key) : [];
   const commands = project
     ? lobbyCommands(payload)
     : item.kind === "preset"
-      ? presetCommands(payload)
+      ? presetCommands(payload, factions)
       : null;
 
   // Every map this page names: the one on the row, and a setup pack's own list

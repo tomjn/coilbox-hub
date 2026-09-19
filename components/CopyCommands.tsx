@@ -28,23 +28,26 @@ export function CopyCommands({ lines }: { lines: string[] }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-start gap-3 rounded border border-neutral-800 bg-black p-3">
+      {/* The button sits over the commands rather than beside them. A tweakdef
+          line is thousands of characters wide, and a button in the same row
+          would take its width off every line for the whole block's sake. */}
+      <div className="relative rounded border border-neutral-800 bg-black p-3">
         {/* `select-all` so somebody who drags across it by hand still takes
-            every line, never the part their pointer happened to cover. */}
-        <pre className="max-h-80 min-w-0 flex-1 select-all overflow-auto text-xs leading-relaxed text-neutral-100">
+            every line, never the part their pointer happened to cover. The
+            right hand padding keeps the first lines clear of the button. */}
+        <pre className="max-h-80 select-all overflow-auto pr-24 text-xs leading-relaxed text-neutral-100">
           {text}
         </pre>
-        <button type="button" onClick={copy} className={action}>
+        <button
+          type="button"
+          onClick={copy}
+          className={`${action} absolute right-3 top-3 bg-black`}
+        >
           <span aria-live="polite">
             {state === "copied" ? "Copied" : lines.length === 1 ? "Copy" : "Copy all"}
           </span>
         </button>
       </div>
-      <p className="text-xs text-neutral-400">
-        {lines.length === 1
-          ? "1 command"
-          : `${lines.length.toLocaleString("en-GB")} commands, in the order they go in`}
-      </p>
       {state === "refused" ? (
         <p className="text-xs text-neutral-400">
           Your browser refused the copy. Click the commands to select them, then copy them
