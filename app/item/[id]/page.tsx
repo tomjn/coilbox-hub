@@ -26,6 +26,7 @@ import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
 import { unitNameLabelsCached, type UnitNameLabel } from "@/lib/games/cached";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lobbyCommands } from "@/lib/workshop/lobbyCommands";
+import { presetCommands } from "@/lib/workshop/presetCommands";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/supabase/user";
 import { setItemFeatured } from "../actions";
@@ -164,13 +165,17 @@ export default async function Item({
     ]),
   );
 
-  // A project is the one kind somebody can use without coilbox (issue #418):
-  // its edits compile to lines a lobby takes. Nothing when the payload is not
-  // a project coilbox could compile, and the page then offers the import alone.
+  // The two kinds somebody can use without coilbox (issue #418). A project's
+  // edits compile to tweak slots, and a preset's setup translates to the
+  // commands that rebuild it in a lobby. Nothing when the payload is not one
+  // coilbox wrote, and the page then offers the import alone.
   const project = item.kind === "mod-project";
+  const payload = (item.container as { payload?: unknown } | null)?.payload;
   const commands = project
-    ? lobbyCommands((item.container as { payload?: unknown } | null)?.payload)
-    : null;
+    ? lobbyCommands(payload)
+    : item.kind === "preset"
+      ? presetCommands(payload)
+      : null;
 
   // Every map this page names: the one on the row, and a setup pack's own list
   // (issue #176).
@@ -284,11 +289,13 @@ export default async function Item({
             id="coilbox"
             className="flex min-w-0 flex-col gap-4 rounded-md border border-neutral-800 bg-card p-5"
           >
-            {project ? (
+            {commands ? (
               <div className="flex flex-col gap-1.5">
                 <h2 className="text-lg font-semibold tracking-tight">Open it in Coilbox</h2>
                 <p className="text-sm text-neutral-400">
-                  Coilbox applies every edit, to any game it runs, and lets you change them.
+                  {project
+                    ? "Coilbox applies every edit, to any game it runs, and lets you change them."
+                    : "Coilbox sets the whole thing up, colours and factions included, and lets you change it."}
                 </p>
               </div>
             ) : null}
