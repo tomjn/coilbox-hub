@@ -30,7 +30,7 @@ test("a preset's section asks for the commands in order and offers no Lua to rea
   );
   expect(html).toContain("!map Comet Catcher Remake 1.8");
   expect(html).toContain("!force %Barbarian team 2");
-  expect(html).toContain("in the order they are given");
+  expect(html).toContain("in the order they go in");
   expect(html).not.toContain("Read the Lua");
 });
 
@@ -39,7 +39,19 @@ test("a project's section still offers its Lua, and does not talk about joining"
     <LobbyCommands commands={lobbyCommands({ edits: { disabled: ["corak"] } })!} />,
   );
   expect(html).toContain("Read the Lua");
-  expect(html).not.toContain("in the order they are given");
+  expect(html).toContain("1 command");
+});
+
+test("every command sits in one block behind one copy button", () => {
+  const commands = presetCommands({
+    ...PRESET,
+    modOptionValues: { maxunits: "1000", deathmode: "com", startmetal: "1000" },
+  })!;
+  const html = renderToStaticMarkup(<LobbyCommands commands={commands} />);
+  expect(html.match(/<button/g) ?? []).toHaveLength(1);
+  // The first and the last, so nothing between them can have been left out.
+  expect(html).toContain("!map Comet Catcher Remake 1.8");
+  expect(html).toContain("!force %Barbarian team 2");
 });
 
 test("a preset nobody can rebuild says so in its own words", () => {
