@@ -61,6 +61,87 @@ function validUnitKey(key: string): boolean {
   return /^[a-z0-9_]+$/.test(key);
 }
 
+/** Whether a field path goes through a list position: a step of nothing but
+ *  digits, which is how the frontend writes one. Which entry that step is
+ *  depends on the game's own table (issue #3041), so every route that
+ *  carries such a change reads the table before it writes. */
+function throughAPosition(path: string): boolean {
+  return path.split(".").some((step) => step.length > 0 && /^[0-9]+$/.test(step));
+}
+
+/** A path step of digits, as the Lua number it is written as. Mirrors the
+ *  Rust side's `u64` parse: a value too large to be one is written as a
+ *  string instead, the same as any other step. */
+const U64_MAX = BigInt("0xffffffffffffffff");
+
+function stepLiteral(step: string): string {
+  if (/^[0-9]+$/.test(step)) {
+    const n = BigInt(step);
+    if (n <= U64_MAX) return n.toString();
+  }
+  return luaString(step);
+}
+
+/**
+ * Field changes through a list position, each applied to the table the game
+ * has when it loads (issue #3041).
+ *
+ * A step of digits is written as a Lua number and every other step as a
+ * string. `key` turns a number into the key the unit page meant, by the rule
+ * the unitsync worker reads a table with: a table numbered 1 to n is a list
+ * counted from zero, and any other table is keyed by its own keys. A table
+ * not there yet is made a list, as `writePath` above makes one. The last step
+ * is merged or set the way the patch table's own `merge` would, and a unit
+ * the game no longer has is skipped.
+ */
+function positionalBlock(changes: Array<[string, string, Json]>): string {
+  const entries = changes.map(([unit, path, value]) => {
+    const steps = path.split(".").map(stepLiteral);
+    return `    { ${luaString(unit)}, { ${steps.join(", ")} }, ${luaLiteral(value, "    ")} },`;
+  });
+  return [
+    "-- Field changes through a list position, matched against the game's own",
+    "-- list when it loads.",
+    "do",
+    "  local changes = {",
+    entries.join("\n"),
+    "  }",
+    "  local function key(list, at)",
+    "    local count = 0",
+    "    for _ in pairs(list) do count = count + 1 end",
+    "    if count == 0 or #list == count then return at + 1 end",
+    "    if list[at] == nil and list[tostring(at)] ~= nil then return tostring(at) end",
+    "    return at",
+    "  end",
+    "  local function merge(dest, src)",
+    "    for k, v in pairs(src) do",
+    '      if type(v) == "table" and type(dest[k]) == "table" then',
+    "        merge(dest[k], v)",
+    "      else",
+    "        dest[k] = v",
+    "      end",
+    "    end",
+    "  end",
+    "  for _, change in ipairs(changes) do",
+    "    local target, steps, value = UnitDefs[change[1]], change[2], change[3]",
+    "    for i = 1, #steps do",
+    '      if type(target) ~= "table" or value == nil then break end',
+    "      local step = steps[i]",
+    '      if type(step) == "number" then step = key(target, step) end',
+    "      if i < #steps then",
+    '        if type(target[step]) ~= "table" then target[step] = {} end',
+    "        target = target[step]",
+    '      elseif type(value) == "table" and type(target[step]) == "table" then',
+    "        merge(target[step], value)",
+    "      else",
+    "        target[step] = value",
+    "      end",
+    "    end",
+    "  end",
+    "end",
+  ].join("\n");
+}
+
 function arrayIndex(step: string): number | null {
   if (!/^[0-9]+$/.test(step)) return null;
   const index = Number(step);
@@ -382,13 +463,26 @@ export function compile(project: ModProject): CompiledProject {
 
   // Field changes against the game's own units. A patch and nothing more:
   // every field the project does not mention keeps following the game.
+  //
+  // A change through a list position is held apart from the rest (issue
+  // #3041). Its step means the position counted from zero in a list numbered
+  // 1 to n, and the Lua key itself in any other table, which is how the unit
+  // page read the game. Only the game's own table can say which, so it is a
+  // block that reads the table before it writes.
   const patches: Array<[string, string]> = [];
+  const positional: Array<[string, string, Json]> = [];
   let fields = 0;
   for (const [unit, patch] of sorted(edits.overrides)) {
     if (edits.clones.has(unit)) continue; // Folded into the copy's own definition.
-    fields += patch.size;
     const tree = new PatchTree();
-    for (const [path, value] of sorted(patch)) tree.insert(path, value);
+    for (const [path, value] of sorted(patch)) {
+      if (throughAPosition(path)) {
+        positional.push([unit, path, value]);
+      } else {
+        tree.insert(path, value);
+        fields += 1;
+      }
+    }
     if (!tree.isEmpty) patches.push([unit, tree.toLua("  ")]);
   }
   if (patches.length > 0) {
@@ -398,6 +492,15 @@ export function compile(project: ModProject): CompiledProject {
       reason:
         "Each one is a value the user typed, so none of them has to read the game's own first.",
       lua: table(patches),
+    });
+  }
+  if (positional.length > 0) {
+    chunks.push({
+      form: "block",
+      title: `${positional.length} field change${plural(positional.length)} through a list`,
+      reason:
+        "A list with a gap in it, such as weapons 1 and 3 and no 2, keeps its own numbers, so which entry each change is for has to be read off the game's own list.",
+      lua: positionalBlock(positional),
     });
   }
 
