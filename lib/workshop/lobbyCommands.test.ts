@@ -13,11 +13,12 @@ test("the project on issue #418 packs to one tweakdefs line", () => {
   expect(commands?.chunks[0].lua).toContain('["corak"] = true');
 });
 
-test("tweakunits lines come before tweakdefs lines", () => {
+test("a field change and a switched-off unit share one tweakdefs line", () => {
   const commands = lobbyCommands({
     edits: { overrides: { armcom: { maxDamage: 1 } }, disabled: ["corak"] },
   });
-  expect(commands?.lines.map((line) => line.split(" ")[1])).toEqual(["tweakunits", "tweakdefs"]);
+  expect(commands?.lines).toHaveLength(1);
+  expect(commands?.lines[0].split(" ")[1]).toBe("tweakdefs");
 });
 
 test("no lines at all when part of the project would be missing from them", () => {

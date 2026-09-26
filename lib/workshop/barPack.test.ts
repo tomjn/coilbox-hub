@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { minifyLua, packBarSlots } from "./barPack";
+import { packTweakSlots, minifyLua } from "./barPack";
 import { compile, TooLarge } from "./compile";
 import { readModProject } from "./project";
 import golden from "./vendor/bar-pack-golden.json";
@@ -14,13 +14,13 @@ for (const entry of golden) {
     expect(project).not.toBeNull();
     const { chunks } = compile(project!);
     expect(chunks).toEqual(entry.chunks as typeof chunks);
-    expect(packBarSlots(chunks)).toEqual(entry.pack);
+    expect(packTweakSlots(chunks)).toEqual(entry.pack);
   });
 }
 
-test("the fixture covers both slot kinds, a split and a chunk that fits nowhere", () => {
+test("the fixture covers a table chunk, a split and a chunk that fits nowhere", () => {
   const packs = golden.map((entry) => entry.pack);
-  expect(packs.some((p) => p.tweakunits.length > 0)).toBe(true);
+  expect(golden.some((entry) => entry.chunks.some((chunk) => chunk.form === "table"))).toBe(true);
   expect(packs.some((p) => p.tweakdefs.length > 1)).toBe(true);
   expect(packs.some((p) => p.oversized.length > 0)).toBe(true);
 });
@@ -41,17 +41,18 @@ test("every Lua string form survives minifying", () => {
   expect(minifyLua("x = a[b[1]]")).toBe("x = a[b[1]]");
 });
 
-// BAR reads a tweakunits payload through `gsub(dataRaw, "_", "=")` before
-// decoding, so an underscore is a byte the game loses. Its decoder reads the
-// standard alphabet too, which that gsub leaves alone.
-test("a tweakunits payload carries no character BAR would rewrite", () => {
+// A tweakunits slot has no spelling every checked game reads back (issue
+// #3126), so a table-form chunk goes to a tweakdefs slot instead, wrapped as
+// a block that merges it. That slot's alphabet is URL-safe, so a value that
+// would have needed a 63 reads back as `_`, never `/`.
+test("a table chunk's tweakdefs payload keeps the url-safe alphabet", () => {
   const project = readModProject({
     edits: { overrides: { corak: { name: "Танк?" } } },
   });
   const { chunks } = compile(project!);
-  const payload = packBarSlots(chunks).tweakunits[0].split(" ").pop()!;
-  expect(payload).not.toContain("_");
-  expect(payload).toContain("/");
+  const payload = packTweakSlots(chunks).tweakdefs[0].split(" ").pop()!;
+  expect(payload).not.toContain("/");
+  expect(payload).not.toContain("+");
 });
 
 test("a project coilbox could not parse is not read at all", () => {
