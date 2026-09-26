@@ -285,6 +285,44 @@ function addedBlock(entries: Array<[string, string]>): string {
   ].join("\n");
 }
 
+/**
+ * A table-form chunk as a `do ... end` block, for the numbered tweak slots
+ * (issue #3126). The table is merged onto `UnitDefs` by the same code the
+ * mutator route runs, rather than by a game's own `tweakunits` rule, so it
+ * reaches every game the same way.
+ *
+ * A port of `compile::table_as_block` and the write it shares with
+ * `write_patches_section`, held to it by `barPack.test.ts`.
+ */
+export function tableAsBlock(table: string): string {
+  return [
+    "do",
+    "-- Field changes. Only the fields the project set are here, so everything",
+    "-- else still follows the game when it updates.",
+    `local changes = ${table}`,
+    "",
+    "local function merge(dest, src)",
+    "  for key, value in pairs(src) do",
+    '    if type(value) == "table" and type(dest[key]) == "table" then',
+    "      merge(dest[key], value)",
+    "    else",
+    "      dest[key] = value",
+    "    end",
+    "  end",
+    "end",
+    "",
+    "-- A unit the game no longer has is skipped rather than created: a patch is a",
+    "-- change to a definition, and half of one is not a unit.",
+    "for name, patch in pairs(changes) do",
+    "  local def = UnitDefs[name]",
+    "  if def then",
+    "    merge(def, patch)",
+    "  end",
+    "end",
+    "end",
+  ].join("\n");
+}
+
 /** A whole definition standing in for one the game already loaded. */
 function replaceBlock(clone: UnitClone, def: Json): string {
   const from = clone.source === null ? "" : ` Copied from ${commentText(clone.source)}.`;

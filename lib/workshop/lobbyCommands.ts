@@ -14,7 +14,7 @@
  * first experience than being told to use the app.
  */
 
-import { type BarSlotPack, packBarSlots } from "./barPack";
+import { packTweakSlots, type TweakSlotPack } from "./barPack";
 import { type Chunk, compile, TooLarge } from "./compile";
 import { readModProject } from "./project";
 
@@ -46,7 +46,7 @@ function contestedNames(clones: Iterable<{ key: string }>): string[] {
   return [...seen].filter(([, n]) => n > 1).map(([key]) => key);
 }
 
-function missing(pack: BarSlotPack): string[] {
+function missing(pack: TweakSlotPack): string[] {
   return [
     ...pack.oversized.map((title) => `"${title}" is too long for one autohost command.`),
     ...pack.unplaced.map((title) => `"${title}" did not fit in the slots a lobby has.`),
@@ -70,7 +70,7 @@ export function lobbyCommands(payload: unknown): LobbyCommands | null {
   }
   if (compiled.chunks.length === 0) return null;
 
-  const pack = packBarSlots(compiled.chunks);
+  const pack = packTweakSlots(compiled.chunks);
   const withheld = [
     ...contestedNames(project.edits.clones.values()).map(
       (key) => `More than one copy in this project is named ${key}.`,
@@ -94,7 +94,7 @@ export function lobbyCommands(payload: unknown): LobbyCommands | null {
 
   return {
     kind: "project",
-    lines: withheld.length > 0 ? [] : [...pack.tweakunits, ...pack.tweakdefs],
+    lines: withheld.length > 0 ? [] : pack.tweakdefs,
     withheld,
     notCarried,
     chunks: compiled.chunks,
