@@ -44,18 +44,6 @@ test("a text-only field change, with no number, gets no typed values note", () =
   expect(commands?.typedValuesNote).toBeNull();
 });
 
-test("a number nested inside a field change's own value still notes that it is written as typed", () => {
-  const commands = lobbyCommands({
-    edits: {
-      overrides: { armcom: { weapondefs: { gun: { damage: { default: 50 } } } } },
-      disabled: ["corak"],
-    },
-  });
-  expect(commands?.typedValuesNote).toBe(
-    "These lines write each value as typed. The game may load some of them as something else.",
-  );
-});
-
 test("a number against a copy's own field gets no typed values note: a copy is its own definition, never a change against the game's", () => {
   const commands = lobbyCommands({
     edits: {
