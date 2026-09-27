@@ -8,12 +8,19 @@ import golden from "./vendor/bar-pack-golden.json";
 // of it (`tests/bar_pack_golden.rs` there writes the file). A failure here
 // after a vendor sync means coilbox changed what it emits, and the port in
 // this directory has to follow it.
+//
+// Coilbox's chunks also carry `unit`, the one unit a chunk is about, for its
+// preflight markers (coilbox 7a49afec). The hub draws no markers, so the port
+// does not emit it and the comparison leaves it out.
 for (const entry of golden) {
   test(`packs "${entry.name}" to the lines coilbox does`, () => {
     const project = readModProject(entry.project);
     expect(project).not.toBeNull();
     const { chunks } = compile(project!);
-    expect(chunks).toEqual(entry.chunks as typeof chunks);
+    const expected = entry.chunks.map((chunk) =>
+      Object.fromEntries(Object.entries(chunk).filter(([key]) => key !== "unit")),
+    );
+    expect(chunks).toEqual(expected as unknown as typeof chunks);
     expect(packTweakSlots(chunks)).toEqual(entry.pack);
   });
 }
