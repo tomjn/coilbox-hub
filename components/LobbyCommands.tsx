@@ -16,7 +16,7 @@ import { CopyCommands } from "./CopyCommands";
  * to know.
  */
 export function LobbyCommands({ commands }: { commands: Commands }) {
-  const { kind, lines, withheld, notCarried, chunks } = commands;
+  const { kind, lines, withheld, notCarried, chunks, typedValuesNote } = commands;
   const preset = kind === "preset";
 
   return (
@@ -35,7 +35,12 @@ export function LobbyCommands({ commands }: { commands: Commands }) {
       </div>
 
       {lines.length > 0 ? (
-        <CopyCommands lines={lines} />
+        <>
+          <CopyCommands lines={lines} />
+          {typedValuesNote ? (
+            <p className="text-sm text-neutral-400">{typedValuesNote}</p>
+          ) : null}
+        </>
       ) : (
         <div className="flex flex-col gap-1.5 text-sm text-neutral-400">
           <p>

@@ -16,6 +16,7 @@
 
 import { packTweakSlots, type TweakSlotPack } from "./barPack";
 import { type Chunk, compile, TooLarge } from "./compile";
+import type { ModProject } from "./project";
 import { readModProject } from "./project";
 
 export interface LobbyCommands {
@@ -32,6 +33,30 @@ export interface LobbyCommands {
   notCarried: string[];
   /** The readable Lua, for somebody who wants to see what they are pasting. */
   chunks: Chunk[];
+  /** Said beside the lines when a field change writes a number: a game's own
+   *  Lua can turn a typed number into a different one as it loads, and only
+   *  the app can load the game to check and write the number it turns into
+   *  instead (issue #3121). `null` when nothing in the lines could be one of
+   *  those, or the item is a preset, which sets options as text rather than
+   *  as a typed field. */
+  typedValuesNote: string | null;
+}
+
+const TYPED_VALUES_NOTE =
+  "These lines write each value as typed. The game may load some of them as something else.";
+
+/** Whether a field change in the lines could be one of the numbers a game's
+ *  own Lua rewrites while it loads. A copy's own fields are excluded: they
+ *  are written as a whole definition rather than a change against the game's,
+ *  and no route settles them either (issue #3121). */
+function hasTypedFieldChanges(project: ModProject): boolean {
+  for (const [unit, patch] of project.edits.overrides) {
+    if (project.edits.clones.has(unit)) continue;
+    for (const value of patch.values()) {
+      if (typeof value === "number") return true;
+    }
+  }
+  return false;
 }
 
 function plural(n: number): string {
@@ -98,5 +123,7 @@ export function lobbyCommands(payload: unknown): LobbyCommands | null {
     withheld,
     notCarried,
     chunks: compiled.chunks,
+    typedValuesNote:
+      withheld.length === 0 && hasTypedFieldChanges(project) ? TYPED_VALUES_NOTE : null,
   };
 }

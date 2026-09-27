@@ -286,5 +286,8 @@ export function presetCommands(
     withheld,
     notCarried,
     chunks: [],
+    // A preset sets mod options as text values chosen in the app, not a typed
+    // field a game's own Lua can turn into something else (issue #3121).
+    typedValuesNote: null,
   };
 }
