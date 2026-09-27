@@ -16,6 +16,7 @@
 
 import { packTweakSlots, type TweakSlotPack } from "./barPack";
 import { type Chunk, compile, TooLarge } from "./compile";
+import type { Json } from "./lua";
 import type { ModProject } from "./project";
 import { readModProject } from "./project";
 
@@ -45,6 +46,20 @@ export interface LobbyCommands {
 const TYPED_VALUES_NOTE =
   "These lines write each value as typed. The game may load some of them as something else.";
 
+/** Whether a value, or anything nested inside it, is a number. A field's own
+ *  path is a flat dotted string in every override coilbox's own editors
+ *  write, but the value at that path is JSON and nothing here refuses a
+ *  compound one: an import can carry one, and `compile`'s `writePath` writes
+ *  it out exactly as given, nested numbers and all (issue #3121). */
+function hasTypedNumber(value: Json): boolean {
+  if (typeof value === "number") return true;
+  if (Array.isArray(value)) return value.some(hasTypedNumber);
+  if (typeof value === "object" && value !== null) {
+    return Object.values(value).some(hasTypedNumber);
+  }
+  return false;
+}
+
 /** Whether a field change in the lines could be one of the numbers a game's
  *  own Lua rewrites while it loads. A copy's own fields are excluded: they
  *  are written as a whole definition rather than a change against the game's,
@@ -53,7 +68,7 @@ function hasTypedFieldChanges(project: ModProject): boolean {
   for (const [unit, patch] of project.edits.overrides) {
     if (project.edits.clones.has(unit)) continue;
     for (const value of patch.values()) {
-      if (typeof value === "number") return true;
+      if (hasTypedNumber(value)) return true;
     }
   }
   return false;
