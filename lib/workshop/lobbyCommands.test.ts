@@ -21,6 +21,40 @@ test("a field change and a switched-off unit share one tweakdefs line", () => {
   expect(commands?.lines[0].split(" ")[1]).toBe("tweakdefs");
 });
 
+test("a typed number changed against the game's own unit notes that it is written as typed", () => {
+  const commands = lobbyCommands({
+    edits: { overrides: { armcom: { maxDamage: 1 } }, disabled: ["corak"] },
+  });
+  expect(commands?.typedValuesNote).toBe(
+    "These lines write each value as typed. The game may load some of them as something else.",
+  );
+});
+
+test("a switched-off unit alone, with no field change, gets no typed values note", () => {
+  const commands = lobbyCommands({
+    edits: { disabled: ["corak"] },
+  });
+  expect(commands?.typedValuesNote).toBeNull();
+});
+
+test("a text-only field change, with no number, gets no typed values note", () => {
+  const commands = lobbyCommands({
+    edits: { overrides: { armcom: { description: "x" } }, disabled: ["corak"] },
+  });
+  expect(commands?.typedValuesNote).toBeNull();
+});
+
+test("a number against a copy's own field gets no typed values note: a copy is its own definition, never a change against the game's", () => {
+  const commands = lobbyCommands({
+    edits: {
+      clones: { armhuge: { key: "armhuge", def: { maxDamage: 1 } } },
+      overrides: { armhuge: { maxDamage: 2 } },
+      disabled: ["corak"],
+    },
+  });
+  expect(commands?.typedValuesNote).toBeNull();
+});
+
 test("no lines at all when part of the project would be missing from them", () => {
   const commands = lobbyCommands({
     edits: {
