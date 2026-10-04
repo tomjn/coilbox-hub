@@ -15,6 +15,7 @@ import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { filterHref, PAGE_SIZE, parseFilters } from "@/lib/gallery/query";
 import { Button } from "@/components/Button";
+import { SearchShortcut } from "@/components/SearchShortcut";
 
 export const metadata: Metadata = {
   title: "Gallery",
@@ -59,6 +60,7 @@ export default async function Gallery({
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={hub} strength={BACKDROP_STRENGTH} />
+      <SearchShortcut inputId="gallery-q" />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold tracking-tight">Gallery</h1>
@@ -80,8 +82,10 @@ export default async function Gallery({
             <input key={author} type="hidden" name="author" value={author} />
           ))}
           <input
+            id="gallery-q"
             type="search"
             name="q"
+            aria-keyshortcuts="/"
             aria-label="Search titles and descriptions"
             defaultValue={filters.q ?? ""}
             placeholder="Search titles and descriptions"

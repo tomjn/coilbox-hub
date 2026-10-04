@@ -17,6 +17,7 @@ import {
   parseFilters,
 } from "@/lib/maps/query";
 import { Button } from "@/components/Button";
+import { SearchShortcut } from "@/components/SearchShortcut";
 
 /**
  * Every map the hub knows about (issue #189).
@@ -79,6 +80,7 @@ export default async function Maps({
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={skirmish} strength={BACKDROP_STRENGTH} />
+      <SearchShortcut inputId="maps-q" />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold tracking-tight">Maps</h1>
@@ -101,6 +103,7 @@ export default async function Maps({
               id="maps-q"
               type="search"
               name="q"
+              aria-keyshortcuts="/"
               defaultValue={filters.q ?? ""}
               className={CONTROL}
             />
