@@ -8,7 +8,7 @@ import {
   ITEMS_VERSION,
   parseApiFilters,
 } from "./items";
-import { PAGE_SIZE } from "@/lib/gallery/query";
+import { maxPage, PAGE_SIZE } from "@/lib/gallery/query";
 import type { ItemSummary } from "@/lib/gallery/query";
 
 const SUMMARY: ItemSummary = {
@@ -148,4 +148,41 @@ test("an unrecognised sort is rejected rather than falling back to newest", () =
   if (!result.ok) {
     expect(result.error).toBe("Unknown sort: oldest");
   }
+});
+
+test("the largest valid page is accepted", () => {
+  const last = maxPage(PAGE_SIZE);
+  const result = parseApiFilters(new URLSearchParams(`page=${last}`));
+
+  expect(result.ok).toBe(true);
+  if (result.ok) expect(result.filters.page).toBe(last);
+});
+
+test("a page too large to be a real page is a 400, not page one under another number", () => {
+  const tooLarge = [
+    String(maxPage(PAGE_SIZE) + 1),
+    "99999999999999999999",
+    "9".repeat(400),
+  ];
+  for (const page of tooLarge) {
+    const result = parseApiFilters(new URLSearchParams(`page=${page}`));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe(`page is too large. The highest page is ${maxPage(PAGE_SIZE)}.`);
+  }
+});
+
+test("a page that is not a positive number still falls back to the first", () => {
+  for (const page of ["0", "-1", "1.5", "1e3", "abc", ""]) {
+    const result = parseApiFilters(new URLSearchParams(`page=${page}`));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.filters.page).toBe(1);
+  }
+});
+
+test("a repeated page is rejected", () => {
+  const result = parseApiFilters(new URLSearchParams("page=2&page=1"));
+
+  expect(result.ok).toBe(false);
 });

@@ -11,6 +11,7 @@ import {
   fetchAccounts,
   type ModeratorAccount,
 } from "@/lib/moderation/accounts";
+import { parsePage } from "@/lib/gallery/query";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -84,8 +85,7 @@ export default async function Accounts({ searchParams }: PageProps<"/moderation/
 
   const { q, page } = await searchParams;
   const term = typeof q === "string" ? q.trim() : "";
-  const pageNumber = Number.parseInt(typeof page === "string" ? page : "", 10);
-  const current = Number.isFinite(pageNumber) && pageNumber > 0 ? pageNumber : 1;
+  const current = parsePage(typeof page === "string" ? page : null, ACCOUNT_PAGE_SIZE) ?? 1;
 
   const { accounts, error } = await fetchAccounts(
     supabase,

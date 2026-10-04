@@ -1,12 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { expect, test } from "bun:test";
-import { PAGE_SIZE } from "@/lib/gallery/query";
+import { maxPage, PAGE_SIZE } from "@/lib/gallery/query";
 import {
   applyFilters,
   applyOrder,
   applySort,
   filterHref,
   isFiltered,
+  MAP_PAGE_SIZE,
   type MapSort,
   parseFilters,
   resolveAuthorKey,
@@ -267,6 +268,9 @@ test("a sort nobody has heard of falls back to the one a bare listing uses", () 
 test("a nonsense page or player count falls back to no filter at all", () => {
   expect(parseFilters({ page: "0" }).page).toBe(1);
   expect(parseFilters({ page: "banana" }).page).toBe(1);
+  expect(parseFilters({ page: "99999999999999999999" }).page).toBe(1);
+  expect(parseFilters({ page: String(maxPage(MAP_PAGE_SIZE) + 1) }).page).toBe(1);
+  expect(parseFilters({ page: String(maxPage(MAP_PAGE_SIZE)) }).page).toBe(maxPage(MAP_PAGE_SIZE));
   expect(parseFilters({ players: "0" }).players).toBeNull();
   expect(parseFilters({ players: "-4" }).players).toBeNull();
   expect(parseFilters({ players: "lots" }).players).toBeNull();

@@ -4,6 +4,29 @@ import { GALLERY_KINDS, type GalleryKind } from "@/lib/container";
  * story early on, large enough not to page constantly later. */
 export const PAGE_SIZE = 24;
 
+/**
+ * The highest page whose first row number, `page * pageSize`, is still a safe
+ * integer. A larger page makes the range offset lose precision, and past 1e21
+ * JavaScript writes it in exponent form, which PostgREST ignores and so serves
+ * the first rows under a page number that cannot hold any.
+ */
+export function maxPage(pageSize: number): number {
+  return Math.floor(Number.MAX_SAFE_INTEGER / pageSize);
+}
+
+/** A page number from a query string, or null when it is not a page: not a
+ *  number, below one, or past {@link maxPage}. */
+export function parsePage(value: string | null | undefined, pageSize: number): number | null {
+  const page = Number.parseInt(value ?? "", 10);
+  return Number.isInteger(page) && page > 0 && page <= maxPage(pageSize) ? page : null;
+}
+
+/** A positive number that {@link parsePage} refuses only for being too large. */
+export function isPageTooLarge(value: string | null | undefined, pageSize: number): boolean {
+  const page = Number.parseInt(value ?? "", 10);
+  return page > 0 && parsePage(value, pageSize) === null;
+}
+
 /** A break in the run of page numbers, which a pager draws as an ellipsis
  *  rather than as a link. */
 export const PAGE_GAP = "gap";
@@ -253,7 +276,6 @@ function many(value: string | string[] | undefined): string[] {
 export function parseFilters(
   params: Record<string, string | string[] | undefined>,
 ): Filters {
-  const page = Number.parseInt(one(params.page) ?? "1", 10);
   const sort = one(params.sort);
 
   return {
@@ -269,7 +291,7 @@ export function parseFilters(
       sort && (SORT_ORDERS as readonly string[]).includes(sort)
         ? (sort as SortOrder)
         : "newest",
-    page: Number.isFinite(page) && page > 0 ? page : 1,
+    page: parsePage(one(params.page), PAGE_SIZE) ?? 1,
   };
 }
 
