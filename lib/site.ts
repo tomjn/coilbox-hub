@@ -14,3 +14,23 @@ export function siteUrl(): string {
   const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
   return host ? `https://${host}` : "http://localhost:3000";
 }
+
+/**
+ * The origin an import link carries: the address of the deployment serving the
+ * page.
+ *
+ * Read from the environment rather than the request, so a page can build its
+ * import links without waiting on request headers and stay in the prerendered
+ * shell. `VERCEL_ENV` and `VERCEL_URL` are set at build and at run time, and a
+ * deployment's output is only ever served by that deployment, so the value
+ * baked in at build is the right one.
+ *
+ * Production resolves to the production domain, a preview to its own deployment
+ * URL (not its branch alias) and local development to localhost on port 3000.
+ *
+ * Server only, for the same reason as `siteUrl()`.
+ */
+export function importOrigin(): string {
+  const preview = process.env.VERCEL_ENV === "preview" ? process.env.VERCEL_URL : undefined;
+  return preview ? `https://${preview}` : siteUrl();
+}
