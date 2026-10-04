@@ -5,8 +5,10 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import Loading from "@/app/loading";
+import { Skeleton } from "@/components/Skeleton";
 import { StatTable } from "@/components/StatTable";
 import { UnitCard } from "@/components/UnitCard";
+import { UnitComparePicker } from "@/components/UnitComparePicker";
 import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
 import { StageStats, StageStrip } from "@/components/UnitStages";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
@@ -284,6 +286,12 @@ async function UnitContent({ params, searchParams }: UnitProps) {
             <UnitGrid game={shortname} units={page.builds} pictures={buildPictures} />
           )}
         </section>
+
+        {/* Behind a boundary of its own: the list of the game's unit names is a
+            read the rest of the page does not need to wait for. */}
+        <Suspense fallback={<Skeleton className="h-16 w-full" />}>
+          <UnitComparePicker game={shortname} unit={page.unit_name} />
+        </Suspense>
 
         {page.versions.length > 0 ? (
           <section className="flex flex-col gap-3" aria-labelledby="unit-versions">
