@@ -7,6 +7,7 @@ import { archives } from "@/components/art/drawings";
 import { ModerationNav } from "@/components/ModerationNav";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { MAP_PACK_TITLE_MAX, fetchMapPacks } from "@/lib/maps/packs";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { createMapPack } from "./actions";
 
@@ -40,7 +41,7 @@ export default async function MapPacks() {
   // Not a 403, for the same reason as every other moderation page.
   if (!allowed) notFound();
 
-  const { packs, error } = await fetchMapPacks(supabase);
+  const { packs, error } = await fetchMapPacks(supabase, createAdminClient());
 
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">

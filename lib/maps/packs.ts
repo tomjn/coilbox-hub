@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllPages } from "@/lib/gallery/query";
+import { fetchMapListingRule, ruleListsMap } from "./lookup";
 
 /**
  * Map packs: named bundles of maps a moderator puts together for coilbox's Map
@@ -17,6 +18,8 @@ export interface MapPackEntry {
   slug: string | null;
   displayName: string | null;
   archiveFilename: string | null;
+  /** The map's page says not found, so the API leaves it out of the pack. */
+  takenDown: boolean;
 }
 
 export interface MapPack {
@@ -59,14 +62,23 @@ function comparePacks(a: PackRow, b: PackRow): number {
 /**
  * Every pack with its maps, or an error.
  *
+ * `licence` is a client that may read `asset_licence`, which only the secret key
+ * can. Each entry says whether the map page's rule has taken that map down. It
+ * is marked rather than dropped so the moderation pages can show it. An
+ * unreadable rule is an error, never a pack that lists everything.
+ *
  * Entries are paged rather than read in one request. A pack of every map on a
  * mirror can pass the Data API's per request row cap on its own, and a read cut
  * short by the cap looks exactly like a smaller pack.
  */
 export async function fetchMapPacks(
   supabase: SupabaseClient,
+  licence: SupabaseClient,
   onlyId?: string,
 ): Promise<{ packs: MapPack[]; error: string | null }> {
+  const gate = await fetchMapListingRule(licence);
+  if (!gate.ok) return { packs: [], error: "The licence rule could not be read." };
+
   let packQuery = supabase.from("map_pack").select("id, title, blurb, featured_at");
   if (onlyId) packQuery = packQuery.eq("id", onlyId);
   const { data: packRows, error: packError } = await packQuery;
@@ -92,6 +104,7 @@ export async function fetchMapPacks(
       slug: row.slug,
       displayName: row.display_name,
       archiveFilename: row.archive_filename,
+      takenDown: !ruleListsMap(gate.rule, row.map_name),
     });
     byPack.set(row.pack_id, entries);
   }
@@ -109,8 +122,12 @@ export async function fetchMapPacks(
 
 /** One pack with its maps, or null when there is no such pack or it could not
  *  be read. For the moderation page, where either way there is nothing to draw. */
-export async function fetchMapPack(supabase: SupabaseClient, id: string): Promise<MapPack | null> {
-  const { packs, error } = await fetchMapPacks(supabase, id);
+export async function fetchMapPack(
+  supabase: SupabaseClient,
+  licence: SupabaseClient,
+  id: string,
+): Promise<MapPack | null> {
+  const { packs, error } = await fetchMapPacks(supabase, licence, id);
   if (error) return null;
   return packs[0] ?? null;
 }

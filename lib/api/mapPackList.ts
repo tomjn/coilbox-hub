@@ -25,6 +25,9 @@ import type { MapPack } from "@/lib/maps/packs";
  * A pack with no maps. Coilbox would draw it as a pack with nothing to download,
  * which is a moderator's half finished pack rather than something to offer.
  *
+ * A map that has been taken down for licence reasons, so a pack whose maps were
+ * all taken down is left out the same way.
+ *
  * Unfeatured packs are listed, with `featured: false`, the way `/games` lists
  * unfeatured games. Coilbox only shows the featured ones.
  */
@@ -60,6 +63,7 @@ export function buildMapPackListBody(packs: MapPack[]): MapPackListResponseBody 
     format: MAP_PACK_LIST_FORMAT,
     version: MAP_PACK_LIST_VERSION,
     packs: packs
+      .map((pack) => ({ ...pack, maps: pack.maps.filter((map) => !map.takenDown) }))
       .filter((pack) => pack.maps.length > 0)
       .map((pack) => ({
         id: pack.id,

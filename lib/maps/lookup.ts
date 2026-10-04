@@ -201,6 +201,11 @@ export async function fetchMapListingRule(
   return { ok: true, rule: { kind: open ? "except" : "only", names } };
 }
 
+/** Whether the rule lists this map, for a read that is not a query on `map_name`. */
+export function ruleListsMap(rule: MapListingRule, mapName: string): boolean {
+  return rule.names.includes(mapName) === (rule.kind === "only");
+}
+
 /** The part of the query builder that {@link applyListingRule} uses. */
 interface RuleQuery<Query> {
   not(column: string, operator: string, value: string): Query;

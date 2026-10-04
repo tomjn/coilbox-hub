@@ -39,6 +39,22 @@ test("adding says how many lines matched and names the ones that did not", () =>
   );
 });
 
+/** The secret key client's one read, the licence table, with an open blanket row
+ *  and a per map row that takes "Gone 1" down. */
+const LICENCES = [
+  { all_maps: true, map_name: null, redistribute_extracted: "allowed", redistribute_rendered: "allowed" },
+  { all_maps: null, map_name: "Gone 1", redistribute_extracted: "denied", redistribute_rendered: "denied" },
+];
+
+function licenceClient(rows: unknown[] | null = LICENCES) {
+  const result = rows
+    ? { data: rows, count: rows.length, error: null }
+    : { data: null, count: null, error: { message: "down" } };
+  return {
+    from: () => ({ select: () => ({ or: () => Promise.resolve(result) }) }),
+  } as unknown as SupabaseClient;
+}
+
 /** A stand in for the two reads fetchMapPacks makes. Every builder method
  *  returns the same chain, and awaiting it answers the table's rows. */
 function fakeClient(tables: Record<string, { data: unknown[]; error: null | { message: string } }>) {
@@ -78,13 +94,14 @@ test("packs come back featured first, newest feature first, then by title, each 
         error: null,
       },
     }),
+    licenceClient(),
   );
 
   expect(error).toBeNull();
   expect(packs.map((pack) => pack.id)).toEqual(["new", "old", "a", "b"]);
   expect(packs[0].maps).toEqual([
-    { mapName: "Isis 1.3", slug: "isis-1-3", displayName: null, archiveFilename: "isis_1.3.sd7" },
-    { mapName: "Gone 1", slug: null, displayName: null, archiveFilename: null },
+    { mapName: "Isis 1.3", slug: "isis-1-3", displayName: null, archiveFilename: "isis_1.3.sd7", takenDown: false },
+    { mapName: "Gone 1", slug: null, displayName: null, archiveFilename: null, takenDown: true },
   ]);
   expect(packs[1].maps).toEqual([]);
 });
@@ -95,8 +112,25 @@ test("a failed read is an error, not an empty list", async () => {
       map_pack: { data: [], error: null },
       map_pack_entry: { data: [], error: { message: "down" } },
     }),
+    licenceClient(),
   );
 
   expect(error).toBe("down");
+  expect(packs).toEqual([]);
+});
+
+test("a licence rule that cannot be read is an error, not a pack that lists everything", async () => {
+  const { packs, error } = await fetchMapPacks(
+    fakeClient({
+      map_pack: { data: [{ id: "a", title: "Alpha", blurb: null, featured_at: null }], error: null },
+      map_pack_entry: {
+        data: [{ pack_id: "a", map_name: "Gone 1", slug: null, display_name: null, archive_filename: null }],
+        error: null,
+      },
+    }),
+    licenceClient(null),
+  );
+
+  expect(error).not.toBeNull();
   expect(packs).toEqual([]);
 });

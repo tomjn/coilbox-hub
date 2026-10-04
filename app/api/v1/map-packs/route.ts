@@ -2,6 +2,7 @@ import { corsPreflight } from "@/lib/api/cors";
 import { buildMapPackListBody } from "@/lib/api/mapPackList";
 import { apiError, apiJson } from "@/lib/api/response";
 import { fetchMapPacks } from "@/lib/maps/packs";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createAnonClient } from "@/lib/supabase/anon";
 
 /**
@@ -13,11 +14,15 @@ import { createAnonClient } from "@/lib/supabase/anon";
  * reason that route gives: an empty list is a claim that there are no packs.
  * Coilbox reads either as "no hub packs today", so the difference is for anyone
  * else reading the route.
+ *
+ * A map taken down for licence reasons is left out of its pack, by the rule the
+ * map page applies. That rule needs the secret key, and a failed read of it is a
+ * 503 too, never a list of every map.
  */
 export const OPTIONS = corsPreflight;
 
 export async function GET() {
-  const { packs, error } = await fetchMapPacks(createAnonClient());
+  const { packs, error } = await fetchMapPacks(createAnonClient(), createAdminClient());
   if (error) {
     console.error("GET /api/v1/map-packs: the packs could not be read", error);
     return apiError("The map packs could not be read just now.", 503);

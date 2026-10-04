@@ -7,7 +7,9 @@ function pack(fields: Partial<MapPack> & Pick<MapPack, "id">): MapPack {
     title: "BAR maps",
     blurb: null,
     featuredAt: null,
-    maps: [{ mapName: "Isis 1.3", slug: "isis-1-3", displayName: null, archiveFilename: null }],
+    maps: [
+      { mapName: "Isis 1.3", slug: "isis-1-3", displayName: null, archiveFilename: null, takenDown: false },
+    ],
     ...fields,
   };
 }
@@ -33,6 +35,7 @@ test("a featured pack comes out in coilbox's HubMapPack shape", () => {
           slug: "comet-catcher-remake-1-8",
           displayName: "Comet Catcher",
           archiveFilename: "comet_catcher_remake_1.8.sd7",
+          takenDown: false,
         },
       ],
     }),
@@ -60,7 +63,7 @@ test("a map the catalog no longer holds goes out under its name alone", () => {
   const [row] = buildMapPackListBody([
     pack({
       id: "p",
-      maps: [{ mapName: "Isis 1.3", slug: null, displayName: null, archiveFilename: null }],
+      maps: [{ mapName: "Isis 1.3", slug: null, displayName: null, archiveFilename: null, takenDown: false }],
     }),
   ]).packs;
 
@@ -79,4 +82,15 @@ test("an empty pack is left out, and the order given is kept", () => {
   ]);
 
   expect(body.packs.map((row) => row.id)).toEqual(["first", "second"]);
+});
+
+test("a map taken down is left out, and a pack left with no maps goes with it", () => {
+  const down = { mapName: "Taken Down 1.0", slug: null, displayName: null, archiveFilename: null, takenDown: true };
+  const body = buildMapPackListBody([
+    pack({ id: "mixed", maps: [down, { ...down, mapName: "Isis 1.3", takenDown: false }] }),
+    pack({ id: "only-down", maps: [down] }),
+  ]);
+
+  expect(body.packs.map((entry) => entry.id)).toEqual(["mixed"]);
+  expect(body.packs[0].maps.map((map) => map.id)).toEqual(["Isis 1.3"]);
 });

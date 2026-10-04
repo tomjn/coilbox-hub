@@ -8,6 +8,7 @@ import { ModerationCrumb, ModerationNav } from "@/components/ModerationNav";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { isUuid } from "@/lib/assets/queue";
 import { MAP_PACK_BLURB_MAX, MAP_PACK_TITLE_MAX, fetchMapPack } from "@/lib/maps/packs";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   addMapsToPack,
@@ -55,7 +56,7 @@ export default async function MapPackPage({ params }: PageProps<"/moderation/map
 
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const pack = await fetchMapPack(supabase, id);
+  const pack = await fetchMapPack(supabase, createAdminClient(), id);
   if (!pack) notFound();
 
   const featured = pack.featuredAt !== null;
@@ -166,6 +167,11 @@ export default async function MapPackPage({ params }: PageProps<"/moderation/map
                     // downloads by. Only the title and filename are missing.
                     <span className="min-w-0 break-words text-neutral-400">
                       {map.mapName} (not in the catalog right now)
+                    </span>
+                  )}
+                  {map.takenDown && (
+                    <span className="shrink-0 text-xs text-neutral-400">
+                      Taken down, so Coilbox is not offered it
                     </span>
                   )}
                   <VisibilityToggleForm
