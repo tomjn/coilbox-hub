@@ -72,7 +72,8 @@ export async function sitemapMaps(): Promise<SitemapSource["maps"]> {
   return rows.filter((row) => published.has(row.map_name)).map((row) => ({ slug: row.slug }));
 }
 
-/** Games that are not hidden, with their live units. Row level security
+/** Games that are not hidden, with their live units and how many releases each
+ *  holds. A game with two or more has a page of changes between them. Row level security
  *  (`game_read_visible`, `game_unit_read_visible`) leaves out a hidden game and
  *  its units. A unit a release retired (`removed_at`) is left out, as it is
  *  from the units grid by default. */
@@ -83,7 +84,7 @@ export async function sitemapGames(): Promise<SitemapSource["games"]> {
 
   if (notConfigured()) return [];
   const supabase = createAnonClient();
-  const [games, units] = await Promise.all([
+  const [games, units, versions] = await Promise.all([
     readAll<{ shortname: string }>((from, to) =>
       supabase.from("game").select("shortname").order("shortname").range(from, to),
     ),
@@ -96,10 +97,26 @@ export async function sitemapGames(): Promise<SitemapSource["games"]> {
         .order("unit_name")
         .range(from, to),
     ),
+    readAll<{ game: { shortname: string } }>((from, to) =>
+      supabase
+        .from("game_version")
+        .select("game!inner(shortname)")
+        .order("game_id")
+        .order("id")
+        .range(from, to),
+    ),
   ]);
 
+  const releases = new Map<string, number>();
+  for (const version of all(versions, "the releases")) {
+    releases.set(version.game.shortname, (releases.get(version.game.shortname) ?? 0) + 1);
+  }
   const byGame = new Map<string, string[]>();
   for (const game of all(games, "the games")) byGame.set(game.shortname, []);
   for (const unit of all(units, "the units")) byGame.get(unit.game.shortname)?.push(unit.unit_name);
-  return [...byGame].map(([shortname, held]) => ({ shortname, units: held }));
+  return [...byGame].map(([shortname, held]) => ({
+    shortname,
+    units: held,
+    releases: releases.get(shortname) ?? 0,
+  }));
 }

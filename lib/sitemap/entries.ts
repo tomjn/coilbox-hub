@@ -7,7 +7,7 @@ export const SITEMAP_LIMIT = 50_000;
 export interface SitemapSource {
   items: { id: string; updated_at: string }[];
   maps: { slug: string }[];
-  games: { shortname: string; units: string[] }[];
+  games: { shortname: string; units: string[]; releases: number }[];
 }
 
 /**
@@ -33,6 +33,8 @@ export function sitemapEntries(origin: string, source: SitemapSource): MetadataR
     ...source.games.flatMap((game) => [
       { url: `${origin}/games/${part(game.shortname)}` },
       { url: `${origin}/games/${part(game.shortname)}/units` },
+      // The page compares two releases, so a game with one has nothing on it.
+      ...(game.releases >= 2 ? [{ url: `${origin}/games/${part(game.shortname)}/changes` }] : []),
       ...game.units.map((unit) => ({ url: `${origin}/games/${part(game.shortname)}/units/${part(unit)}` })),
     ]),
   ];

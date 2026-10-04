@@ -15,7 +15,7 @@ import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle, itemCardLabel, saysMoreThanName } from "@/lib/games/labels";
-import { gamePageCached, gameSidesCached } from "@/lib/games/cached";
+import { gamePageCached, gameReleasesCached, gameSidesCached } from "@/lib/games/cached";
 import { downloadHref, type GameDownload } from "@/lib/games/download";
 import { editableGameForPage } from "@/lib/games/editor";
 import type { GamePageFaction } from "@/lib/games/page";
@@ -312,6 +312,8 @@ async function GameContent({ params }: { params: Params }) {
   // switch. Anybody else sees neither, because who owns a game is not a fact a
   // visitor needs.
   const commanders = (await gameSidesCached([page.shortname])).get(page.shortname)?.commanders;
+  // A comparison needs two releases to compare.
+  const releaseCount = (await gameReleasesCached(page.shortname)).length;
   const factionSlots = page.factions.some(
     (faction) => faction.logo_path !== null || commanders?.has(faction.key),
   );
@@ -393,6 +395,13 @@ async function GameContent({ params }: { params: Params }) {
               name="Build tree"
               detail="What each faction can reach from its start units"
             />
+            {releaseCount >= 2 ? (
+              <Onward
+                href={`/games/${shortname}/changes`}
+                name="Release changes"
+                detail="What each release added, removed and changed"
+              />
+            ) : null}
             <Onward
               href={`/gallery?game=${encodeURIComponent(shortname)}`}
               name="Community items"
