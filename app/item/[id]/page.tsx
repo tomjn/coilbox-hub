@@ -22,7 +22,6 @@ import {
 } from "@/lib/gallery/itemCached";
 import { itemPictures } from "@/lib/gallery/itemPictures";
 import { itemLabel } from "@/lib/gallery/label";
-import { requestOrigin } from "@/lib/gallery/origin";
 import { startPosNote } from "@/lib/gallery/presetPreview";
 import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
 import {
@@ -33,6 +32,7 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lobbyCommands } from "@/lib/workshop/lobbyCommands";
 import { presetCommands } from "@/lib/workshop/presetCommands";
+import { importOrigin } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser, isModerator } from "@/lib/supabase/user";
 import { setItemFeatured } from "../actions";
@@ -148,7 +148,7 @@ export default async function Item({
   const mine = Boolean(owned);
   const withdrawn = Boolean(owned?.deleted_at);
 
-  const origin = await requestOrigin();
+  const origin = importOrigin();
   const shareUrl = `${origin}/i/${item.id}`;
   const { drawing, strength } = itemArt(item.kind, item.mode);
 

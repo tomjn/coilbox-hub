@@ -10,8 +10,8 @@ import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
 import { cardTitles } from "@/lib/gallery/cardTitles";
 import { featuredItems, newestItems } from "@/lib/gallery/cached";
 import { kindsPlural } from "@/lib/gallery/label";
-import { requestOrigin } from "@/lib/gallery/origin";
 import { parseFilters } from "@/lib/gallery/query";
+import { importOrigin } from "@/lib/site";
 
 // Scales the shape opacities in `HubArt` down from their PR #61 panel
 // tuning: sitting behind the hero text at full viewport size, that tuning
@@ -24,7 +24,7 @@ const outlineButton =
   buttonClass("ghost", { className: "font-medium", size: "lg" });
 
 export default async function Home() {
-  const origin = await requestOrigin();
+  const origin = importOrigin();
   // Neither read waits on the other, so they start together. Both are `"use cache"`
   // reads, and when the cache is being filled they would otherwise run in turn.
   const [

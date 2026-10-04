@@ -12,8 +12,8 @@ import { cardTitles } from "@/lib/gallery/cardTitles";
 import { galleryPage } from "@/lib/gallery/cached";
 import { GALLERY_KINDS } from "@/lib/container";
 import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
-import { requestOrigin } from "@/lib/gallery/origin";
 import { filterHref, PAGE_SIZE, parseFilters } from "@/lib/gallery/query";
+import { importOrigin } from "@/lib/site";
 import { Button } from "@/components/Button";
 import { SearchShortcut } from "@/components/SearchShortcut";
 
@@ -35,7 +35,7 @@ export default async function Gallery({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const filters = parseFilters(await searchParams);
-  const origin = await requestOrigin();
+  const origin = importOrigin();
   // The rows, the count and the chips, all held between requests. The filters
   // are the cache key, so a filtered view is held separately from a bare one.
   // `lib/gallery/cached.ts` says why the reads moved out of the page.
