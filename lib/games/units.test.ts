@@ -1,10 +1,12 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { UNIT_RENDER_ANGLES } from "@/lib/assets/asset";
+import { maxPage } from "@/lib/gallery/query";
 import {
   gameFactions,
   loadUnitGrid,
   parseUnitGridFilters,
+  UNIT_PAGE_SIZE,
   loadUnitPage,
   loadUnitStages,
   hasRetiredUnits,
@@ -162,6 +164,13 @@ test("an angle the hub holds is served and one it does not is a placeholder", as
 
   expect(by.get("side")?.from).toBe("static");
   expect(by.get("front")?.from).toBe("placeholder");
+});
+
+test("a page too large to be a real page falls back to the first", () => {
+  const last = maxPage(UNIT_PAGE_SIZE);
+  expect(parseUnitGridFilters({ page: String(last) }).page).toBe(last);
+  expect(parseUnitGridFilters({ page: String(last + 1) }).page).toBe(1);
+  expect(parseUnitGridFilters({ page: "99999999999999999999" }).page).toBe(1);
 });
 
 test("the grid hides retired units without being refused for it", async () => {

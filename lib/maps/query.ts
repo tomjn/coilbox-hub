@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { MAP_MINIMAP_VARIANT } from "@/lib/assets/asset";
 import { fetchHeldAssets, type ResolvedAsset, resolveAsset } from "@/lib/assets/resolve";
+import { parsePage } from "@/lib/gallery/query";
 import { mapSquares } from "./labels";
 
 /**
@@ -126,9 +127,8 @@ function one(value: string | string[] | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-/** A whole number of at least one, or null. Used for both the minimum player
- *  count and the page, which fail the same two ways: a word, and a number below
- *  where the scale starts. */
+/** A whole number of at least one, or null. Used for the minimum player count,
+ *  which fails two ways: a word, and a number below where the scale starts. */
 function counted(value: string | null): number | null {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -158,7 +158,7 @@ export function parseFilters(
     size: size && (MAP_SIZES as readonly string[]).includes(size) ? (size as MapSize) : null,
     players: counted(one(params.players)),
     sort: sort && (MAP_SORTS as readonly string[]).includes(sort) ? (sort as MapSort) : DEFAULT_SORT,
-    page: counted(one(params.page)) ?? 1,
+    page: parsePage(one(params.page), MAP_PAGE_SIZE) ?? 1,
   };
 }
 

@@ -12,7 +12,7 @@ import {
 import { GALLERY_KINDS } from "@/lib/container";
 import { DOWNLOAD_KINDS } from "@/lib/games/download";
 import { FEED_ENTRIES } from "@/lib/feed/gallery";
-import { PAGE_SIZE, type ItemSummary } from "@/lib/gallery/query";
+import { maxPage, PAGE_SIZE, type ItemSummary } from "@/lib/gallery/query";
 import { siteUrl } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -332,6 +332,7 @@ export default function DevelopersPage() {
             { status: 400, body: '{"error":"Unknown query parameter: foo"}', text: "A parameter name the endpoint does not know." },
             { status: 400, body: '{"error":"Unknown sort: oldest"}', text: "A sort that is not one of the listed values." },
             { status: 400, body: '{"error":"page takes one value, not several. Send it once."}', text: "A single value parameter sent more than once. The first word is the parameter's name." },
+            { status: 400, body: `{"error":"page is too large. The highest page is ${maxPage(PAGE_SIZE)}."}`, text: "A page number above the highest the endpoint can serve." },
             { status: 503, body: '{"error":"The gallery could not be read just now."}', text: "The hub could not read its database. Try again later." },
           ]}
         />
@@ -571,7 +572,9 @@ export default function DevelopersPage() {
         </p>
         <p className={prose}>
           A page past the end is not an error. It returns status 200 with an empty{" "}
-          <Inline>items</Inline> array and the same <Inline>total</Inline>.
+          <Inline>items</Inline> array and the same <Inline>total</Inline>. The exception is a
+          page above {maxPage(PAGE_SIZE)}, which is a 400 because no page that high can hold an
+          item.
         </p>
         <p className={prose}>
           Worked example with made up numbers. A request without a <Inline>page</Inline> returns{" "}

@@ -6,7 +6,7 @@ import {
   type AssetIdentity,
 } from "@/lib/assets/asset";
 import { fetchHeldAssets, resolveAsset, type ResolvedAsset } from "@/lib/assets/resolve";
-import { fetchPage } from "@/lib/gallery/query";
+import { fetchPage, maxPage } from "@/lib/gallery/query";
 import { readAll } from "@/lib/supabase/readAll";
 import { isRandomFaction } from "./factions";
 import { morphGroups, type MorphStage } from "./morph";
@@ -63,7 +63,7 @@ export function parseUnitGridFilters(
   const retired = first(params.retired) === "1";
   const faction = first(params.faction)?.trim() || null;
   const rawPage = Number(first(params.page));
-  const page = Number.isSafeInteger(rawPage) && rawPage > 1 ? rawPage : 1;
+  const page = Number.isSafeInteger(rawPage) && rawPage > 1 && rawPage <= maxPage(UNIT_PAGE_SIZE) ? rawPage : 1;
   return { q, retired, faction, page };
 }
 

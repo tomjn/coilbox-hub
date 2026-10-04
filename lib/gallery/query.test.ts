@@ -5,9 +5,12 @@ import {
   fetchAllPages,
   fetchPage,
   filterHref,
+  maxPage,
   PAGE_GAP,
+  PAGE_SIZE,
   pageNumbers,
   parseFilters,
+  parsePage,
 } from "./query";
 
 test("filters come out of the query string", () => {
@@ -54,6 +57,27 @@ test("a nonsense page falls back to the first", () => {
   expect(parseFilters({ page: "0" }).page).toBe(1);
   expect(parseFilters({ page: "-4" }).page).toBe(1);
   expect(parseFilters({ page: "banana" }).page).toBe(1);
+  expect(parseFilters({ page: "" }).page).toBe(1);
+  expect(parseFilters({ page: "1.5" }).page).toBe(1);
+  expect(parseFilters({ page: "1e3" }).page).toBe(1);
+  expect(parseFilters({ page: ["2", "5"] }).page).toBe(2);
+});
+
+test("the largest page is the one whose last row still has a safe index", () => {
+  const last = maxPage(PAGE_SIZE);
+  expect(last * PAGE_SIZE).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER);
+  expect(Number.isSafeInteger((last + 1) * PAGE_SIZE)).toBe(false);
+  expect(parseFilters({ page: String(last) }).page).toBe(last);
+});
+
+test("a page too large to be a real page is not served as any other page number", () => {
+  const past = String(maxPage(PAGE_SIZE) + 1);
+  expect(parsePage(past, PAGE_SIZE)).toBeNull();
+  expect(parsePage("99999999999999999999", PAGE_SIZE)).toBeNull();
+  expect(parsePage("9".repeat(400), PAGE_SIZE)).toBeNull();
+  expect(parseFilters({ page: past }).page).toBe(1);
+  expect(parseFilters({ page: "99999999999999999999" }).page).toBe(1);
+  expect(parseFilters({ page: "9".repeat(400) }).page).toBe(1);
 });
 
 test("empty values are treated as absent", () => {

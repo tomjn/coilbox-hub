@@ -1,5 +1,5 @@
 import { GALLERY_KINDS } from "@/lib/container";
-import { PAGE_SIZE, SORT_ORDERS } from "@/lib/gallery/query";
+import { maxPage, PAGE_SIZE, SORT_ORDERS } from "@/lib/gallery/query";
 
 /**
  * The query parameters of `GET /api/v1/items`, as the `/developers` page lists
@@ -75,6 +75,6 @@ export const ITEMS_PARAMS: ItemsParam[] = [
     repeatable: false,
     type: "integer",
     default: "1",
-    description: `The page to return, counting from 1, with ${PAGE_SIZE} items to a page. A value that is not a whole number above zero is read as 1.`,
+    description: `The page to return, counting from 1, with ${PAGE_SIZE} items to a page. A value that is not a whole number above zero is read as 1. A page above ${maxPage(PAGE_SIZE)} is a 400.`,
   },
 ];

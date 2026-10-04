@@ -1,7 +1,9 @@
 import { GALLERY_KINDS } from "@/lib/container";
 import {
   type Filters,
+  isPageTooLarge,
   type ItemSummary,
+  maxPage,
   PAGE_SIZE,
   parseFilters,
   SORT_ORDERS,
@@ -124,6 +126,10 @@ export function parseApiFilters(searchParams: URLSearchParams): ParsedApiFilters
   const sort = searchParams.get("sort");
   if (sort && !(SORT_ORDERS as readonly string[]).includes(sort)) {
     return { ok: false, error: `Unknown sort: ${sort}` };
+  }
+
+  if (isPageTooLarge(searchParams.get("page"), PAGE_SIZE)) {
+    return { ok: false, error: `page is too large. The highest page is ${maxPage(PAGE_SIZE)}.` };
   }
 
   const params: Record<string, string | string[]> = {};
