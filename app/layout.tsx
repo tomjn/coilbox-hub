@@ -8,7 +8,7 @@ import { CoilLogo } from "@/components/CoilLogo";
 import { DownloadIcon, GalleryIcon, GamesIcon, MapsIcon, PublishIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
 import { NavLink } from "@/components/NavLink";
-import { NavAccount, NavAccountFallback } from "@/components/NavAccount";
+import { NavAccount, NavAccountFallback, NavModeration } from "@/components/NavAccount";
 import { COILBOX_URL } from "@/lib/coilbox";
 import { siteUrl } from "@/lib/site";
 import { kindsPluralLower } from "@/lib/gallery/label";
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
 };
 
 /* On a narrow screen the label sits under the icon and the link is at least 44
-   pixels square, so the nav wraps onto its own row rather than shrinking. */
+   pixels square. */
 const navItem =
   "flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1.5 transition-colors hover:text-white active:bg-neutral-900 active:text-white sm:min-h-0 sm:min-w-0 sm:flex-row sm:gap-2";
 
@@ -99,15 +99,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
-        <header className="flex flex-wrap items-center justify-between gap-y-2 px-6 py-4">
+        <header className="flex flex-wrap items-center gap-y-2 px-6 py-4 sm:flex-nowrap sm:gap-3">
           <Link
             href="/"
-            className="flex items-center gap-2 text-sm font-medium text-neutral-300 transition-colors hover:text-white active:text-white"
+            className="mr-auto flex items-center gap-2 text-sm font-medium text-neutral-300 transition-colors hover:text-white active:text-white"
           >
             <CoilLogo className="w-5" />
             Coilbox Hub
           </Link>
-          <nav className="-mx-2 flex w-full flex-wrap items-center justify-between gap-y-1 text-[11px] text-neutral-400 sm:mx-0 sm:-mr-2 sm:w-auto sm:flex-nowrap sm:justify-start sm:gap-3 sm:text-sm">
+          {/* On a phone the section links are a row of equal columns under the
+              logo, and the account controls sit beside the logo. A moderator has
+              six links, which fit one row from 375 pixels and split three and
+              three below that. From `sm` this is one row, as it always was. */}
+          <nav className="order-3 -mx-4 grid w-full grid-cols-5 gap-y-1 text-[11px] text-neutral-400 has-[[data-moderator]]:grid-cols-3 min-[375px]:has-[[data-moderator]]:grid-cols-6 max-sm:*:px-0 sm:order-none sm:mx-0 sm:flex sm:w-auto sm:items-center sm:gap-3 sm:text-sm">
             <SectionLink href="/gallery">
               <GalleryIcon className="w-4" />
               <span>Gallery</span>
@@ -136,13 +140,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <DownloadIcon className="w-4" />
               <span>Get Coilbox</span>
             </a>
-            {/* The one part of the page that differs per visitor, so it is the
-                one part rendered per request. The rest of the header is served
-                from the held shell while this is read. */}
+            <Suspense>
+              <NavModeration className={navItem} />
+            </Suspense>
+          </nav>
+          {/* The one part of the page that differs per visitor, so it is the
+              one part rendered per request. The rest of the header is served
+              from the held shell while this is read. */}
+          <div className="order-2 -mr-2 flex items-center gap-3 text-[11px] text-neutral-400 sm:order-none sm:text-sm">
             <Suspense fallback={<NavAccountFallback />}>
               <NavAccount className={navItem} />
             </Suspense>
-          </nav>
+          </div>
         </header>
         {/* One page fading into the next rather than being replaced by it. Only
             the page: the header is outside this and stays put, which is what it
