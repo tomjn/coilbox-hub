@@ -34,6 +34,12 @@ body {
   font-family: var(--font-sans);
 }
 
+/* The skip link moves focus to the page's main content, which should not
+   draw a ring around the whole page. */
+#main-content:focus {
+  outline: none;
+}
+
 /* Preflight clears the tap highlight. On a phone none of the hover styles
    apply either, so without this a tap changes nothing until the next page
    arrives. The active: styles on each control cover a held press. This covers

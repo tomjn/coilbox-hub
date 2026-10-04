@@ -57,7 +57,7 @@ export default async function Home() {
   const featuredTitles = cardTitles(featured);
 
   return (
-    <main className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col gap-12 px-6 py-16">
+    <main id="main-content" tabIndex={-1} className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col gap-12 px-6 py-16">
       {/* Fixed to the viewport rather than the page, so it stays put as the
           page scrolls instead of moving with the content beneath it.
           `inset-0` covers the whole viewport, which also means it never

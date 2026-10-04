@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 const BACKDROP_STRENGTH = 0.08;
 
 const INPUT =
-  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-none";
+  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const BUTTON =
   buttonClass();
@@ -43,7 +43,7 @@ export default async function MapPacks() {
   const { packs, error } = await fetchMapPacks(supabase);
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
       <ModerationNav current="mapPacks" />
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">

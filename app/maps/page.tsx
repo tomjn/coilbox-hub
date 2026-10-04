@@ -77,7 +77,7 @@ export default async function Maps({
   const lastPage = Math.max(1, Math.ceil(count / MAP_PAGE_SIZE));
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={skirmish} strength={BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-2">

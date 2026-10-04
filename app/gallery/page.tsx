@@ -57,7 +57,7 @@ export default async function Gallery({
   const lastPage = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={hub} strength={BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-2">
@@ -82,6 +82,7 @@ export default async function Gallery({
           <input
             type="search"
             name="q"
+            aria-label="Search titles and descriptions"
             defaultValue={filters.q ?? ""}
             placeholder="Search titles and descriptions"
             className="w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"

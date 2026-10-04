@@ -12,7 +12,7 @@ const COLUMN = "mx-auto w-full max-w-3xl px-6";
  */
 export default function Loading() {
   return (
-    <main className="relative flex-1" aria-busy="true">
+    <main id="main-content" tabIndex={-1} className="relative flex-1" aria-busy="true">
       <ArtBackdrop drawing={skirmish} strength={0.05} />
       <div className="relative z-10 flex w-full flex-col gap-8 py-12">
         <p className="sr-only">Loading the map</p>

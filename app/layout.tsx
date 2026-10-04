@@ -91,6 +91,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* Every page renders its own `<main id="main-content">` for this to
+            reach. Hidden until it has focus, so only keyboard users see it. */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-neutral-100 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-neutral-900"
+        >
+          Skip to content
+        </a>
         <header className="flex items-center justify-between px-6 py-4">
           <Link
             href="/"

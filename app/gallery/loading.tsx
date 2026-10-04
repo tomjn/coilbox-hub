@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/Skeleton";
  */
 export default function Loading() {
   return (
-    <main className="relative flex-1" aria-busy="true">
+    <main id="main-content" tabIndex={-1} className="relative flex-1" aria-busy="true">
       <ArtBackdrop drawing={hub} strength={0.07} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-2">

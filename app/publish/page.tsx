@@ -25,7 +25,7 @@ export default async function Publish() {
   } = await supabase.auth.getUser();
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={setupPacks} strength={BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-16">
         <div className="flex flex-col gap-2">

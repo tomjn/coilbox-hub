@@ -238,7 +238,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
     page.description !== null && saysMoreThanName(page, richTextToPlainText(page.description));
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       {banner ? (
         // eslint-disable-next-line @next/next/no-img-element -- the hub serves no picture through next/image, see next.config.ts
         <img

@@ -104,7 +104,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
   );
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={skirmish} strength={BACKDROP_STRENGTH} />
       <div className="relative z-10 flex w-full flex-col gap-8 py-12">
         <div className={`${COLUMN} flex flex-col gap-3`}>

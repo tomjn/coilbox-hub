@@ -316,7 +316,7 @@ export default async function Ops() {
   const swept = unclaimedSummary(unclaimed);
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
       <ModerationNav current="allowances" />
       <div className="relative z-10 flex w-full flex-col gap-10 px-6 py-10">

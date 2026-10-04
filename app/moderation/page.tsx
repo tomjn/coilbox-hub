@@ -55,7 +55,7 @@ export default async function Moderation() {
   }[];
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
       {/* The site header has one moderation entry, so every page behind that
           check has to offer the rest: the contact sheet (issue #114), the

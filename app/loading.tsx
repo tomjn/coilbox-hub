@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/Skeleton";
 export default function Loading() {
   return (
     <main
+      id="main-content"
+      tabIndex={-1}
       className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-12"
       aria-busy="true"
     >
