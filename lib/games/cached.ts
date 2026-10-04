@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { TAGS } from "@/lib/cache/tags";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 import { loadGamePage, type GamePage } from "./page";
 import { fetchGames, type GameSummary } from "./query";
 import { loadGameSides, type GameSides } from "./sides";
@@ -39,6 +40,12 @@ import { loadTree, type Tree } from "./tree";
 
 const LISTING_LIFE = "hours";
 
+/** The games listing is prerendered by `next build`, which can run with no
+ *  Supabase settings, as CI does. There is nothing to read then, so the page
+ *  builds with no games. A deployment that really lacks them still fails every
+ *  request in `proxy.ts` with `SUPABASE_CONFIG_ERROR`, so this hides nothing. */
+const notConfigured = () => !getSupabaseConfig().ok;
+
 /** Every game, biggest first. */
 export async function gamesListing(): Promise<{
   games: GameSummary[];
@@ -48,6 +55,7 @@ export async function gamesListing(): Promise<{
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games);
 
+  if (notConfigured()) return { games: [], error: null };
   return fetchGames(createAnonClient());
 }
 
@@ -69,6 +77,7 @@ export async function gameSidesCached(shortnames: string[]): Promise<Map<string,
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games, TAGS.assets);
 
+  if (notConfigured()) return new Map();
   return loadGameSides(createAnonClient(), shortnames);
 }
 
