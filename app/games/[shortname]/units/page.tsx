@@ -42,7 +42,7 @@ export async function generateMetadata({
 const BACKDROP_STRENGTH = 0.05;
 
 const CONTROL =
-  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 export default async function Units({
   params,
@@ -103,7 +103,7 @@ export default async function Units({
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
-        <nav className="text-sm text-neutral-500" aria-label="Breadcrumb">
+        <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
           <Link href={`/games/${shortname}`} className="underline-offset-4 hover:underline active:underline">
             {shortname}
           </Link>
@@ -181,7 +181,7 @@ export default async function Units({
             </ul>
 
             {lastPage > 1 ? (
-              <nav aria-label="Pages" className="flex flex-wrap items-center justify-center gap-1.5 text-sm text-neutral-500">
+              <nav aria-label="Pages" className="flex flex-wrap items-center justify-center gap-1.5 text-sm text-neutral-400">
                 {pageNumbers(filters.page, lastPage).map((step, index) =>
                   step === PAGE_GAP ? (
                     <span key={`gap-${index}`} aria-hidden className="px-1">

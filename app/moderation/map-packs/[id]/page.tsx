@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 const BACKDROP_STRENGTH = 0.08;
 
 const INPUT =
-  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-400 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const BUTTON =
   buttonClass();
@@ -71,7 +71,7 @@ export default async function MapPackPage({ params }: PageProps<"/moderation/map
         </div>
 
         <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-800 bg-card px-5 py-3 text-sm">
-          <span className="text-neutral-500">
+          <span className="text-neutral-400">
             {featured
               ? "Featured, so Coilbox shows it in the Map packs menu."
               : "Not featured, so Coilbox does not show it."}
@@ -146,7 +146,7 @@ export default async function MapPackPage({ params }: PageProps<"/moderation/map
           </h2>
 
           {pack.maps.length === 0 ? (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-400">
               Nothing in this pack yet, so Coilbox will not show it even when it
               is featured.
             </p>
@@ -164,7 +164,7 @@ export default async function MapPackPage({ params }: PageProps<"/moderation/map
                   ) : (
                     // Still offered to Coilbox under its name, which is what it
                     // downloads by. Only the title and filename are missing.
-                    <span className="min-w-0 break-words text-neutral-500">
+                    <span className="min-w-0 break-words text-neutral-400">
                       {map.mapName} (not in the catalog right now)
                     </span>
                   )}

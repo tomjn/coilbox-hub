@@ -71,7 +71,7 @@ export default async function Account() {
             same as withdrawing something, which is reversible.
           </p>
           {published > 0 ? (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-400">
               {published} {published === 1 ? "item" : "items"} will go with
               it.
             </p>

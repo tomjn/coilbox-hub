@@ -29,7 +29,7 @@ function UnitName({ def, names }: { def: string; names: Names }) {
       <Link href={known.href} className="hover:text-white active:text-white">
         {known.label}
       </Link>{" "}
-      <span className="break-all text-neutral-500">({def})</span>
+      <span className="break-all text-neutral-400">({def})</span>
     </>
   );
 }
@@ -129,7 +129,7 @@ function UnitRow({
               <li key={`${language}.${field}`}>
                 {field === "name" ? "Renamed" : "Described as"}{" "}
                 <q className="text-neutral-100">{words}</q>{" "}
-                <span className="text-neutral-500">({language})</span>
+                <span className="text-neutral-400">({language})</span>
               </li>
             ))}
           </ul>
@@ -194,7 +194,7 @@ export function ProjectChanges({
         ))}
       </ul>
       {hidden > 0 ? (
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-400">
           and {hidden} more unit{hidden === 1 ? "" : "s"}
         </p>
       ) : null}

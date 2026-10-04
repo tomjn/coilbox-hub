@@ -40,7 +40,7 @@ import { Button, buttonClass } from "@/components/Button";
  */
 
 const CONTROL =
-  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const ROW_BUTTON =
   buttonClass("quiet", { size: "xs" });
@@ -120,7 +120,7 @@ export function DownloadSourcesForm({
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-neutral-400">
         Every place this game can be fetched from, best first. Coilbox tries them in this order
         and stops at the first that works, so a repo with no release archives is worth keeping
         below a rapid tag rather than instead of it.
@@ -209,7 +209,7 @@ export function DownloadSourcesForm({
           );
         })}
         {rows.length === 0 ? (
-          <p className="text-sm text-neutral-500">No download sources yet.</p>
+          <p className="text-sm text-neutral-400">No download sources yet.</p>
         ) : null}
       </div>
 

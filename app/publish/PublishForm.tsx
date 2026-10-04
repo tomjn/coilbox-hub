@@ -5,7 +5,7 @@ import { buttonClass } from "@/components/Button";
 import { publish, type PublishState } from "./actions";
 
 const field =
-  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 /**
  * The round trip, shown as soon as something is published. The share URL is the
@@ -30,7 +30,7 @@ function Published({
 
       {shareUrl ? (
         <div className="flex flex-col gap-2">
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-neutral-400">
             Share this link. It opens in Coilbox.
           </span>
           <code className="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-xs text-neutral-300">
@@ -103,7 +103,7 @@ function PublishRound({ again }: { again: () => void }) {
     <form action={action} className="flex flex-col gap-5">
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium">What you are sharing</span>
-        <span className="text-xs text-neutral-500">
+        <span className="text-xs text-neutral-400">
           Whatever Coilbox gave you. A share link, a bare code from a setup pack,
           or an exported JSON file.
         </span>
@@ -117,7 +117,7 @@ function PublishRound({ again }: { again: () => void }) {
           placeholder="coilbox://import?code=…"
           className={`${field} font-mono`}
         />
-        <span className="flex items-center gap-3 text-xs text-neutral-500">
+        <span className="flex items-center gap-3 text-xs text-neutral-400">
           <label className={buttonClass("ghost", { className: "cursor-pointer", size: "sm" })}>
             Or choose an exported file
             <input
@@ -144,7 +144,7 @@ function PublishRound({ again }: { again: () => void }) {
 
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium">Description</span>
-        <span className="text-xs text-neutral-500">
+        <span className="text-xs text-neutral-400">
           What it is for, and why somebody would want it.
         </span>
         <textarea
@@ -158,7 +158,7 @@ function PublishRound({ again }: { again: () => void }) {
 
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium">Tags</span>
-        <span className="text-xs text-neutral-500">
+        <span className="text-xs text-neutral-400">
           Comma separated, up to eight. For the things a filter cannot work out
           on its own.
         </span>

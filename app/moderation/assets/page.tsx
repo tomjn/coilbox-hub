@@ -116,7 +116,7 @@ export default async function PictureQueue() {
           <h1 className="text-3xl font-semibold tracking-tight">Pictures</h1>
           <Link
             href="/moderation/trail"
-            className="text-sm text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
+            className="text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300"
           >
             Trail
           </Link>
@@ -195,8 +195,8 @@ export default async function PictureQueue() {
                         <span className="truncate text-neutral-300" title={picture.name}>
                           {picture.name}
                         </span>
-                        <span className="truncate text-neutral-500">{picture.detail}</span>
-                        <span className="truncate text-neutral-600" title={picture.sourceArchive}>
+                        <span className="truncate text-neutral-400">{picture.detail}</span>
+                        <span className="truncate text-neutral-400" title={picture.sourceArchive}>
                           {picture.origin}, {Math.round(picture.bytes / 1024)} kB
                         </span>
                         {/* Inside the label, so the mark is part of the

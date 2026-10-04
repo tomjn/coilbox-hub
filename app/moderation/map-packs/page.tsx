@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 const BACKDROP_STRENGTH = 0.08;
 
 const INPUT =
-  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-400 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const BUTTON =
   buttonClass();
@@ -49,7 +49,7 @@ export default async function MapPacks() {
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
         <h1 className="text-3xl font-semibold tracking-tight">Map packs</h1>
 
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-400">
           A featured pack shows in the Map packs menu on Coilbox&apos;s Downloads
           page, where a player can download every map in it at once. A pack
           with no maps in it is never shown.
@@ -94,7 +94,7 @@ export default async function MapPacks() {
                 >
                   {pack.title}
                 </Link>
-                <span className="shrink-0 text-xs text-neutral-500">
+                <span className="shrink-0 text-xs text-neutral-400">
                   {mapCount(pack.maps.length)}
                   {pack.featuredAt ? ", featured" : ", not featured"}
                 </span>

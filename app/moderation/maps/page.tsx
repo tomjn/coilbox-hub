@@ -53,7 +53,7 @@ const BACKDROP_STRENGTH = 0.08;
 const CARD = "flex flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5";
 
 const INPUT =
-  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-400 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const BUTTON =
   buttonClass();
@@ -80,7 +80,7 @@ function reportedLine(count: number): string {
 
 function Report({ report }: { report: ReportedSource }) {
   return (
-    <li className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-neutral-500">
+    <li className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-neutral-400">
       <span className="text-neutral-400" title={report.sourceArchive}>
         {report.sourceArchive}
       </span>
@@ -113,7 +113,7 @@ function Conflicted({ map }: { map: ConflictedMap }) {
         <Link href={`/moderation/maps/${map.slug}`} className="text-base font-medium hover:underline active:underline">
           {map.mapName}
         </Link>
-        <span className="text-xs text-neutral-600">{reportedLine(map.reports.length)}</span>
+        <span className="text-xs text-neutral-400">{reportedLine(map.reports.length)}</span>
       </div>
 
       <ul className="flex flex-col gap-1">
@@ -125,7 +125,7 @@ function Conflicted({ map }: { map: ConflictedMap }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href={`/map/${map.slug}`}
-          className="text-xs text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
+          className="text-xs text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300"
         >
           What the hub says about it
         </Link>
@@ -201,7 +201,7 @@ export default async function MapConflicts({ searchParams }: PageProps<"/moderat
         </form>
 
         {term === "" ? null : matches.length === 0 ? (
-          <p className="text-sm text-neutral-500">No map is called that.</p>
+          <p className="text-sm text-neutral-400">No map is called that.</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {matches.map((match) => (
@@ -215,14 +215,14 @@ export default async function MapConflicts({ searchParams }: PageProps<"/moderat
               </li>
             ))}
             {matches.length === MAP_SEARCH_LIMIT ? (
-              <li className="text-xs text-neutral-600">
+              <li className="text-xs text-neutral-400">
                 The first {MAP_SEARCH_LIMIT}. Type more of the name to narrow it.
               </li>
             ) : null}
           </ul>
         )}
 
-        <h2 className="text-sm text-neutral-500">
+        <h2 className="text-sm text-neutral-400">
           Maps two clients disagree about, the most reported first. Two installs
           holding different bytes under one name is a corrupt or modified install
           rather than a new release. Forget what the hub holds only when the
@@ -251,7 +251,7 @@ export default async function MapConflicts({ searchParams }: PageProps<"/moderat
           >
             Featured
           </h2>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-neutral-400">
             A featured map sits above the rest of the catalog listing, whatever
             the reader has sorted by. Feature one from its own page, above.
           </p>
@@ -280,7 +280,7 @@ export default async function MapConflicts({ searchParams }: PageProps<"/moderat
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-400">
               Nothing is featured right now.
             </p>
           )}

@@ -80,7 +80,7 @@ function PictureLink({ event }: { event: Pick<TrailEvent, "assetId" | "name" | "
       className="font-medium text-neutral-200 hover:underline active:underline"
     >
       {event.name}
-      {event.detail ? <span className="text-neutral-500"> {event.detail}</span> : null}
+      {event.detail ? <span className="text-neutral-400"> {event.detail}</span> : null}
     </Link>
   );
 }
@@ -92,7 +92,7 @@ function EventRow({ event }: { event: TrailEvent }) {
     <li className={ROW}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <PictureLink event={event} />
-        <span className="text-xs text-neutral-600">{when(event.at)}</span>
+        <span className="text-xs text-neutral-400">{when(event.at)}</span>
       </div>
       <p
         className={
@@ -105,7 +105,7 @@ function EventRow({ event }: { event: TrailEvent }) {
         {event.actor ? (
           <AccountLink id={event.actor} label="by" />
         ) : (
-          <span className="text-neutral-600">by nobody signed in</span>
+          <span className="text-neutral-400">by nobody signed in</span>
         )}
         {event.uploader ? <AccountLink id={event.uploader} label="uploaded by" /> : null}
       </p>
@@ -132,7 +132,7 @@ function AssetRow({ asset }: { asset: TrailAsset }) {
     <li className={ROW}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <PictureLink event={{ assetId: asset.id, name: asset.name, detail: asset.detail }} />
-        <span className="text-xs text-neutral-600">
+        <span className="text-xs text-neutral-400">
           {asset.origin}, {when(asset.createdAt)}
         </span>
       </div>
@@ -212,13 +212,13 @@ export default async function Trail({ searchParams }: PageProps<"/moderation/tra
               </p>
               <Link
                 href="/moderation/trail"
-                className="text-sm text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
+                className="text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300"
               >
                 Everything instead
               </Link>
             </div>
 
-            <h2 className="text-sm text-neutral-500">{uploadedLine(trail)}</h2>
+            <h2 className="text-sm text-neutral-400">{uploadedLine(trail)}</h2>
             {trail.uploaded.length === 0 ? (
               <Empty>This account has uploaded nothing.</Empty>
             ) : (
@@ -229,7 +229,7 @@ export default async function Trail({ searchParams }: PageProps<"/moderation/tra
               </ul>
             )}
 
-            <h2 className="text-sm text-neutral-500">And what it did, newest first.</h2>
+            <h2 className="text-sm text-neutral-400">And what it did, newest first.</h2>
             {trail.events.length === 0 ? (
               <Empty>Nothing this account did has changed what anybody can see.</Empty>
             ) : (

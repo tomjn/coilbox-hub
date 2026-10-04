@@ -206,7 +206,7 @@ function PromotionPanel({
               </dd>
             </div>
             {row.detail ? (
-              <p className={`mt-1 text-xs ${row.alarm ? "text-amber-300" : "text-neutral-500"}`}>
+              <p className={`mt-1 text-xs ${row.alarm ? "text-amber-300" : "text-neutral-400"}`}>
                 {row.detail}
               </p>
             ) : null}
@@ -225,7 +225,7 @@ function StorageMeter({ meter }: { meter: Meter }) {
     <li className={CARD}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h3 className="text-base font-medium">{meter.name}</h3>
-        <span className="text-xs text-neutral-500">{BASIS_LABEL[meter.basis]}</span>
+        <span className="text-xs text-neutral-400">{BASIS_LABEL[meter.basis]}</span>
       </div>
       <p className="mt-2 text-sm text-neutral-300">
         <span className="text-xl font-semibold tabular-nums text-neutral-100">{used(meter)}</span>{" "}
@@ -233,7 +233,7 @@ function StorageMeter({ meter }: { meter: Meter }) {
         {full === null ? null : ` (${Math.round(full * 100)}%)`}
       </p>
       {full !== null && state ? <MeterBar full={full} bar={state.bar} /> : null}
-      <p className="mt-3 max-w-[70ch] text-sm text-neutral-500">{meter.note}</p>
+      <p className="mt-3 max-w-[70ch] text-sm text-neutral-400">{meter.note}</p>
     </li>
   );
 }
@@ -249,7 +249,7 @@ function Table({
 }) {
   return (
     <table className="w-full text-sm tabular-nums">
-      <thead className="text-left text-neutral-500">
+      <thead className="text-left text-neutral-400">
         <tr>
           {head.map((label, index) => (
             <th key={label} className={`pb-2 font-normal ${index > 0 ? "text-right" : ""}`}>
@@ -329,7 +329,7 @@ export default async function Ops() {
               {Math.round(METER_ALERT_FRACTION * 100)}%.
             </p>
           </div>
-          <p className="text-xs text-neutral-500">Read {stamp(report.at)} UTC</p>
+          <p className="text-xs text-neutral-400">Read {stamp(report.at)} UTC</p>
         </header>
 
         <div className="grid items-start gap-6 lg:grid-cols-2">
@@ -388,9 +388,9 @@ export default async function Ops() {
               <li key={meter.name} className="border-t border-neutral-800 pt-3">
                 <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                   <span className="font-medium">{meter.name}</span>
-                  <span className="text-neutral-500">{formatBytes(meter.allowance)}</span>
+                  <span className="text-neutral-400">{formatBytes(meter.allowance)}</span>
                 </p>
-                <p className="mt-1 text-xs text-neutral-500">{meter.note}</p>
+                <p className="mt-1 text-xs text-neutral-400">{meter.note}</p>
               </li>
             ))}
           </ul>

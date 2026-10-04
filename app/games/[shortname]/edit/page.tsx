@@ -99,7 +99,7 @@ export default async function EditGame({
 
   return (
     <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
-      <nav className="text-sm text-neutral-500" aria-label="Breadcrumb">
+      <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
         <Link href={`/games/${shortname}`} className="underline-offset-4 hover:underline active:underline">
           {shortname}
         </Link>
@@ -147,7 +147,7 @@ export default async function EditGame({
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Visibility</h2>
           <VisibilityFlash flashKey={flash} />
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-neutral-400">
             Hidden means off the site for everybody but the owner and moderators. Facts keep flowing; unhiding brings
             everything back.
           </p>
@@ -160,7 +160,7 @@ export default async function EditGame({
               buttonClassName={buttonClass()}
             />
             {page.hidden_at ? (
-              <span className="text-xs text-neutral-500">This game is hidden right now.</span>
+              <span className="text-xs text-neutral-400">This game is hidden right now.</span>
             ) : null}
           </div>
 
@@ -182,21 +182,21 @@ export default async function EditGame({
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Logo</h2>
-          <p className="text-sm text-neutral-500">Square, PNG or WebP, up to 512 KB.</p>
+          <p className="text-sm text-neutral-400">Square, PNG or WebP, up to 512 KB.</p>
           <GameImageForm shortname={shortname} kind="logo" />
           <GameImageRemoveForm shortname={shortname} kind="logo" present={page.logo_path !== null} />
         </section>
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Banner</h2>
-          <p className="text-sm text-neutral-500">Wide, PNG or WebP, up to 512 KB.</p>
+          <p className="text-sm text-neutral-400">Wide, PNG or WebP, up to 512 KB.</p>
           <GameImageForm shortname={shortname} kind="banner" />
           <GameImageRemoveForm shortname={shortname} kind="banner" present={page.banner_path !== null} />
         </section>
 
         <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
           <h2 className="text-sm uppercase tracking-wide text-neutral-400">Card art</h2>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-neutral-400">
             16:9, PNG or WebP, up to 512 KB. The games listing draws this above the name, and a lobby
             shows it on its own card for the game.
           </p>

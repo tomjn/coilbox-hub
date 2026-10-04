@@ -114,7 +114,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
             // searching for the archive has to type. Shown whenever the archive
             // gave a friendlier name, since that name is not what identifies the
             // map anywhere else.
-            <p className="break-words text-sm text-neutral-500">{mapName}</p>
+            <p className="break-words text-sm text-neutral-400">{mapName}</p>
           )}
           {facts.description ? (
             <p className="whitespace-pre-wrap text-neutral-400">{facts.description}</p>

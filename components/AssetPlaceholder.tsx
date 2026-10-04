@@ -94,7 +94,7 @@ export function AssetPlaceholder({
       {quiet ? null : (
         <p className="flex max-w-full flex-col items-center gap-0.5 text-center text-xs">
           <span className="break-all text-neutral-300">{of.name}</span>
-          <span className="break-all text-neutral-500">
+          <span className="break-all text-neutral-400">
             {measure ? `${measure}, no picture yet` : "No picture yet"}
           </span>
         </p>

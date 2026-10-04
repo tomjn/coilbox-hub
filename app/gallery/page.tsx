@@ -85,7 +85,7 @@ export default async function Gallery({
             aria-label="Search titles and descriptions"
             defaultValue={filters.q ?? ""}
             placeholder="Search titles and descriptions"
-            className="w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+            className="w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
           />
           <Button
             type="submit"
@@ -209,7 +209,7 @@ export default async function Gallery({
             </ul>
 
             {lastPage > 1 ? (
-              <div className="flex items-center justify-between text-sm text-neutral-500">
+              <div className="flex items-center justify-between text-sm text-neutral-400">
                 {filters.page > 1 ? (
                   <Link
                     href={filterHref(filters, { page: filters.page - 1 })}

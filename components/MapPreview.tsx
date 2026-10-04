@@ -196,7 +196,7 @@ export function MapPreview({
               the lobby&rsquo;s choice.
             </span>
           ) : null}
-          <span className="text-neutral-500">
+          <span className="text-neutral-400">
             {name} as the archive measures it. Drag to turn it, scroll to zoom.
             Heights are eight bits deep, which is what a browser can read.
           </span>

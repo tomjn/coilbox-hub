@@ -59,7 +59,7 @@ export function StageStrip({
 
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span className="text-xs text-neutral-500">Stage {index + 1}</span>
+                <span className="text-xs text-neutral-400">Stage {index + 1}</span>
                 <Link
                   href={`/games/${game}/units/${stage.unit_name}`}
                   className="text-sm text-neutral-100 underline-offset-4 hover:underline active:underline"
@@ -70,10 +70,10 @@ export function StageStrip({
                   <span className="text-xs text-neutral-400">showing this one</span>
                 ) : null}
                 {stage.removed_at ? (
-                  <span className="text-xs text-neutral-500">retired</span>
+                  <span className="text-xs text-neutral-400">retired</span>
                 ) : null}
                 {!stage.found ? (
-                  <span className="text-xs text-neutral-500">not in this release</span>
+                  <span className="text-xs text-neutral-400">not in this release</span>
                 ) : null}
               </div>
 
@@ -165,7 +165,7 @@ export function StageStats({
                 <td
                   key={stages[index].unit_name}
                   className={
-                    row.changed ? "px-2 py-1 text-neutral-100" : "px-2 py-1 text-neutral-500"
+                    row.changed ? "px-2 py-1 text-neutral-100" : "px-2 py-1 text-neutral-400"
                   }
                 >
                   {value}

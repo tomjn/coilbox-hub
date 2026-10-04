@@ -51,12 +51,12 @@ export default async function EditItem({
       <div className="flex flex-col gap-2">
         <Link
           href={`/item/${id}`}
-          className="self-start text-sm text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
+          className="self-start text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300"
         >
           Back to the item
         </Link>
         <h1 className="text-3xl font-semibold tracking-tight">Edit</h1>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-400">
           The words around it, not the thing itself. Sharing a changed version
           means publishing it again, so the link people already have keeps
           meaning what it meant.
@@ -74,7 +74,7 @@ export default async function EditItem({
         <h2 className="text-sm font-medium">
           {withdrawn ? "Withdrawn" : "Withdraw"}
         </h2>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-400">
           {withdrawn
             ? "Nobody else can see this and its import link returns nothing. You can put it back."
             : "It stops appearing and its import link stops working. Nothing is destroyed and you can put it back."}

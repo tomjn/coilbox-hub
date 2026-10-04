@@ -18,7 +18,7 @@ import { Button } from "@/components/Button";
  */
 
 const CONTROL =
-  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const LABEL = "text-xs uppercase tracking-wide text-neutral-400";
 
@@ -65,7 +65,7 @@ export function GameDetailsForm({
           className={CONTROL}
           aria-describedby="description-help"
         />
-        <p id="description-help" className="text-xs text-neutral-500">
+        <p id="description-help" className="text-xs text-neutral-400">
           A blank line starts a new paragraph, one line break keeps text on the next line.
           Wrap words in **two asterisks** for bold, and *one asterisk* or _underscores_ for
           italic. Nothing else formats - no links, headings or HTML.

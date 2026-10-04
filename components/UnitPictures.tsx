@@ -68,7 +68,7 @@ export function UnitPortrait({
           className="h-auto w-full object-contain"
         />
       )}
-      <figcaption className="text-xs text-neutral-500">
+      <figcaption className="text-xs text-neutral-400">
         {asset.from === "placeholder" ? "Buildpic" : portraitCaption(asset)}
       </figcaption>
     </figure>
@@ -99,7 +99,7 @@ function UnitRenderFigure({ label, render }: { label: string; render: UnitRender
         decoding="async"
         className="my-auto h-auto max-w-full object-contain"
       />
-      <figcaption className="text-xs text-neutral-500">{caption}</figcaption>
+      <figcaption className="text-xs text-neutral-400">{caption}</figcaption>
     </figure>
   );
 }

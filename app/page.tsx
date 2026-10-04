@@ -113,7 +113,7 @@ export default async function Home() {
       {items.length > 0 ? (
         <section className="relative z-10 flex flex-col gap-4">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm uppercase tracking-wide text-neutral-500">
+            <h2 className="text-sm uppercase tracking-wide text-neutral-400">
               Newest
             </h2>
             <Link
@@ -148,7 +148,7 @@ export default async function Home() {
       {featured.length > 0 ? (
         <section className="relative z-10 flex flex-col gap-4">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm uppercase tracking-wide text-neutral-500">
+            <h2 className="text-sm uppercase tracking-wide text-neutral-400">
               Featured
             </h2>
             {/* Straight to the gallery's own default order, not a query

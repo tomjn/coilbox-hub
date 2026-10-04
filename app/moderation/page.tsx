@@ -88,7 +88,7 @@ export default async function Moderation() {
                     >
                       {item?.title ?? "A deleted item"}
                     </Link>
-                    <span className="text-xs text-neutral-600">
+                    <span className="text-xs text-neutral-400">
                       {new Date(r.created_at).toISOString().slice(0, 10)}
                     </span>
                   </div>
@@ -117,7 +117,7 @@ export default async function Moderation() {
                       <input type="hidden" name="item_id" value={r.item_id} />
                       <button
                         type="submit"
-                        className="rounded-md px-4 py-2 text-sm text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
+                        className="rounded-md px-4 py-2 text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300"
                       >
                         Leave it
                       </button>
@@ -139,7 +139,7 @@ export default async function Moderation() {
           >
             Featured
           </h2>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-neutral-400">
             A featured item sits above the rest of the gallery, whatever the
             reader has sorted or filtered by. Feature one from its own page.
           </p>
@@ -168,7 +168,7 @@ export default async function Moderation() {
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-400">
               Nothing is featured right now.
             </p>
           )}
