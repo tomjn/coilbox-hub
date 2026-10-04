@@ -109,9 +109,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </Link>
           {/* On a phone the section links are a row of equal columns under the
               logo, and the account controls sit beside the logo. A moderator has
-              six links, which fit one row from 375 pixels and split three and
+              six links, which fit one row from 360 pixels and split three and
               three below that. From `sm` this is one row, as it always was. */}
-          <nav className="order-3 -mx-4 grid w-full grid-cols-5 gap-y-1 text-[11px] text-neutral-400 has-[[data-moderator]]:grid-cols-3 min-[375px]:has-[[data-moderator]]:grid-cols-6 max-sm:*:px-0 sm:order-none sm:mx-0 sm:flex sm:w-auto sm:items-center sm:gap-3 sm:text-sm">
+          <nav className="order-3 -mx-6 grid w-[calc(100%+3rem)] grid-cols-5 gap-y-1 text-[11px] text-neutral-400 has-[[data-moderator]]:grid-cols-3 min-[360px]:has-[[data-moderator]]:grid-cols-6 max-sm:*:px-0 sm:order-none sm:mx-0 sm:flex sm:w-auto sm:items-center sm:gap-3 sm:text-sm">
             <SectionLink href="/gallery">
               <GalleryIcon className="w-4" />
               <span>Gallery</span>
