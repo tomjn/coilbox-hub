@@ -70,6 +70,35 @@ export function statValueChanged(left: unknown, right: unknown): boolean {
   return formatStatValue(left ?? null) !== formatStatValue(right ?? null);
 }
 
+/** One row of a side by side table: both values as a cell prints them. */
+export interface CompareRow {
+  key: string;
+  label: string;
+  left: string;
+  right: string;
+  changed: boolean;
+}
+
+/**
+ * The rows for two stat blobs: every key either side carries, in reading
+ * order, with both values formatted and the ones that differ marked. A stat
+ * only one side has still gets its row, and the other side reads as a dash.
+ * The unit compare page uses this for two releases of one unit and for two
+ * units at one release.
+ */
+export function compareStatRows(
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+): CompareRow[] {
+  return statRows({ ...left, ...right }).map(({ key, label }) => ({
+    key,
+    label,
+    left: formatStatValue(left[key] ?? null),
+    right: formatStatValue(right[key] ?? null),
+    changed: statValueChanged(left[key], right[key]),
+  }));
+}
+
 /**
  * The rows of a tabular stat value, or null when one does not apply.
  *
