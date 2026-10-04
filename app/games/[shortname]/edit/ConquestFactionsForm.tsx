@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { editConquestFactions } from "@/app/games/actions";
 import type { ConquestFaction } from "@/lib/games/catalog";
 import type { GameFormState } from "@/lib/games/formState";
+import { Button } from "@/components/Button";
 
 /**
  * The ordered list of a game's own conquest factions (#393): a name plus an
@@ -174,13 +175,13 @@ export function ConquestFactionsForm({
       </button>
 
       <div className="flex items-center gap-3">
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="self-start rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+          className="self-start"
         >
           {pending ? "Saving…" : "Save factions"}
-        </button>
+        </Button>
         {state ? (
           <p role={state.ok ? "status" : "alert"} className={`text-sm ${state.ok ? "text-neutral-300" : "text-red-400"}`}>
             {state.message}

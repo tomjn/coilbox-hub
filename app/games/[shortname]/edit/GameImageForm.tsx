@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { uploadGameImage } from "@/app/games/actions";
 import type { GameImageKind } from "@/lib/api/gameBranding";
 import { type GameImageUploadState, sendGameImage } from "@/lib/games/imageUpload";
+import { Button } from "@/components/Button";
 
 /**
  * One picture upload on a game's edit page, with the answer shown beside it
@@ -39,13 +40,12 @@ export function GameImageForm({ shortname, kind }: { shortname: string; kind: Ga
           required
           className="text-sm text-neutral-300"
         />
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
         >
           {pending ? "Uploading…" : `Upload ${UPLOAD_LABELS[kind]}`}
-        </button>
+        </Button>
       </div>
       {state ? (
         <p role={state.ok ? "status" : "alert"} className={`text-sm ${state.ok ? "text-neutral-300" : "text-red-400"}`}>

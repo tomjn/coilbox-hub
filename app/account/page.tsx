@@ -5,6 +5,7 @@ import { games } from "@/components/art/drawings";
 import { displayName } from "@/lib/author";
 import { createClient } from "@/lib/supabase/server";
 import { deleteAccount } from "./actions";
+import { Button } from "@/components/Button";
 
 // Content is sparse here, closer to the landing page than to the gallery.
 const BACKDROP_STRENGTH = 0.09;
@@ -72,12 +73,12 @@ export default async function Account() {
             </p>
           ) : null}
           <form action={deleteAccount}>
-            <button
+            <Button
               type="submit"
-              className="rounded-md border border-red-900 px-4 py-2 text-sm text-red-300 transition-colors hover:border-red-700 active:border-red-600 hover:text-red-200 active:text-red-200"
+              variant="destructive"
             >
               Delete everything
-            </button>
+            </Button>
           </form>
         </div>
       </div>

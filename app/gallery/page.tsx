@@ -14,6 +14,7 @@ import { GALLERY_KINDS } from "@/lib/container";
 import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
 import { requestOrigin } from "@/lib/gallery/origin";
 import { filterHref, PAGE_SIZE, parseFilters } from "@/lib/gallery/query";
+import { Button } from "@/components/Button";
 
 export const metadata: Metadata = {
   title: "Gallery - Coilbox Hub",
@@ -85,12 +86,12 @@ export default async function Gallery({
             placeholder="Search titles and descriptions"
             className="w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
           />
-          <button
+          <Button
             type="submit"
-            className="shrink-0 rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white group-aria-busy:cursor-progress group-aria-busy:opacity-60"
+            className="shrink-0"
           >
             Search
-          </button>
+          </Button>
         </BusyForm>
 
         <nav className="flex flex-col gap-3 border-b border-neutral-900 pb-6">

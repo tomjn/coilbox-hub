@@ -11,6 +11,7 @@ import { unitPageCached } from "@/lib/games/cached";
 import { editableGame } from "@/lib/games/editor";
 import { createClient } from "@/lib/supabase/server";
 import { SnippetForm } from "./SnippetForm";
+import { Button } from "@/components/Button";
 
 /**
  * One unit (#227).
@@ -304,12 +305,11 @@ export default async function Unit({
                     ))}
                   </select>
                 </div>
-                <button
+                <Button
                   type="submit"
-                  className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
                 >
                   Compare releases
-                </button>
+                </Button>
               </form>
             ) : null}
           </section>

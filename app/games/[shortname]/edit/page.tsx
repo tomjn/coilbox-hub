@@ -14,6 +14,7 @@ import { DownloadSourcesForm } from "./DownloadSourcesForm";
 import { GameDetailsForm } from "./GameDetailsForm";
 import { GameImageForm } from "./GameImageForm";
 import { GameImageRemoveForm } from "./GameImageRemoveForm";
+import { buttonClass } from "@/components/Button";
 
 /**
  * The edit page for a game's owner or a moderator (#229, #350).
@@ -142,7 +143,7 @@ export default async function EditGame({
               fields={{ shortname, hidden: page.hidden_at ? "false" : "true" }}
               label={page.hidden_at ? "Unhide this game" : "Hide this game"}
               pendingLabel={page.hidden_at ? "Unhiding…" : "Hiding…"}
-              buttonClassName="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+              buttonClassName={buttonClass()}
             />
             {page.hidden_at ? (
               <span className="text-xs text-neutral-500">This game is hidden right now.</span>
