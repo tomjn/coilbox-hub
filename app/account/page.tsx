@@ -4,8 +4,7 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { displayName } from "@/lib/author";
 import { createClient } from "@/lib/supabase/server";
-import { deleteAccount } from "./actions";
-import { Button } from "@/components/Button";
+import { DeleteAccountForm } from "./DeleteAccountForm";
 
 // Content is sparse here, closer to the landing page than to the gallery.
 const BACKDROP_STRENGTH = 0.09;
@@ -72,14 +71,7 @@ export default async function Account() {
               it.
             </p>
           ) : null}
-          <form action={deleteAccount}>
-            <Button
-              type="submit"
-              variant="destructive"
-            >
-              Delete everything
-            </Button>
-          </form>
+          <DeleteAccountForm name={name} />
         </div>
       </div>
     </main>
