@@ -1,7 +1,17 @@
 export type ButtonVariant = "primary" | "ghost" | "destructive";
 
+export type ButtonSize = "xs" | "sm" | "md" | "base" | "lg";
+
 const BASE =
-  "rounded-md px-4 py-2 text-sm transition-colors disabled:opacity-60 group-aria-busy:cursor-progress group-aria-busy:opacity-60";
+  "rounded-md transition-colors disabled:opacity-60 group-aria-busy:cursor-progress group-aria-busy:opacity-60";
+
+const SIZES: Record<ButtonSize, string> = {
+  xs: "px-2 py-1 text-xs",
+  sm: "px-3 py-1 text-xs",
+  md: "px-3 py-1.5 text-sm",
+  base: "px-4 py-2 text-sm",
+  lg: "px-5 py-2.5 text-sm",
+};
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
@@ -22,22 +32,25 @@ const VARIANTS: Record<ButtonVariant, string> = {
 export function buttonClass(
   variant: ButtonVariant = "ghost",
   className?: string,
+  size: ButtonSize = "base",
 ): string {
-  return [BASE, VARIANTS[variant], className].filter(Boolean).join(" ");
+  return [BASE, SIZES[size], VARIANTS[variant], className].filter(Boolean).join(" ");
 }
 
 export function Button({
   variant,
+  size,
   className,
   type = "button",
   ...props
 }: {
   variant?: ButtonVariant;
+  size?: ButtonSize;
 } & React.ComponentProps<"button">) {
   return (
     <button
       type={type}
-      className={buttonClass(variant, className)}
+      className={buttonClass(variant, className, size)}
       {...props}
     />
   );

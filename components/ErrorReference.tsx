@@ -27,7 +27,7 @@ export function ErrorReference({ digest }: { digest: string }) {
       <span>
         Reference: <code>{digest}</code>
       </span>
-      <Button variant="ghost" className="px-2! py-1!" onClick={copy}>
+      <Button variant="ghost" size="xs" onClick={copy}>
         {copied ? "Copied" : copyFailed ? "Copy failed" : "Copy"}
       </Button>
     </div>

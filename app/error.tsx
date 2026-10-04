@@ -39,14 +39,14 @@ export default function ErrorPage({
       <div className="flex flex-wrap gap-3">
         <Button
           variant="primary"
-          className="px-5! py-2.5!"
+          size="lg"
           onClick={() => retry()}
         >
           Try again
         </Button>
         <Link
           href="/"
-          className={buttonClass("ghost", "px-5! py-2.5! font-medium")}
+          className={buttonClass("ghost", "font-medium", "lg")}
         >
           Go home
         </Link>
