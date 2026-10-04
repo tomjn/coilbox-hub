@@ -9,7 +9,7 @@ import { cardCountsFromEntries } from "@/lib/gallery/cardCounts";
 import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
 import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
 import { cardTitles } from "@/lib/gallery/cardTitles";
-import { galleryPage } from "@/lib/gallery/cached";
+import { galleryFacets, galleryPage } from "@/lib/gallery/cached";
 import { GALLERY_KINDS } from "@/lib/container";
 import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
 import { filterHref, PAGE_SIZE, parseFilters } from "@/lib/gallery/query";
@@ -37,18 +37,13 @@ export default async function Gallery({
   const filters = parseFilters(await searchParams);
   const origin = importOrigin();
   // The rows, the count and the chips, all held between requests. The filters
-  // are the cache key, so a filtered view is held separately from a bare one.
+  // are the cache key of the page, so a filtered view is held separately from a
+  // bare one. The chips take no filters, so they are read once for all of them.
   // `lib/gallery/cached.ts` says why the reads moved out of the page.
-  const {
-    items,
-    count,
-    error,
-    games,
-    maps,
-    pictures: entries,
-    shapes: shapeEntries,
-    counts: countEntries,
-  } = await galleryPage(filters);
+  const [
+    { items, count, error, pictures: entries, shapes: shapeEntries, counts: countEntries },
+    { games, maps },
+  ] = await Promise.all([galleryPage(filters), galleryFacets()]);
   const pictures = cardPicturesFromEntries(entries);
   const shapes = cardShapesFromEntries(shapeEntries);
   const counts = cardCountsFromEntries(countEntries);

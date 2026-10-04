@@ -134,10 +134,6 @@ export interface GalleryPage {
   items: ItemSummary[];
   count: number;
   error: string | null;
-  /** The game keys behind the chips, already narrowed and sorted. */
-  games: string[];
-  /** The map names behind the chips, the same. */
-  maps: string[];
   /** A map picture per scenario or preset among `items` that names one, the
    *  same shape `newestItems` returns and for the same reason. */
   pictures: CardPictureEntries;
@@ -147,13 +143,7 @@ export interface GalleryPage {
   counts: CardCountEntries;
 }
 
-/**
- * One page of the gallery and the chips above it.
- *
- * The facets are here rather than in the page because they are read from the
- * same table at the same moment and are the same for everybody, so holding one
- * without the other would leave the page waiting on a round trip anyway.
- */
+/** One page of the gallery. The chips above it are `galleryFacets()`. */
 export async function galleryPage(filters: Filters): Promise<GalleryPage> {
   "use cache";
   cacheLife(LISTING_LIFE);
@@ -177,18 +167,7 @@ export async function galleryPage(filters: Filters): Promise<GalleryPage> {
     return { count, error };
   };
 
-  // Filter options come from the rows themselves. At this size that is one small
-  // query, and it is honest: an option only appears when something is behind it.
-  // It will need a view or a materialised list long before it needs paging.
-  // The game facet is built from game_key, not game_name: game_name can hold
-  // a version-carrying archive name unique to one row (issue #50), and a
-  // chip built from that would offer a filter that matches nothing else.
-  // Asked for alongside the page rather than after it: neither read depends on
-  // the other, and in series the page waited two round trips instead of one.
-  const [{ data, count, error }, { data: facetRows }] = await Promise.all([
-    fetchPage(() => query, countQuery),
-    supabase.from("item").select("game_key,map_name").limit(1000),
-  ]);
+  const { data, count, error } = await fetchPage(() => query, countQuery);
 
   const items = data as unknown as ItemSummary[];
   // Three more batched lookups for the whole page rather than one per card.
@@ -203,12 +182,49 @@ export async function galleryPage(filters: Filters): Promise<GalleryPage> {
     items,
     count,
     error,
-    games: distinct(facetRows?.map((row) => row.game_key)),
-    maps: distinct(facetRows?.map((row) => row.map_name)),
     pictures: [...pictures],
     shapes: [...shapes],
     counts: [...counts],
   };
+}
+
+export interface GalleryFacets {
+  /** The game keys behind the chips, already narrowed and sorted. */
+  games: string[];
+  /** The map names behind the chips, the same. */
+  maps: string[];
+}
+
+/** The rows `public.item_facet` returns, as the chips want them. */
+export function facetsFromRows(rows: { facet: string; value: string | null }[] | null): GalleryFacets {
+  const valuesOf = (facet: string) => rows?.filter((row) => row.facet === facet).map((row) => row.value);
+  return { games: distinct(valuesOf("game")), maps: distinct(valuesOf("map")) };
+}
+
+/**
+ * The chips above the gallery: every game and map a visible item carries.
+ *
+ * Its own loader, with no arguments, because the answer does not depend on the
+ * page, the sort or the search text. Held inside `galleryPage()` it was read
+ * again for every combination of those. Tagged `items`, so publishing,
+ * withdrawing or editing an item refreshes it.
+ *
+ * The game facet is built from game_key, not game_name: game_name can hold a
+ * version carrying archive name unique to one row (issue #50), and a chip built
+ * from that would offer a filter that matches nothing else. `public.item_facet`
+ * returns each value once however many items there are, so no row limit applies.
+ */
+export async function galleryFacets(): Promise<GalleryFacets> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.items);
+
+  if (notConfigured()) return { games: [], maps: [] };
+  const { data } = await createAnonClient()
+    .from("item_facet")
+    .select("facet,value")
+    .order("value", { ascending: true });
+  return facetsFromRows(data);
 }
 
 /** The values a facet offers: present, unique, sorted, and few enough to be a
