@@ -5,7 +5,9 @@ import type { MetadataRoute } from "next";
  *  `/dev` holds the local sign in route. It answers 404 outside development
  *  (`isDevSignInEnabled`), and it is listed anyway so the rule does not depend on
  *  that guard. `/i/` is the raw container an import link fetches, `/export` is
- *  the whole gallery as one file, and the edit pages need a sign in. */
+ *  the whole gallery as one file, and the edit pages need a sign in. A unit
+ *  compared with another is one page for every pair of units in a game, which
+ *  is a crawl with no end and nothing a search result would want. */
 const PRIVATE_PATHS = [
   "/moderation",
   "/ops",
@@ -18,6 +20,7 @@ const PRIVATE_PATHS = [
   "/export",
   "/item/*/edit",
   "/games/*/edit",
+  "/games/*/units/*/compare?with=",
 ];
 
 /**

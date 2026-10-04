@@ -3,6 +3,7 @@ import { TAGS } from "@/lib/cache/tags";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { getSupabaseConfig } from "@/lib/supabase/config";
+import { loadUnitPair, type PairUnit } from "./compareUnits";
 import { loadGameReleases, loadReleaseChanges, type ReleaseChanges } from "./changes";
 import { loadGamePage, type GamePage } from "./page";
 import { fetchGames, type GameSummary } from "./query";
@@ -196,6 +197,29 @@ export async function unitCompareCached(
   cacheTag(TAGS.games);
 
   return loadUnitComparison(createAnonClient(), shortname, unitName, leftVersion, rightVersion);
+}
+
+/** Two different units of one game with all their revisions and their
+ *  buildpics. Null when either is not held. */
+export async function unitPairCached(
+  shortname: string,
+  nameA: string,
+  nameB: string,
+): Promise<{ units: [PairUnit, PairUnit]; pictures: ReadonlyMap<string, ResolvedAsset> } | null> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games, TAGS.assets);
+
+  if (notConfigured()) return null;
+  const supabase = createAnonClient();
+  const units = await loadUnitPair(supabase, shortname, nameA, nameB);
+  if (!units) return null;
+  const pictures = await unitBuildpics(
+    supabase,
+    shortname,
+    units.map((unit) => ({ unit_name: unit.unit_name, full_name: unit.full_name, faction_key: null })),
+  );
+  return { units, pictures };
 }
 
 /** Every release a game has, newest report first. Empty when the read fails or

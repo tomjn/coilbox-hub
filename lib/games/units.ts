@@ -10,7 +10,14 @@ import { fetchPage } from "@/lib/gallery/query";
 import { readAll } from "@/lib/supabase/readAll";
 import { isRandomFaction } from "./factions";
 import { morphGroups, type MorphStage } from "./morph";
-import { formatStatValue, statLabel, statRows, statValueChanged, tabularStatRows } from "./stats";
+import {
+  compareStatRows,
+  formatStatValue,
+  statLabel,
+  statRows,
+  tabularStatRows,
+  type CompareRow,
+} from "./stats";
 
 /**
  * The encyclopedia's reads (#227): a grid of a game's units, one unit's page,
@@ -862,7 +869,7 @@ export interface UnitComparison {
   right: ComparisonSide;
   /** Every stat key either side carries, in reading order, with both values
    *  formatted and the ones that differ marked. */
-  rows: { key: string; label: string; left: string; right: string; changed: boolean }[];
+  rows: CompareRow[];
 }
 
 const NOT_RECORDED: Omit<ComparisonSide, "version"> = {
@@ -920,23 +927,12 @@ export async function loadUnitComparison(
   const left = side(leftVersion);
   const right = side(rightVersion);
 
-  // The union of both sides' keys, so a stat one release introduced is still
-  // on the table: the side without it reads as not recorded, which is the fact.
-  const ordered = [
-    ...statRows(left.stats).map((row) => row.key),
-    ...statRows(right.stats).map((row) => row.key),
-  ].filter((key, index, all) => all.indexOf(key) === index);
-
   return {
     unit_name: row.unit_name,
     left,
     right,
-    rows: ordered.map((key) => ({
-      key,
-      label: statLabel(key),
-      left: formatStatValue(left.stats[key] ?? null),
-      right: formatStatValue(right.stats[key] ?? null),
-      changed: statValueChanged(left.stats[key], right.stats[key]),
-    })),
+    // The union of both sides' keys, so a stat one release introduced is still
+    // on the table: the side without it reads as not recorded, which is the fact.
+    rows: compareStatRows(left.stats, right.stats),
   };
 }

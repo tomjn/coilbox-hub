@@ -16,6 +16,7 @@ test("production keeps crawlers out of the private and utility routes", () => {
   }
   expect(out).toContain("/item/*/edit");
   expect(out).toContain("/games/*/edit");
+  expect(out).toContain("/games/*/units/*/compare?with=");
 });
 
 test("production allows the public pages and points at the sitemap", () => {
