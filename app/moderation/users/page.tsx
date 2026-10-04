@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
@@ -10,6 +11,10 @@ import {
   type ModeratorAccount,
 } from "@/lib/moderation/accounts";
 import { createClient } from "@/lib/supabase/server";
+
+export const metadata: Metadata = {
+  title: "Users - Moderation",
+};
 
 /**
  * The account directory (issue #385).

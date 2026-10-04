@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
@@ -8,6 +9,10 @@ import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { MAP_PACK_TITLE_MAX, fetchMapPacks } from "@/lib/maps/packs";
 import { createClient } from "@/lib/supabase/server";
 import { createMapPack } from "./actions";
+
+export const metadata: Metadata = {
+  title: "Map packs - Moderation",
+};
 
 /**
  * Every map pack, and the form that starts a new one (tomjn/coilbox#3206).

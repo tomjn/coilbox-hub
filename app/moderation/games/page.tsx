@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { redirect } from "next/navigation";
@@ -14,6 +15,10 @@ import {
 import { fetchDownloadOffers } from "@/lib/games/offers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+
+export const metadata: Metadata = {
+  title: "Ownership requests - Moderation",
+};
 
 /**
  * The ownership queue (#229).

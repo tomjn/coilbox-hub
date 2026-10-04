@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
@@ -8,6 +9,10 @@ import { setItemFeatured } from "@/app/item/actions";
 import { createClient } from "@/lib/supabase/server";
 import { actOnReport } from "./actions";
 import { Button, buttonClass } from "@/components/Button";
+
+export const metadata: Metadata = {
+  title: "Reports - Moderation",
+};
 
 // One moderator, a handful of reports: this page never gets as dense as the
 // gallery, so it can sit a little stronger than that page's strength.

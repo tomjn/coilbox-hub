@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
@@ -17,6 +18,10 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { returnToQueue } from "./actions";
+
+export const metadata: Metadata = {
+  title: "Trail - Moderation",
+};
 
 /**
  * What has been done to the pictures, and by whom (issue #115).
