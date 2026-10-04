@@ -1,6 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { TAGS } from "@/lib/cache/tags";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 import { type CardCountEntries, cardCounts } from "./cardCounts";
 import { type CardPictureEntries, cardMapPictures } from "./cardPictures";
 import { type CardShapeEntries, cardShapes } from "./cardShapes";
@@ -57,6 +58,14 @@ export interface NewestItems {
   counts: CardCountEntries;
 }
 
+const NO_ITEMS = { items: [], pictures: [], shapes: [], counts: [] };
+
+/** The landing page is prerendered by `next build`, which can run with no
+ *  Supabase settings, as CI does. There is nothing to read then, so the page
+ *  builds with no items. A deployment that really lacks them still fails every
+ *  request in `proxy.ts` with `SUPABASE_CONFIG_ERROR`, so this hides nothing. */
+const notConfigured = () => !getSupabaseConfig().ok;
+
 /** The newest few, for the landing page. Six fills two full rows of three at
  *  the desktop grid `app/page.tsx` uses, and three full rows of two at the
  *  tablet step, so the section is full rows at every width (issue #321). */
@@ -65,6 +74,7 @@ export async function newestItems(): Promise<NewestItems> {
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.items, TAGS.assets);
 
+  if (notConfigured()) return NO_ITEMS;
   const supabase = createAnonClient();
   const { data } = await supabase
     .from("item")
@@ -101,6 +111,7 @@ export async function featuredItems(): Promise<FeaturedItems> {
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.items, TAGS.assets);
 
+  if (notConfigured()) return NO_ITEMS;
   const supabase = createAnonClient();
   const { data } = await supabase
     .from("item")
