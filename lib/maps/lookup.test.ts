@@ -2,7 +2,12 @@ import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MapFacts } from "@/lib/api/mapLookup";
 import type { AssetLicenceRow } from "@/lib/assets/licence";
-import { fetchMapFacts, fetchPublishedMapNames } from "./lookup";
+import {
+  applyListingRule,
+  fetchMapFacts,
+  fetchMapListingRule,
+  fetchPublishedMapNames,
+} from "./lookup";
 
 const COMET = "Comet Catcher Remake 1.8";
 const TAKEN_DOWN = "Taken Down 1.0";
@@ -249,4 +254,115 @@ test("with no licence row at all the sitemap lists no map", async () => {
 
 test("a licence read that fails is null, not an empty list", async () => {
   expect(await fetchPublishedMapNames(fakeSupabase({ licenceError: true }), [COMET])).toBeNull();
+});
+
+/**
+ * The listing's half of the gate. The page and the sitemap ask about named maps,
+ * the listing asks about all of them at once, so it is handed the exceptions to
+ * the blanket row instead.
+ */
+function ruleFor(licences: AssetLicenceRow[], count?: number) {
+  const seen: Seen = { rpc: [], filters: [] };
+  const supabase = {
+    from: () => ({
+      select: () => ({
+        or: (filter: string) => {
+          seen.filters.push(filter);
+          return Promise.resolve({ data: licences, count, error: null });
+        },
+      }),
+    }),
+  } as unknown as SupabaseClient;
+  return fetchMapListingRule(supabase).then((rule) => ({ rule, seen }));
+}
+
+test("with an open blanket row the listing leaves out the maps taken down", async () => {
+  const { rule, seen } = await ruleFor([BLANKET, takenDown(TAKEN_DOWN)]);
+
+  expect(rule).toEqual({ ok: true, rule: { kind: "except", names: [TAKEN_DOWN] } });
+  expect(seen.filters).toEqual(["all_maps.is.true,map_name.not.is.null"]);
+});
+
+test("a map that may still be rendered stays in the listing", async () => {
+  const { rule } = await ruleFor([
+    BLANKET,
+    licence({ map_name: COMET, redistribute_rendered: "allowed", licence: "CC BY 4.0" }),
+  ]);
+
+  expect(rule).toEqual({ ok: true, rule: { kind: "except", names: [] } });
+});
+
+test("with a closed blanket row the listing keeps only the maps allowed by name", async () => {
+  const closed = licence({ all_maps: true });
+  const { rule } = await ruleFor([
+    closed,
+    licence({ map_name: COMET, redistribute_extracted: "allowed", licence: "CC BY 4.0" }),
+    takenDown(TAKEN_DOWN),
+  ]);
+
+  expect(rule).toEqual({ ok: true, rule: { kind: "only", names: [COMET] } });
+});
+
+test("with no blanket row the listing keeps only the maps allowed by name", async () => {
+  const { rule } = await ruleFor([]);
+
+  expect(rule).toEqual({ ok: true, rule: { kind: "only", names: [] } });
+});
+
+test("a licence read cut short is not a rule", async () => {
+  const { rule } = await ruleFor([BLANKET], 2);
+
+  expect(rule).toEqual({ ok: false });
+});
+
+test("a licence read that fails is not a rule", async () => {
+  const supabase = {
+    from: () => ({
+      select: () => ({
+        or: () => Promise.resolve({ data: null, count: null, error: { message: "down" } }),
+      }),
+    }),
+  } as unknown as SupabaseClient;
+
+  expect(await fetchMapListingRule(supabase)).toEqual({ ok: false });
+});
+
+/** A query builder that records what it was asked, as PostgREST would read it. */
+function recorder() {
+  const calls: string[] = [];
+  const query = {
+    not: (column: string, operator: string, value: string) => {
+      calls.push(`not ${column} ${operator} ${value}`);
+      return query;
+    },
+    filter: (column: string, operator: string, value: string) => {
+      calls.push(`${column} ${operator} ${value}`);
+      return query;
+    },
+  };
+  return { query, calls };
+}
+
+test("an exception list becomes a not-in filter, with every name quoted", () => {
+  const { query, calls } = recorder();
+  applyListingRule(query, { kind: "except", names: [TAKEN_DOWN, 'A, "B" 2.0'] });
+
+  expect(calls).toEqual([`not map_name in ("Taken Down 1.0","A, \\"B\\" 2.0")`]);
+});
+
+test("an empty exception list adds no filter", () => {
+  const { query, calls } = recorder();
+  applyListingRule(query, { kind: "except", names: [] });
+
+  expect(calls).toEqual([]);
+});
+
+test("an allow list becomes an in filter, and an empty one matches nothing", () => {
+  const first = recorder();
+  applyListingRule(first.query, { kind: "only", names: [COMET] });
+  const second = recorder();
+  applyListingRule(second.query, { kind: "only", names: [] });
+
+  expect(first.calls).toEqual([`map_name in ("Comet Catcher Remake 1.8")`]);
+  expect(second.calls).toEqual(["map_name in ()"]);
 });
