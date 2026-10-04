@@ -32,26 +32,24 @@ export async function NavAccount({ className }: { className: string }) {
     <>
       {moderator ? (
         <Link href="/moderation" className={className}>
-          <LinkPending className="flex items-center gap-2">
+          <LinkPending className="flex flex-col items-center gap-0.5 sm:flex-row sm:gap-2">
             <ModerationIcon className="w-4" />
-            <span className="sr-only sm:not-sr-only">Moderation</span>
+            <span>Moderation</span>
           </LinkPending>
         </Link>
       ) : null}
       {author ? (
         <>
           <Link href="/account" className={className}>
-            <LinkPending className="flex items-center gap-2">
+            <LinkPending className="flex flex-col items-center gap-0.5 sm:flex-row sm:gap-2">
               <AccountIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">
-                <span className="block max-w-32 truncate">{author}</span>
-              </span>
+              <span className="block max-w-20 truncate sm:max-w-32">{author}</span>
             </LinkPending>
           </Link>
           <form action="/auth/signout" method="post">
             <button type="submit" className={className}>
               <SignOutIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">Sign out</span>
+              <span>Sign out</span>
             </button>
           </form>
         </>
@@ -70,5 +68,5 @@ export async function NavAccount({ className }: { className: string }) {
  * in as nobody" would be a claim about a visitor the page has not read yet.
  */
 export function NavAccountFallback() {
-  return <span aria-hidden className="h-8 w-8 sm:w-20" />;
+  return <span aria-hidden className="h-11 w-11 sm:h-8 sm:w-20" />;
 }

@@ -15,9 +15,7 @@ export function NavSignIn({ className }: { className?: string }) {
     <form action="/auth/signin" method="post">
       <button type="submit" className={className}>
         <SignInIcon className="w-4" />
-        <span className="sr-only sm:not-sr-only">
-          {isDevSignInEnabled() ? "Sign in (dev)" : "Sign in"}
-        </span>
+        <span>{isDevSignInEnabled() ? "Sign in (dev)" : "Sign in"}</span>
       </button>
     </form>
   );
