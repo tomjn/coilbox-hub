@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Button, buttonClass } from "@/components/Button";
+import { ErrorReference } from "@/components/ErrorReference";
 import { useEffect } from "react";
 
 /**
@@ -50,6 +51,7 @@ export default function ErrorPage({
           Go home
         </Link>
       </div>
+      {error.digest ? <ErrorReference digest={error.digest} /> : null}
     </main>
   );
 }

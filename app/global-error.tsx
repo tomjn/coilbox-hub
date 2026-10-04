@@ -10,9 +10,11 @@
  * that would normally carry it is what failed.
  */
 import Link from "next/link";
+import { ErrorReference } from "@/components/ErrorReference";
 import "./globals.css";
 
 export default function GlobalError({
+  error,
   retry,
 }: {
   error: Error & { digest?: string };
@@ -43,6 +45,7 @@ export default function GlobalError({
             Go home
           </Link>
         </div>
+        {error.digest ? <ErrorReference digest={error.digest} /> : null}
       </body>
     </html>
   );
