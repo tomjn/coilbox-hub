@@ -352,7 +352,7 @@ export default async function Item({
               label={item.featured_at ? "Unfeature" : "Feature"}
               pendingLabel={item.featured_at ? "Removing…" : "Featuring…"}
               formClassName="flex flex-wrap items-center justify-end gap-2"
-              buttonClassName={buttonClass("ghost", undefined, "md")}
+              buttonClassName={buttonClass("ghost", { size: "md" })}
             />
           </div>
         ) : null}

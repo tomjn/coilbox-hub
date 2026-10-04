@@ -21,7 +21,7 @@ const BACKDROP_STRENGTH = 0.11;
 // Shared by the two secondary buttons, so the third one added beside the
 // gallery button cannot drift from the one that was already there.
 const outlineButton =
-  buttonClass("ghost", "font-medium", "lg");
+  buttonClass("ghost", { className: "font-medium", size: "lg" });
 
 export default async function Home() {
   const origin = await requestOrigin();

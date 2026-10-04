@@ -145,7 +145,7 @@ function AssetRow({ asset }: { asset: TrailAsset }) {
               type="submit"
               name="asset"
               value={asset.id}
-              className={buttonClass("ghost", undefined, "sm")}
+              className={buttonClass("ghost", { size: "sm" })}
             >
               Return to the queue
               <span className="sr-only"> {asset.name}</span>

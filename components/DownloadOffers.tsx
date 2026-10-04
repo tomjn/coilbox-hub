@@ -49,9 +49,9 @@ const KIND_LABELS = {
 } as const;
 
 const ACCEPT =
-  buttonClass("ghost", undefined, "md");
+  buttonClass("ghost", { size: "md" });
 const DECLINE =
-  buttonClass("ghost", undefined, "md");
+  buttonClass("quiet", { size: "md" });
 
 /**
  * One offer's two buttons, in one form.

@@ -75,7 +75,7 @@ const CARD =
  *  download where a game names one. A link and a button doing neighbouring
  *  jobs should not look like two different kinds of thing. */
 const CONTROL_BUTTON =
-  buttonClass("ghost", undefined, "md");
+  buttonClass("ghost", { size: "md" });
 
 /** A side's picture slot. Every tile in a row gets one when any side has a
  *  picture, so names line up, and the empty slot carries the games icon the way
@@ -348,7 +348,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
                   <a
                     href={link.url}
                     rel="noopener noreferrer"
-                    className={buttonClass("ghost", "flex items-center gap-2", "md")}
+                    className={buttonClass("ghost", { className: "flex items-center gap-2", size: "md" })}
                   >
                     {link.label}
                     <ExternalIcon className="w-3.5 text-neutral-400" />

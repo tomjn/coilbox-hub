@@ -41,7 +41,7 @@ export default function GlobalError({
           </button>
           <Link
             href="/"
-            className={buttonClass("ghost", "font-medium", "lg")}
+            className={buttonClass("ghost", { className: "font-medium", size: "lg" })}
           >
             Go home
           </Link>

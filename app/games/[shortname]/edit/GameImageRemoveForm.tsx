@@ -49,7 +49,7 @@ export function GameImageRemoveForm({
     <div className="flex flex-col gap-3">
       {present ? (
         <details>
-          <summary className={buttonClass("ghost", "w-fit cursor-pointer list-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400 [&::-webkit-details-marker]:hidden")}>
+          <summary className={buttonClass("ghost", { className: "w-fit cursor-pointer list-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400 [&::-webkit-details-marker]:hidden" })}>
             Remove {label}
           </summary>
           <form action={action} className="mt-3 flex flex-col gap-3 rounded-md border border-neutral-800 p-4">

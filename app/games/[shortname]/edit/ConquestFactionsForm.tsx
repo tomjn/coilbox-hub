@@ -27,7 +27,7 @@ const CONTROL =
   "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const ROW_BUTTON =
-  buttonClass("ghost", undefined, "xs");
+  buttonClass("quiet", { size: "xs" });
 
 const MAX_FACTIONS = 12;
 
@@ -169,7 +169,7 @@ export function ConquestFactionsForm({
         type="button"
         onClick={add}
         disabled={rows.length >= MAX_FACTIONS}
-        className={buttonClass("ghost", "self-start", "sm")}
+        className={buttonClass("ghost", { className: "self-start", size: "sm" })}
       >
         Add faction
       </button>

@@ -56,7 +56,7 @@ const BUTTON =
 /** Red, because a cleared map leaves the catalog until a client reports it
  *  again, and because nothing puts its curated tags back. */
 const CLEAR =
-  buttonClass("destructive", undefined, "sm");
+  buttonClass("destructive", { size: "sm" });
 
 /** A source hash is 64 characters and there are two on every line. The first
  *  stretch tells two apart while reading, and the whole of it is on the title
@@ -269,7 +269,7 @@ export default async function MapConflicts({ searchParams }: PageProps<"/moderat
                     fields={{ id: row.id, slug: row.slug, featured: "false" }}
                     label="Unfeature"
                     pendingLabel="Removing…"
-                    buttonClassName={buttonClass("ghost", undefined, "sm")}
+                    buttonClassName={buttonClass("quiet", { size: "sm" })}
                   />
                 </li>
               ))}

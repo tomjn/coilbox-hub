@@ -87,7 +87,7 @@ function Alias({ alias }: { alias: AuthorAlias }) {
             type="submit"
             name="from"
             value={alias.fromKey}
-            className={buttonClass("ghost", undefined, "sm")}
+            className={buttonClass("ghost", { size: "sm" })}
           >
             Unmerge
             <span className="sr-only">

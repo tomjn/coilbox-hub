@@ -157,7 +157,7 @@ export default async function Moderation() {
                     fields={{ id: row.id, featured: "false" }}
                     label="Unfeature"
                     pendingLabel="Removing…"
-                    buttonClassName={buttonClass("ghost", undefined, "sm")}
+                    buttonClassName={buttonClass("quiet", { size: "sm" })}
                   />
                 </li>
               ))}

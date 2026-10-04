@@ -97,7 +97,7 @@ export default async function MapCuratedTags({
             label={map.featuredAt ? "Unfeature" : "Feature"}
             pendingLabel={map.featuredAt ? "Removing…" : "Featuring…"}
             formClassName="flex flex-wrap items-center justify-end gap-2"
-            buttonClassName={buttonClass("ghost", undefined, "md")}
+            buttonClassName={buttonClass("ghost", { size: "md" })}
           />
         </div>
 

@@ -1,4 +1,4 @@
-export type ButtonVariant = "primary" | "ghost" | "destructive";
+export type ButtonVariant = "primary" | "ghost" | "quiet" | "destructive";
 
 export type ButtonSize = "xs" | "sm" | "md" | "base" | "lg";
 
@@ -18,6 +18,8 @@ const VARIANTS: Record<ButtonVariant, string> = {
     "bg-neutral-100 font-medium text-neutral-900 hover:bg-white active:bg-neutral-300",
   ghost:
     "border border-neutral-800 text-neutral-300 hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white",
+  quiet:
+    "border border-neutral-800 text-neutral-400 hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200",
   destructive:
     "border border-red-900 text-red-300 hover:border-red-700 active:border-red-600 hover:text-red-200 active:text-red-200",
 };
@@ -31,8 +33,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
  */
 export function buttonClass(
   variant: ButtonVariant = "ghost",
-  className?: string,
-  size: ButtonSize = "base",
+  { size = "base", className }: { size?: ButtonSize; className?: string } = {},
 ): string {
   return [BASE, SIZES[size], VARIANTS[variant], className].filter(Boolean).join(" ");
 }
@@ -50,7 +51,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={buttonClass(variant, className, size)}
+      className={buttonClass(variant, { size, className })}
       {...props}
     />
   );

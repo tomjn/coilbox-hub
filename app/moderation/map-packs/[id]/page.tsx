@@ -36,11 +36,11 @@ const BUTTON =
   buttonClass();
 
 const SMALL =
-  buttonClass("ghost", undefined, "sm");
+  buttonClass("quiet", { size: "sm" });
 
 /** Red, because nothing brings a deleted pack back. */
 const DELETE =
-  buttonClass("destructive", undefined, "sm");
+  buttonClass("destructive", { size: "sm" });
 
 export default async function MapPackPage({ params }: PageProps<"/moderation/map-packs/[id]">) {
   const supabase = await createClient();
@@ -77,7 +77,7 @@ export default async function MapPackPage({ params }: PageProps<"/moderation/map
             label={featured ? "Unfeature" : "Feature"}
             pendingLabel={featured ? "Removing…" : "Featuring…"}
             formClassName="flex flex-wrap items-center justify-end gap-2"
-            buttonClassName={buttonClass("ghost", undefined, "md")}
+            buttonClassName={buttonClass("ghost", { size: "md" })}
           />
         </div>
 

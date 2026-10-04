@@ -254,7 +254,7 @@ export default async function Unit({
                   href={`/games/${shortname}/units/${page.unit_name}`}
                   className={
                     page.shown_version
-                      ? buttonClass("ghost", undefined, "md")
+                      ? buttonClass("ghost", { size: "md" })
                       : "rounded-md border border-neutral-600 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100"
                   }
                 >
@@ -268,7 +268,7 @@ export default async function Unit({
                     className={
                       page.shown_version === version
                         ? "rounded-md border border-neutral-600 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100"
-                        : buttonClass("ghost", undefined, "md")
+                        : buttonClass("ghost", { size: "md" })
                     }
                   >
                     {version}

@@ -49,7 +49,7 @@ function Published({
         <button
           type="button"
           onClick={again}
-          className={buttonClass("ghost", "font-medium", "lg")}
+          className={buttonClass("ghost", { className: "font-medium", size: "lg" })}
         >
           Publish another
         </button>
@@ -118,7 +118,7 @@ function PublishRound({ again }: { again: () => void }) {
           className={`${field} font-mono`}
         />
         <span className="flex items-center gap-3 text-xs text-neutral-500">
-          <label className={buttonClass("ghost", "cursor-pointer", "sm")}>
+          <label className={buttonClass("ghost", { className: "cursor-pointer", size: "sm" })}>
             Or choose an exported file
             <input
               type="file"

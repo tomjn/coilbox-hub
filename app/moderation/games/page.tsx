@@ -129,7 +129,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                     type="submit"
                     name="approve"
                     value="true"
-                    className={buttonClass("ghost", undefined, "md")}
+                    className={buttonClass("ghost", { size: "md" })}
                   >
                     Approve
                   </button>
@@ -137,7 +137,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                     type="submit"
                     name="approve"
                     value="false"
-                    className={buttonClass("ghost", undefined, "md")}
+                    className={buttonClass("quiet", { size: "md" })}
                   >
                     Decline
                   </button>
@@ -175,7 +175,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             label="Hide"
             pendingLabel="Hiding…"
             formClassName="flex flex-wrap items-end gap-2"
-            buttonClassName={buttonClass("ghost", undefined, "md")}
+            buttonClassName={buttonClass("ghost", { size: "base" })}
           >
             <div className="flex flex-col gap-1.5">
               <label htmlFor="hide-shortname" className="text-xs uppercase tracking-wide text-neutral-500">
@@ -198,7 +198,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             label="Hide"
             pendingLabel="Hiding…"
             formClassName="flex flex-wrap items-end gap-2"
-            buttonClassName={buttonClass("ghost", undefined, "md")}
+            buttonClassName={buttonClass("ghost", { size: "base" })}
           >
             <div className="flex flex-col gap-1.5">
               <label htmlFor="hide-version-game" className="text-xs uppercase tracking-wide text-neutral-500">
@@ -239,7 +239,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                           fields={{ shortname: row.shortname, hidden: "false", onSuccess: "moderation" }}
                           label="Unhide"
                           pendingLabel="Unhiding…"
-                          buttonClassName={buttonClass("ghost", undefined, "sm")}
+                          buttonClassName={buttonClass("quiet", { size: "sm" })}
                         />
                       </li>
                     ))}
@@ -269,7 +269,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                           }}
                           label="Unhide"
                           pendingLabel="Unhiding…"
-                          buttonClassName={buttonClass("ghost", undefined, "sm")}
+                          buttonClassName={buttonClass("quiet", { size: "sm" })}
                         />
                       </li>
                     ))}
@@ -295,7 +295,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             label="Feature"
             pendingLabel="Featuring…"
             formClassName="flex flex-wrap items-end gap-2"
-            buttonClassName={buttonClass("ghost", undefined, "md")}
+            buttonClassName={buttonClass("ghost", { size: "base" })}
           >
             <div className="flex flex-col gap-1.5">
               <label htmlFor="feature-shortname" className="text-xs uppercase tracking-wide text-neutral-500">
@@ -322,7 +322,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                     fields={{ shortname: row.shortname, featured: "false" }}
                     label="Unfeature"
                     pendingLabel="Removing…"
-                    buttonClassName={buttonClass("ghost", undefined, "sm")}
+                    buttonClassName={buttonClass("quiet", { size: "sm" })}
                   />
                 </li>
               ))}

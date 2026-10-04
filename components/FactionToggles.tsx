@@ -40,7 +40,7 @@ export function FactionToggles({
           <Link
             key={option.key || "all"}
             href={option.href}
-            className={buttonClass("ghost", undefined, "md")}
+            className={buttonClass("ghost", { size: "md" })}
           >
             {option.label}
           </Link>

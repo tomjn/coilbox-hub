@@ -20,13 +20,13 @@ export default function NotFound() {
       <div className="flex flex-wrap gap-3">
         <Link
           href="/"
-          className={buttonClass("primary", "font-medium", "lg")}
+          className={buttonClass("primary", { className: "font-medium", size: "lg" })}
         >
           Go home
         </Link>
         <Link
           href="/gallery"
-          className={buttonClass("ghost", "font-medium", "lg")}
+          className={buttonClass("ghost", { className: "font-medium", size: "lg" })}
         >
           Browse the gallery
         </Link>
