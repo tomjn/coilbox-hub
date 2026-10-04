@@ -33,3 +33,21 @@ export const currentUser = cache(async (): Promise<SessionUser | null> => {
   const { data } = await supabase.auth.getClaims();
   return data ? userFromClaims(data.claims) : null;
 });
+
+/**
+ * Whether the visitor is a moderator, once per request.
+ *
+ * For deciding what a page draws. It is not a gate: a server action or route
+ * handler that writes asks `is_moderator` itself, as the session, because the
+ * answer here is shared by everything rendered in the request.
+ *
+ * It reads the visitor's cookies, so it cannot run inside a `"use cache"`
+ * function, and `cache` holds the answer for one request only. A signed out
+ * visitor is not asked about, and an error from the database is a no.
+ */
+export const isModerator = cache(async (): Promise<boolean> => {
+  if (!(await currentUser())) return false;
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("is_moderator");
+  return data === true;
+});
