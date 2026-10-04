@@ -36,12 +36,16 @@ export default function ErrorPage({
         the homepage.
       </p>
       <div className="flex flex-wrap gap-3">
-        <Button variant="primary" onClick={() => retry()}>
+        <Button
+          variant="primary"
+          className="px-5! py-2.5!"
+          onClick={() => retry()}
+        >
           Try again
         </Button>
         <Link
           href="/"
-          className={buttonClass()}
+          className={buttonClass("ghost", "px-5! py-2.5! font-medium")}
         >
           Go home
         </Link>
