@@ -58,7 +58,7 @@ export function ReportButton({ itemId }: { itemId: string }) {
         rows={3}
         required
         maxLength={1000}
-        className="w-full rounded border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none"
+        className="w-full rounded border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
       />
       <div className="flex gap-2">
         <SendButton />
