@@ -20,7 +20,18 @@ import { GamesIcon } from "@/components/icons";
 
 const TILE = "h-16 w-24 shrink-0 overflow-hidden rounded-md border border-neutral-800";
 
-export function GameLogo({ src, alt }: { src: string | null; alt: string }) {
+export function GameLogo({
+  src,
+  alt,
+  eager = false,
+}: {
+  src: string | null;
+  alt: string;
+  /** Whether the logo is fetched with the page or once it nears the viewport.
+   *  A page header's logo is on the first screen, so it asks for eager. A card
+   *  far down the games listing does not. */
+  eager?: boolean;
+}) {
   if (!src) {
     return (
       <div aria-hidden className={`${TILE} flex items-center justify-center bg-neutral-900`}>
@@ -38,6 +49,7 @@ export function GameLogo({ src, alt }: { src: string | null; alt: string }) {
         alt={alt}
         width={96}
         height={64}
+        loading={eager ? undefined : "lazy"}
         decoding="async"
         className="size-full object-contain"
       />

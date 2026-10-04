@@ -53,7 +53,17 @@ import { richTextToPlainText } from "@/lib/text/richText";
  *  height of every card in its row. */
 const BLURB = "line-clamp-3 text-sm leading-6 text-neutral-400";
 
-export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides }) {
+export function GameCard({
+  game,
+  sides,
+  eager = false,
+}: {
+  game: GameSummary;
+  sides?: GameSides;
+  /** Whether the logo is fetched with the page, for the cards on the first
+   *  screen. */
+  eager?: boolean;
+}) {
   const logo = gameArtUrl(game.shortname, "logo", {
     path: game.logo_path,
     hash: game.logo_hash,
@@ -98,7 +108,7 @@ export function GameCard({ game, sides }: { game: GameSummary; sides?: GameSides
       ) : null}
       <div className="flex items-start gap-4">
         {/* Decorative here: the name beside it says which game this is. */}
-        <GameLogo src={logo} alt="" />
+        <GameLogo src={logo} alt="" eager={eager} />
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className="break-words text-lg font-semibold leading-snug tracking-tight text-balance text-neutral-100 transition-colors group-hover:text-white">
             <Link

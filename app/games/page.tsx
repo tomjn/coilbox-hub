@@ -70,8 +70,13 @@ function GameGrid({
           200px, and a card with that much empty space under its text looks
           broken rather than aligned. */}
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {rows.map((game) => (
-          <GameCard key={game.shortname} game={game} sides={sides.get(game.shortname)} />
+        {rows.map((game, index) => (
+          <GameCard
+            key={game.shortname}
+            game={game}
+            sides={sides.get(game.shortname)}
+            eager={!ruled && index < 6}
+          />
         ))}
       </ul>
     </section>
