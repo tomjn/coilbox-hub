@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MapFacts } from "@/lib/api/mapLookup";
 import type { AssetLicenceRow } from "@/lib/assets/licence";
-import { fetchMapFacts } from "./lookup";
+import { fetchMapFacts, fetchPublishedMapNames } from "./lookup";
 
 const COMET = "Comet Catcher Remake 1.8";
 const TAKEN_DOWN = "Taken Down 1.0";
@@ -230,4 +230,23 @@ test("the facts are one call and the licences are one request per hundred names"
   expect(seen.filters[0].startsWith("all_maps.is.true,")).toBe(true);
   expect(seen.filters[0]).toContain('map_name.eq."Map 0"');
   expect(seen.filters[2]).toContain('map_name.eq."Map 249"');
+});
+
+test("the sitemap lists a map the licence publishes and leaves out one that was taken down", async () => {
+  const names = await fetchPublishedMapNames(
+    fakeSupabase({ licences: [BLANKET, takenDown(TAKEN_DOWN)] }),
+    [COMET, TAKEN_DOWN],
+  );
+
+  expect([...(names ?? [])]).toEqual([COMET]);
+});
+
+test("with no licence row at all the sitemap lists no map", async () => {
+  const names = await fetchPublishedMapNames(fakeSupabase({ licences: [] }), [COMET]);
+
+  expect(names?.size).toBe(0);
+});
+
+test("a licence read that fails is null, not an empty list", async () => {
+  expect(await fetchPublishedMapNames(fakeSupabase({ licenceError: true }), [COMET])).toBeNull();
 });

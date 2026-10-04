@@ -124,6 +124,37 @@ function published(
   return mayRedistribute(licence, "extracted") || mayRedistribute(licence, "rendered");
 }
 
+/** The per map rows keyed on name, and the blanket row if there is one. */
+function splitLicences(rows: AssetLicenceRow[]) {
+  const perMap = new Map<string, AssetLicenceRow>();
+  let blanket: AssetLicenceRow | undefined;
+  for (const row of rows) {
+    if (row.all_maps) blanket = row;
+    else if (row.map_name !== null) perMap.set(row.map_name, row);
+  }
+  return { perMap, blanket };
+}
+
+/**
+ * Which of these names the hub publishes a page for, by the same rule
+ * {@link fetchMapFacts} applies. Null when the licence read fails, because a
+ * caller that took a failed read for "none" would list nothing, and one that
+ * took it for "all" would list a map that has been taken down.
+ *
+ * For the sitemap, which has to list exactly the maps whose page exists and does
+ * not need the facts themselves.
+ */
+export async function fetchPublishedMapNames(
+  supabase: SupabaseClient,
+  mapNames: string[],
+): Promise<Set<string> | null> {
+  const licences = await readLicences(supabase, mapNames);
+  if (!licences.ok) return null;
+
+  const { perMap, blanket } = splitLicences(licences.rows);
+  return new Set(mapNames.filter((name) => published(name, perMap, blanket)));
+}
+
 /**
  * What the hub holds and may publish for each of these names, keyed on the name
  * exactly as stored. A name the hub has no row for is simply absent from the
@@ -146,12 +177,7 @@ export async function fetchMapFacts(
 
   if (held.error || !held.data || !licences.ok) return { ok: false };
 
-  const perMap = new Map<string, AssetLicenceRow>();
-  let blanket: AssetLicenceRow | undefined;
-  for (const row of licences.rows) {
-    if (row.all_maps) blanket = row;
-    else if (row.map_name !== null) perMap.set(row.map_name, row);
-  }
+  const { perMap, blanket } = splitLicences(licences.rows);
 
   const facts = new Map<string, MapFacts>();
   for (const row of held.data as MapFactsRow[]) {
