@@ -3,6 +3,7 @@ import { TAGS } from "@/lib/cache/tags";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { getSupabaseConfig } from "@/lib/supabase/config";
+import { loadGameReleases, loadReleaseChanges, type ReleaseChanges } from "./changes";
 import { loadGamePage, type GamePage } from "./page";
 import { fetchGames, type GameSummary } from "./query";
 import { loadGameSides, type GameSides } from "./sides";
@@ -195,6 +196,32 @@ export async function unitCompareCached(
   cacheTag(TAGS.games);
 
   return loadUnitComparison(createAnonClient(), shortname, unitName, leftVersion, rightVersion);
+}
+
+/** Every release a game has, newest report first. Empty when the read fails or
+ *  nothing is configured. */
+export async function gameReleasesCached(shortname: string): Promise<string[]> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games);
+
+  if (notConfigured()) return [];
+  const releases = await loadGameReleases(createAnonClient(), shortname);
+  return (releases ?? []).map((release) => release.version);
+}
+
+/** What changed between two releases of a game. Null when the read fails. */
+export async function releaseChangesCached(
+  shortname: string,
+  from: string,
+  to: string,
+): Promise<ReleaseChanges | null> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games);
+
+  if (notConfigured()) return null;
+  return loadReleaseChanges(createAnonClient(), shortname, from, to);
 }
 
 /** Every side a game has, as the filters offer them (#258). */
