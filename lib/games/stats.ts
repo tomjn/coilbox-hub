@@ -63,6 +63,13 @@ export function formatStatValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/** Whether two releases' values for one stat differ. Two values are the same
+ *  when they print the same, which is the rule the compare page marks changed
+ *  rows by, so every page that lists changes agrees with it. */
+export function statValueChanged(left: unknown, right: unknown): boolean {
+  return formatStatValue(left ?? null) !== formatStatValue(right ?? null);
+}
+
 /**
  * The rows of a tabular stat value, or null when one does not apply.
  *

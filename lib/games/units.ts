@@ -10,7 +10,7 @@ import { fetchPage } from "@/lib/gallery/query";
 import { readAll } from "@/lib/supabase/readAll";
 import { isRandomFaction } from "./factions";
 import { morphGroups, type MorphStage } from "./morph";
-import { formatStatValue, statLabel, statRows, tabularStatRows } from "./stats";
+import { formatStatValue, statLabel, statRows, statValueChanged, tabularStatRows } from "./stats";
 
 /**
  * The encyclopedia's reads (#227): a grid of a game's units, one unit's page,
@@ -936,7 +936,7 @@ export async function loadUnitComparison(
       label: statLabel(key),
       left: formatStatValue(left.stats[key] ?? null),
       right: formatStatValue(right.stats[key] ?? null),
-      changed: formatStatValue(left.stats[key] ?? null) !== formatStatValue(right.stats[key] ?? null),
+      changed: statValueChanged(left.stats[key], right.stats[key]),
     })),
   };
 }
