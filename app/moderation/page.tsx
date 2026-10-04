@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
+import { DateTime } from "@/components/DateTime";
 import { ModerationNav } from "@/components/ModerationNav";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { setItemFeatured } from "@/app/item/actions";
@@ -89,7 +90,7 @@ export default async function Moderation() {
                       {item?.title ?? "A deleted item"}
                     </Link>
                     <span className="text-xs text-neutral-400">
-                      {new Date(r.created_at).toISOString().slice(0, 10)}
+                      <DateTime value={r.created_at} />
                     </span>
                   </div>
                   <p className="whitespace-pre-wrap text-sm text-neutral-400">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { redirect } from "next/navigation";
+import { DateTime } from "@/components/DateTime";
 import { DownloadOffers } from "@/components/DownloadOffers";
 import { ModerationNav } from "@/components/ModerationNav";
 import { VisibilityFlash } from "@/components/VisibilityFlash";
@@ -122,7 +123,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                     {request.game.shortname}
                   </Link>
                   <p className="text-sm text-neutral-400">
-                    {request.requested_by_name}, {new Date(request.created_at).toLocaleDateString()}
+                    {request.requested_by_name}, <DateTime value={request.created_at} />
                   </p>
                   {request.note ? (
                     <p className="text-sm text-neutral-300">{request.note}</p>

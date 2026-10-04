@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DateTime } from "@/components/DateTime";
 import { ImportLink } from "@/components/ImportLink";
 import { ItemCardArt } from "@/components/ItemCardArt";
 import { KindIcon } from "@/components/KindIcon";
@@ -173,9 +174,7 @@ export function ItemCard({
         <div className="flex gap-1">
           <dt className="sr-only">Published</dt>
           <dd>
-            <time dateTime={item.created_at}>
-              {new Date(item.created_at).toISOString().slice(0, 10)}
-            </time>
+            <DateTime value={item.created_at} />
           </dd>
         </div>
       </dl>

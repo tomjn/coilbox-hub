@@ -24,6 +24,7 @@ import {
 } from "@/lib/assets/promote";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { formatDate } from "@/lib/text/dates";
 
 export const metadata: Metadata = {
   title: "Allowances - Ops",
@@ -85,15 +86,11 @@ const BASIS_LABEL = {
 const number = new Intl.NumberFormat("en-GB");
 
 function shortDate(day: string): string {
-  return new Date(`${day.slice(0, 10)}T00:00:00.000Z`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
+  return formatDate(day.slice(0, 10));
 }
 
 function stamp(at: string): string {
-  return new Date(at).toISOString().replace("T", " ").slice(0, 16);
+  return formatDate(at, { time: true });
 }
 
 function used(meter: Meter): string {

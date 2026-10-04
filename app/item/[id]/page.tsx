@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
+import { DateTime } from "@/components/DateTime";
 import { ImportLink } from "@/components/ImportLink";
 import { ItemPreview, type UnitNameLink } from "@/components/ItemPreview";
 import { KindIcon } from "@/components/KindIcon";
@@ -148,7 +149,6 @@ export default async function Item({
 
   const origin = await requestOrigin();
   const shareUrl = `${origin}/i/${item.id}`;
-  const published = new Date(item.created_at).toISOString().slice(0, 10);
   const { drawing, strength } = itemArt(item.kind, item.mode);
 
   // What the catalog calls each unit in a blueprint or a mod-project, so a
@@ -366,7 +366,9 @@ export default async function Item({
               {item.author_name}
             </Link>
           </Fact>
-          <Fact term="Published">{published}</Fact>
+          <Fact term="Published">
+            <DateTime value={item.created_at} />
+          </Fact>
           {item.import_count > 0 ? (
             // Zero is not shown at all (issue #51): most items sit at zero
             // for a long time, since only coilbox's own release onward can
