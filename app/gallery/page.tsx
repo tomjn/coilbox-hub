@@ -17,7 +17,7 @@ import { filterHref, PAGE_SIZE, parseFilters } from "@/lib/gallery/query";
 import { Button } from "@/components/Button";
 
 export const metadata: Metadata = {
-  title: "Gallery - Coilbox Hub",
+  title: "Gallery",
   // Built from the kinds the chips below offer, so it cannot say four when
   // there are five (tomjn/coilbox#1502).
   description: `${kindsPlural()} shared by other players.`,

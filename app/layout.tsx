@@ -31,7 +31,9 @@ const description = `A place to share the ${kindsPluralLower()} you make in Coil
 export const metadata: Metadata = {
   // An unfurler needs an absolute URL for the preview image.
   metadataBase: new URL(siteUrl()),
-  title: "Coilbox Hub",
+  // A page supplies its own part. The template does not reach the Open Graph
+  // title, which each page writes out in full.
+  title: { default: "Coilbox Hub", template: "%s - Coilbox Hub" },
   description,
   openGraph: {
     title: "Coilbox Hub",

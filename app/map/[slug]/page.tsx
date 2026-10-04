@@ -58,7 +58,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const page = await load((await params).slug);
-  if (!page) return { title: "Not found - Coilbox Hub" };
+  if (!page) return { title: "Not found" };
 
   const { mapName, facts } = page;
   const title = mapTitle(facts.display_name, mapName);
@@ -72,7 +72,7 @@ export async function generateMetadata({
   const description = [measures.join(", "), facts.description].filter(Boolean).join(" - ");
 
   return {
-    title: `${title} - Coilbox Hub`,
+    title,
     description,
     openGraph: { title, description, type: "article" },
   };

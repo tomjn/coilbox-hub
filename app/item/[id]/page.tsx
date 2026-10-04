@@ -87,7 +87,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const view = await load((await params).id);
-  if (!view) return { title: "Not found - Coilbox Hub" };
+  if (!view) return { title: "Not found" };
   const { item } = view;
 
   // Per item, because a link into a Discord channel is how most people will meet
@@ -98,7 +98,7 @@ export async function generateMetadata({
     [label, item.game_name, item.map_name].filter(Boolean).join(" - ");
 
   return {
-    title: `${item.title} - Coilbox Hub`,
+    title: item.title,
     description,
     openGraph: { title: item.title, description, type: "article" },
   };

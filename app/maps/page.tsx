@@ -47,7 +47,7 @@ import { Button } from "@/components/Button";
  */
 
 export const metadata: Metadata = {
-  title: "Maps - Coilbox Hub",
+  title: "Maps",
   description: "Browse the maps the hub holds facts about, by size, tag, author or name.",
 };
 
