@@ -15,7 +15,7 @@ What the hub holds:
 - The Coilbox desktop app talks to the v1 API under `/api/v1`. It lists and imports items, sends facts about games and maps, and uploads pictures. An item imports through the link `coilbox://import?url=https://<host>/i/<id>`.
 - Authors sign in with Discord at `/publish` to publish an item, then change or withdraw it from the item's page. `/account` lets them delete their account and everything they published.
 - Game owners edit their game's page at `/games/[shortname]/edit`. Any signed in user can ask to own a game from its page, and a moderator decides at `/moderation/games`.
-- Moderators work under `/moderation`: reports, pictures, ownership requests, maps, map packs, authors, users and a trail of what was done to pictures. `/ops` shows storage allowances. Both return 404 unless the signed in account has a row in `public.moderator`.
+- Moderators work under `/moderation`: reports, pictures, ownership requests, maps, map packs, authors, users and a trail of what was done to pictures. `/ops` shows storage allowances. Both return 404 unless the signed in account holds the `can_moderate` capability, a row in `public.user_capability`.
 
 The public ways in that are not pages for people:
 
@@ -39,11 +39,11 @@ You need [bun](https://bun.sh), the [Supabase CLI](https://supabase.com/docs/gui
    scripts/local-services.sh up supabase
    ```
 
-3. Create `.env.development.local` in the repository root. Git ignores it. `next dev` reads it and `next build` does not. It needs three variables, and `supabase status` prints the values.
+3. Create `.env.development.local` in the repository root. Git ignores it. `next dev` reads it and `next build` does not. It needs three variables, written as `NAME=value` lines. Run `supabase status -o json` to print the fields that hold the values.
 
-   - `NEXT_PUBLIC_SUPABASE_URL` is `API_URL`.
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is `PUBLISHABLE_KEY`.
-   - `SUPABASE_SERVICE_ROLE_KEY` is `SERVICE_ROLE_KEY`. The dev sign in route and account deletion need it.
+   - `NEXT_PUBLIC_SUPABASE_URL` takes the `API_URL` field, which is `http://127.0.0.1:54321`.
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` takes the `PUBLISHABLE_KEY` field.
+   - `SUPABASE_SERVICE_ROLE_KEY` takes the `SERVICE_ROLE_KEY` field. The dev sign in route and account deletion need it.
 
 4. Start the dev server.
 
@@ -72,11 +72,12 @@ A fresh database has no games, maps or gallery items, so the lists are empty. No
 
 The scripts in `scripts/` are for the maintainer and need more than a local checkout. `seed:assets`, `promote:assets` and `import:branding` push files to a separate assets repository. `cleanup:assets` and `backfill:*` write to a database. Each prints what it would do without `--write`, and the comment at the top of each file says what it needs.
 
-To use `/moderation` locally, sign in once, then add your account as a moderator with SQL against the `DB_URL` from `supabase status`:
+To use `/moderation` locally, sign in once at `/dev/sign-in`, then grant the dev account the `can_moderate` capability with SQL against the `DB_URL` from `supabase status -o json`:
 
 ```sql
-insert into public.moderator (user_id)
-select id from auth.users where email = 'dev@coilbox.local';
+insert into public.user_capability (user_id, capability)
+select id, 'can_moderate' from auth.users where email = 'dev@coilbox.local'
+on conflict do nothing;
 ```
 
 ## Tests and checks
