@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import Loading from "@/app/loading";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import { Skeleton } from "@/components/Skeleton";
 import { StatTable } from "@/components/StatTable";
 import { UnitCard } from "@/components/UnitCard";
@@ -153,7 +154,10 @@ async function UnitContent({ params, searchParams }: UnitProps) {
   const raw = (await searchParams).v;
   const v = Array.isArray(raw) ? raw[0] : raw;
 
-  const loaded = await unitPageCached(shortname, unit, v);
+  const [game, loaded] = await Promise.all([
+    gamePageCached(shortname),
+    unitPageCached(shortname, unit, v),
+  ]);
   if (!loaded) notFound();
   const { page, renders, buildpic, buildPictures } = loaded;
   const label = page.full_name ?? page.unit_name;
@@ -164,21 +168,14 @@ async function UnitContent({ params, searchParams }: UnitProps) {
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
-        <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
-          <Link href="/games" className="underline-offset-4 hover:underline active:underline">
-            Games
-          </Link>
-          <span aria-hidden> / </span>
-          <Link href={`/games/${shortname}`} className="underline-offset-4 hover:underline active:underline">
-            {shortname}
-          </Link>
-          <span aria-hidden> / </span>
-          <Link href={`/games/${shortname}/units`} className="underline-offset-4 hover:underline active:underline">
-            Units
-          </Link>
-          <span aria-hidden> / </span>
-          <span className="text-neutral-300">{label}</span>
-        </nav>
+        <Breadcrumb
+          crumbs={[
+            { label: "Games", href: "/games" },
+            { label: game ? gameTitle(game) : shortname, href: `/games/${shortname}` },
+            { label: "Units", href: `/games/${shortname}/units` },
+            { label },
+          ]}
+        />
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
           <UnitPortrait label={label} asset={buildpic} />

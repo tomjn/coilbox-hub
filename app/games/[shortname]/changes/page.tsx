@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
+import { GameBreadcrumb } from "@/components/Breadcrumb";
 import { Button } from "@/components/Button";
 import { Skeleton } from "@/components/Skeleton";
 import {
@@ -65,20 +66,6 @@ async function chosen(searchParams: SearchParams) {
     return (Array.isArray(value) ? value[0] : value)?.trim() || undefined;
   };
   return { from: raw("from"), to: raw("to") };
-}
-
-async function Breadcrumb({ params }: { params: Params }) {
-  const { shortname } = await params;
-  const game = await gamePageCached(shortname);
-  return (
-    <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
-      <Link href={`/games/${shortname}`} className={LINK}>
-        {game ? gameTitle(game) : shortname}
-      </Link>
-      <span aria-hidden> / </span>
-      <span className="text-neutral-300">Release changes</span>
-    </nav>
-  );
 }
 
 /** The release pickers. They read the query string to show what is chosen, so
@@ -402,7 +389,7 @@ export default function ReleaseChanges({ params, searchParams }: { params: Param
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <Suspense fallback={<Skeleton className="h-5 w-32" />}>
-          <Breadcrumb params={params} />
+          <GameBreadcrumb params={params} current="Release changes" />
         </Suspense>
 
         <div className="flex flex-col gap-2">
