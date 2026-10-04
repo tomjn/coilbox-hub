@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { editDownloadSources } from "@/app/games/actions";
 import { type GameDownload, MAX_DOWNLOADS } from "@/lib/games/download";
 import type { GameFormState } from "@/lib/games/formState";
+import { Button } from "@/components/Button";
 
 /**
  * The ordered list of places coilbox can fetch this game (#396).
@@ -224,13 +225,13 @@ export function DownloadSourcesForm({
       <form action={action} className="flex items-center gap-3">
         <input type="hidden" name="shortname" value={shortname} />
         <input type="hidden" name="downloads" value={toPayload(rows)} />
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="self-start rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+          className="self-start"
         >
           {pending ? "Saving…" : "Save downloads"}
-        </button>
+        </Button>
         {state ? (
           <p role={state.ok ? "status" : "alert"} className={`text-sm ${state.ok ? "text-neutral-300" : "text-red-400"}`}>
             {state.message}

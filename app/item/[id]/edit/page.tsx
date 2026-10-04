@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { setWithdrawn } from "./actions";
 import { EditForm } from "./EditForm";
+import { Button } from "@/components/Button";
 
 export default async function EditItem({
   params,
@@ -72,12 +73,11 @@ export default async function EditItem({
             name="withdrawn"
             value={withdrawn ? "false" : "true"}
           />
-          <button
+          <Button
             type="submit"
-            className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
           >
             {withdrawn ? "Put it back" : "Withdraw it"}
-          </button>
+          </Button>
         </form>
       </div>
     </main>

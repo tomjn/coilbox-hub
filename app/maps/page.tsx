@@ -16,6 +16,7 @@ import {
   MAP_SORTS,
   parseFilters,
 } from "@/lib/maps/query";
+import { Button } from "@/components/Button";
 
 /**
  * Every map the hub knows about (issue #189).
@@ -164,12 +165,11 @@ export default async function Maps({
           </Field>
 
           <div className="flex items-end gap-3">
-            <button
+            <Button
               type="submit"
-              className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white group-aria-busy:cursor-progress group-aria-busy:opacity-60"
             >
               Filter
-            </button>
+            </Button>
             {isFiltered(filters) ? (
               <Link href="/maps" className="text-sm text-neutral-400 hover:text-neutral-200 active:text-neutral-200">
                 Clear

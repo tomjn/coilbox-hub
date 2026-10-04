@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { removeGameImage } from "@/app/games/actions";
 import type { GameImageKind } from "@/lib/api/gameBranding";
 import { type GameImageUploadState, REMOVE_MESSAGES } from "@/lib/games/imageUpload";
+import { Button, buttonClass } from "@/components/Button";
 
 /**
  * The way to take one of a game's pictures off again (#360), with a
@@ -48,7 +49,7 @@ export function GameImageRemoveForm({
     <div className="flex flex-col gap-3">
       {present ? (
         <details>
-          <summary className="w-fit cursor-pointer list-none rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400 [&::-webkit-details-marker]:hidden">
+          <summary className={buttonClass("ghost", "w-fit cursor-pointer list-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400 [&::-webkit-details-marker]:hidden")}>
             Remove {label}
           </summary>
           <form action={action} className="mt-3 flex flex-col gap-3 rounded-md border border-neutral-800 p-4">
@@ -58,13 +59,14 @@ export function GameImageRemoveForm({
               Remove this game&apos;s {label}? The game page, the games list and link previews stop showing
               it straight away. To show {label} again, upload a picture.
             </p>
-            <button
+            <Button
               type="submit"
               disabled={pending}
-              className="self-start rounded-md border border-red-900 px-4 py-2 text-sm text-red-300 transition-colors hover:border-red-700 active:border-red-600 hover:text-red-200 active:text-red-200 disabled:opacity-60"
+              variant="destructive"
+              className="self-start"
             >
               {pending ? "Removing…" : `Yes, remove the ${label}`}
-            </button>
+            </Button>
           </form>
         </details>
       ) : null}

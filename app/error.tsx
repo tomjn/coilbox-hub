@@ -1,6 +1,7 @@
 "use client"; // Error boundaries must be Client Components
 
 import Link from "next/link";
+import { Button, buttonClass } from "@/components/Button";
 import { useEffect } from "react";
 
 /**
@@ -35,16 +36,16 @@ export default function ErrorPage({
         the homepage.
       </p>
       <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          className="px-5! py-2.5!"
           onClick={() => retry()}
-          className="rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300"
         >
           Try again
-        </button>
+        </Button>
         <Link
           href="/"
-          className="rounded-md border border-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white active:border-neutral-500 active:text-white"
+          className={buttonClass("ghost", "px-5! py-2.5! font-medium")}
         >
           Go home
         </Link>

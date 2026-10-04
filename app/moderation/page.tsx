@@ -7,6 +7,7 @@ import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { setItemFeatured } from "@/app/item/actions";
 import { createClient } from "@/lib/supabase/server";
 import { actOnReport } from "./actions";
+import { Button } from "@/components/Button";
 
 // One moderator, a handful of reports: this page never gets as dense as the
 // gallery, so it can sit a little stronger than that page's strength.
@@ -99,12 +100,11 @@ export default async function Moderation() {
                           value={r.item_id}
                         />
                         <input type="hidden" name="withdraw" value="true" />
-                        <button
+                        <Button
                           type="submit"
-                          className="rounded-md border border-neutral-800 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
                         >
                           Withdraw it
-                        </button>
+                        </Button>
                       </form>
                     )}
                     <form action={actOnReport}>
