@@ -7,6 +7,7 @@ import Loading from "@/app/loading";
 import { requestOwnership, setGameVisibility } from "@/app/games/actions";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import { CommanderPicture } from "@/components/CommanderPicture";
 import { GameLogo } from "@/components/GameLogo";
 import { ExternalIcon, GamesIcon } from "@/components/icons";
@@ -334,13 +335,7 @@ async function GameContent({ params }: { params: Params }) {
       <ArtBackdrop drawing={games} strength={banner ? 0 : BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-3">
-          <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
-            <Link href="/games" className="underline-offset-4 hover:text-neutral-200 hover:underline active:underline">
-              Games
-            </Link>
-            <span aria-hidden> / </span>
-            <span className="text-neutral-200">{title}</span>
-          </nav>
+          <Breadcrumb crumbs={[{ label: "Games", href: "/games" }, { label: title }]} />
           <div className="flex items-center gap-4">
             <GameLogo src={logo} alt={`${title} logo`} eager />
             <h1 className="min-w-0 break-words text-3xl font-semibold tracking-tight text-balance">

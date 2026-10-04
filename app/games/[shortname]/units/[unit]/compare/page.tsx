@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import Loading from "@/app/loading";
 import { AssetPlaceholder } from "@/components/AssetPlaceholder";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import { buttonClass } from "@/components/Button";
 import { UnitComparePicker } from "@/components/UnitComparePicker";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
@@ -117,13 +118,22 @@ async function CompareContent({ params, searchParams }: CompareProps) {
   // them back there.
   if (!left || !right) notFound();
 
-  const comparison = await unitCompareCached(shortname, unit, left, right);
+  // The same two cached reads the tab title makes.
+  const [game, comparison] = await Promise.all([
+    gamePageCached(shortname),
+    unitCompareCached(shortname, unit, left, right),
+  ]);
   if (!comparison) notFound();
 
   const changed = comparison.rows.filter((row) => row.changed).length;
 
   return (
-    <Frame shortname={shortname} unit={unit}>
+    <Frame
+      shortname={shortname}
+      unit={unit}
+      gameName={game ? gameTitle(game) : shortname}
+      unitLabel={comparison.left.full_name ?? comparison.right.full_name ?? comparison.unit_name}
+    >
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">
           {left} vs {right}
@@ -148,29 +158,31 @@ async function CompareContent({ params, searchParams }: CompareProps) {
 }
 
 /** The page around either comparison: the landmark and the breadcrumb. */
-function Frame({ shortname, unit, children }: { shortname: string; unit: string; children: ReactNode }) {
+function Frame({
+  shortname,
+  unit,
+  gameName,
+  unitLabel,
+  children,
+}: {
+  shortname: string;
+  unit: string;
+  gameName: string;
+  unitLabel: string;
+  children: ReactNode;
+}) {
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
-        <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
-          <Link href="/games" className={LINK}>
-            Games
-          </Link>
-          <span aria-hidden> / </span>
-          <Link href={`/games/${shortname}`} className={LINK}>
-            {shortname}
-          </Link>
-          <span aria-hidden> / </span>
-          <Link href={`/games/${shortname}/units`} className={LINK}>
-            Units
-          </Link>
-          <span aria-hidden> / </span>
-          <Link href={`/games/${shortname}/units/${unit}`} className={LINK}>
-            {unit}
-          </Link>
-          <span aria-hidden> / </span>
-          <span className="text-neutral-300">Compare</span>
-        </nav>
+        <Breadcrumb
+          crumbs={[
+            { label: "Games", href: "/games" },
+            { label: gameName, href: `/games/${shortname}` },
+            { label: "Units", href: `/games/${shortname}/units` },
+            { label: unitLabel, href: `/games/${shortname}/units/${unit}` },
+            { label: "Compare" },
+          ]}
+        />
         {children}
       </div>
     </main>
@@ -259,7 +271,7 @@ async function UnitsComparison({
 
   if (resolved.kind !== "found") {
     return (
-      <Frame shortname={shortname} unit={unit}>
+      <Frame shortname={shortname} unit={unit} gameName={gameTitle(game)} unitLabel={self.label}>
         <h1 className="text-3xl font-semibold tracking-tight">Compare {self.label} with another unit</h1>
         <div className="flex flex-col gap-3 text-neutral-300">
           {resolved.kind === "none" ? (
@@ -299,7 +311,7 @@ async function UnitsComparison({
   ]);
   if (!pair) {
     return (
-      <Frame shortname={shortname} unit={unit}>
+      <Frame shortname={shortname} unit={unit} gameName={gameTitle(game)} unitLabel={self.label}>
         <p className="text-sm text-red-400">The catalog could not be read just now. Try again in a moment.</p>
       </Frame>
     );
@@ -330,7 +342,7 @@ async function UnitsComparison({
       ? [pick.missing.a ? name(a) : null, pick.missing.b ? name(b) : null].filter(Boolean)
       : [];
     return (
-      <Frame shortname={shortname} unit={unit}>
+      <Frame shortname={shortname} unit={unit} gameName={gameTitle(game)} unitLabel={self.label}>
         {heading}
         <div className="flex flex-col gap-3 text-neutral-300">
           {pick.unknownRelease ? <p>The hub holds no release called &quot;{askedRelease}&quot;.</p> : null}
@@ -364,7 +376,7 @@ async function UnitsComparison({
   const changed = rows.filter((row) => row.changed).length;
 
   return (
-    <Frame shortname={shortname} unit={unit}>
+    <Frame shortname={shortname} unit={unit} gameName={gameTitle(game)} unitLabel={self.label}>
       <div className="flex flex-col gap-2">
         {heading}
         <p className="text-neutral-400">

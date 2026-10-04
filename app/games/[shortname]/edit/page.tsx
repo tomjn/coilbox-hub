@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { setGameVisibility, setVersionVisibility } from "@/app/games/actions";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import { DownloadOffers } from "@/components/DownloadOffers";
 import { VisibilityFlash } from "@/components/VisibilityFlash";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
@@ -99,13 +99,7 @@ export default async function EditGame({
 
   return (
     <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
-      <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
-        <Link href={`/games/${shortname}`} className="underline-offset-4 hover:underline active:underline">
-          {shortname}
-        </Link>
-        <span aria-hidden> / </span>
-        <span className="text-neutral-300">Edit</span>
-      </nav>
+      <Breadcrumb crumbs={[{ label: gameTitle(page), href: `/games/${shortname}` }, { label: "Edit" }]} />
 
       <div className="flex flex-col gap-10 pt-8">
         <div className="flex flex-col gap-2">

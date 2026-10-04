@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { GameBreadcrumb } from "@/components/Breadcrumb";
 import { TreeBlock } from "@/components/GameTree";
 import { FactionToggles } from "@/components/FactionToggles";
 import { Skeleton } from "@/components/Skeleton";
@@ -56,19 +57,6 @@ async function chosen(searchParams: SearchParams) {
     return Array.isArray(value) ? value[0] : value;
   };
   return { v: raw("v"), factionParam: raw("faction")?.trim() || null };
-}
-
-async function Breadcrumb({ params }: { params: Params }) {
-  const { shortname } = await params;
-  return (
-    <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
-      <Link href={`/games/${shortname}`} className="underline-offset-4 hover:underline active:underline">
-        {shortname}
-      </Link>
-      <span aria-hidden> / </span>
-      <span className="text-neutral-300">Build tree</span>
-    </nav>
-  );
 }
 
 /** Sides as toggles rather than a dropdown (#269), and the only control on
@@ -191,7 +179,7 @@ export default function TreePage({ params, searchParams }: { params: Params; sea
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <Suspense fallback={<Skeleton className="h-5 w-32" />}>
-          <Breadcrumb params={params} />
+          <GameBreadcrumb params={params} current="Build tree" />
         </Suspense>
 
         <div className="flex flex-col gap-2">

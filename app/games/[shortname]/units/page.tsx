@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
+import { GameBreadcrumb } from "@/components/Breadcrumb";
 import { archives } from "@/components/art/drawings";
 import { FactionToggles, type FactionToggleOption } from "@/components/FactionToggles";
 import { Skeleton } from "@/components/Skeleton";
@@ -47,19 +48,6 @@ const CONTROL =
 
 type Params = Promise<{ shortname: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-async function Breadcrumb({ params }: { params: Params }) {
-  const { shortname } = await params;
-  return (
-    <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
-      <Link href={`/games/${shortname}`} className="underline-offset-4 hover:underline active:underline">
-        {shortname}
-      </Link>
-      <span aria-hidden> / </span>
-      <span className="text-neutral-300">Units</span>
-    </nav>
-  );
-}
 
 /** The faction toggles and the search form. They read the query string to show
  *  what is chosen, so they sit behind a boundary of their own and not the list's:
@@ -216,7 +204,7 @@ export default function Units({ params, searchParams }: { params: Params; search
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <Suspense fallback={<Skeleton className="h-5 w-32" />}>
-          <Breadcrumb params={params} />
+          <GameBreadcrumb params={params} current="Units" />
         </Suspense>
 
         <div className="flex flex-col gap-2">
