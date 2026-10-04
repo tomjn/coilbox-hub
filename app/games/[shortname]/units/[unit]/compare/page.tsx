@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { connection } from "next/server";
+import { Suspense } from "react";
+import Loading from "@/app/loading";
 import { gamePageCached, unitCompareCached } from "@/lib/games/cached";
 import { gameTitle } from "@/lib/games/labels";
 
@@ -39,14 +40,25 @@ export async function generateMetadata({
   return { title: `Compare ${label} - ${gameTitle(game)}` };
 }
 
-export default async function Compare({
-  params,
-  searchParams,
-}: {
+interface CompareProps {
   params: Promise<{ shortname: string; unit: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  await connection();
+}
+
+/** The route. Everything on the page depends on the unit and the two releases
+ *  picked, and there is no part of it that stays the same between two
+ *  comparisons, so the whole page sits behind a boundary of its own. The root
+ *  loading file's boundary is already on screen when a visitor moves between two
+ *  comparisons, and would hold the old one up until the new one was ready. */
+export default function Compare(props: CompareProps) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <CompareContent {...props} />
+    </Suspense>
+  );
+}
+
+async function CompareContent({ params, searchParams }: CompareProps) {
   const { shortname, unit } = await params;
   const query = await searchParams;
   const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
