@@ -69,10 +69,11 @@ async function chosen(searchParams: SearchParams) {
 
 async function Breadcrumb({ params }: { params: Params }) {
   const { shortname } = await params;
+  const game = await gamePageCached(shortname);
   return (
     <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
       <Link href={`/games/${shortname}`} className={LINK}>
-        {shortname}
+        {game ? gameTitle(game) : shortname}
       </Link>
       <span aria-hidden> / </span>
       <span className="text-neutral-300">Release changes</span>
@@ -224,7 +225,8 @@ function ChangedUnit({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <UnitLink game={game} unit={unit} />
         <Link href={compare} className={`text-xs text-neutral-400 ${LINK}`}>
-          Compare {unit.unit_name}
+          Compare releases
+          <span className="sr-only"> of {unit.full_name ?? unit.unit_name}</span>
         </Link>
       </div>
       <dl className="grid grid-cols-[minmax(7rem,max-content)_1fr] gap-x-4 gap-y-1 text-sm">
