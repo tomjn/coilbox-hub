@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
@@ -144,7 +145,7 @@ function AssetRow({ asset }: { asset: TrailAsset }) {
               type="submit"
               name="asset"
               value={asset.id}
-              className="rounded-md border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+              className={buttonClass("ghost", { size: "sm" })}
             >
               Return to the queue
               <span className="sr-only"> {asset.name}</span>

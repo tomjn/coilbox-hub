@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
+import { buttonClass } from "@/components/Button";
 import { publish, type PublishState } from "./actions";
 
 const field =
@@ -48,7 +49,7 @@ function Published({
         <button
           type="button"
           onClick={again}
-          className="rounded-md border border-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+          className={buttonClass("ghost", { className: "font-medium", size: "lg" })}
         >
           Publish another
         </button>
@@ -117,7 +118,7 @@ function PublishRound({ again }: { again: () => void }) {
           className={`${field} font-mono`}
         />
         <span className="flex items-center gap-3 text-xs text-neutral-500">
-          <label className="cursor-pointer rounded-md border border-neutral-800 px-3 py-1.5 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-300 active:text-neutral-300">
+          <label className={buttonClass("ghost", { className: "cursor-pointer", size: "sm" })}>
             Or choose an exported file
             <input
               type="file"

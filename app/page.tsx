@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/Button";
 import { CoilLogo } from "@/components/CoilLogo";
 import { HubArt } from "@/components/HubArt";
 import { ItemCard } from "@/components/ItemCard";
@@ -20,7 +21,7 @@ const BACKDROP_STRENGTH = 0.11;
 // Shared by the two secondary buttons, so the third one added beside the
 // gallery button cannot drift from the one that was already there.
 const outlineButton =
-  "rounded-md border border-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white";
+  buttonClass("ghost", { className: "font-medium", size: "lg" });
 
 export default async function Home() {
   const origin = await requestOrigin();

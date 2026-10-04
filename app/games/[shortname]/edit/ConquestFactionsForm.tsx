@@ -4,7 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { editConquestFactions } from "@/app/games/actions";
 import type { ConquestFaction } from "@/lib/games/catalog";
 import type { GameFormState } from "@/lib/games/formState";
-import { Button } from "@/components/Button";
+import { Button, buttonClass } from "@/components/Button";
 
 /**
  * The ordered list of a game's own conquest factions (#393): a name plus an
@@ -27,7 +27,7 @@ const CONTROL =
   "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const ROW_BUTTON =
-  "rounded-md border border-neutral-800 px-2 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-40";
+  buttonClass("quiet", { size: "xs" });
 
 const MAX_FACTIONS = 12;
 
@@ -169,7 +169,7 @@ export function ConquestFactionsForm({
         type="button"
         onClick={add}
         disabled={rows.length >= MAX_FACTIONS}
-        className="self-start rounded-md border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-40"
+        className={buttonClass("ghost", { className: "self-start", size: "sm" })}
       >
         Add faction
       </button>

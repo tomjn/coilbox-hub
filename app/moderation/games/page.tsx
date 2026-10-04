@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/Button";
 import { redirect } from "next/navigation";
 import { DownloadOffers } from "@/components/DownloadOffers";
 import { ModerationNav } from "@/components/ModerationNav";
@@ -128,7 +129,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                     type="submit"
                     name="approve"
                     value="true"
-                    className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-neutral-100 transition-colors hover:border-neutral-500 active:border-neutral-400"
+                    className={buttonClass("ghost", { size: "md" })}
                   >
                     Approve
                   </button>
@@ -136,7 +137,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                     type="submit"
                     name="approve"
                     value="false"
-                    className="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
+                    className={buttonClass("quiet", { size: "md" })}
                   >
                     Decline
                   </button>
@@ -174,7 +175,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             label="Hide"
             pendingLabel="Hiding…"
             formClassName="flex flex-wrap items-end gap-2"
-            buttonClassName="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+            buttonClassName={buttonClass("ghost", { size: "base" })}
           >
             <div className="flex flex-col gap-1.5">
               <label htmlFor="hide-shortname" className="text-xs uppercase tracking-wide text-neutral-500">
@@ -197,7 +198,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             label="Hide"
             pendingLabel="Hiding…"
             formClassName="flex flex-wrap items-end gap-2"
-            buttonClassName="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+            buttonClassName={buttonClass("ghost", { size: "base" })}
           >
             <div className="flex flex-col gap-1.5">
               <label htmlFor="hide-version-game" className="text-xs uppercase tracking-wide text-neutral-500">
@@ -238,7 +239,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                           fields={{ shortname: row.shortname, hidden: "false", onSuccess: "moderation" }}
                           label="Unhide"
                           pendingLabel="Unhiding…"
-                          buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                          buttonClassName={buttonClass("quiet", { size: "sm" })}
                         />
                       </li>
                     ))}
@@ -268,7 +269,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                           }}
                           label="Unhide"
                           pendingLabel="Unhiding…"
-                          buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                          buttonClassName={buttonClass("quiet", { size: "sm" })}
                         />
                       </li>
                     ))}
@@ -294,7 +295,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             label="Feature"
             pendingLabel="Featuring…"
             formClassName="flex flex-wrap items-end gap-2"
-            buttonClassName="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+            buttonClassName={buttonClass("ghost", { size: "base" })}
           >
             <div className="flex flex-col gap-1.5">
               <label htmlFor="feature-shortname" className="text-xs uppercase tracking-wide text-neutral-500">
@@ -321,7 +322,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                     fields={{ shortname: row.shortname, featured: "false" }}
                     label="Unfeature"
                     pendingLabel="Removing…"
-                    buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                    buttonClassName={buttonClass("quiet", { size: "sm" })}
                   />
                 </li>
               ))}

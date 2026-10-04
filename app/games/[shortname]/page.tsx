@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buttonClass } from "@/components/Button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
@@ -74,7 +75,7 @@ const CARD =
  *  download where a game names one. A link and a button doing neighbouring
  *  jobs should not look like two different kinds of thing. */
 const CONTROL_BUTTON =
-  "rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60";
+  buttonClass("ghost", { size: "md" });
 
 /** A side's picture slot. Every tile in a row gets one when any side has a
  *  picture, so names line up, and the empty slot carries the games icon the way
@@ -347,7 +348,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
                   <a
                     href={link.url}
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+                    className={buttonClass("ghost", { className: "flex items-center gap-2", size: "md" })}
                   >
                     {link.label}
                     <ExternalIcon className="w-3.5 text-neutral-400" />

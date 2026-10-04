@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buttonClass } from "@/components/Button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -251,11 +252,11 @@ export default async function Unit({
               <li>
                 <Link
                   href={`/games/${shortname}/units/${page.unit_name}`}
-                  className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                  className={
                     page.shown_version
-                      ? "border-neutral-800 text-neutral-300 hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-                      : "border-neutral-600 bg-neutral-900 text-neutral-100"
-                  }`}
+                      ? buttonClass("ghost", { size: "md" })
+                      : "rounded-md border border-neutral-600 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100"
+                  }
                 >
                   Latest
                 </Link>
@@ -264,11 +265,11 @@ export default async function Unit({
                 <li key={version}>
                   <Link
                     href={`/games/${shortname}/units/${page.unit_name}${versionQuery(version)}`}
-                    className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                    className={
                       page.shown_version === version
-                        ? "border-neutral-600 bg-neutral-900 text-neutral-100"
-                        : "border-neutral-800 text-neutral-300 hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
-                    }`}
+                        ? "rounded-md border border-neutral-600 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100"
+                        : buttonClass("ghost", { size: "md" })
+                    }
                   >
                     {version}
                   </Link>

@@ -159,7 +159,7 @@ export default async function EditGame({
                   fields={{ shortname, version: row.version, hidden: row.hidden_at ? "false" : "true" }}
                   label={row.hidden_at ? "Unhide release" : "Hide release"}
                   pendingLabel={row.hidden_at ? "Unhiding…" : "Hiding…"}
-                  buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                  buttonClassName={buttonClass("quiet", { size: "sm" })}
                 />
               </li>
             ))}

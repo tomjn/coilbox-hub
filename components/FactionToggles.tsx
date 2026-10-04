@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/Button";
 
 /**
  * Factions as a row of toggles rather than a dropdown (#269).
@@ -39,7 +40,7 @@ export function FactionToggles({
           <Link
             key={option.key || "all"}
             href={option.href}
-            className="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"
+            className={buttonClass("ghost", { size: "md" })}
           >
             {option.label}
           </Link>
