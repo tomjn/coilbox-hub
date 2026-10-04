@@ -67,7 +67,7 @@ export function buildItemBody(item: ItemSummary, containerUrl: string): ItemBody
   };
 }
 
-const FILTER_KEYS = [
+export const FILTER_KEYS = [
   "kind",
   "game",
   "map",
@@ -83,7 +83,7 @@ const FILTER_KEYS = [
  *  one: a second `game` or `page` is as much a client bug as an unknown
  *  parameter name, and the same silent-take-one failure this file exists to
  *  rule out for `kind`, so it is rejected the same way. */
-const SINGLE_VALUE_KEYS = ["game", "map", "q", "sort", "page"] as const;
+export const SINGLE_VALUE_KEYS = ["game", "map", "q", "sort", "page"] as const;
 
 export type ParsedApiFilters =
   | { ok: true; filters: Filters }

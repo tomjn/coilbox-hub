@@ -26,6 +26,7 @@ test("production allows the public pages and points at the sitemap", () => {
   expect(rule.userAgent).toBe("*");
   expect(rule.allow).toBe("/");
   expect(disallowed(rules)).not.toContain("/");
+  expect(disallowed(rules)).not.toContain("/developers");
 });
 
 test("a preview disallows everything and offers no sitemap", () => {

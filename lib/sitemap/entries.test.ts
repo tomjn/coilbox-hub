@@ -11,6 +11,7 @@ test("the fixed pages are always listed", () => {
     "https://hub.example/gallery",
     "https://hub.example/maps",
     "https://hub.example/games",
+    "https://hub.example/developers",
   ]);
 });
 
