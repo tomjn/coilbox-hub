@@ -104,7 +104,7 @@ export default async function PictureQueue() {
   const { waiting, total } = await fetchPictureQueue(createAdminClient());
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
       <ModerationNav current="pictures" />
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-12">

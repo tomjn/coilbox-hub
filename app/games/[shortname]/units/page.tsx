@@ -100,7 +100,7 @@ export default async function Units({
   ];
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <nav className="text-sm text-neutral-500" aria-label="Breadcrumb">

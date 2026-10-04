@@ -97,7 +97,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
   }[];
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ModerationNav current="games" />
       <div className="mx-auto w-full max-w-3xl flex flex-col gap-6 px-6 py-12">
         <div className="flex flex-col gap-2">

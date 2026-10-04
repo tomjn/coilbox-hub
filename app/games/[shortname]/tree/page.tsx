@@ -101,7 +101,7 @@ export default async function TreePage({
   }));
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <nav className="text-sm text-neutral-500" aria-label="Breadcrumb">
           <Link href={`/games/${shortname}`} className="underline-offset-4 hover:underline active:underline">

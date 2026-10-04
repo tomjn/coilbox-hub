@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/Skeleton";
  */
 export default function Loading() {
   return (
-    <main className="relative flex-1" aria-busy="true">
+    <main id="main-content" tabIndex={-1} className="relative flex-1" aria-busy="true">
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-12">
         <p className="sr-only">Loading the item</p>
         <div className="flex flex-col gap-3">

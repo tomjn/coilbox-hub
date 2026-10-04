@@ -98,7 +98,7 @@ export default async function EditGame({
   const versionRows = (versions ?? []) as unknown as { version: string; hidden_at: string | null }[];
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
+    <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
       <nav className="text-sm text-neutral-500" aria-label="Breadcrumb">
         <Link href={`/games/${shortname}`} className="underline-offset-4 hover:underline active:underline">
           {shortname}

@@ -194,7 +194,7 @@ export default async function Trail({ searchParams }: PageProps<"/moderation/tra
   const recent = trail ? [] : await fetchRecentEvents(admin);
 
   return (
-    <main className="relative flex-1">
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
       <ModerationNav current="pictures" />
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
