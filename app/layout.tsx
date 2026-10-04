@@ -8,7 +8,7 @@ import { CoilLogo } from "@/components/CoilLogo";
 import { DownloadIcon, GalleryIcon, GamesIcon, MapsIcon, PublishIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
 import { NavLink } from "@/components/NavLink";
-import { NavAccount, NavAccountFallback } from "@/components/NavAccount";
+import { NavAccount, NavAccountFallback, NavModeration } from "@/components/NavAccount";
 import { COILBOX_URL } from "@/lib/coilbox";
 import { siteUrl } from "@/lib/site";
 import { kindsPluralLower } from "@/lib/gallery/label";
@@ -42,18 +42,18 @@ export const metadata: Metadata = {
   },
 };
 
-/* Icons carry the meaning on a narrow screen, where the labels collapse to
-   screen reader only text rather than wrapping the header onto two lines. */
+/* On a narrow screen the label sits under the icon and the link is at least 44
+   pixels square. */
 const navItem =
-  "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:text-white active:bg-neutral-900 active:text-white";
+  "flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1.5 transition-colors hover:text-white active:bg-neutral-900 active:text-white sm:min-h-0 sm:min-w-0 sm:flex-row sm:gap-2";
 
 /* The inside of a nav link, which `LinkPending` dims while the page it leads
    to is still on its way. The same row layout as the link itself, so the icon
    and label sit exactly where they did. */
-const navBody = "flex items-center gap-2";
+const navBody = "flex flex-col items-center gap-0.5 sm:flex-row sm:gap-2";
 
-/* The section the visitor is in. Lit rather than only brighter, so on a narrow
-   screen, where the nav is icons alone, the tile still says where you are. */
+/* The section the visitor is in. Lit rather than only brighter, so the tile
+   still says where you are on a narrow screen. */
 const navCurrent = "bg-neutral-900 text-white";
 
 /* A section link, lit while the visitor is anywhere in its section. Only
@@ -99,30 +99,34 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
-        <header className="flex items-center justify-between px-6 py-4">
+        <header className="flex flex-wrap items-center gap-y-2 px-6 py-4 sm:flex-nowrap sm:gap-3">
           <Link
             href="/"
-            className="flex items-center gap-2 text-sm font-medium text-neutral-300 transition-colors hover:text-white active:text-white"
+            className="mr-auto flex items-center gap-2 text-sm font-medium text-neutral-300 transition-colors hover:text-white active:text-white"
           >
             <CoilLogo className="w-5" />
             Coilbox Hub
           </Link>
-          <nav className="-mr-2 flex items-center gap-1 text-sm text-neutral-400 sm:gap-3">
+          {/* On a phone the section links are a row of equal columns under the
+              logo, and the account controls sit beside the logo. A moderator has
+              six links, which fit one row from 360 pixels and split three and
+              three below that. From `sm` this is one row, as it always was. */}
+          <nav className="order-3 -mx-6 grid w-[calc(100%+3rem)] grid-cols-5 gap-y-1 text-[11px] text-neutral-400 has-[[data-moderator]]:grid-cols-3 min-[360px]:has-[[data-moderator]]:grid-cols-6 max-sm:*:px-0 sm:order-none sm:mx-0 sm:flex sm:w-auto sm:items-center sm:gap-3 sm:text-sm">
             <SectionLink href="/gallery">
               <GalleryIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">Gallery</span>
+              <span>Gallery</span>
             </SectionLink>
             <SectionLink href="/maps">
               <MapsIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">Maps</span>
+              <span>Maps</span>
             </SectionLink>
             <SectionLink href="/games">
               <GamesIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">Games</span>
+              <span>Games</span>
             </SectionLink>
             <SectionLink href="/publish">
               <PublishIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">Publish</span>
+              <span>Publish</span>
             </SectionLink>
             {/* The only outbound link in the nav, and it opens in a new tab so
                 that following it from an item page does not lose the item the
@@ -134,15 +138,20 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               className={navItem}
             >
               <DownloadIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">Get Coilbox</span>
+              <span>Get Coilbox</span>
             </a>
-            {/* The one part of the page that differs per visitor, so it is the
-                one part rendered per request. The rest of the header is served
-                from the held shell while this is read. */}
+            <Suspense>
+              <NavModeration className={navItem} />
+            </Suspense>
+          </nav>
+          {/* The one part of the page that differs per visitor, so it is the
+              one part rendered per request. The rest of the header is served
+              from the held shell while this is read. */}
+          <div className="order-2 -mr-2 flex items-center gap-3 text-[11px] text-neutral-400 sm:order-none sm:text-sm">
             <Suspense fallback={<NavAccountFallback />}>
               <NavAccount className={navItem} />
             </Suspense>
-          </nav>
+          </div>
         </header>
         {/* One page fading into the next rather than being replaced by it. Only
             the page: the header is outside this and stays put, which is what it

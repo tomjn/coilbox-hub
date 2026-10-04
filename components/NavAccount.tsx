@@ -8,7 +8,7 @@ import { currentUser } from "@/lib/supabase/user";
 
 /**
  * The part of the header that differs per visitor: whether they are signed in,
- * what to call them, and whether they moderate.
+ * and what to call them. Whether they moderate is `NavModeration`.
  *
  * Its own component so that the layout around it reads nothing about the
  * request. Everything else on the page is the same for everybody and can be
@@ -23,43 +23,49 @@ import { currentUser } from "@/lib/supabase/user";
 export async function NavAccount({ className }: { className: string }) {
   const user = await currentUser();
   const author = user ? displayName(user.metadata) : null;
+
+  return author ? (
+    <>
+      <Link href="/account" className={className}>
+        <LinkPending className="flex flex-col items-center gap-0.5 sm:flex-row sm:gap-2">
+          <AccountIcon className="w-4" />
+          <span className="block max-w-20 truncate sm:max-w-32">{author}</span>
+        </LinkPending>
+      </Link>
+      <form action="/auth/signout" method="post">
+        <button type="submit" className={className}>
+          <SignOutIcon className="w-4" />
+          <span>Sign out</span>
+        </button>
+      </form>
+    </>
+  ) : (
+    <NavSignIn className={className} />
+  );
+}
+
+/**
+ * The moderation link, which only a moderator gets.
+ *
+ * Split from `NavAccount` because it sits with the section links, and on a phone
+ * the account controls sit on the logo row instead. `data-moderator` lets the
+ * nav see that it holds six links rather than five.
+ */
+export async function NavModeration({ className }: { className: string }) {
+  const user = await currentUser();
   // Only signed in visitors can be moderators, so nobody else pays for the call.
   const { data: moderator } = user
     ? await (await createClient()).rpc("is_moderator")
     : { data: false };
 
-  return (
-    <>
-      {moderator ? (
-        <Link href="/moderation" className={className}>
-          <LinkPending className="flex items-center gap-2">
-            <ModerationIcon className="w-4" />
-            <span className="sr-only sm:not-sr-only">Moderation</span>
-          </LinkPending>
-        </Link>
-      ) : null}
-      {author ? (
-        <>
-          <Link href="/account" className={className}>
-            <LinkPending className="flex items-center gap-2">
-              <AccountIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">
-                <span className="block max-w-32 truncate">{author}</span>
-              </span>
-            </LinkPending>
-          </Link>
-          <form action="/auth/signout" method="post">
-            <button type="submit" className={className}>
-              <SignOutIcon className="w-4" />
-              <span className="sr-only sm:not-sr-only">Sign out</span>
-            </button>
-          </form>
-        </>
-      ) : (
-        <NavSignIn className={className} />
-      )}
-    </>
-  );
+  return moderator ? (
+    <Link href="/moderation" className={className} data-moderator>
+      <LinkPending className="flex flex-col items-center gap-0.5 sm:flex-row sm:gap-2">
+        <ModerationIcon className="w-4" />
+        <span>Moderation</span>
+      </LinkPending>
+    </Link>
+  ) : null;
 }
 
 /**
@@ -70,5 +76,5 @@ export async function NavAccount({ className }: { className: string }) {
  * in as nobody" would be a claim about a visitor the page has not read yet.
  */
 export function NavAccountFallback() {
-  return <span aria-hidden className="h-8 w-8 sm:w-20" />;
+  return <span aria-hidden className="h-11 w-11 sm:h-8 sm:w-20" />;
 }
