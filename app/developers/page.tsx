@@ -289,8 +289,7 @@ export default function DevelopersPage() {
           Also on this page: <a className="underline underline-offset-2" href="#paging">paging</a>,{" "}
           <a className="underline underline-offset-2" href="#errors">errors</a>,{" "}
           <a className="underline underline-offset-2" href="#caching">caching and limits</a>,{" "}
-          <a className="underline underline-offset-2" href="#private">private endpoints</a> and{" "}
-          <a className="underline underline-offset-2" href="#terms">terms</a>.
+          and <a className="underline underline-offset-2" href="#private">private endpoints</a>.
         </p>
       </nav>
 
@@ -504,9 +503,8 @@ export default function DevelopersPage() {
 
       <Section id="export" title="Export the gallery" path="GET /export">
         <p className={prose}>
-          Returns every public item, with its container, as one JSON file. Use it to back up or
-          rehost the gallery. It takes no parameters and is not paged. Withdrawn items are not in
-          it.
+          Returns every public item, with its container, as one JSON file. It takes no parameters
+          and is not paged. Withdrawn items are not in it.
         </p>
         <Code label="Example request">{`curl -o coilbox-hub.json ${origin}/export`}</Code>
         <Sub>Response</Sub>
@@ -629,13 +627,6 @@ curl "${origin}/api/v1/items?page=3"`}</Code>
           The hub has other endpoints that the Coilbox desktop app uses to publish items and to
           send pictures, map facts and game facts. They are private to the app. They are not
           documented here and are not supported for other clients.
-        </p>
-      </Section>
-
-      <Section id="terms" title="Terms">
-        <p className={prose}>
-          The hub states no licence for the items and maps it lists. Each item&apos;s page shows
-          its author.
         </p>
       </Section>
     </main>
