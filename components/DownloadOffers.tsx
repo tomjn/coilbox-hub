@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { buttonClass } from "@/components/Button";
 import { actOnDownloadOffer } from "@/app/games/actions";
 import type { DownloadOffer } from "@/lib/games/offers";
 import type { GameFormState } from "@/lib/games/formState";
@@ -48,9 +49,9 @@ const KIND_LABELS = {
 } as const;
 
 const ACCEPT =
-  "rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-neutral-100 transition-colors hover:border-neutral-500 active:border-neutral-400 disabled:opacity-60";
+  buttonClass("ghost", undefined, "md");
 const DECLINE =
-  "rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60";
+  buttonClass("ghost", undefined, "md");
 
 /**
  * One offer's two buttons, in one form.

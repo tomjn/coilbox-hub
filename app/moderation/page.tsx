@@ -7,7 +7,7 @@ import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { setItemFeatured } from "@/app/item/actions";
 import { createClient } from "@/lib/supabase/server";
 import { actOnReport } from "./actions";
-import { Button } from "@/components/Button";
+import { Button, buttonClass } from "@/components/Button";
 
 // One moderator, a handful of reports: this page never gets as dense as the
 // gallery, so it can sit a little stronger than that page's strength.
@@ -157,7 +157,7 @@ export default async function Moderation() {
                     fields={{ id: row.id, featured: "false" }}
                     label="Unfeature"
                     pendingLabel="Removing…"
-                    buttonClassName="rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60"
+                    buttonClassName={buttonClass("ghost", undefined, "sm")}
                   />
                 </li>
               ))}

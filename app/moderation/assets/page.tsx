@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
@@ -45,7 +46,7 @@ import { approveSelected, rejectOne } from "./actions";
 const BACKDROP_STRENGTH = 0.05;
 
 const BUTTON =
-  "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white";
+  buttonClass();
 
 /** Unticked reads as grey and faint, ticked as full colour and framed, so what
  * is about to be approved is legible across a whole sheet at a glance rather

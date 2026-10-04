@@ -10,6 +10,7 @@
  * that would normally carry it is what failed.
  */
 import Link from "next/link";
+import { buttonClass } from "@/components/Button";
 import { ErrorReference } from "@/components/ErrorReference";
 import "./globals.css";
 
@@ -40,7 +41,7 @@ export default function GlobalError({
           </button>
           <Link
             href="/"
-            className="rounded-md border border-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white active:border-neutral-500 active:text-white"
+            className={buttonClass("ghost", "font-medium", "lg")}
           >
             Go home
           </Link>

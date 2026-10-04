@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buttonClass } from "@/components/Button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
@@ -351,7 +352,7 @@ export default async function Item({
               label={item.featured_at ? "Unfeature" : "Feature"}
               pendingLabel={item.featured_at ? "Removing…" : "Featuring…"}
               formClassName="flex flex-wrap items-center justify-end gap-2"
-              buttonClassName="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+              buttonClassName={buttonClass("ghost", undefined, "md")}
             />
           </div>
         ) : null}

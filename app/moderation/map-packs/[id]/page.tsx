@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
@@ -32,14 +33,14 @@ const INPUT =
   "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-none";
 
 const BUTTON =
-  "rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white disabled:opacity-60";
+  buttonClass();
 
 const SMALL =
-  "rounded-md border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 disabled:opacity-60";
+  buttonClass("ghost", undefined, "sm");
 
 /** Red, because nothing brings a deleted pack back. */
 const DELETE =
-  "rounded-md border border-red-900 px-3 py-1.5 text-xs text-red-400 transition-colors hover:border-red-700 active:border-red-600 hover:text-red-300 active:text-red-300 disabled:opacity-60";
+  buttonClass("destructive", undefined, "sm");
 
 export default async function MapPackPage({ params }: PageProps<"/moderation/map-packs/[id]">) {
   const supabase = await createClient();
@@ -76,7 +77,7 @@ export default async function MapPackPage({ params }: PageProps<"/moderation/map
             label={featured ? "Unfeature" : "Feature"}
             pendingLabel={featured ? "Removing…" : "Featuring…"}
             formClassName="flex flex-wrap items-center justify-end gap-2"
-            buttonClassName="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white disabled:opacity-60"
+            buttonClassName={buttonClass("ghost", undefined, "md")}
           />
         </div>
 
