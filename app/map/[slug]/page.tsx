@@ -8,10 +8,10 @@ import { MapFigure } from "@/components/MapFigure";
 import { MapMirrors } from "@/components/MapMirrors";
 import { MapPreview } from "@/components/MapPreview";
 import { MapPlayedOn } from "@/components/MapPlayedOn";
-import { requestOrigin } from "@/lib/gallery/origin";
 import { mapPageCached } from "@/lib/maps/cached";
 import { mapSizeLabel, mapTitle, playerCountLabel, windLabel } from "@/lib/maps/labels";
 import type { MapPage } from "@/lib/maps/page";
+import { importOrigin } from "@/lib/site";
 
 /**
  * Everything the catalog holds about one map (#190).
@@ -93,7 +93,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
   if (!page) notFound();
 
   const { mapName, facts, picture, preview, played, mirrors } = page;
-  const origin = await requestOrigin();
+  const origin = importOrigin();
   const title = mapTitle(facts.display_name, mapName);
   const players = playerCountLabel(facts.points.start.length);
   const wind = windLabel(facts.min_wind, facts.max_wind);
