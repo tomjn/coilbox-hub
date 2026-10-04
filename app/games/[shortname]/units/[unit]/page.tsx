@@ -9,7 +9,7 @@ import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
 import { StageStats, StageStrip } from "@/components/UnitStages";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { gamePageCached, unitPageCached } from "@/lib/games/cached";
-import { editableGame } from "@/lib/games/editor";
+import { editableGameForPage } from "@/lib/games/editor";
 import { gameTitle } from "@/lib/games/labels";
 import { createClient } from "@/lib/supabase/server";
 import { SnippetForm } from "./SnippetForm";
@@ -120,7 +120,7 @@ export default async function Unit({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const mayEdit = user !== null && (await editableGame(supabase, user.id, shortname)) !== null;
+  const mayEdit = user !== null && (await editableGameForPage(supabase, user.id, shortname)) !== null;
 
   const versionQuery = (version?: string) =>
     version ? `?v=${encodeURIComponent(version)}` : "";

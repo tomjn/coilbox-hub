@@ -34,7 +34,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { lobbyCommands } from "@/lib/workshop/lobbyCommands";
 import { presetCommands } from "@/lib/workshop/presetCommands";
 import { createClient } from "@/lib/supabase/server";
-import { currentUser } from "@/lib/supabase/user";
+import { currentUser, isModerator } from "@/lib/supabase/user";
 import { setItemFeatured } from "../actions";
 
 /**
@@ -128,24 +128,25 @@ export default async function Item({
 
   const supabase = await createClient();
   const user = await currentUser();
-  const { data: owned } = user
-    ? await supabase
-        .from("item")
-        .select("id,deleted_at")
-        .eq("id", id)
-        .eq("author_id", user.id)
-        .maybeSingle()
-    : { data: null };
-  const mine = Boolean(owned);
-  const withdrawn = Boolean(owned?.deleted_at);
-
-  // Asked only of a signed in visitor, so a reader arriving from a Discord link
+  // Neither read waits on the other, so both start together.
+  //
+  // Not asked of a signed out visitor, so a reader arriving from a Discord link
   // pays nothing for a control they will never see. The answer only decides
   // whether the control is drawn: `public.set_item_featured` asks again, as the
   // session, before it writes anything.
-  const { data: moderator } = user
-    ? await supabase.rpc("is_moderator")
-    : { data: null };
+  const [{ data: owned }, moderator] = await Promise.all([
+    user
+      ? supabase
+          .from("item")
+          .select("id,deleted_at")
+          .eq("id", id)
+          .eq("author_id", user.id)
+          .maybeSingle()
+      : { data: null },
+    isModerator(),
+  ]);
+  const mine = Boolean(owned);
+  const withdrawn = Boolean(owned?.deleted_at);
 
   const origin = await requestOrigin();
   const shareUrl = `${origin}/i/${item.id}`;

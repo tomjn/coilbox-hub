@@ -3,8 +3,7 @@ import { AccountIcon, ModerationIcon, SignOutIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
 import { NavSignIn } from "@/components/NavSignIn";
 import { displayName } from "@/lib/author";
-import { createClient } from "@/lib/supabase/server";
-import { currentUser } from "@/lib/supabase/user";
+import { currentUser, isModerator } from "@/lib/supabase/user";
 
 /**
  * The part of the header that differs per visitor: whether they are signed in,
@@ -52,13 +51,7 @@ export async function NavAccount({ className }: { className: string }) {
  * nav see that it holds six links rather than five.
  */
 export async function NavModeration({ className }: { className: string }) {
-  const user = await currentUser();
-  // Only signed in visitors can be moderators, so nobody else pays for the call.
-  const { data: moderator } = user
-    ? await (await createClient()).rpc("is_moderator")
-    : { data: false };
-
-  return moderator ? (
+  return (await isModerator()) ? (
     <Link href="/moderation" className={className} data-moderator>
       <LinkPending className="flex flex-col items-center gap-0.5 sm:flex-row sm:gap-2">
         <ModerationIcon className="w-4" />

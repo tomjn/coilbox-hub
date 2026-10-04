@@ -25,12 +25,17 @@ const outlineButton =
 
 export default async function Home() {
   const origin = await requestOrigin();
-  const {
-    items,
-    pictures: entries,
-    shapes: shapeEntries,
-    counts: countEntries,
-  } = await newestItems();
+  // Neither read waits on the other, so they start together. Both are `"use cache"`
+  // reads, and when the cache is being filled they would otherwise run in turn.
+  const [
+    { items, pictures: entries, shapes: shapeEntries, counts: countEntries },
+    {
+      items: featured,
+      pictures: featuredEntries,
+      shapes: featuredShapeEntries,
+      counts: featuredCountEntries,
+    },
+  ] = await Promise.all([newestItems(), featuredItems()]);
   const pictures = cardPicturesFromEntries(entries);
   const shapes = cardShapesFromEntries(shapeEntries);
   const counts = cardCountsFromEntries(countEntries);
@@ -41,16 +46,7 @@ export default async function Home() {
 
   // A row of its own below "Newest" rather than folded into it (#399): the
   // heading above the first row promises the newest six, and mixing a
-  // moderator's pick into that row would make the promise false. Read after
-  // `newestItems()` rather than alongside it with `Promise.all`, since
-  // neither is on the request's critical path: both are `"use cache"` reads
-  // that only block the render once, whichever order they run in.
-  const {
-    items: featured,
-    pictures: featuredEntries,
-    shapes: featuredShapeEntries,
-    counts: featuredCountEntries,
-  } = await featuredItems();
+  // moderator's pick into that row would make the promise false.
   const featuredPictures = cardPicturesFromEntries(featuredEntries);
   const featuredShapes = cardShapesFromEntries(featuredShapeEntries);
   const featuredCounts = cardCountsFromEntries(featuredCountEntries);

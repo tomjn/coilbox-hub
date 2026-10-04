@@ -16,7 +16,7 @@ import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle, itemCardLabel, saysMoreThanName } from "@/lib/games/labels";
 import { gamePageCached, gameSidesCached } from "@/lib/games/cached";
 import { downloadHref, type GameDownload } from "@/lib/games/download";
-import { editableGame } from "@/lib/games/editor";
+import { editableGameForPage } from "@/lib/games/editor";
 import type { GamePageFaction } from "@/lib/games/page";
 import type { SideCommander } from "@/lib/games/sides";
 import { createClient } from "@/lib/supabase/server";
@@ -228,7 +228,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const mayEdit = user !== null && (await editableGame(supabase, user.id, shortname)) !== null;
+  const mayEdit = user !== null && (await editableGameForPage(supabase, user.id, shortname)) !== null;
 
   const commanders = (await gameSidesCached([page.shortname])).get(page.shortname)?.commanders;
   const factionSlots = page.factions.some(
