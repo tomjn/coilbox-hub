@@ -4,7 +4,7 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { setupPacks } from "@/components/art/drawings";
 import { SignInWithDiscord } from "@/components/SignInWithDiscord";
 import { kindsSingular } from "@/lib/gallery/label";
-import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/supabase/user";
 import { PublishForm } from "./PublishForm";
 
 export const metadata: Metadata = {
@@ -19,10 +19,9 @@ export const metadata: Metadata = {
 const BACKDROP_STRENGTH = 0.045;
 
 export default async function Publish() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Only decides which of the two panels is drawn. Publishing itself asks the
+  // auth server who is signed in before it writes.
+  const user = await currentUser();
 
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
@@ -42,8 +41,8 @@ export default async function Publish() {
               <span>
                 Publishing as{" "}
                 <span className="text-neutral-300">
-                  {(user.user_metadata?.full_name as string) ??
-                    (user.user_metadata?.name as string) ??
+                  {(user.metadata.full_name as string) ??
+                    (user.metadata.name as string) ??
                     "you"}
                 </span>
               </span>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { itemPublic } from "@/lib/gallery/itemCached";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/supabase/user";
 import { setWithdrawn } from "./actions";
 import { EditForm } from "./EditForm";
 import { Button } from "@/components/Button";
@@ -26,9 +27,7 @@ export default async function EditItem({
   const { id } = await params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect(`/publish`);
 
   // The read policy lets an author see their own withdrawn items, which is what
