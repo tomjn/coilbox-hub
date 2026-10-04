@@ -1,9 +1,22 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { itemPublic } from "@/lib/gallery/itemCached";
 import { createClient } from "@/lib/supabase/server";
 import { setWithdrawn } from "./actions";
 import { EditForm } from "./EditForm";
 import { Button } from "@/components/Button";
+
+/* The public cached read, so this adds no session check and no request time read
+   before the page runs. A withdrawn item is not in it, and gets a plain title. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const shared = await itemPublic((await params).id);
+  return { title: shared ? `Edit ${shared.item.title}` : "Edit item" };
+}
 
 export default async function EditItem({
   params,

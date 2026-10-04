@@ -8,8 +8,9 @@ import { UnitCard } from "@/components/UnitCard";
 import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
 import { StageStats, StageStrip } from "@/components/UnitStages";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
-import { unitPageCached } from "@/lib/games/cached";
+import { gamePageCached, unitPageCached } from "@/lib/games/cached";
 import { editableGame } from "@/lib/games/editor";
+import { gameTitle } from "@/lib/games/labels";
 import { createClient } from "@/lib/supabase/server";
 import { SnippetForm } from "./SnippetForm";
 import { Button } from "@/components/Button";
@@ -73,13 +74,25 @@ function UnitGrid({
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ shortname: string; unit: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const { shortname, unit } = await params;
+  const raw = (await searchParams).v;
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  // The same two cached reads the page makes, with the same arguments.
+  const [game, loaded] = await Promise.all([
+    gamePageCached(shortname),
+    unitPageCached(shortname, unit, v),
+  ]);
+  if (!game || !loaded) return { title: "Not found" };
+  const label = loaded.page.full_name ?? loaded.page.unit_name;
+  const name = gameTitle(game);
   return {
-    title: `${unit} - ${shortname} - Coilbox Hub`,
-    description: `Stats, builders, build options and renders for ${unit}, as ${shortname} ships it.`,
+    title: `${label} - ${name}`,
+    description: `Stats, builders, build options and renders for ${label}, as ${name} ships it.`,
   };
 }
 

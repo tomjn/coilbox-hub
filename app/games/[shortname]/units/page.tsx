@@ -8,6 +8,7 @@ import { FactionToggles, type FactionToggleOption } from "@/components/FactionTo
 import { UnitCard } from "@/components/UnitCard";
 import { PAGE_GAP, pageNumbers } from "@/lib/gallery/query";
 import { gamePageCached, retiredUnitsHeldCached, unitGridCached } from "@/lib/games/cached";
+import { gameTitle } from "@/lib/games/labels";
 import { parseUnitGridFilters, UNIT_PAGE_SIZE } from "@/lib/games/units";
 import { Button } from "@/components/Button";
 
@@ -29,10 +30,12 @@ export async function generateMetadata({
 }: {
   params: Promise<{ shortname: string }>;
 }): Promise<Metadata> {
-  const { shortname } = await params;
+  const game = await gamePageCached((await params).shortname);
+  if (!game) return { title: "Not found" };
+  const name = gameTitle(game);
   return {
-    title: `${shortname} units - Coilbox Hub`,
-    description: `Every unit ${shortname} ships, with its stats and build tree.`,
+    title: `${name} units`,
+    description: `Every unit ${name} ships, with its stats and build tree.`,
   };
 }
 
