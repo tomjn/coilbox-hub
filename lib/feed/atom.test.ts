@@ -176,7 +176,6 @@ test("an emoji and other non ASCII text survive in a title", () => {
 
 test("control characters never reach the document", () => {
   const xml = atomDocument({ ...FEED, entries: [{ ...ENTRY, title: "a\u0000b", summary: "c\u0001d" }] });
-  // eslint-disable-next-line no-control-regex
   expect(xml).not.toMatch(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/);
   expect(xml).toContain(">ab<");
   expect(xml).toContain(">cd<");
