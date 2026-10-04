@@ -3,10 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MapFacts } from "@/lib/api/mapLookup";
 import type { AssetLicenceRow } from "@/lib/assets/licence";
 import {
+  type MapListingRule,
   applyListingRule,
   fetchMapFacts,
   fetchMapListingRule,
   fetchPublishedMapNames,
+  ruleListsMap,
 } from "./lookup";
 
 const COMET = "Comet Catcher Remake 1.8";
@@ -365,4 +367,18 @@ test("an allow list becomes an in filter, and an empty one matches nothing", () 
 
   expect(first.calls).toEqual([`map_name in ("Comet Catcher Remake 1.8")`]);
   expect(second.calls).toEqual(["map_name in ()"]);
+});
+
+test("an exception list lists every map but the ones named", () => {
+  const rule: MapListingRule = { kind: "except", names: [TAKEN_DOWN] };
+
+  expect(ruleListsMap(rule, COMET)).toBe(true);
+  expect(ruleListsMap(rule, TAKEN_DOWN)).toBe(false);
+});
+
+test("an allow list lists only the maps named", () => {
+  const rule: MapListingRule = { kind: "only", names: [COMET] };
+
+  expect(ruleListsMap(rule, COMET)).toBe(true);
+  expect(ruleListsMap(rule, TAKEN_DOWN)).toBe(false);
 });
