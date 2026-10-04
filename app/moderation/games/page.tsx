@@ -109,7 +109,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
         </div>
 
         {queue.length === 0 ? (
-          <p className="text-sm text-neutral-500">Nobody is asking right now.</p>
+          <p className="text-sm text-neutral-400">Nobody is asking right now.</p>
         ) : (
           <ul className="flex flex-col gap-4">
             {queue.map((request) => (
@@ -156,13 +156,13 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
           <h2 id="mod-downloads" className="text-sm uppercase tracking-wide text-neutral-400">
             Offered downloads
           </h2>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-neutral-400">
             Where a coilbox client says a game can be fetched from. A reader sees none of these
             until somebody adds one, and adding puts it at the end of that game&rsquo;s list rather
             than over anything already there.
           </p>
           {offers.length === 0 ? (
-            <p className="text-sm text-neutral-500">Nothing offered right now.</p>
+            <p className="text-sm text-neutral-400">Nothing offered right now.</p>
           ) : (
             <DownloadOffers offers={offers} showGame />
           )}
@@ -183,7 +183,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             buttonClassName={buttonClass("ghost", { size: "base" })}
           >
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="hide-shortname" className="text-xs uppercase tracking-wide text-neutral-500">
+              <label htmlFor="hide-shortname" className="text-xs uppercase tracking-wide text-neutral-400">
                 Hide a game
               </label>
               <input
@@ -192,7 +192,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                 placeholder="Shortname, e.g. BA"
                 required
                 maxLength={64}
-                className="w-48 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                className="w-48 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
               />
             </div>
           </VisibilityToggleForm>
@@ -206,7 +206,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             buttonClassName={buttonClass("ghost", { size: "base" })}
           >
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="hide-version-game" className="text-xs uppercase tracking-wide text-neutral-500">
+              <label htmlFor="hide-version-game" className="text-xs uppercase tracking-wide text-neutral-400">
                 Hide a release
               </label>
               <div className="flex gap-2">
@@ -216,7 +216,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                   placeholder="Shortname"
                   required
                   maxLength={64}
-                  className="w-36 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                  className="w-36 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
                 />
                 <input
                   name="version"
@@ -224,7 +224,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                   required
                   maxLength={64}
                   aria-label="Release to hide"
-                  className="w-44 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                  className="w-44 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
                 />
               </div>
             </div>
@@ -234,7 +234,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             <div className="flex flex-col gap-3 pt-2">
               {hiddenGameRows.length > 0 ? (
                 <div className="flex flex-col gap-1.5">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Hidden games</p>
+                  <p className="text-xs uppercase tracking-wide text-neutral-400">Hidden games</p>
                   <ul className="flex flex-col gap-1.5">
                     {hiddenGameRows.map((row) => (
                       <li key={row.shortname} className="flex items-center justify-between gap-3 text-sm">
@@ -254,7 +254,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
 
               {hiddenVersionRows.length > 0 ? (
                 <div className="flex flex-col gap-1.5">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Hidden releases</p>
+                  <p className="text-xs uppercase tracking-wide text-neutral-400">Hidden releases</p>
                   <ul className="flex flex-col gap-1.5">
                     {hiddenVersionRows.map((row) => (
                       <li
@@ -289,7 +289,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
           <h2 id="mod-featured" className="text-sm uppercase tracking-wide text-neutral-400">
             Featured
           </h2>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-neutral-400">
             A featured game sits above the rule on the games listing. Inside that block the order is
             alphabetical, so there is no rank to keep in order.
           </p>
@@ -303,7 +303,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
             buttonClassName={buttonClass("ghost", { size: "base" })}
           >
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="feature-shortname" className="text-xs uppercase tracking-wide text-neutral-500">
+              <label htmlFor="feature-shortname" className="text-xs uppercase tracking-wide text-neutral-400">
                 Feature a game
               </label>
               <input
@@ -312,7 +312,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
                 placeholder="Shortname, e.g. BA"
                 required
                 maxLength={64}
-                className="w-48 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+                className="w-48 rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
               />
             </div>
           </VisibilityToggleForm>
@@ -333,7 +333,7 @@ export default async function ModerationGames({ searchParams }: PageProps<"/mode
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-neutral-500">No game is featured right now.</p>
+            <p className="text-sm text-neutral-400">No game is featured right now.</p>
           )}
         </section>
       </div>

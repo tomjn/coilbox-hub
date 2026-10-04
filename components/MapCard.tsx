@@ -121,7 +121,7 @@ export function MapCard({
             searching for the archive has to type. Only when the archive gave a
             friendlier name, since that name identifies the map nowhere else. */}
         {title === map.map_name ? null : (
-          <p className="break-words text-xs text-neutral-500">{map.map_name}</p>
+          <p className="break-words text-xs text-neutral-400">{map.map_name}</p>
         )}
       </div>
 

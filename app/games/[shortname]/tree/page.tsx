@@ -103,7 +103,7 @@ export default async function TreePage({
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
-        <nav className="text-sm text-neutral-500" aria-label="Breadcrumb">
+        <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
           <Link href={`/games/${shortname}`} className="underline-offset-4 hover:underline active:underline">
             {shortname}
           </Link>
@@ -122,7 +122,7 @@ export default async function TreePage({
         {factions.length > 1 ? <FactionToggles options={factionOptions} /> : null}
 
         {tree.factions.length === 0 && tree.ungrouped.length === 0 ? (
-          <p className="text-sm text-neutral-500">Nobody has reported this game&rsquo;s units yet.</p>
+          <p className="text-sm text-neutral-400">Nobody has reported this game&rsquo;s units yet.</p>
         ) : (
           <div className="flex flex-col gap-8">
             {tree.factions.map((faction) => {
@@ -156,7 +156,7 @@ export default async function TreePage({
           </div>
         )}
 
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-400">
           Facts as of{" "}
           {v ? (
             <>release {v}</>

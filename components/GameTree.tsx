@@ -140,7 +140,7 @@ function Node({
       <UnitRow game={game} node={node} picture={pictures.get(node.name)} fit />
       {children.length > 0 ? (
         <details open className="group">
-          <summary className="ml-1 inline cursor-pointer list-none text-xs text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300">
+          <summary className="ml-1 inline cursor-pointer list-none text-xs text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">
             <span
               aria-hidden
               className="mr-1 inline-block text-center transition-transform group-open:rotate-45"
@@ -220,7 +220,7 @@ export function TreeBlock({
       <h2 className="text-sm uppercase tracking-wide text-neutral-400">
         {heading}
         {note ? (
-          <span className="ml-2 normal-case tracking-normal text-neutral-600">{note}</span>
+          <span className="ml-2 normal-case tracking-normal text-neutral-400">{note}</span>
         ) : null}
       </h2>
       <ul className="flex flex-col gap-1.5">

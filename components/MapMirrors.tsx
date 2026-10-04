@@ -26,7 +26,7 @@ export function MapMirrors({ links }: { links: MapMirrorLink[] }) {
   return (
     <section className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
       <h2 className="text-xl font-semibold tracking-tight">Where to look for this map</h2>
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-neutral-400">
         The hub holds facts about maps, not the maps themselves. These sites host map archives
         and may have this one.
       </p>

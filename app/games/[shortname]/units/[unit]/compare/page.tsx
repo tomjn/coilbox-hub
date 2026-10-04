@@ -66,7 +66,7 @@ export default async function Compare({
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
-        <nav className="text-sm text-neutral-500" aria-label="Breadcrumb">
+        <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
           <Link href="/games" className="underline-offset-4 hover:underline active:underline">
             Games
           </Link>
@@ -119,7 +119,7 @@ export default async function Compare({
         </table>
 
         {!comparison.left.found || !comparison.right.found ? (
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-neutral-400">
             A dash means this release has no record of the unit. It may not have shipped yet,
             or the hub may never have been told about it.
           </p>

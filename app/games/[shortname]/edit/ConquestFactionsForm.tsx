@@ -24,7 +24,7 @@ import { Button, buttonClass } from "@/components/Button";
  */
 
 const CONTROL =
-  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const ROW_BUTTON =
   buttonClass("quiet", { size: "xs" });
@@ -100,7 +100,7 @@ export function ConquestFactionsForm({
       <input type="hidden" name="shortname" value={shortname} />
       <input type="hidden" name="factions" value={toPayload(rows)} />
 
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-neutral-400">
         Named in the order a galaxy fills them: the first is the player&apos;s own faction, the
         rest are enemies. Two factions can name the same in-game side.
       </p>
@@ -161,7 +161,7 @@ export function ConquestFactionsForm({
           </div>
         ))}
         {rows.length === 0 ? (
-          <p className="text-sm text-neutral-500">No factions named yet.</p>
+          <p className="text-sm text-neutral-400">No factions named yet.</p>
         ) : null}
       </div>
 

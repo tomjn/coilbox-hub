@@ -38,7 +38,7 @@ export default async function Publish() {
 
         {user ? (
           <>
-            <div className="flex items-center justify-between border-b border-neutral-900 pb-4 text-sm text-neutral-500">
+            <div className="flex items-center justify-between border-b border-neutral-900 pb-4 text-sm text-neutral-400">
               <span>
                 Publishing as{" "}
                 <span className="text-neutral-300">

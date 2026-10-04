@@ -49,7 +49,7 @@ function ValueTable({ rows }: { rows: Record<string, unknown>[] }) {
 export function StatTable({ stats }: { stats: Record<string, unknown> }) {
   const rows = statRows(stats);
   if (rows.length === 0) {
-    return <p className="text-sm text-neutral-500">No stats reported for this unit yet.</p>;
+    return <p className="text-sm text-neutral-400">No stats reported for this unit yet.</p>;
   }
 
   return (

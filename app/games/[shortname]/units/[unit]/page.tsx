@@ -128,7 +128,7 @@ export default async function Unit({
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
-        <nav className="text-sm text-neutral-500" aria-label="Breadcrumb">
+        <nav className="text-sm text-neutral-400" aria-label="Breadcrumb">
           <Link href="/games" className="underline-offset-4 hover:underline active:underline">
             Games
           </Link>
@@ -149,13 +149,13 @@ export default async function Unit({
 
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-semibold tracking-tight">{label}</h1>
-            <p className="font-mono text-sm text-neutral-500">{page.unit_name}</p>
+            <p className="font-mono text-sm text-neutral-400">{page.unit_name}</p>
             <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-400">
               {page.faction_name ? (
                 <span className="rounded bg-neutral-900 px-2 py-1">{page.faction_name}</span>
               ) : null}
               {page.removed_at ? (
-                <span className="rounded bg-neutral-900 px-2 py-1 text-neutral-500">
+                <span className="rounded bg-neutral-900 px-2 py-1 text-neutral-400">
                   Retired
                 </span>
               ) : null}
@@ -166,10 +166,10 @@ export default async function Unit({
               ) : null}
             </div>
             {page.source_version && !page.shown_version ? (
-              <p className="text-sm text-neutral-500">Facts as of release {page.source_version}.</p>
+              <p className="text-sm text-neutral-400">Facts as of release {page.source_version}.</p>
             ) : null}
             {page.shown_version === null && v && v !== page.source_version ? (
-              <p className="text-sm text-neutral-500">
+              <p className="text-sm text-neutral-400">
                 No record of this unit in release {v}; showing current facts.
               </p>
             ) : null}
@@ -186,7 +186,7 @@ export default async function Unit({
             <h2 id="unit-stages" className="text-sm uppercase tracking-wide text-neutral-400">
               Stages
             </h2>
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-400">
               This unit turns into another. The catalog holds a row for each stage, and
               every one of them has its own page.
             </p>
@@ -207,7 +207,7 @@ export default async function Unit({
               Stats across the stages
             </h2>
             <StageStats stages={page.stages} rows={page.stage_stats} />
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-400">
               A stat that draws as its own table, such as a weapons summary, is on each
               stage&rsquo;s own page rather than in this one.
             </p>
@@ -216,7 +216,7 @@ export default async function Unit({
 
         {page.snippet && !page.shown_version ? (
           <section className="flex flex-col gap-2 rounded-md border border-neutral-900 bg-card p-4" aria-labelledby="unit-snippet">
-            <h2 id="unit-snippet" className="text-xs uppercase tracking-wide text-neutral-500">
+            <h2 id="unit-snippet" className="text-xs uppercase tracking-wide text-neutral-400">
               From the author
             </h2>
             <p className="text-sm text-neutral-200">{page.snippet}</p>
@@ -239,7 +239,7 @@ export default async function Unit({
             Built by
           </h2>
           {page.built_by.length === 0 ? (
-            <p className="text-sm text-neutral-500">Nothing builds this.</p>
+            <p className="text-sm text-neutral-400">Nothing builds this.</p>
           ) : (
             <UnitGrid game={shortname} units={page.built_by} pictures={buildPictures} />
           )}
@@ -250,7 +250,7 @@ export default async function Unit({
             Builds
           </h2>
           {page.builds.length === 0 ? (
-            <p className="text-sm text-neutral-500">Nothing, or nothing reported yet.</p>
+            <p className="text-sm text-neutral-400">Nothing, or nothing reported yet.</p>
           ) : (
             <UnitGrid game={shortname} units={page.builds} pictures={buildPictures} />
           )}
@@ -329,7 +329,7 @@ export default async function Unit({
           </section>
         ) : null}
 
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-400">
           <Link href={`/games/${shortname}/units`} className="text-neutral-300 underline-offset-4 hover:underline active:underline">
             Every unit this game ships
           </Link>

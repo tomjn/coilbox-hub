@@ -122,7 +122,7 @@ export function ItemCard({
                 a screen reader hears the same distinction a sighted reader sees,
                 rather than two links both announced as the same text (#311). */}
             {cardTitle.tail ? (
-              <span className="text-neutral-500"> #{cardTitle.tail}</span>
+              <span className="text-neutral-400"> #{cardTitle.tail}</span>
             ) : null}
           </Link>
         </h2>

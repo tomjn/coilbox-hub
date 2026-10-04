@@ -879,7 +879,7 @@ function BuildingRoster({
           <span className="min-w-0 break-all text-neutral-200">
             {kind.count} <UnitName def={kind.def} names={names} />
           </span>
-          <span className="shrink-0 text-neutral-500">
+          <span className="shrink-0 text-neutral-400">
             {footprintLabel(kind.footprint)}
           </span>
         </li>
@@ -919,14 +919,14 @@ function BuildOrder({
     <ol className="flex flex-col gap-1.5">
       {runs.map((run) => (
         <li key={run.from} className="flex items-center gap-2 text-xs">
-          <span className="w-10 shrink-0 text-right tabular-nums text-neutral-500">
+          <span className="w-10 shrink-0 text-right tabular-nums text-neutral-400">
             {run.from === run.to ? run.from : `${run.from}-${run.to}`}
           </span>
           {pictured ? <UnitPicture picture={units.get(run.def)} /> : null}
           <span className="min-w-0 break-all text-neutral-200">
             {run.count} <UnitName def={run.def} names={names} />
           </span>
-          <span className="shrink-0 text-neutral-500">
+          <span className="shrink-0 text-neutral-400">
             {footprintLabel(run.footprint)}
           </span>
         </li>

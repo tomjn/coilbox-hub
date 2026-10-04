@@ -324,7 +324,7 @@ export default async function Item({
 
         {mine ? (
           <div className="flex items-center justify-between rounded-md border border-neutral-800 bg-card px-5 py-3 text-sm">
-            <span className="text-neutral-500">
+            <span className="text-neutral-400">
               {withdrawn ? "You have withdrawn this." : "This is yours."}
             </span>
             <Link
@@ -338,7 +338,7 @@ export default async function Item({
 
         {moderator === true ? (
           <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-800 bg-card px-5 py-3 text-sm">
-            <span className="text-neutral-500">
+            <span className="text-neutral-400">
               {item.featured_at
                 ? "Featured, so the gallery lists this first."
                 : "Not featured."}

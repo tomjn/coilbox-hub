@@ -34,7 +34,7 @@ export const metadata: Metadata = {
 const BACKDROP_STRENGTH = 0.08;
 
 const INPUT =
-  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-400 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const BUTTON =
   buttonClass();
@@ -58,11 +58,11 @@ function Account({ account }: { account: ModeratorAccount }) {
         <span className="font-medium text-neutral-100">
           {account.display_name === "" ? "Unknown" : account.display_name}
         </span>
-        <span className="text-xs text-neutral-600">
+        <span className="text-xs text-neutral-400">
           {new Date(account.created_at).toISOString().slice(0, 10)}
         </span>
       </div>
-      <p className="font-mono text-xs text-neutral-500">{account.id}</p>
+      <p className="font-mono text-xs text-neutral-400">{account.id}</p>
       {account.capabilities.length > 0 ? (
         <p className="text-xs text-neutral-400">
           {account.capabilities

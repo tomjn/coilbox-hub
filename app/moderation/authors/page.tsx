@@ -49,7 +49,7 @@ export const metadata: Metadata = {
 const BACKDROP_STRENGTH = 0.08;
 
 const INPUT =
-  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-400 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const BUTTON =
   buttonClass();
@@ -84,7 +84,7 @@ function Alias({ alias }: { alias: AuthorAlias }) {
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <p className="text-neutral-300">
           <span className="font-mono">{alias.fromKey}</span>
-          <span className="text-neutral-600"> is </span>
+          <span className="text-neutral-400"> is </span>
           <span className="font-mono">{alias.toKey}</span>
         </p>
         <form action={unmergeAuthors}>
@@ -102,7 +102,7 @@ function Alias({ alias }: { alias: AuthorAlias }) {
           </button>
         </form>
       </div>
-      {alias.note ? <p className="text-xs text-neutral-500">{alias.note}</p> : null}
+      {alias.note ? <p className="text-xs text-neutral-400">{alias.note}</p> : null}
       {alias.chained ? (
         // Marked rather than hidden or followed. The merge form refuses to make
         // one of these, so a row that is chained was written before that check
@@ -127,8 +127,8 @@ function Author({ author }: { author: AuthorCount }) {
         {author.name}
       </Link>
       <span className="flex items-baseline gap-4">
-        <span className="font-mono text-xs text-neutral-600">{author.key}</span>
-        <span className="text-xs text-neutral-500">{author.maps}</span>
+        <span className="font-mono text-xs text-neutral-400">{author.key}</span>
+        <span className="text-xs text-neutral-400">{author.maps}</span>
       </span>
     </li>
   );
@@ -188,7 +188,7 @@ export default async function AuthorMerges({ searchParams }: PageProps<"/moderat
 
         {answer ? <p className="text-sm text-neutral-300">{answer}</p> : null}
 
-        <h2 className="text-sm text-neutral-500">
+        <h2 className="text-sm text-neutral-400">
           {aliases.length === 0
             ? "Nothing has been merged yet."
             : "Merged so far. Unmerging puts the two keys back where they were."}
@@ -202,7 +202,7 @@ export default async function AuthorMerges({ searchParams }: PageProps<"/moderat
           </ul>
         )}
 
-        <h2 className="text-sm text-neutral-500">
+        <h2 className="text-sm text-neutral-400">
           {authors.length === AUTHOR_PAGE_SIZE
             ? `The ${AUTHOR_PAGE_SIZE} authors with the most maps, which is where the merges worth making are.`
             : "Every author in the catalog, by how many maps they made."}

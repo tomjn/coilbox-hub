@@ -112,7 +112,7 @@ export function DownloadOffers({
           className="flex flex-col gap-2 rounded-md border border-neutral-900 p-4"
         >
           <div className="flex flex-col gap-1">
-            <p className="text-xs uppercase tracking-wide text-neutral-500">
+            <p className="text-xs uppercase tracking-wide text-neutral-400">
               {showGame ? `${offer.shortname} · ` : ""}
               {KIND_LABELS[offer.kind]}
             </p>

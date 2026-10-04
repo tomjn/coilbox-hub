@@ -41,7 +41,7 @@ export const metadata: Metadata = {
 const BACKDROP_STRENGTH = 0.08;
 
 const INPUT =
-  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-400 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 const BUTTON =
   buttonClass();
@@ -75,19 +75,19 @@ export default async function MapCuratedTags({
                 that leaves moderation. */}
             <Link
               href={`/map/${map.slug}`}
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-300 active:text-neutral-300"
+              className="text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300"
             >
               The map
             </Link>
           </div>
         </div>
 
-        <p className="text-sm text-neutral-500">{map.mapName}</p>
+        <p className="text-sm text-neutral-400">{map.mapName}</p>
 
         {/* Where a moderator already works on this one map, so featuring it
             costs no second page and no id typed by hand (#394). */}
         <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-800 bg-card px-5 py-3 text-sm">
-          <span className="text-neutral-500">
+          <span className="text-neutral-400">
             {map.featuredAt
               ? "Featured, so the catalog lists this above the rest."
               : "Not featured."}
@@ -130,7 +130,7 @@ export default async function MapCuratedTags({
           </div>
         </form>
 
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-400">
           {map.derivedTags.length === 0
             ? "Nothing was measured that produces a tag of its own."
             : `Worked out from the measurements, and not editable: ${map.derivedTags.join(", ")}.`}

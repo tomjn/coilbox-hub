@@ -213,7 +213,7 @@ export default async function Maps({
 }
 
 const CONTROL =
-  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+  "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
 
 /** Every step in the pager is the same box, so a number, a previous and a next
  *  are one row of equal targets rather than two words with digits between them.
@@ -244,7 +244,7 @@ function Pager({
   label: string;
 }) {
   return (
-    <nav aria-label="Pages" className="flex flex-col items-center gap-3 text-sm text-neutral-500">
+    <nav aria-label="Pages" className="flex flex-col items-center gap-3 text-sm text-neutral-400">
       <ul className="flex flex-wrap items-center justify-center gap-1.5">
         {filters.page > 1 ? (
           <li>
