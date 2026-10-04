@@ -36,6 +36,8 @@ export const metadata: Metadata = {
   // title, which each page writes out in full.
   title: { default: "Coilbox Hub", template: "%s - Coilbox Hub" },
   description,
+  // Where a feed reader finds the feed from any page.
+  alternates: { types: { "application/atom+xml": "/feed.xml" } },
   openGraph: {
     title: "Coilbox Hub",
     description,
