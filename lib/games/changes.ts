@@ -189,13 +189,26 @@ export function resolveReleasePair(
 
   const held = new Set(releases);
   const notes: string[] = [];
-  const pick = (asked: string | undefined, fallback: string) => {
-    if (asked === undefined || asked === "") return fallback;
+  const known = (asked: string | undefined) => {
+    if (asked === undefined || asked === "") return null;
     if (held.has(asked)) return asked;
     notes.push(`The hub holds no release called "${asked}".`);
-    return fallback;
+    return null;
   };
-  return { from: pick(askedFrom, releases[1]), to: pick(askedTo, releases[0]), notes };
+  const from = known(askedFrom);
+  const to = known(askedTo);
+
+  // A side left to default takes the neighbour of the other side, so one good
+  // name beside a bad one does not collapse into the same release twice.
+  const beside = (release: string, step: number) => {
+    const at = releases.indexOf(release);
+    return releases[at + step] ?? releases[at - step];
+  };
+  return {
+    from: from ?? (to ? beside(to, 1) : releases[1]),
+    to: to ?? (from ? beside(from, -1) : releases[0]),
+    notes,
+  };
 }
 
 /** Every release a game has, newest report first, as the unit page's picker

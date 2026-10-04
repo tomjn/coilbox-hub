@@ -200,6 +200,12 @@ test("resolveReleasePair falls back and says so for a release it does not hold",
   expect(pair.notes).toEqual(['The hub holds no release called "nope".']);
 });
 
+test("resolveReleasePair does not default one side onto the other", () => {
+  expect(resolveReleasePair(["3", "2", "1"], "nope", "2")).toMatchObject({ from: "1", to: "2" });
+  expect(resolveReleasePair(["3", "2", "1"], "2", "nope")).toMatchObject({ from: "2", to: "3" });
+  expect(resolveReleasePair(["3", "2", "1"], "3", undefined)).toMatchObject({ from: "3", to: "2" });
+});
+
 test("resolveReleasePair has no pair for fewer than two releases", () => {
   expect(resolveReleasePair(["1"], undefined, undefined)).toEqual({ from: null, to: null, notes: [] });
   expect(resolveReleasePair([], "1", "2")).toEqual({ from: null, to: null, notes: [] });
