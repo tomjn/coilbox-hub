@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { queryChunks } from "@/lib/assets/have";
+import { operand, queryChunks } from "@/lib/assets/have";
 import { type AssetLicenceRow, licenceForMap, mayRedistribute } from "@/lib/assets/licence";
 import type { MapFacts } from "@/lib/api/mapLookup";
 import { nameFilter } from "@/lib/maps/have";
@@ -120,7 +120,11 @@ function published(
   perMap: Map<string, AssetLicenceRow>,
   blanket: AssetLicenceRow | undefined,
 ): boolean {
-  const licence = licenceForMap(perMap.get(mapName), blanket);
+  return permitsAnything(licenceForMap(perMap.get(mapName), blanket));
+}
+
+/** The narrow test {@link published} argues for, on the row already resolved. */
+function permitsAnything(licence: AssetLicenceRow | null): boolean {
   return mayRedistribute(licence, "extracted") || mayRedistribute(licence, "rendered");
 }
 
@@ -153,6 +157,71 @@ export async function fetchPublishedMapNames(
 
   const { perMap, blanket } = splitLicences(licences.rows);
   return new Set(mapNames.filter((name) => published(name, perMap, blanket)));
+}
+
+/**
+ * Which maps the listing leaves out, as the way {@link published} differs from
+ * the blanket row rather than as a verdict on every map.
+ *
+ * Almost every map rides the blanket row, so with it open the listing needs only
+ * the names of the maps taken down, and with it closed only the names allowed
+ * one by one. Either way the rule is applied in the listing's own query, so the
+ * count, the paging and the sorts are of the maps that have a page.
+ */
+export type MapListingRule = { kind: "except" | "only"; names: string[] };
+
+export type MapListingRuleLookup = { ok: true; rule: MapListingRule } | { ok: false };
+
+/**
+ * The listing's rule, from every per map row and the blanket row.
+ *
+ * Not `ok` when the read fails or comes back short of the table, because a
+ * listing built on part of the table could show a map that has been taken down.
+ * The table holds a handful of per map rows, so one read is enough, but the
+ * short read is checked rather than assumed.
+ */
+export async function fetchMapListingRule(
+  supabase: SupabaseClient,
+): Promise<MapListingRuleLookup> {
+  const { data, count, error } = await supabase
+    .from("asset_licence")
+    .select("*", { count: "exact" })
+    .or("all_maps.is.true,map_name.not.is.null");
+  if (error || !data) return { ok: false };
+  if (typeof count === "number" && data.length < count) return { ok: false };
+
+  const { perMap, blanket } = splitLicences(data as unknown as AssetLicenceRow[]);
+  const open = permitsAnything(licenceForMap(undefined, blanket));
+
+  // The maps whose own row says the opposite of the blanket row.
+  const names = [...perMap.entries()]
+    .filter(([, row]) => permitsAnything(row) !== open)
+    .map(([name]) => name);
+
+  return { ok: true, rule: { kind: open ? "except" : "only", names } };
+}
+
+/** The part of the query builder that {@link applyListingRule} uses. */
+interface RuleQuery<Query> {
+  not(column: string, operator: string, value: string): Query;
+  filter(column: string, operator: string, value: string): Query;
+}
+
+/**
+ * Narrow a listing of `map_name` to the maps {@link published} would say yes to.
+ *
+ * The names go in as one quoted list through {@link operand}, which is the rule
+ * `nameFilter` follows for the same reason: `postgrest-js` does not escape a
+ * quote inside a value, and a name ending a filter early is a takedown that
+ * stops being honoured.
+ */
+export function applyListingRule<Query extends RuleQuery<Query>>(
+  query: Query,
+  rule: MapListingRule,
+): Query {
+  const list = `(${rule.names.map(operand).join(",")})`;
+  if (rule.kind === "only") return query.filter("map_name", "in", list);
+  return rule.names.length > 0 ? query.not("map_name", "in", list) : query;
 }
 
 /**

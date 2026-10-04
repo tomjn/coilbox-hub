@@ -4,6 +4,7 @@ import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { fetchPage } from "@/lib/gallery/query";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { applyListingRule, fetchMapListingRule } from "./lookup";
 import { loadMapPage, type MapPage } from "./page";
 import {
   applyFilters,
@@ -65,12 +66,23 @@ export async function mapsPage(filters: Filters): Promise<MapsPage> {
   // `lib/maps/query.ts` sets out what a second copy would cost.
   const authorKey = await resolveAuthorKey(supabase, filters.author);
 
+  // The licence gate the map's own page applies, which only the secret key may
+  // read. A card for a map whose page says not found is worse than no card, and
+  // an unreadable gate lists nothing rather than guess.
+  const gate = await fetchMapListingRule(createAdminClient());
+  if (!gate.ok) {
+    return { maps: [], count: 0, error: "The licence gate could not be read.", pictures: [] };
+  }
+
   const listing = () =>
     applyOrder(
-      applyFilters(
-        supabase.from("map_browse").select(MAP_SUMMARY_COLUMNS, { count: "exact" }),
-        filters,
-        authorKey,
+      applyListingRule(
+        applyFilters(
+          supabase.from("map_browse").select(MAP_SUMMARY_COLUMNS, { count: "exact" }),
+          filters,
+          authorKey,
+        ),
+        gate.rule,
       ),
       filters.sort,
     );
