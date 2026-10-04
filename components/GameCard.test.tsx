@@ -69,6 +69,12 @@ test("a card with a logo draws it in the tile, and one without gets an empty til
   expect(withoutLogo).toContain("h-16 w-24");
 });
 
+test("a logo is lazy unless the card is asked to load it eagerly", () => {
+  const game = { ...GAME, shortname: "SF", logo_path: "games/SF/logo.webp" };
+  expect(renderToStaticMarkup(<GameCard game={game} />)).toContain('loading="lazy"');
+  expect(renderToStaticMarkup(<GameCard game={game} eager />)).not.toContain("loading=");
+});
+
 /** A logo still in the staging bucket is drawn from the hub's own route, named
  *  by its hash, because GitHub Pages does not have it until promotion (#345).
  *  An unrecognised staged tier is not drawn at all. */

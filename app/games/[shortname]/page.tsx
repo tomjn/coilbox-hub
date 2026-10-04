@@ -259,7 +259,7 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
             <span className="text-neutral-200">{title}</span>
           </nav>
           <div className="flex items-center gap-4">
-            <GameLogo src={logo} alt={`${title} logo`} />
+            <GameLogo src={logo} alt={`${title} logo`} eager />
             <h1 className="min-w-0 break-words text-3xl font-semibold tracking-tight text-balance">
               {title}
             </h1>

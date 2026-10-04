@@ -22,6 +22,7 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 /* Built from the kinds the gallery carries rather than written out, so the
