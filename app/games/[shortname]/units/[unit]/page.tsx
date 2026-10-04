@@ -3,6 +3,8 @@ import { buttonClass } from "@/components/Button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { Suspense } from "react";
+import Loading from "@/app/loading";
 import { StatTable } from "@/components/StatTable";
 import { UnitCard } from "@/components/UnitCard";
 import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
@@ -11,7 +13,6 @@ import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { gamePageCached, unitPageCached } from "@/lib/games/cached";
 import { editableGameForPage } from "@/lib/games/editor";
 import { gameTitle } from "@/lib/games/labels";
-import { createClient } from "@/lib/supabase/server";
 import { SnippetForm } from "./SnippetForm";
 import { Button } from "@/components/Button";
 
@@ -96,13 +97,55 @@ export async function generateMetadata({
   };
 }
 
-export default async function Unit({
-  params,
-  searchParams,
+/**
+ * The snippet form, for the owner or a moderator (#350): the policy on the
+ * write would refuse anybody else anyway, but a form that can never succeed
+ * should not be on the page.
+ *
+ * Its own component behind its own boundary, because it is the only part of
+ * the page that depends on who is looking: the unit is sent without waiting to
+ * learn who that is, and this arrives after it. Nothing is drawn in the
+ * meantime, so a visitor who may not edit never sees the form.
+ */
+async function SnippetEditor({
+  shortname,
+  unitName,
+  snippet,
 }: {
+  shortname: string;
+  unitName: string;
+  snippet: string;
+}) {
+  if (!(await editableGameForPage(shortname))) return null;
+
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="unit-snippet-edit">
+      <h2 id="unit-snippet-edit" className="text-sm uppercase tracking-wide text-neutral-400">
+        Author snippet
+      </h2>
+      <SnippetForm shortname={shortname} unitName={unitName} snippet={snippet} />
+    </section>
+  );
+}
+
+interface UnitProps {
   params: Promise<{ shortname: string; unit: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+}
+
+/** The route. Everything below reads the request, so it sits behind a boundary
+ *  of the page's own: the root loading file's boundary is already on screen
+ *  when a visitor moves between two units, and would hold the old page up until
+ *  the new one was ready. */
+export default function Unit(props: UnitProps) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <UnitContent {...props} />
+    </Suspense>
+  );
+}
+
+async function UnitContent({ params, searchParams }: UnitProps) {
   await connection();
   const { shortname, unit } = await params;
   const raw = (await searchParams).v;
@@ -112,15 +155,6 @@ export default async function Unit({
   if (!loaded) notFound();
   const { page, renders, buildpic, buildPictures } = loaded;
   const label = page.full_name ?? page.unit_name;
-
-  // The snippet form is for the owner or a moderator (#350): the policy on the
-  // write would refuse anybody else anyway, but a form that can never succeed
-  // should not be on the page.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const mayEdit = user !== null && (await editableGameForPage(supabase, user.id, shortname)) !== null;
 
   const versionQuery = (version?: string) =>
     version ? `?v=${encodeURIComponent(version)}` : "";
@@ -223,14 +257,9 @@ export default async function Unit({
           </section>
         ) : null}
 
-        {mayEdit ? (
-          <section className="flex flex-col gap-3" aria-labelledby="unit-snippet-edit">
-            <h2 id="unit-snippet-edit" className="text-sm uppercase tracking-wide text-neutral-400">
-              Author snippet
-            </h2>
-            <SnippetForm shortname={shortname} unitName={page.unit_name} snippet={page.snippet ?? ""} />
-          </section>
-        ) : null}
+        <Suspense fallback={null}>
+          <SnippetEditor shortname={shortname} unitName={page.unit_name} snippet={page.snippet ?? ""} />
+        </Suspense>
 
         {/* Upstream before downstream: what makes this thing, then what it
             makes. A reader arriving from a build order wants the first. */}

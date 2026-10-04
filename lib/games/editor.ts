@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isModerator } from "@/lib/supabase/user";
+import { createClient } from "@/lib/supabase/server";
+import { currentUser, isModerator } from "@/lib/supabase/user";
 
 /**
  * Whether a signed in account may change a game, and which row it may change
@@ -25,20 +26,20 @@ export async function editableGame(
 }
 
 /**
- * `editableGame` for a page that decides what to draw, which takes the
- * request's one answer to "is this a moderator" instead of asking again.
+ * `editableGame` for a page that decides what to draw. The visitor is whoever
+ * the request's cookies say, read once per request by `currentUser`, and
+ * "is this a moderator" is the request's one answer instead of a second ask.
+ * A signed out visitor costs no read at all.
  *
- * Not for an action or a route that writes: those call `editableGame`, which
- * asks the database itself, and some of them hold a client that is not the
- * one the request's cookies belong to. The client here must be the cookie
- * client, since `isModerator` answers for that visitor.
+ * Not for an action or a route that writes, and not a gate in front of the
+ * secret key: those call `editableGame` with a visitor the auth server has
+ * just confirmed, and some of them hold a client that is not the one the
+ * request's cookies belong to.
  */
-export async function editableGameForPage(
-  supabase: SupabaseClient,
-  userId: string,
-  shortname: string,
-): Promise<{ id: string } | null> {
-  return findEditableGame(supabase, userId, shortname, await isModerator());
+export async function editableGameForPage(shortname: string): Promise<{ id: string } | null> {
+  const user = await currentUser();
+  if (!user) return null;
+  return findEditableGame(await createClient(), user.id, shortname, await isModerator());
 }
 
 async function findEditableGame(

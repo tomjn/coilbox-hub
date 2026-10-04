@@ -5,6 +5,7 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { displayName } from "@/lib/author";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/supabase/user";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 
 export const metadata: Metadata = {
@@ -15,12 +16,11 @@ export const metadata: Metadata = {
 const BACKDROP_STRENGTH = 0.09;
 
 export default async function Account() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/publish");
 
+  // Counted as the session, so row level security decides which rows it sees.
+  const supabase = await createClient();
   const { count } = await supabase
     .from("item")
     .select("id", { count: "exact", head: true })
@@ -29,7 +29,7 @@ export default async function Account() {
   const published = count ?? 0;
   // The same name publishing writes to author_name, so the gallery link below
   // matches the rows it is meant to find.
-  const name = displayName(user.user_metadata ?? {});
+  const name = displayName(user.metadata);
 
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">

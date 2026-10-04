@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { buttonClass } from "@/components/Button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cache } from "react";
+import { cache, Suspense } from "react";
+import Loading from "@/app/loading";
 import { requestOwnership, setGameVisibility } from "@/app/games/actions";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
@@ -19,7 +20,7 @@ import { downloadHref, type GameDownload } from "@/lib/games/download";
 import { editableGameForPage } from "@/lib/games/editor";
 import type { GamePageFaction } from "@/lib/games/page";
 import type { SideCommander } from "@/lib/games/sides";
-import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/supabase/user";
 import { richTextToPlainText } from "@/lib/text/richText";
 
 /**
@@ -201,7 +202,92 @@ function Onward({ href, name, detail }: { href: string; name: string; detail: st
   );
 }
 
-export default async function Game({ params }: { params: Promise<{ shortname: string }> }) {
+/**
+ * The pen and the hide switch, for the owner or a moderator (#350).
+ *
+ * Its own component behind its own boundary, because it is the only part of the
+ * header that depends on who is looking: the page is sent without waiting to
+ * learn who that is, and this arrives after it. Nothing is drawn in the
+ * meantime, so a visitor who may not edit never sees the controls.
+ */
+async function OwnerControls({ shortname }: { shortname: string }) {
+  if (!(await editableGameForPage(shortname))) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 pt-1">
+      <Link href={`/games/${shortname}/edit`} className={CONTROL_BUTTON}>
+        Edit this game
+      </Link>
+      <VisibilityToggleForm
+        action={setGameVisibility}
+        fields={{ shortname, hidden: "true", onSuccess: "edit" }}
+        label="Hide this game"
+        pendingLabel="Hiding…"
+        // The default is a flex column, which stretches its button
+        // across the whole page. Only this call site needs fixing: the
+        // edit page and the moderation queue pass their own layout.
+        formClassName="flex flex-col items-start gap-1.5"
+        buttonClassName={CONTROL_BUTTON}
+      />
+    </div>
+  );
+}
+
+/**
+ * The ask a signed in visitor gets on a game nobody owns yet.
+ *
+ * Claiming a game is rare, so the ask folds down to one quiet line below the
+ * facts (#249) and only opens for whoever wants it. Open, the instruction lives
+ * in a real label where typing cannot take it away, and the button reads as an
+ * action rather than another chip. Behind a boundary for the same reason as
+ * `OwnerControls`.
+ */
+async function OwnershipAsk({ shortname }: { shortname: string }) {
+  if (!(await currentUser())) return null;
+
+  return (
+    <details>
+      <summary className="w-fit cursor-pointer list-none text-sm text-neutral-400 underline-offset-4 transition-colors hover:text-neutral-200 hover:underline active:text-neutral-200 active:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400">
+        Are you this game&rsquo;s author?
+      </summary>
+      <form action={requestOwnership} className="mt-3 flex max-w-xl flex-col gap-2">
+        <input type="hidden" name="shortname" value={shortname} />
+        <label htmlFor="ownership-note" className="text-xs uppercase tracking-wide text-neutral-400">
+          Say who you are and how you&rsquo;re involved
+        </label>
+        <textarea
+          id="ownership-note"
+          name="note"
+          rows={4}
+          maxLength={2000}
+          className="w-full resize-none rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+        />
+        <button
+          type="submit"
+          className="self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300"
+        >
+          Request ownership
+        </button>
+      </form>
+    </details>
+  );
+}
+
+type Params = Promise<{ shortname: string }>;
+
+/** The route. `params` is only known per request, so everything that reads it
+ *  sits behind a boundary of the page's own: the root loading file's boundary
+ *  is already on screen when a visitor moves between two games, and would hold
+ *  the old page up until the new one was ready. */
+export default function Game({ params }: { params: Params }) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <GameContent params={params} />
+    </Suspense>
+  );
+}
+
+async function GameContent({ params }: { params: Params }) {
   const { shortname } = await params;
   const page = await load(shortname);
   if (!page) notFound();
@@ -220,16 +306,11 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
     staged_tier: page.logo_staged_tier,
   });
 
-  // The session decides what the visitor sees: an unowned game asks for
-  // somebody to take it, the owner or a moderator (#350) gets the pen and the
-  // hide switch, and anybody else sees neither, because who owns a game is not
-  // a fact a visitor needs.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const mayEdit = user !== null && (await editableGameForPage(supabase, user.id, shortname)) !== null;
-
+  // Nothing here asks who is looking. The session decides two things, both
+  // drawn by their own components below: an unowned game asks for somebody to
+  // take it, and the owner or a moderator (#350) gets the pen and the hide
+  // switch. Anybody else sees neither, because who owns a game is not a fact a
+  // visitor needs.
   const commanders = (await gameSidesCached([page.shortname])).get(page.shortname)?.commanders;
   const factionSlots = page.factions.some(
     (faction) => faction.logo_path !== null || commanders?.has(faction.key),
@@ -271,24 +352,9 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
             <p className="text-sm text-neutral-400">Game version {page.release}</p>
           ) : null}
           {page.downloads.length > 0 ? <Downloads downloads={page.downloads} /> : null}
-          {mayEdit ? (
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <Link href={`/games/${shortname}/edit`} className={CONTROL_BUTTON}>
-                Edit this game
-              </Link>
-              <VisibilityToggleForm
-                action={setGameVisibility}
-                fields={{ shortname, hidden: "true", onSuccess: "edit" }}
-                label="Hide this game"
-                pendingLabel="Hiding…"
-                // The default is a flex column, which stretches its button
-                // across the whole page. Only this call site needs fixing: the
-                // edit page and the moderation queue pass their own layout.
-                formClassName="flex flex-col items-start gap-1.5"
-                buttonClassName={CONTROL_BUTTON}
-              />
-            </div>
-          ) : null}
+          <Suspense fallback={null}>
+            <OwnerControls shortname={shortname} />
+          </Suspense>
         </div>
 
         <section className="flex flex-col gap-3" aria-labelledby="game-factions">
@@ -359,35 +425,10 @@ export default async function Game({ params }: { params: Promise<{ shortname: st
           </section>
         ) : null}
 
-        {/* Claiming a game is rare, so the ask folds down to one quiet line
-         *  below the facts (#249) and only opens for whoever wants it. Open,
-         *  the instruction lives in a real label where typing cannot take it
-         *  away, and the button reads as an action rather than another chip. */}
-        {!page.owner_user_id && user ? (
-          <details>
-            <summary className="w-fit cursor-pointer list-none text-sm text-neutral-400 underline-offset-4 transition-colors hover:text-neutral-200 hover:underline active:text-neutral-200 active:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400">
-              Are you this game&rsquo;s author?
-            </summary>
-            <form action={requestOwnership} className="mt-3 flex max-w-xl flex-col gap-2">
-              <input type="hidden" name="shortname" value={shortname} />
-              <label htmlFor="ownership-note" className="text-xs uppercase tracking-wide text-neutral-400">
-                Say who you are and how you&rsquo;re involved
-              </label>
-              <textarea
-                id="ownership-note"
-                name="note"
-                rows={4}
-                maxLength={2000}
-                className="w-full resize-none rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
-              />
-              <button
-                type="submit"
-                className="self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300"
-              >
-                Request ownership
-              </button>
-            </form>
-          </details>
+        {!page.owner_user_id ? (
+          <Suspense fallback={null}>
+            <OwnershipAsk shortname={shortname} />
+          </Suspense>
         ) : null}
 
         <p className="text-sm text-neutral-400">
