@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
@@ -8,6 +9,10 @@ import { fetchPictureQueue } from "@/lib/assets/queue";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { approveSelected, rejectOne } from "./actions";
+
+export const metadata: Metadata = {
+  title: "Pictures - Moderation",
+};
 
 /**
  * The pictures waiting for review, as a contact sheet (issue #114).

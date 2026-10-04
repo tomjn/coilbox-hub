@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
@@ -15,6 +16,10 @@ import {
   saveMapPack,
   setMapPackFeatured,
 } from "../actions";
+
+export const metadata: Metadata = {
+  title: "Map pack - Moderation",
+};
 
 /**
  * One map pack: its title and blurb, whether coilbox shows it, and its maps

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
@@ -5,6 +6,10 @@ import { games } from "@/components/art/drawings";
 import { displayName } from "@/lib/author";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteAccountForm } from "./DeleteAccountForm";
+
+export const metadata: Metadata = {
+  title: "Your account",
+};
 
 // Content is sparse here, closer to the landing page than to the gallery.
 const BACKDROP_STRENGTH = 0.09;

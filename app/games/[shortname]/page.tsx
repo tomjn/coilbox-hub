@@ -52,7 +52,7 @@ export async function generateMetadata({
   params: Promise<{ shortname: string }>;
 }): Promise<Metadata> {
   const page = await load((await params).shortname);
-  if (!page) return { title: "Not found - Coilbox Hub" };
+  if (!page) return { title: "Not found" };
 
   const title = gameTitle(page);
   const description = page.description
@@ -60,7 +60,7 @@ export async function generateMetadata({
     : `${page.faction_count} factions and ${page.unit_count} units on the hub.`;
 
   return {
-    title: `${title} - Coilbox Hub`,
+    title,
     description,
     openGraph: { title, description, type: "article" },
   };

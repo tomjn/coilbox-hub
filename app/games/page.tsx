@@ -26,7 +26,7 @@ import type { GameSides } from "@/lib/games/sides";
  */
 
 export const metadata: Metadata = {
-  title: "Games - Coilbox Hub",
+  title: "Games",
   description: "Browse the games the hub holds facts about: their factions, their units and their build trees.",
 };
 

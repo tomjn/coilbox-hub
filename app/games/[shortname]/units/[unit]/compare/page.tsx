@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { unitCompareCached } from "@/lib/games/cached";
+import { gamePageCached, unitCompareCached } from "@/lib/games/cached";
+import { gameTitle } from "@/lib/games/labels";
 
 /**
  * Two releases of one unit, side by side (#227).
@@ -12,6 +14,30 @@ import { unitCompareCached } from "@/lib/games/cached";
  * it. Changed values are marked, because finding them by eye across two columns
  * of numbers is exactly the work this page exists to save.
  */
+
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ shortname: string; unit: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  const { shortname, unit } = await params;
+  const query = await searchParams;
+  const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+  const left = first(query.left);
+  const right = first(query.right);
+  if (!left || !right) return { title: "Not found" };
+
+  // The same two cached reads the page makes, with the same arguments.
+  const [game, comparison] = await Promise.all([
+    gamePageCached(shortname),
+    unitCompareCached(shortname, unit, left, right),
+  ]);
+  if (!game || !comparison) return { title: "Not found" };
+  const label = comparison.left.full_name ?? comparison.right.full_name ?? comparison.unit_name;
+  return { title: `Compare ${label} - ${gameTitle(game)}` };
+}
 
 export default async function Compare({
   params,

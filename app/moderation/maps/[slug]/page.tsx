@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
@@ -12,6 +13,10 @@ import {
 } from "@/lib/maps/moderation";
 import { createClient } from "@/lib/supabase/server";
 import { saveCuratedTags, setMapFeatured } from "../actions";
+
+export const metadata: Metadata = {
+  title: "Map tags - Moderation",
+};
 
 /**
  * The tags on one map that no measurement produces (issue #193).

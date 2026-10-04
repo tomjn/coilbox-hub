@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PublishForm } from "./PublishForm";
 
 export const metadata: Metadata = {
-  title: "Publish - Coilbox Hub",
+  title: "Publish",
   description: `Share a ${kindsSingular()} you have made.`,
 };
 

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { setGameVisibility, setVersionVisibility } from "@/app/games/actions";
@@ -6,6 +7,8 @@ import { VisibilityFlash } from "@/components/VisibilityFlash";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { editableGame } from "@/lib/games/editor";
 import { fetchDownloadOffers } from "@/lib/games/offers";
+import { gamePageCached } from "@/lib/games/cached";
+import { gameTitle } from "@/lib/games/labels";
 import { loadGamePage } from "@/lib/games/page";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -35,6 +38,17 @@ import { buttonClass } from "@/components/Button";
  * five rows nobody has to fill in - the two lists need one anyway, since order
  * is part of what they mean.
  */
+
+/* The public cached read, so this adds no session check and no request time read
+   before the page runs. A hidden game is not in it, and gets a plain title. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ shortname: string }>;
+}): Promise<Metadata> {
+  const game = await gamePageCached((await params).shortname);
+  return { title: game ? `Edit ${gameTitle(game)}` : "Edit game" };
+}
 
 export default async function EditGame({
   params,

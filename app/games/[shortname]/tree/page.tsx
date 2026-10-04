@@ -4,7 +4,13 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { TreeBlock } from "@/components/GameTree";
 import { FactionToggles } from "@/components/FactionToggles";
-import { gameFactionsCached, treeCached, treeUnitPicturesCached } from "@/lib/games/cached";
+import {
+  gameFactionsCached,
+  gamePageCached,
+  treeCached,
+  treeUnitPicturesCached,
+} from "@/lib/games/cached";
+import { gameTitle } from "@/lib/games/labels";
 import type { TreeNode } from "@/lib/games/tree";
 
 /**
@@ -29,10 +35,12 @@ export async function generateMetadata({
 }: {
   params: Promise<{ shortname: string }>;
 }): Promise<Metadata> {
-  const { shortname } = await params;
+  const game = await gamePageCached((await params).shortname);
+  if (!game) return { title: "Not found" };
+  const name = gameTitle(game);
   return {
-    title: `${shortname} build tree - Coilbox Hub`,
-    description: `What every faction in ${shortname} can reach, from its start units.`,
+    title: `${name} build tree`,
+    description: `What every faction in ${name} can reach, from its start units.`,
   };
 }
 

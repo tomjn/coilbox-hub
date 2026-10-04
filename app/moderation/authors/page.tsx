@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
@@ -14,6 +15,10 @@ import {
 } from "@/lib/maps/authorMerge";
 import { createClient } from "@/lib/supabase/server";
 import { mergeAuthors, unmergeAuthors } from "./actions";
+
+export const metadata: Metadata = {
+  title: "Authors - Moderation",
+};
 
 /**
  * Two author keys that are one person (issue #193).

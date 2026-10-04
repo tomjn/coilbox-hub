@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
@@ -15,6 +16,10 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { clearHeldFacts, setMapFeatured } from "./actions";
+
+export const metadata: Metadata = {
+  title: "Maps - Moderation",
+};
 
 /**
  * The maps two clients disagree about (issue #193).
