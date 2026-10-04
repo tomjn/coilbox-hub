@@ -25,6 +25,7 @@ export function sitemapEntries(origin: string, source: SitemapSource): MetadataR
     { url: `${origin}/gallery` },
     { url: `${origin}/maps` },
     { url: `${origin}/games` },
+    { url: `${origin}/developers` },
     ...source.items.map((item) => ({
       url: `${origin}/item/${part(item.id)}`,
       lastModified: rfc3339(item.updated_at),

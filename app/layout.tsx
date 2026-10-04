@@ -161,6 +161,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             already did. A browser without the View Transitions API renders the
             children exactly as before. */}
         <ViewTransition>{children}</ViewTransition>
+        {/* The same for every visitor, so it stays in the held shell. A plain
+            anchor for the feed, which is XML and not a page to navigate to. */}
+        <footer className="flex flex-wrap gap-x-6 px-6 py-6 text-xs text-neutral-400">
+          <Link
+            href="/developers"
+            className="py-2 transition-colors hover:text-white active:text-white"
+          >
+            API
+          </Link>
+          <a href="/feed.xml" className="py-2 transition-colors hover:text-white active:text-white">
+            Atom feed
+          </a>
+        </footer>
         {/* Reports Core Web Vitals from real visits (issue 94). It renders no
             markup, and in development it only logs to the console. */}
         <SpeedInsights />
