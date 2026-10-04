@@ -4,6 +4,7 @@ import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
+import { DateTime } from "@/components/DateTime";
 import { ModerationNav } from "@/components/ModerationNav";
 import {
   ACCOUNT_PAGE_SIZE,
@@ -59,7 +60,7 @@ function Account({ account }: { account: ModeratorAccount }) {
           {account.display_name === "" ? "Unknown" : account.display_name}
         </span>
         <span className="text-xs text-neutral-400">
-          {new Date(account.created_at).toISOString().slice(0, 10)}
+          <DateTime value={account.created_at} />
         </span>
       </div>
       <p className="font-mono text-xs text-neutral-400">{account.id}</p>
