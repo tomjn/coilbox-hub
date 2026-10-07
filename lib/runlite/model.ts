@@ -5,18 +5,19 @@
  *
  * Upstream's model.ts carries run progress, history, save files and their
  * parsers, and reaches the container and campaign models to do it. The
- * generator only needs the shapes it writes, so those are what is here. Nothing
- * restates a value, so there is nothing for the sync script to check: a
+ * generator only needs the shapes it writes, so those are what is here. A
  * generator that starts writing a new field fails typecheck the moment it is
- * synced.
+ * synced. `isBattleNode` is the one piece of logic restated here, and
+ * `scripts/sync-vendor.ts` checks it against upstream.
  */
 
 import type { MapDownloadHint } from "@/lib/campaign/model";
-import type { GameRef } from "@/lib/conquest/model";
+import type { GameRef, MapSkin } from "@/lib/conquest/model";
+import type { PlanetId } from "@/lib/conquest/planets";
 
 export type RunLength = "quick" | "standard" | "long";
 
-export type RunSkin = "galaxy" | "theatre";
+export type RunSkin = MapSkin;
 
 /** Node kinds on the run graph. `battle`, `elite` and `boss` launch a
  * skirmish. The rest resolve on the map. */
@@ -28,6 +29,11 @@ export type RunNodeType =
   | "reward"
   | "event"
   | "shop";
+
+/** True for the node kinds that launch a skirmish. */
+export function isBattleNode(type: RunNodeType): boolean {
+  return type === "battle" || type === "elite" || type === "boss";
+}
 
 export interface EncounterSpec {
   mapName: string;
@@ -104,6 +110,32 @@ export interface RunNode {
   shop?: ShopSpec;
 }
 
+/** How a challenge names the hand-made map it is played on. Upstream keeps
+ * this in `src/challenge/mapRef.ts`. */
+export interface HandmadeMapRef {
+  source: "handmade";
+  /** The map's id in the hand-made map library. */
+  id: string;
+  fingerprint?: string;
+  title?: string;
+}
+
+/** How a run across a land map finds that map again. A generated one is
+ * rebuilt from these settings, and a hand-made one is looked up by its id. */
+export type RunMapRef =
+  | {
+      source: "generated";
+      /** Which generator made it: `territories` or `cities`. */
+      style: string;
+      /** The map's own seed, which need not be the run's. */
+      seed: number;
+      nodeCount: number;
+      layout?: string;
+      /** Absent is Temperate. */
+      planet?: PlanetId;
+    }
+  | HandmadeMapRef;
+
 /** A directed forward edge, `from.col < to.col`. */
 export type RunEdge = [string, string];
 
@@ -117,6 +149,7 @@ export interface RunSettings {
   factionId: string;
   side?: string;
   skin: RunSkin;
+  map?: RunMapRef;
 }
 
 export interface RunProgress {

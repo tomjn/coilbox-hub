@@ -36,6 +36,9 @@ interface VendorGroup {
   /** Constants a local, unvendored file restates. Checked against upstream so
    * a change there goes red rather than silently changing what we draw. */
   constants?: { file: string; values: Record<string, string> };
+  /** Source a local, unvendored file restates word for word. Checked against
+   * upstream for the same reason as the constants. */
+  restated?: { file: string; text: string[] };
 }
 
 const GROUPS: VendorGroup[] = [
@@ -66,7 +69,12 @@ const GROUPS: VendorGroup[] = [
       "generate.ts",
       "mapSubstitution.ts",
       "names.ts",
+      "planets.ts",
       "rng.ts",
+      "size.ts",
+      "startPosition.ts",
+      "terrainGen.ts",
+      "threat.ts",
       "realstars/index.ts",
       "realstars/catalogue.json",
     ],
@@ -105,7 +113,16 @@ const GROUPS: VendorGroup[] = [
     },
     // No constants check. Everything that decides the shape of a run, the
     // column count per length included, lives inside the vendored generate.ts,
-    // so the blob hash already covers it.
+    // so the blob hash already covers it. The generator calls `isBattleNode`
+    // as a value, so the model subset restates that one function.
+    restated: {
+      file: "model.ts",
+      text: [
+        "export function isBattleNode(type: RunNodeType): boolean {\n" +
+          '  return type === "battle" || type === "elite" || type === "boss";\n' +
+          "}",
+      ],
+    },
   },
   {
     // The asset vocabulary (#165): the variant names, the per class caps and
@@ -174,6 +191,13 @@ const GROUPS: VendorGroup[] = [
     dir: "src/challenge",
     vendor: "lib/challenge",
     files: ["nodeMaps.ts"],
+  },
+  {
+    // Reached from the conquest generator's threat.ts, for `clamp`. Four small
+    // functions and no imports, so it vendors cleanly.
+    dir: "src/lib",
+    vendor: "lib/lib",
+    files: ["helpers.ts"],
   },
   {
     // What coilbox's Rust compiler and packer make of a set of projects (#418).
@@ -288,6 +312,21 @@ function checkImports(group: VendorGroup, contents: Map<string, string>) {
   }
 }
 
+/** Confirm the source our own copy restates still reads the same upstream. */
+async function checkRestated(group: VendorGroup) {
+  if (!group.restated) return;
+  const { file, text } = group.restated;
+  const upstream = await fetchUpstream(group.dir, file);
+  for (const snippet of text) {
+    if (!upstream.includes(snippet)) {
+      fail(
+        `${REPO} ${group.dir}/${file} no longer contains:\n${snippet}\n` +
+          `${group.vendor}/${file} restates it, so update both together.`,
+      );
+    }
+  }
+}
+
 /** Confirm the constants our own copy restates still read the same upstream. */
 async function checkConstants(group: VendorGroup) {
   if (!group.constants) return;
@@ -354,6 +393,7 @@ for (const group of GROUPS) {
     }
     checkImports(group, local);
     await checkConstants(group);
+    await checkRestated(group);
     console.log(
       `In sync with ${REPO} ${group.dir} (${group.files.join(", ")}).`,
     );
@@ -407,4 +447,5 @@ for (const group of GROUPS) {
   // hearing about while syncing, not one CI run later.
   checkImports(group, upstream);
   await checkConstants(group);
+  await checkRestated(group);
 }
