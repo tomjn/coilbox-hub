@@ -6,7 +6,7 @@
  * Upstream's model.ts reaches campaign, scenario, play and content, and through
  * those the Tauri plugin bindings: about ten thousand lines the hub cannot
  * compile and has no use for. The generator itself touches almost none of it.
- * It imports two constants and three types, so those are what is here.
+ * It imports two constants and a few types, so those are what is here.
  *
  * The types cannot drift silently. They describe what `generateGalaxy` writes,
  * so a generator that starts writing a new field fails typecheck the moment
@@ -14,6 +14,10 @@
  * still compiles and would quietly move every node's difficulty, so
  * `scripts/sync-vendor.ts` checks both against upstream on every CI run.
  */
+
+import type { PlanetId } from "./planets";
+import type { StartPosition } from "./startPosition";
+import type { LandLayout } from "./terrainGen";
 
 /** The owner value for territory no faction holds. */
 export const NEUTRAL = "neutral";
@@ -50,6 +54,11 @@ export interface NodeBattleSpec {
    */
   mapSubstitutedFrom?: string;
 }
+
+/** How a strategic map is presented. `galaxy` is stars in space, `theatre` is
+ * points on a flat chart, `cities` is points on generated land joined by
+ * roads, and `territories` is provinces on generated land masses. */
+export type MapSkin = "galaxy" | "theatre" | "cities" | "territories";
 
 /** 2D for the procedural scatters, 3D for galaxies built from real stars. */
 export type NodePos = [number, number] | [number, number, number];
@@ -94,10 +103,24 @@ export interface GalaxyDoc {
     seed: number;
     nodeCount?: number;
     factionCount?: number;
-    layout?: "scatter" | "spiral" | "clusters" | "ring" | "random" | "realstars";
-    skin?: "galaxy" | "theatre";
+    layout?:
+      | "scatter"
+      | "spiral"
+      | "clusters"
+      | "ring"
+      | LandLayout
+      | "random"
+      | "realstars";
+    skin?: MapSkin;
     startingSystems?: number;
     fogOfWar?: boolean;
+    /** Threat level 0..3. Absent reads as 0. */
+    threatLevel?: number;
+    /** Where the player starts. Absent is the western edge. */
+    startPosition?: StartPosition;
     radiusLy?: number;
+    /** Land styles only: the planet the player chose, or `random` to pick one
+     * from the seed. Absent builds the Temperate map. */
+    planet?: PlanetId | "random";
   };
 }

@@ -7,6 +7,7 @@ import {
 } from "../conquest/mapSubstitution";
 import type { GameRef } from "../conquest/model";
 import { sectorNameForSeed } from "../conquest/names";
+import type { PlanetId } from "../conquest/planets";
 import {
   hashString,
   mulberry32,
@@ -15,19 +16,21 @@ import {
   randInt,
 } from "../conquest/rng";
 import { buildBuildGraph } from "../content/buildTree";
-import type {
-  EncounterSpec,
-  EventSpec,
-  Perk,
-  RewardOption,
-  RewardSpec,
-  RogueliteRun,
-  RunEdge,
-  RunLength,
-  RunNode,
-  RunNodeType,
-  RunSkin,
-  ShopSpec,
+import {
+  type EncounterSpec,
+  type EventSpec,
+  isBattleNode,
+  type Perk,
+  type RewardOption,
+  type RewardSpec,
+  type RogueliteRun,
+  type RunEdge,
+  type RunLength,
+  type RunMapRef,
+  type RunNode,
+  type RunNodeType,
+  type RunSkin,
+  type ShopSpec,
 } from "./model";
 
 /**
@@ -55,6 +58,9 @@ export interface GenRunMap {
 /** The game's build graph, for coherent unit-unlock rewards. */
 export interface GenBuildGraph {
   startUnit: string;
+  /** The start set derived from the unit data when `startUnit` is a
+   * placeholder that is not in it. Absent for a real start unit. */
+  roots?: string[];
   /** Lowercased adjacency (unit -> buildOptions), from `buildEdgeMap`. */
   edges: Map<string, string[]>;
   /** Display names by lowercased internal name. */
@@ -70,6 +76,9 @@ export interface GenerateRunOpts {
   factionId: string;
   side?: string;
   skin: RunSkin;
+  /** Cities and Territories only: the planet the generated land is built as,
+   * or `random` to pick one from the seed. Absent builds the Temperate map. */
+  planet?: PlanetId | "random";
   maps: GenRunMap[];
   /** Absent -> perk-only rewards and no unit gating (full arsenal). */
   build?: GenBuildGraph;
@@ -93,7 +102,7 @@ const COLUMNS: Record<RunLength, number> = {
 const STARTER_UNIT_COUNT = 12;
 
 /** Tech tiers spread across the run (drives map size + enemy scaling). */
-const MAX_TIER = 5;
+export const MAX_TIER = 5;
 
 function techTierForCol(col: number, cols: number): number {
   if (cols <= 2) return 1;
@@ -175,9 +184,13 @@ function makeEncounter(
 // unit plus its children) — never a deep unit whose builder is still disabled.
 // ---------------------------------------------------------------------------
 
-interface UnlockPlanner {
-  /** BFS discovery order, root first. */
+export interface UnlockPlanner {
+  /** BFS discovery order, root first. A derived start set has no root in it. */
   order: string[];
+  /** The unit whose build options a loadout branch is chosen from. */
+  start: string;
+  /** Derived start units, which no branch or reward includes. */
+  skipped: Set<string>;
   /** child -> parent in the BFS spanning tree. */
   parent: Map<string, string>;
   /** parent -> children in the BFS spanning tree. */
@@ -185,8 +198,21 @@ interface UnlockPlanner {
   names: Map<string, string>;
 }
 
-function planUnlocks(build: GenBuildGraph): UnlockPlanner {
-  const { order, treeEdges } = buildBuildGraph(build.startUnit, build.edges);
+export function planUnlocks(build: GenBuildGraph): UnlockPlanner {
+  const derived = build.roots && build.roots.length > 0 ? build.roots : null;
+  // A derived start set has several roots. A virtual root over them gives one
+  // tree, and the roots drop out of it. They are available from the start, so
+  // they take no starter slot and no reward offers them.
+  const edges = derived
+    ? new Map(build.edges).set(DERIVED_ROOT, derived)
+    : build.edges;
+  const graph = buildBuildGraph(
+    derived ? DERIVED_ROOT : build.startUnit,
+    edges,
+  );
+  const skip = new Set(derived ? [DERIVED_ROOT, ...derived] : []);
+  const order = graph.order.filter((u) => !skip.has(u));
+  const treeEdges = graph.treeEdges.filter((e) => !skip.has(e.child));
   const parent = new Map<string, string>();
   const children = new Map<string, string[]>();
   for (const e of treeEdges) {
@@ -195,8 +221,18 @@ function planUnlocks(build: GenBuildGraph): UnlockPlanner {
     if (kids) kids.push(e.child);
     else children.set(e.parent, [e.child]);
   }
-  return { order, parent, children, names: build.names };
+  return {
+    order,
+    start: derived ? derived[0] : order[0],
+    skipped: skip,
+    parent,
+    children,
+    names: build.names,
+  };
 }
+
+/** The virtual unit that a derived start set's roots hang from. */
+const DERIVED_ROOT = "\u0000start-set";
 
 /** The connected unit set an unlock of `unit` grants: its path back to the
  * start plus its direct children (so both `unit` and what it builds become
@@ -207,7 +243,7 @@ function unlockBranch(planner: UnlockPlanner, unit: string): string[] {
   const guard = new Set<string>();
   while (cur && !guard.has(cur)) {
     guard.add(cur);
-    set.add(cur);
+    if (!planner.skipped.has(cur)) set.add(cur);
     cur = planner.parent.get(cur);
   }
   for (const child of planner.children.get(unit) ?? []) set.add(child);
@@ -396,6 +432,46 @@ function drawNodeType(rng: Rng, p: number, allowShop = true): RunNodeType {
 }
 
 /**
+ * The type of a node between the start and the boss. The first fight column is
+ * all battles, and a slot marked `forcedShop` is the depot before the boss.
+ * Everything else is drawn, with no depot where `allowShop` is false. Shared
+ * with the land map generator (`./mapRun.ts`), so both place nodes by one rule.
+ */
+export function chooseNodeType(
+  rng: Rng,
+  col: number,
+  cols: number,
+  forcedShop: boolean,
+  allowShop: boolean,
+): RunNodeType {
+  if (col === 1) return "battle";
+  if (forcedShop) return "shop";
+  return drawNodeType(rng, col / (cols - 1), allowShop);
+}
+
+/** Give a node the content its type needs: an encounter, a reward, an event or
+ * a shop, scaled by how far along the run its column is. */
+export function bakeNode(
+  rng: Rng,
+  opts: GenerateRunOpts,
+  planner: UnlockPlanner | null,
+  usedUnlocks: Set<string>,
+  node: RunNode,
+  cols: number,
+): void {
+  const tier = techTierForCol(node.col, cols);
+  if (isBattleNode(node.type)) {
+    node.battle = makeEncounter(rng, opts, node.col, cols, node.type);
+  } else if (node.type === "reward") {
+    node.reward = makeReward(rng, planner, tier, usedUnlocks);
+  } else if (node.type === "event") {
+    node.event = makeEvent(rng, tier);
+  } else if (node.type === "shop") {
+    node.shop = makeShop(rng, planner, tier, usedUnlocks);
+  }
+}
+
+/**
  * Link two adjacent columns forward with a *planar* (non-crossing) set of
  * edges: every `to` gets an incoming edge from its proportionally-nearest
  * `from`, and every `from` gets an outgoing edge to its proportional `to`.
@@ -528,7 +604,6 @@ export function generateRun(opts: GenerateRunOpts): RogueliteRun {
   // so the next never does — no two depots are ever reachable back-to-back.
   let prevColHadShop = false;
   for (let c = 1; c <= cols - 2; c++) {
-    const p = c / (cols - 1);
     const count = randInt(rng, 2, 4);
     const nodes: RunNode[] = [];
     // The penultimate column force-places a depot (the pre-boss rest), so the
@@ -538,22 +613,15 @@ export function generateRun(opts: GenerateRunOpts): RogueliteRun {
     for (let i = 0; i < count; i++) {
       // The first fight column is all battles; the penultimate column always
       // offers a shop (a rest before the boss) in its first slot.
-      let type: RunNodeType;
-      if (c === 1) type = "battle";
-      else if (c === cols - 2 && i === 0) type = "shop";
-      else type = drawNodeType(rng, p, allowShop);
-
-      const tier = techTierForCol(c, cols);
+      const type = chooseNodeType(
+        rng,
+        c,
+        cols,
+        c === cols - 2 && i === 0,
+        allowShop,
+      );
       const node: RunNode = { id: `c${c}n${i}`, type, col: c, row: i };
-      if (type === "battle" || type === "elite") {
-        node.battle = makeEncounter(rng, opts, c, cols, type);
-      } else if (type === "reward") {
-        node.reward = makeReward(rng, planner, tier, usedUnlocks);
-      } else if (type === "event") {
-        node.event = makeEvent(rng, tier);
-      } else if (type === "shop") {
-        node.shop = makeShop(rng, planner, tier, usedUnlocks);
-      }
+      bakeNode(rng, opts, planner, usedUnlocks, node, cols);
       nodes.push(node);
     }
     prevColHadShop = nodes.some((n) => n.type === "shop");
@@ -562,13 +630,8 @@ export function generateRun(opts: GenerateRunOpts): RogueliteRun {
 
   // Final column: the boss.
   const bossCol = cols - 1;
-  const boss: RunNode = {
-    id: "boss",
-    type: "boss",
-    col: bossCol,
-    row: 0,
-    battle: makeEncounter(rng, opts, bossCol, cols, "boss"),
-  };
+  const boss: RunNode = { id: "boss", type: "boss", col: bossCol, row: 0 };
+  bakeNode(rng, opts, planner, usedUnlocks, boss, cols);
   columns.push([boss]);
 
   // Edges: link every adjacent pair of columns forward.
@@ -577,8 +640,22 @@ export function generateRun(opts: GenerateRunOpts): RogueliteRun {
     edges.push(...linkColumns(columns[c], columns[c + 1]));
   }
 
-  const nodes = columns.flat();
+  return assembleRun(opts, planner, columns.flat(), edges, "start");
+}
 
+/**
+ * Everything after the graph: the starting arsenal, the hull and the run
+ * document. `startId` is the node the player stands on at the outset. Shared
+ * with the land map generator (`./mapRun.ts`), which passes the `map` it ran on.
+ */
+export function assembleRun(
+  opts: GenerateRunOpts,
+  planner: UnlockPlanner | null,
+  nodes: RunNode[],
+  edges: RunEdge[],
+  startId: string,
+  map?: RunMapRef,
+): RogueliteRun {
   // Seed the arsenal with the shallowest connected build subtree, so the first
   // encounter is playable before any unlock. A loadout pre-unlocks one of the
   // commander's build branches on top, opening the run committed to a doctrine.
@@ -586,7 +663,7 @@ export function generateRun(opts: GenerateRunOpts): RogueliteRun {
     ? planner.order.slice(0, STARTER_UNIT_COUNT)
     : [];
   if (planner && opts.loadoutBranch != null && opts.loadoutBranch >= 0) {
-    const roots = planner.children.get(planner.order[0]) ?? [];
+    const roots = planner.children.get(planner.start) ?? [];
     const root = roots[opts.loadoutBranch];
     if (root) {
       unlockedUnits = [
@@ -613,13 +690,14 @@ export function generateRun(opts: GenerateRunOpts): RogueliteRun {
       factionId: opts.factionId,
       side: opts.side,
       skin: opts.skin,
+      ...(map ? { map } : {}),
     },
     startUnit: opts.build?.startUnit,
     nodes,
     edges,
     progress: {
-      currentNodeId: "start",
-      visited: ["start"],
+      currentNodeId: startId,
+      visited: [startId],
       hull: maxHull,
       maxHull,
       salvage: 0,

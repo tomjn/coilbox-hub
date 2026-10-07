@@ -1,3 +1,4 @@
+import type { PlanetId } from "./planets";
 import { mulberry32, pick, type Rng, shuffled } from "./rng";
 
 /**
@@ -35,6 +36,16 @@ export interface ConquestNames {
   factionNames?: string[];
   /** Lore factions with colour/side/aggression, assigned in order. */
   factions?: FactionPreset[];
+  /**
+   * Full place names for the land styles (Cities and Territories), used
+   * before synthesis. Falls back to {@link starNames}, so a game with one pool
+   * gets it on every style.
+   */
+  placeNames?: string[];
+  /** Replaces the built-in land first-syllable pool. Falls back to {@link starPrefixes}. */
+  placePrefixes?: string[];
+  /** Replaces the built-in land last-syllable pool. Falls back to {@link starSuffixes}. */
+  placeSuffixes?: string[];
   /** Cap the galaxy to the named-star count and disable name fallback. */
   limitToNamed?: boolean;
 }
@@ -192,6 +203,527 @@ const STAR_LAST = [
   "quon",
 ];
 
+/**
+ * Built-in place names for the land styles are composed from two lists, as in
+ * "Ironcoast" or "Northmarch". Each planet has its own pair (see
+ * {@link LAND_NAME_POOLS}). These two are Temperate's.
+ */
+const LAND_FIRST = [
+  "Amber",
+  "Ash",
+  "Black",
+  "Bleak",
+  "Brack",
+  "Cinder",
+  "Cold",
+  "Crow",
+  "Dun",
+  "Dusk",
+  "Elder",
+  "Ember",
+  "Fallow",
+  "Fern",
+  "Flint",
+  "Frost",
+  "Gale",
+  "Gloam",
+  "Gold",
+  "Grey",
+  "Hart",
+  "Heath",
+  "High",
+  "Hollow",
+  "Iron",
+  "Kestrel",
+  "Lark",
+  "Lorn",
+  "Mist",
+  "Moss",
+  "North",
+  "Oak",
+  "Pike",
+  "Pine",
+  "Raven",
+  "Red",
+  "Reed",
+  "Rook",
+  "Rowan",
+  "Salt",
+  "Shale",
+  "Silver",
+  "Slate",
+  "Sorrel",
+  "South",
+  "Stone",
+  "Storm",
+  "Tarn",
+  "Thorn",
+  "Umber",
+  "West",
+  "East",
+  "Willow",
+  "Wind",
+  "Wolf",
+  "Wren",
+  "Yarrow",
+];
+
+const LAND_LAST = [
+  "barrow",
+  "brook",
+  "coast",
+  "combe",
+  "crag",
+  "cross",
+  "dale",
+  "fall",
+  "fen",
+  "haven",
+  "holt",
+  "hollow",
+  "march",
+  "mere",
+  "moor",
+  "reach",
+  "ridge",
+  "shore",
+  "spire",
+  "stead",
+  "vale",
+  "ward",
+  "wold",
+  "wood",
+];
+
+// Desert: dry country, in the same two-part form as Temperate.
+const DESERT_FIRST = [
+  "Adobe",
+  "Agate",
+  "Alkali",
+  "Amber",
+  "Bone",
+  "Burnt",
+  "Buzzard",
+  "Chalk",
+  "Copper",
+  "Coyote",
+  "Dry",
+  "Dust",
+  "Flint",
+  "Gold",
+  "Jackal",
+  "Kiln",
+  "Lizard",
+  "Mirage",
+  "Ochre",
+  "Parch",
+  "Quartz",
+  "Rattle",
+  "Red",
+  "Rust",
+  "Sage",
+  "Salt",
+  "Sand",
+  "Scorch",
+  "Sun",
+  "Thirst",
+  "Thorn",
+  "Vulture",
+  "White",
+  "Yucca",
+];
+
+const DESERT_LAST = [
+  "bluff",
+  "butte",
+  "canyon",
+  "cross",
+  "draw",
+  "flats",
+  "gap",
+  "gate",
+  "gulch",
+  "hollow",
+  "mesa",
+  "pan",
+  "reach",
+  "ridge",
+  "rock",
+  "scar",
+  "sink",
+  "spring",
+  "trail",
+  "wash",
+  "well",
+];
+
+// Ice: northern coasts and sea ice.
+const ICE_FIRST = [
+  "Auk",
+  "Bear",
+  "Bitter",
+  "Bleak",
+  "Blue",
+  "Bright",
+  "Cold",
+  "Dark",
+  "Elk",
+  "Floe",
+  "Frost",
+  "Gale",
+  "Grey",
+  "Hail",
+  "Hoar",
+  "Howl",
+  "Ice",
+  "Keen",
+  "Long",
+  "North",
+  "Pale",
+  "Rime",
+  "Seal",
+  "Silver",
+  "Sleet",
+  "Snow",
+  "Stark",
+  "Still",
+  "Storm",
+  "Tern",
+  "Thaw",
+  "White",
+  "Winter",
+  "Wolf",
+];
+
+const ICE_LAST = [
+  "berg",
+  "fell",
+  "field",
+  "firth",
+  "fjord",
+  "gard",
+  "garth",
+  "haven",
+  "heim",
+  "hold",
+  "holm",
+  "mark",
+  "ness",
+  "reach",
+  "shelf",
+  "skerry",
+  "sound",
+  "strand",
+  "tarn",
+  "vik",
+];
+
+// Red: a classical name then the kind of feature, as Mars is mapped
+// ("Utopia Planitia"). The space is part of the first half.
+const RED_FIRST = [
+  "Acidalia ",
+  "Aeolis ",
+  "Aetheria ",
+  "Alba ",
+  "Amazonis ",
+  "Amenthes ",
+  "Aonia ",
+  "Aram ",
+  "Arcadia ",
+  "Argyre ",
+  "Arsia ",
+  "Ascraeus ",
+  "Aureum ",
+  "Ausonia ",
+  "Candor ",
+  "Casius ",
+  "Cebrenia ",
+  "Cerberus ",
+  "Chryse ",
+  "Cimmeria ",
+  "Claritas ",
+  "Cydonia ",
+  "Daedalia ",
+  "Diacria ",
+  "Echus ",
+  "Electris ",
+  "Elysium ",
+  "Eos ",
+  "Eridania ",
+  "Hebes ",
+  "Hecates ",
+  "Hesperia ",
+  "Icaria ",
+  "Isidis ",
+  "Melas ",
+  "Memnonia ",
+  "Noachis ",
+  "Ophir ",
+  "Oxia ",
+  "Pavonis ",
+  "Phlegra ",
+  "Promethei ",
+  "Sirenum ",
+  "Solis ",
+  "Syrtis ",
+  "Tempe ",
+  "Tharsis ",
+  "Thaumasia ",
+  "Tyrrhena ",
+  "Utopia ",
+  "Xanthe ",
+  "Zephyria ",
+];
+
+const RED_LAST = [
+  "Planitia",
+  "Planum",
+  "Mons",
+  "Montes",
+  "Vallis",
+  "Chasma",
+  "Terra",
+  "Fossae",
+  "Tholus",
+  "Patera",
+  "Dorsa",
+  "Mensa",
+  "Rupes",
+  "Colles",
+  "Cavi",
+  "Sulci",
+];
+
+// Moon: the kind of feature then a Latin genitive, as the Moon is mapped
+// ("Mare Imbrium", "Lacus Somniorum"). The space is part of the first half.
+const MOON_FIRST = [
+  "Mare ",
+  "Lacus ",
+  "Sinus ",
+  "Palus ",
+  "Mons ",
+  "Montes ",
+  "Vallis ",
+  "Rupes ",
+  "Rima ",
+  "Dorsum ",
+  "Catena ",
+  "Statio ",
+  "Planitia ",
+];
+
+const MOON_LAST = [
+  "Imbrium",
+  "Nubium",
+  "Humorum",
+  "Vaporum",
+  "Undarum",
+  "Insularum",
+  "Iridum",
+  "Crisium",
+  "Serenitatis",
+  "Fecunditatis",
+  "Frigoris",
+  "Nectaris",
+  "Roris",
+  "Aestuum",
+  "Medii",
+  "Somnii",
+  "Somniorum",
+  "Veris",
+  "Aestatis",
+  "Autumni",
+  "Hiemis",
+  "Doloris",
+  "Gaudii",
+  "Spei",
+  "Timoris",
+  "Oblivionis",
+  "Solitudinis",
+  "Luxuriae",
+  "Temporis",
+  "Felicitatis",
+  "Lenitatis",
+  "Odii",
+  "Bonitatis",
+  "Mortis",
+  "Honoris",
+  "Fidei",
+  "Concordiae",
+  "Amoris",
+  "Ingenii",
+  "Marginis",
+  "Procellarum",
+  "Nebularum",
+  "Silentii",
+  "Umbrarum",
+  "Stellarum",
+  "Ventorum",
+  "Noctis",
+  "Lucis",
+  "Pacis",
+  "Memoriae",
+  "Aurorae",
+  "Cinerum",
+  "Pulveris",
+  "Tenebrarum",
+  "Glaciei",
+  "Fortunae",
+  "Quietis",
+  "Exilii",
+  "Vigiliae",
+];
+
+// Volcanic: hard invented names, some with a hyphen ("Kharadum",
+// "Uzg-dur").
+const VOLCANIC_FIRST = [
+  "Angr",
+  "Azg",
+  "Bal",
+  "Bar",
+  "Brak",
+  "Drak",
+  "Ghaz",
+  "Gor",
+  "Grom",
+  "Gund",
+  "Hrak",
+  "Karn",
+  "Khar",
+  "Kol",
+  "Krag",
+  "Mazr",
+  "Mog",
+  "Mor",
+  "Nar",
+  "Nurg",
+  "Org",
+  "Rukh",
+  "Shak",
+  "Skar",
+  "Thrak",
+  "Torg",
+  "Ulg",
+  "Urd",
+  "Uzg",
+  "Vorg",
+  "Zag",
+  "Zar",
+  "Zul",
+];
+
+const VOLCANIC_LAST = [
+  "adum",
+  "agar",
+  "akh",
+  "amon",
+  "arak",
+  "ath",
+  "azad",
+  "ond",
+  "oth",
+  "ukh",
+  "urath",
+  "uzan",
+  "-dum",
+  "-dur",
+  "-ghul",
+  "-zad",
+  "-nak",
+  "-kor",
+  "-grim",
+  "-gath",
+];
+
+// Acid: poisoned ground and standing pools.
+const ACID_FIRST = [
+  "Bile",
+  "Bitter",
+  "Blight",
+  "Blister",
+  "Brine",
+  "Brown",
+  "Canker",
+  "Caustic",
+  "Char",
+  "Dross",
+  "Dun",
+  "Etch",
+  "Fester",
+  "Fume",
+  "Gall",
+  "Lye",
+  "Murk",
+  "Ochre",
+  "Pall",
+  "Pitch",
+  "Quag",
+  "Rank",
+  "Reek",
+  "Rot",
+  "Rust",
+  "Sallow",
+  "Scald",
+  "Scour",
+  "Sear",
+  "Slag",
+  "Smoke",
+  "Sour",
+  "Stain",
+  "Sting",
+  "Sulphur",
+  "Taint",
+  "Tallow",
+  "Tar",
+  "Venom",
+  "Vitriol",
+  "Wither",
+  "Yellow",
+];
+
+const ACID_LAST = [
+  "basin",
+  "bog",
+  "brake",
+  "fen",
+  "flats",
+  "hollow",
+  "marsh",
+  "mere",
+  "mire",
+  "moor",
+  "pit",
+  "pool",
+  "reach",
+  "scar",
+  "sink",
+  "slough",
+  "sump",
+  "thicket",
+  "vent",
+  "weald",
+];
+
+/**
+ * The two lists each planet's built-in place names are composed from. Exported
+ * so a test can check every combination.
+ */
+export const LAND_NAME_POOLS: Record<
+  PlanetId,
+  { first: string[]; last: string[] }
+> = {
+  temperate: { first: LAND_FIRST, last: LAND_LAST },
+  desert: { first: DESERT_FIRST, last: DESERT_LAST },
+  ice: { first: ICE_FIRST, last: ICE_LAST },
+  red: { first: RED_FIRST, last: RED_LAST },
+  moon: { first: MOON_FIRST, last: MOON_LAST },
+  volcanic: { first: VOLCANIC_FIRST, last: VOLCANIC_LAST },
+  acid: { first: ACID_FIRST, last: ACID_LAST },
+};
+
+/** Salt for the land name stream, kept apart from the stream that places things. */
+const LAND_NAME_SALT = 0x1a4d0a3e;
+
 const FACTION_ADJ = [
   "Crimson",
   "Obsidian",
@@ -259,6 +791,15 @@ export function mergeConquestNames(
     starNames: firstNonEmpty(profile?.starNames, branding?.starNames),
     starPrefixes: firstNonEmpty(profile?.starPrefixes, branding?.starPrefixes),
     starSuffixes: firstNonEmpty(profile?.starSuffixes, branding?.starSuffixes),
+    placeNames: firstNonEmpty(profile?.placeNames, branding?.placeNames),
+    placePrefixes: firstNonEmpty(
+      profile?.placePrefixes,
+      branding?.placePrefixes,
+    ),
+    placeSuffixes: firstNonEmpty(
+      profile?.placeSuffixes,
+      branding?.placeSuffixes,
+    ),
     factionNames: firstNonEmpty(profile?.factionNames, branding?.factionNames),
     factions: profile?.factions ?? branding?.factions,
     limitToNamed: profile?.limitToNamed ?? branding?.limitToNamed,
@@ -282,6 +823,51 @@ export function resolveConquestNames(names?: ConquestNames): ResolvedNames {
     factions: names?.factions,
     limitToNamed: names?.limitToNamed ?? false,
   };
+}
+
+/**
+ * The pools a land map names its locations from, or `undefined` when the game
+ * supplies a star pool and no place pool, so its one pool serves every style
+ * as before. Each place field falls back to the matching star field, then to
+ * the built-in land syllables of `planet`. The built-in land pools have no
+ * full names, so names are composed from syllables.
+ */
+export function resolveLandNames(
+  names?: ConquestNames,
+  planet: PlanetId = "temperate",
+): ResolvedNames | undefined {
+  const builtIn = LAND_NAME_POOLS[planet];
+  const hasPlace = [
+    names?.placeNames,
+    names?.placePrefixes,
+    names?.placeSuffixes,
+  ].some((f) => f && f.length > 0);
+  const hasStar = [
+    names?.starNames,
+    names?.starPrefixes,
+    names?.starSuffixes,
+  ].some((f) => f && f.length > 0);
+  if (hasStar && !hasPlace) return undefined;
+  return {
+    starNames: firstNonEmpty(names?.placeNames, names?.starNames) ?? [],
+    starPrefixes:
+      firstNonEmpty(names?.placePrefixes, names?.starPrefixes) ?? builtIn.first,
+    starSuffixes:
+      firstNonEmpty(names?.placeSuffixes, names?.starSuffixes) ?? builtIn.last,
+    limitToNamed: false,
+  };
+}
+
+/**
+ * A namer for a land map. It draws from its own generator, seeded from the run
+ * seed and a fixed salt, so choosing names never consumes the stream that
+ * places things.
+ */
+export function makeLandNamer(
+  seed: number,
+  names: ResolvedNames,
+): (used: Set<string>) => string {
+  return makeStarNamer(mulberry32((seed ^ LAND_NAME_SALT) >>> 0), names);
 }
 
 /** Roman numeral for n (n >= 1); used to extend a name pool on-theme. */

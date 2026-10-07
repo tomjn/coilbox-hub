@@ -3,18 +3,28 @@
   "ref": "main",
   "dir": "src/conquest",
   "files": {
-    "generate.ts": "c4e37dadbb73de0dd4e7302855f561a325e028dc",
+    "generate.ts": "2b3fa0f9103399435db37f1986ee1e53a0607b08",
     "mapSubstitution.ts": "a3073ccaf61ec4c4645e9ab17b372dcc59e1792b",
-    "names.ts": "da721f27413db9076377f65ac487df7e1ea99614",
+    "names.ts": "308054c6409e705556085f4a04a80ea9fb405765",
+    "planets.ts": "dd4190198878853eba1b51a71464fb70d6365f58",
     "rng.ts": "2382fc7e6b9f81e9b7f8a3e835f80ffd3039930c",
+    "size.ts": "2bca07b19cd38a818d1841d3bd4a5fdaac1747b6",
+    "startPosition.ts": "e6ac95ac81f4d1fbf219e815990422fa2e81a132",
+    "terrainGen.ts": "51fd2027cc5be8b73502612d9a908dca7c01595b",
+    "threat.ts": "8164bc5b3a0720e7a65e30eb07de54101a051f82",
     "realstars/index.ts": "cd07ea99075b0d0266e61d4b72e5ba8ded324607",
     "realstars/catalogue.json": "78a4f5a01c4eda940552e706e2526b8c88319b45"
   },
   "sha256": {
-    "generate.ts": "16e338ff88736839d217f1e0f986ce9ff176b4eef09ff6561887ec7d606d1aae",
+    "generate.ts": "cc0e1302ea4397d9a6c56deaece684f368099536fbd334a9e424991af42603a1",
     "mapSubstitution.ts": "172fefcef8941bdf47282e68fec20284757811e4a3c113be4e60ed382c80621b",
-    "names.ts": "fc358261f1fce4bae1811f9202952e429d2ef3358192d783ce7a68bdeaccf82f",
+    "names.ts": "b511e5bfb96c253ace6f22727d496041505a00ba5874b54e2c7da1260e677b24",
+    "planets.ts": "cbfd236cdd515eeaf84eb23e968bb94f4b50da1c89c646e33f5ecdb271572e59",
     "rng.ts": "5f5f640557cc6637ca3b1dddee440edb01bbb5c909b79f1a333e550715613acc",
+    "size.ts": "42805362e78e2476be12680a8e56094b6ec551eff4286b223437b979418f4d43",
+    "startPosition.ts": "d3a4d8e029ede20fbb3845f257c3c862fd5c6737512f8c955f69c0262a530400",
+    "terrainGen.ts": "21a611f200f93a3e5aeab5cf8e563954d7310b0d5960e56f127d77130000f0ca",
+    "threat.ts": "8902ed207eb85a2260c597f1fa2c9d111b47d7b32175f268f1e95af295485cae",
     "realstars/index.ts": "9228720cc7ba0fc5d4a2eb2da43a04fa03e7c9a41fac3f73778ec256f28f0927",
     "realstars/catalogue.json": "7340477e0a65282e78ac83c6f865854c4230f78552f5459a0c64eed568fc13d1"
   }
