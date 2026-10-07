@@ -51,6 +51,7 @@ import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { staticTierUrl } from "@/lib/assets/cdn";
+import { servingAfterDeploy } from "@/lib/assets/deployWait";
 import {
   checkSeedBytes,
   planSeed,
@@ -381,6 +382,10 @@ if ((await git("diff", "--cached", "--name-only")) !== "") {
   process.exit(1);
 }
 
+/** The paths this run has committed, which are the ones a deploy has to carry
+ *  before the published site can answer for them. */
+const committed = new Set<string>();
+
 const ports: SeedPorts = {
   held: async (to) => await Bun.file(join(repo, to)).exists(),
 
@@ -400,7 +405,9 @@ const ports: SeedPorts = {
     const staged = await git("diff", "--cached", "--name-only");
     if (staged === "") return false;
 
-    const count = staged.split("\n").length;
+    const lines = staged.split("\n");
+    for (const line of lines) committed.add(line);
+    const count = lines.length;
     await git("commit", "--message", `Seed ${count} pictures into the durable tier`);
 
     // The promotion job pushes to this branch too, on a daily schedule, so a
@@ -418,22 +425,15 @@ const ports: SeedPorts = {
     }
   },
 
-  serving: async (paths) => {
-    if (paths.length === 0) return [];
-
-    // Pages swaps the whole site at once, so one path going live means the
-    // deploy landed. Wait on one, then confirm every one of them.
-    const deadline = Date.now() + SERVE_TIMEOUT_MS;
-    while (!(await servedNow(paths[0], 1)) && Date.now() < deadline) {
-      await sleep(POLL_MS);
-    }
-
-    const live: string[] = [];
-    for (const path of paths) {
-      if (await servedNow(path)) live.push(path);
-    }
-    return live;
-  },
+  serving: async (paths) =>
+    await servingAfterDeploy(paths, committed, {
+      landed: (path) => servedNow(path, 1),
+      served: (path) => servedNow(path),
+      sleep,
+      now: Date.now,
+      timeoutMs: SERVE_TIMEOUT_MS,
+      pollMs: POLL_MS,
+    }),
 
   say: (message) => console.log(message),
 };
