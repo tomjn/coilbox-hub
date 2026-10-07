@@ -1,0 +1,11 @@
+{
+  "repo": "tomjn/coilbox",
+  "ref": "main",
+  "dir": "src/lib",
+  "files": {
+    "helpers.ts": "b0aff4a4135030927b99db2745bb012748799a41"
+  },
+  "sha256": {
+    "helpers.ts": "30ec0fb31bc0bad9255714ae13cf30a1ce5c92316f3a9cff16edb523b9744d0f"
+  }
+}

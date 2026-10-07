@@ -4,12 +4,30 @@ import {
   restoreChallengeMap as restoreChallengeMapShared,
   substituteExcludedMaps as substituteExcludedMapsShared,
 } from "./mapSubstitution";
-import type { Faction, GalaxyDoc, GalaxyNode, NodeBattleSpec } from "./model";
+import type {
+  Faction,
+  GalaxyDoc,
+  GalaxyNode,
+  GameRef,
+  MapSkin,
+  NodeBattleSpec,
+} from "./model";
 import { MAX_DIFFICULTY, NEUTRAL } from "./model";
 import type { ConquestNames } from "./names";
-import { factionSpecs, makeStarNamer, resolveConquestNames } from "./names";
+import {
+  factionSpecs,
+  makeLandNamer,
+  makeStarNamer,
+  resolveConquestNames,
+  resolveLandNames,
+} from "./names";
+import { type PlanetId, resolvePlanet } from "./planets";
 import { DEFAULT_RADIUS_LY, systemsWithin } from "./realstars";
 import { hashString, mulberry32, pick, type Rng } from "./rng";
+import { MAX_NODE_COUNT } from "./size";
+import { readStartPosition, type StartPosition } from "./startPosition";
+import type { LandLayout } from "./terrainGen";
+import { readThreatLevel, threatAggression } from "./threat";
 
 /**
  * Procedural galaxy generation — the fallback when a game ships no authored
@@ -88,21 +106,54 @@ function mapTier(byArea: GenMap[], difficulty: number): GenMap[] {
   return byArea.slice(start, end);
 }
 
+/**
+ * Hands out a battle map for a difficulty: maps by area, bucketed into
+ * difficulty tiers (bigger -> harder), cycling within a tier so a small pool
+ * still varies. Each tier starts at a place the `rng` picks, so the same seed
+ * and the same pool give the same maps in the same order. Returns "" when the
+ * pool is empty.
+ */
+export function tierMapPicker(
+  maps: GenMap[],
+  rng: Rng,
+): (difficulty: number) => string {
+  const byArea = mapsByArea(maps);
+  const tierCursor = new Map<number, number>();
+  return (d) => {
+    const tier = mapTier(byArea, d);
+    const poolAll = tier.length > 0 ? tier : byArea;
+    if (poolAll.length === 0) return "";
+    const cursor = tierCursor.get(d) ?? Math.floor(rng() * poolAll.length);
+    tierCursor.set(d, cursor + 1);
+    return poolAll[cursor % poolAll.length].name;
+  };
+}
+
 export interface GenerateOptions {
   seed: number;
-  game: { shortname: string };
+  /** `pinnedName` is the full name of the game the player chose, so every
+   *  battle launches that game (issue #3465). */
+  game: GameRef;
   maps: GenMap[];
-  /** Total nodes, clamped to 8..80. */
+  /** Total nodes, clamped to 8..`MAX_NODE_COUNT`. */
   nodeCount: number;
   /** Enemy factions, clamped to 1..3. */
   factionCount: number;
-  /** Point-scatter shape; `random` picks one from the seed. Default `scatter`. */
-  layout?: GalaxyLayout | "random" | "realstars";
+  /** Point-scatter shape for a galaxy, or land layout for a land style;
+   * `random` picks one from the seed. Default `scatter`. */
+  layout?: GalaxyLayout | LandLayout | "random" | "realstars";
   /** Real-star mode only. Catalogue radius in light years, which decides the
    * node count. Ignored by every other layout. */
   radiusLy?: number;
-  /** Strategic-map presentation; sets `theme.skin`. Default `galaxy`. */
-  skin?: "galaxy" | "theatre";
+  /**
+   * Strategic-map presentation. `generateGalaxy` builds `galaxy` and `theatre`
+   * and reads anything else as `galaxy`. The two land styles have generators
+   * of their own, and `generateMap` in `./mapStyle` picks between them.
+   */
+  skin?: MapSkin;
+  /** Land styles only: the planet the land is built as, or `random` to pick
+   * one from the seed. Absent builds the Temperate map. */
+  planet?: PlanetId | "random";
   /**
    * Starting systems per faction (1..4): the capital plus that many minus one
    * nearest neighbours. Omitted keeps the capital plus *all* its neighbours.
@@ -110,6 +161,11 @@ export interface GenerateOptions {
   startingSystems?: number;
   /** Hide systems more than two jumps from your territory (sets `rules.fogOfWar`). */
   fogOfWar?: boolean;
+  /** Threat level 0..3 (see `./threat`). Omitted or 0 is the galaxy as it always was. */
+  threatLevel?: number;
+  /** Where the player starts (see `./startPosition`). Omitted is the western
+   * edge, the galaxy as it always was. Ignored for real stars, which start at Sol. */
+  startPosition?: StartPosition;
   /** Naming pools / faction presets from a profile and/or the branding catalog. */
   names?: ConquestNames;
   /** Document id; defaults to `generated-<seed>`. */
@@ -123,6 +179,18 @@ const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 type Pt3 = [number, number, number];
 const dist3 = (a: Pt3, b: Pt3) =>
   Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+/**
+ * The same distance from operations IEEE 754 pins exactly. `Math.hypot` is
+ * implementation-approximated, which the galaxy fixtures already tolerate, and
+ * a generator added after them has no reason to inherit it.
+ */
+const exactDist3 = (a: Pt3, b: Pt3) => {
+  const dx = a[0] - b[0];
+  const dy = a[1] - b[1];
+  const dz = a[2] - b[2];
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+};
 
 /** Lift a flat scatter into source stars, which is what the generator consumes. */
 const flatSource = (pts: Pt[]): SourceStar[] =>
@@ -215,18 +283,19 @@ function scatterRing(rng: Rng, count: number, radius: number): Pt[] {
 }
 
 /** Resolve a (possibly `random`) layout to a concrete one, seed-deterministic. */
-function resolveLayout(
+export function resolveLayout(
   layout: GenerateOptions["layout"],
   rng: Rng,
 ): GalaxyLayout {
-  // `realstars` never reaches here, since it bypasses the scatters entirely.
-  if (!layout || layout === "scatter" || layout === "realstars") {
-    return "scatter";
-  }
   if (layout === "random") {
     return pick(rng, ["scatter", "spiral", "clusters", "ring"] as const);
   }
-  return layout;
+  if (layout === "spiral" || layout === "clusters" || layout === "ring") {
+    return layout;
+  }
+  // `realstars` never reaches here, since it bypasses the scatters entirely.
+  // A land layout handed to a galaxy reads as the plain scatter.
+  return "scatter";
 }
 
 /** Scatter points for a resolved layout. */
@@ -309,7 +378,7 @@ function buildLinks(pts: Pt[]): [number, number][] {
  * components. Shared by both linkers, since an unreachable system is
  * unplayable however the lanes were chosen.
  */
-function repairConnectivity(
+export function repairConnectivity(
   count: number,
   links: [number, number][],
   distOf: (a: number, b: number) => number,
@@ -406,6 +475,23 @@ function buildRangeLinks(
   });
 }
 
+/** The mean of a set of points. */
+function centroid(pts: Pt[]): Pt {
+  const n = Math.max(1, pts.length);
+  return [
+    pts.reduce((a, p) => a + p[0], 0) / n,
+    pts.reduce((a, p) => a + p[1], 0) / n,
+  ];
+}
+
+/** The index of the point nearest `target`, the earliest on a tie. */
+function nearestTo(pts: Pt[], target: Pt, distOf = dist): number {
+  return pts.reduce(
+    (best, p, i) => (distOf(p, target) < distOf(pts[best], target) ? i : best),
+    0,
+  );
+}
+
 /** BFS hop distances from a start node over an adjacency list. */
 function hopDistances(count: number, links: [number, number][], start: number) {
   const adj: number[][] = Array.from({ length: count }, () => []);
@@ -439,13 +525,9 @@ function hopDistances(count: number, links: [number, number][], start: number) {
 export function generateGalaxy(
   opts: GenerateOptions,
   now: string = new Date().toISOString(),
+  land = false,
 ): GalaxyDoc {
   const rng = mulberry32(opts.seed);
-  const enemyCount = Math.min(3, Math.max(1, Math.round(opts.factionCount)));
-  const names = resolveConquestNames(opts.names);
-  // limitToNamed caps the galaxy to the named-star pool (no fallback names);
-  // the 8-node floor still applies, so pools smaller than 8 fill the few extra
-  // names via the numeral fallback.
   // Real-star galaxies take their size and their names from the catalogue, so
   // neither the node-count knob nor the naming-pool cap applies to them.
   const realStars = opts.layout === "realstars";
@@ -456,34 +538,94 @@ export function generateGalaxy(
   if (realStars) {
     source = realStarSource(radiusLy);
   } else {
-    const requested = Math.round(opts.nodeCount);
-    const capped =
-      names.limitToNamed && names.starNames.length > 0
-        ? Math.min(requested, names.starNames.length)
-        : requested;
-    source = flatSource(
-      scatterFor(layout, rng, Math.min(80, Math.max(8, capped)), 100),
-    );
+    source = flatSource(scatterFor(layout, rng, generatedNodeCount(opts), 100));
   }
-  const nodeCount = source.length;
 
   const pts = source.map((s) => [s.pos[0], s.pos[1]] as Pt);
   const links = realStars
     ? buildRangeLinks(source, JUMP_RANGE_LY)
     : buildLinks(pts);
+  return assembleGalaxy(
+    opts,
+    rng,
+    { source, links, realStars, radiusLy, land },
+    now,
+  );
+}
+
+/** How many nodes a procedural layout builds for these options. */
+export function generatedNodeCount(
+  opts: Pick<GenerateOptions, "nodeCount" | "names">,
+): number {
+  // limitToNamed caps the galaxy to the named-star pool (no fallback names);
+  // the 8-node floor still applies, so pools smaller than 8 fill the few extra
+  // names via the numeral fallback.
+  const names = resolveConquestNames(opts.names);
+  const requested = Math.round(opts.nodeCount);
+  const capped =
+    names.limitToNamed && names.starNames.length > 0
+      ? Math.min(requested, names.starNames.length)
+      : requested;
+  return Math.min(MAX_NODE_COUNT, Math.max(8, capped));
+}
+
+/** Where the nodes are and which pairs are joined, before any of it is owned. */
+export interface GalaxyGraph {
+  source: SourceStar[];
+  links: [number, number][];
+  realStars?: boolean;
+  /** Real-star mode only, for the description and the reroll knobs. */
+  radiusLy?: number;
+  /** Measure with `Math.sqrt` alone instead of `Math.hypot`. The galaxy
+   * layouts leave it off, since their fixtures pin the `Math.hypot` results. */
+  exactDistance?: boolean;
+  /** Name the locations as places on land rather than as stars. */
+  land?: boolean;
+}
+
+/**
+ * Everything after the layout: capitals, factions, starting territory,
+ * difficulty and battle maps, drawn from the same `rng` the layout used. Split
+ * out so another generator can bring its own nodes and links and get the same
+ * strategic setup.
+ */
+export function assembleGalaxy(
+  opts: GenerateOptions,
+  rng: Rng,
+  graph: GalaxyGraph,
+  now: string,
+): GalaxyDoc {
+  const { source, links } = graph;
+  const realStars = graph.realStars === true;
+  const radiusLy = graph.radiusLy ?? DEFAULT_RADIUS_LY;
+  const enemyCount = Math.min(3, Math.max(1, Math.round(opts.factionCount)));
+  const threatLevel = readThreatLevel(opts.threatLevel);
+  const names = resolveConquestNames(opts.names);
+  const nodeCount = source.length;
+  const pts = source.map((s) => [s.pos[0], s.pos[1]] as Pt);
+  const measure = graph.exactDistance ? exactDist3 : dist3;
+  const planar = graph.exactDistance
+    ? (a: Pt, b: Pt) => exactDist3([a[0], a[1], 0], [b[0], b[1], 0])
+    : dist;
 
   // Distances are measured in 3D throughout. Procedural sources are flat, so
   // this is identical to the old planar maths for them.
-  const distAt = (a: number, b: number) => dist3(source[a].pos, source[b].pos);
+  const distAt = (a: number, b: number) =>
+    measure(source[a].pos, source[b].pos);
 
   // Player capital: Sol when the source names a home, else the westernmost
   // node. Enemy capitals: farthest-point sampling so multiple factions start
   // spread apart.
   const home = source.findIndex((s) => s.home);
+  const startPosition = realStars
+    ? undefined
+    : readStartPosition(opts.startPosition);
   const playerCapital =
     home >= 0
       ? home
-      : pts.reduce((best, p, i) => (p[0] < pts[best][0] ? i : best), 0);
+      : startPosition === "centre"
+        ? nearestTo(pts, centroid(pts), planar)
+        : pts.reduce((best, p, i) => (p[0] < pts[best][0] ? i : best), 0);
   const capitals = [playerCapital];
   for (let f = 0; f < enemyCount; f++) {
     let far = -1;
@@ -503,13 +645,23 @@ export function generateGalaxy(
   // resolved pools (a game's lore factions when supplied, else synthesized);
   // aggression uses a preset when given, else a generated spread.
   const usedNames = new Set<string>();
+  // The star namer is always built, because shuffling its pool draws from
+  // `rng` and every later draw depends on that. A land map then names from its
+  // own stream instead (see `makeLandNamer`), leaving `rng` as it was.
   const starName = makeStarNamer(rng, names);
+  const landPools = graph.land
+    ? resolveLandNames(opts.names, resolvePlanet(opts.planet, opts.seed))
+    : undefined;
+  const nameNode = landPools ? makeLandNamer(opts.seed, landPools) : starName;
   const specs = factionSpecs(rng, names, enemyCount + 1);
   const factions: Faction[] = specs.map((spec, i) => ({
     id: i === 0 ? "player" : `enemy-${i}`,
     name: spec.name,
     color: spec.color,
-    aggression: i === 0 ? 0 : (spec.aggression ?? 0.3 + rng() * 0.2),
+    aggression:
+      i === 0
+        ? 0
+        : threatAggression(spec.aggression ?? 0.3 + rng() * 0.2, threatLevel),
     side: spec.side,
     // No AI is pinned here: the opponent is chosen when the battle is
     // synthesised, from the node's difficulty against whatever the player has
@@ -557,23 +709,11 @@ export function generateGalaxy(
     return Math.max(1, Math.min(MAX_DIFFICULTY, Math.ceil(t * MAX_DIFFICULTY)));
   });
 
-  // Maps by area, bucketed into difficulty tiers (bigger -> harder), cycling
-  // within a tier so a small pool still varies.
-  const byArea = mapsByArea(opts.maps);
-  const tierFor = (d: number) => mapTier(byArea, d);
-  const tierCursor = new Map<number, number>();
-  const mapFor = (d: number): string => {
-    const tier = tierFor(d);
-    const poolAll = tier.length > 0 ? tier : byArea;
-    if (poolAll.length === 0) return "";
-    const cursor = tierCursor.get(d) ?? Math.floor(rng() * poolAll.length);
-    tierCursor.set(d, cursor + 1);
-    return poolAll[cursor % poolAll.length].name;
-  };
+  const mapFor = tierMapPicker(opts.maps, rng);
 
   const nodes: GalaxyNode[] = source.map((s, i) => ({
     id: `node-${i}`,
-    name: s.name ?? starName(usedNames),
+    name: s.name ?? nameNode(usedNames),
     // Catalogue positions are already rounded and are in light years, so they
     // keep their precision. Scatter positions keep the original 0.1 rounding.
     pos: realStars
@@ -594,7 +734,9 @@ export function generateGalaxy(
     description: realStars
       ? `The ${nodeCount} real star systems within ${radiusLy} light years of Sol.`
       : `A procedurally generated conquest of ${nodeCount} systems.`,
-    game: { shortname: opts.game.shortname },
+    game: opts.game.pinnedName
+      ? { shortname: opts.game.shortname, pinnedName: opts.game.pinnedName }
+      : { shortname: opts.game.shortname },
     playerFactionId: factions[0].id,
     playableFactionIds: factions.map((f) => f.id),
     factions,
@@ -613,6 +755,8 @@ export function generateGalaxy(
       skin: opts.skin === "theatre" ? "theatre" : "galaxy",
       startingSystems: startCount,
       fogOfWar: opts.fogOfWar ? true : undefined,
+      threatLevel: threatLevel > 0 ? threatLevel : undefined,
+      startPosition,
     },
   };
 }
@@ -796,47 +940,4 @@ export function restoreChallengeMap(
   nodeId: string,
 ): GalaxyDoc {
   return restoreChallengeMapShared(galaxy, nodeId);
-}
-
-/** The content environment a reroll resolves at call time (never persisted). */
-export interface RegenerateEnv {
-  maps: GenMap[];
-  names?: ConquestNames;
-}
-
-/**
- * Reroll a generated galaxy in place: same id, title and generation knobs,
- * new seed, content environment re-resolved by the caller. Returns null for
- * docs without persisted knobs (authored galaxies, or generated ones saved
- * before the knobs existed).
- */
-export function regenerateGalaxy(
-  galaxy: GalaxyDoc,
-  env: RegenerateEnv,
-  seed: number,
-  now: string = new Date().toISOString(),
-): GalaxyDoc | null {
-  const g = galaxy.generated;
-  if (!g || g.nodeCount === undefined || g.factionCount === undefined) {
-    return null;
-  }
-  const doc = generateGalaxy(
-    {
-      seed,
-      game: { shortname: galaxy.game.shortname },
-      maps: env.maps,
-      nodeCount: g.nodeCount,
-      factionCount: g.factionCount,
-      layout: g.layout,
-      radiusLy: g.radiusLy,
-      skin: g.skin,
-      startingSystems: g.startingSystems,
-      fogOfWar: g.fogOfWar,
-      names: env.names,
-      id: galaxy.id,
-      title: galaxy.title,
-    },
-    now,
-  );
-  return { ...doc, createdAt: galaxy.createdAt };
 }
