@@ -59,6 +59,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createClient, StorageApiError } from "@supabase/supabase-js";
 import { staticTierUrl } from "@/lib/assets/cdn";
+import { servingAfterDeploy } from "@/lib/assets/deployWait";
 import {
   PROMOTION_BATCH,
   type PromotionPorts,
@@ -202,6 +203,10 @@ async function dispatchPages(): Promise<void> {
   }
 }
 
+/** The paths this run has committed, which are the ones a deploy has to carry
+ *  before the published site can answer for them. */
+const committed = new Set<string>();
+
 const ports: PromotionPorts = {
   // The bucket is private, so this goes through the Storage API with the
   // secret key rather than over a public URL. A missing object is a 404, so
@@ -245,6 +250,9 @@ const ports: PromotionPorts = {
     }
 
     const lines = staged.split("\n");
+    for (const line of lines) {
+      if (!line.startsWith("D")) committed.add(line.slice(line.indexOf("\t") + 1));
+    }
     const removed = lines.filter((line) => line.startsWith("D")).length;
     const count = lines.length - removed;
     const pictures = (n: number) => `${n} picture${n === 1 ? "" : "s"}`;
@@ -267,23 +275,15 @@ const ports: PromotionPorts = {
     await dispatchPages();
   },
 
-  serving: async (paths) => {
-    if (paths.length === 0) return [];
-
-    // Pages swaps the whole site at once, so one path going live means the
-    // deploy landed. Wait on one, then confirm every one of them rather than
-    // inferring it.
-    const deadline = Date.now() + SERVE_TIMEOUT_MS;
-    while (!(await servedNow(paths[0])) && Date.now() < deadline) {
-      await sleep(POLL_MS);
-    }
-
-    const live: string[] = [];
-    for (const path of paths) {
-      if (await servedNow(path)) live.push(path);
-    }
-    return live;
-  },
+  serving: async (paths) =>
+    await servingAfterDeploy(paths, committed, {
+      landed: servedNow,
+      served: servedNow,
+      sleep,
+      now: Date.now,
+      timeoutMs: SERVE_TIMEOUT_MS,
+      pollMs: POLL_MS,
+    }),
 
   discardStaged: async (paths) => {
     for (let at = 0; at < paths.length; at += DELETE_CHUNK) {
