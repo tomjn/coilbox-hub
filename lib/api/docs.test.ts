@@ -13,7 +13,12 @@ test("the parameters documented as repeatable are the ones the route lets repeat
 
 test("the route accepts every documented parameter and rejects one that is not", () => {
   for (const param of ITEMS_PARAMS) {
-    const values: Record<string, string> = { kind: "preset", sort: "title", page: "1" };
+    const values: Record<string, string> = {
+      kind: "preset",
+      sort: "title",
+      page: "1",
+      account: "0f8fad5b-0449-4000-8000-0000000000aa",
+    };
     const value = values[param.name] ?? "x";
     expect(parseApiFilters(new URLSearchParams({ [param.name]: value })).ok).toBe(true);
   }

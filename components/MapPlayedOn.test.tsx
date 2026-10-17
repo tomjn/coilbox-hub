@@ -28,6 +28,7 @@ function item(overrides: Partial<ItemSummary> = {}): ItemSummary {
     map_name: COMET,
     tags: [],
     author_name: "somebody",
+    author_id: "22222222-2222-2222-2222-222222222222",
     created_at: "2026-08-01T00:00:00Z",
     featured_at: null,
     ...overrides,
