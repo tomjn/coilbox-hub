@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { refuseModeration } from "@/lib/access/secondFactor";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { DateTime } from "@/components/DateTime";
@@ -31,7 +31,7 @@ export default async function Moderation() {
   const { data: allowed } = await supabase.rpc("is_moderator");
   // Not a 403, because whether this page exists is not something a stranger needs
   // to learn.
-  if (!allowed) notFound();
+  if (!allowed) await refuseModeration("/moderation");
 
   // The queue, and the short answer to "what is featured right now". Featuring
   // is done from an item's own page, which is where a moderator is standing

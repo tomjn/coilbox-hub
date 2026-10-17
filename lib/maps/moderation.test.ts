@@ -21,10 +21,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * a re-ingest.
  */
 
-/** Nobody, whatever they ask for. `is_moderator()` is the only call any of the
- *  three pages makes before it decides. */
+/** A signed in stranger, whatever they ask for. `is_moderator()` is the only
+ *  call any of the three pages makes before it decides, and on a no
+ *  `capability_access()` (#145), which hears `false` here and so reads as
+ *  holding nothing. */
 mock.module("@/lib/supabase/server", () => ({
   createClient: async () => ({
+    auth: { getClaims: async () => ({ data: { claims: { sub: "stranger" } } }) },
     rpc: async () => ({ data: false, error: null }),
   }),
 }));

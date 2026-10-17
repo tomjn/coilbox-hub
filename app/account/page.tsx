@@ -3,11 +3,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
+import { USER_CAPABILITIES } from "@/lib/access/capability";
+import { capabilityAccess, stepUpPath } from "@/lib/access/secondFactor";
 import { contributionsCached } from "@/lib/profile/cached";
 import { createClient } from "@/lib/supabase/server";
 import { currentDisplayName, currentUser } from "@/lib/supabase/user";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 import { RenameAccountForm } from "./RenameAccountForm";
+import { SecondFactor } from "./SecondFactor";
 
 export const metadata: Metadata = {
   title: "Your account",
@@ -32,6 +35,24 @@ export default async function Account() {
   // The delete form asks for the name, so a page without it cannot be drawn.
   const name = await currentDisplayName();
   if (!name) throw new Error("Could not read your display name. Reload the page to try again.");
+
+  // Second factors (issue #145). Whether this session has entered a code, the
+  // authenticators the account has, and what it holds, so the page can say
+  // why an authenticator matters to this account in particular.
+  const [{ data: session }, { data: factors }, access] = await Promise.all([
+    supabase.auth.getClaims(),
+    supabase.auth.mfa.listFactors(),
+    Promise.all(USER_CAPABILITIES.map((capability) => capabilityAccess(capability))),
+  ]);
+  const verified = session?.claims.aal === "aal2";
+  const authenticators = (factors?.totp ?? []).map((factor) => ({
+    id: factor.id,
+    createdAt: factor.created_at,
+  }));
+  const holdsCapability = access.some((answer) => answer !== "none");
+  // Only the capabilities need the code, so for anybody else an authenticator
+  // would protect nothing and the page does not offer one.
+  const showAuthenticators = holdsCapability || authenticators.length > 0;
 
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
@@ -82,6 +103,48 @@ export default async function Account() {
           <h2 className="text-sm font-medium">Change your display name</h2>
           <RenameAccountForm name={name} />
         </div>
+
+        {showAuthenticators ? (
+          <div
+            id="second-factor"
+            className="flex scroll-mt-24 flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5"
+          >
+            <h2 className="text-sm font-medium">Authenticator app</h2>
+            {access.includes("verify") ? (
+              <p role="status" className="text-sm text-amber-300">
+                What you have been trusted with here, such as moderation, needs a
+                code from your authenticator in this session.{" "}
+                <Link href={stepUpPath("/account")} className="underline underline-offset-4">
+                  Enter your code
+                </Link>
+                .
+              </p>
+            ) : access.includes("enrol") ? (
+              <p role="status" className="text-sm text-amber-300">
+                What you have been trusted with here, such as moderation, now
+                needs an authenticator. Set one up below to use it again.
+              </p>
+            ) : holdsCapability && authenticators.length === 0 ? (
+              <p className="text-sm text-amber-300">
+                You have been trusted with things here, such as moderation. Set
+                up an authenticator so that somebody who gets hold of your sign
+                in cannot use them.
+              </p>
+            ) : null}
+            <p className="text-sm text-neutral-400">
+              An authenticator app gives you a code to type after signing in.
+              Once you have one, moderation and anything else you have been
+              trusted with needs that code as well as your sign in. If you lose
+              your only authenticator, the hub&apos;s maintainer has to remove it
+              before you can use those again, so adding a spare is worth it.
+            </p>
+            <SecondFactor
+              factors={authenticators}
+              verified={verified}
+              stepUpHref={stepUpPath("/account#second-factor")}
+            />
+          </div>
+        ) : null}
 
         <div className="flex flex-col gap-3 rounded-md border border-red-950 bg-card p-5">
           <h2 className="text-sm font-medium">Delete your account</h2>
