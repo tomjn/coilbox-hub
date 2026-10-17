@@ -4,6 +4,7 @@ import {
   participantLabel,
   participantSideLabel,
   presetComposition,
+  type PresetParticipant,
 } from "./presetPreview";
 
 test("colour is read as a coilbox Rgb tuple, not an {r,g,b} object", () => {
@@ -107,4 +108,14 @@ test("a payload with no participants array degrades to no composition", () => {
   expect(presetComposition({})).toBeNull();
   expect(presetComposition({ participants: "not an array" })).toBeNull();
   expect(presetComposition({ participants: [] })).toBeNull();
+});
+
+test("a colour that is not a tuple degrades to black rather than throwing", () => {
+  const css = (v: unknown) =>
+    participantColorCss(v as PresetParticipant["color"]);
+  expect(css({ r: 255, g: 80, b: 80 })).toBe("rgb(0 0 0)");
+  expect(css("red")).toBe("rgb(0 0 0)");
+  expect(css(null)).toBe("rgb(0 0 0)");
+  expect(css(5)).toBe("rgb(0 0 0)");
+  expect(css([1])).toBe("rgb(255 0 0)");
 });
