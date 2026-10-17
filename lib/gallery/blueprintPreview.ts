@@ -134,6 +134,19 @@ export function planLabel(shape: BlueprintShape): string {
   );
 }
 
+/**
+ * The map a layout was shaped around, or null when it was not shaped around one.
+ *
+ * Plain text on the page, with no link and no minimap. A link needs the map's
+ * slug, and the slug is not derivable from the name alone: a name collision
+ * appends a digest (`lib/maps/slug.ts`), and a map denied in
+ * `public.asset_licence` has no page at all. Both need a database read through
+ * the licence gate, which this page does not make for a note.
+ */
+export function blueprintDesignedFor(payload: unknown): string | null {
+  return parseBlueprintPayload(payload)?.designedFor ?? null;
+}
+
 /** One kind of building in a layout. */
 export interface BuildingKind {
   /** The def name in lower case, which is how the payload keys a footprint and

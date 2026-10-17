@@ -32,6 +32,7 @@ import type { ServedAsset } from "@/lib/assets/resolve";
 import type { PayloadFootprint } from "@/lib/blueprint/payload";
 import {
   blueprintBuildOrder,
+  blueprintDesignedFor,
   blueprintRoster,
   blueprintShape,
   type BlueprintShape,
@@ -1128,6 +1129,7 @@ function BlueprintLayout({
   shape,
   kinds,
   runs,
+  designedFor,
   units,
   names,
 }: {
@@ -1135,6 +1137,8 @@ function BlueprintLayout({
   kinds: BuildingKind[];
   /** The build order, or null for a layout that never claimed one. */
   runs: BuildingRun[] | null;
+  /** The map the layout was shaped around, or null. A note, not a limit. */
+  designedFor: string | null;
   units: ReadonlyMap<string, ServedAsset>;
   names: ReadonlyMap<string, UnitNameLink>;
 }) {
@@ -1154,6 +1158,9 @@ function BlueprintLayout({
         {buildings} {buildings === 1 ? "building" : "buildings"}
         {shape.ordered ? ", in build order" : ""}
       </p>
+      {designedFor ? (
+        <p className="text-xs text-neutral-400">Designed for {designedFor}</p>
+      ) : null}
       {/* The line above says which of these two lists this is: "in build
           order", or just a count of buildings. */}
       {runs ? (
@@ -1292,6 +1299,7 @@ export function ItemPreview({
         shape={shape}
         kinds={blueprintRoster(record)}
         runs={blueprintBuildOrder(record)}
+        designedFor={blueprintDesignedFor(record)}
         units={units}
         names={names}
       />
