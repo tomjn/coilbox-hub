@@ -114,13 +114,14 @@ export const PROMOTION_BATCH = 200;
  *  path is recomputed from, the staging path the bytes are read from, and
  *  the length they have to be. */
 const PROMOTABLE_COLUMNS =
-  "id, game, unit_name, map_name, variant, hash, mime, tier, path, bytes, updated_at";
+  "id, game, unit_name, map_name, faction_key, variant, hash, mime, tier, path, bytes, updated_at";
 
 export interface PromotableRow {
   id: string;
   game: string | null;
   unit_name: string | null;
   map_name: string | null;
+  faction_key: string | null;
   variant: string;
   hash: string;
   mime: string;

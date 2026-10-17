@@ -22,7 +22,10 @@
  * addressed path from the start, so promotion still recomputes it defensively
  * but the two paths already agree.
  *
- * `unit_name` and `map_name` are not in the path, for two different reasons.
+ * `unit_name`, `map_name` and `faction_key` are not in the path, for two
+ * different reasons. A faction key is a normalised side name that nothing
+ * promises is a safe segment, and two sides of a game can legitimately share a
+ * logo, so it follows the unit name rather than the map name.
  * A map name is the full canonical name the engine reports, which is free text
  * with spaces, brackets, quotes and full stops in it, and none of that belongs
  * in an object key or in a git tree. A unit name is safe enough, but including
@@ -120,5 +123,10 @@ export function assetObjectPath(
   }
 
   if (!SAFE_SEGMENT.test(identity.game)) return null;
+
+  if (identity.keyedOn === "faction") {
+    return ["factions", identity.game, ...variant, leaf].join("/");
+  }
+
   return ["units", identity.game, ...variant, leaf].join("/");
 }

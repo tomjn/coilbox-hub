@@ -204,3 +204,25 @@ test("every variant the hub stores has a cap, and nothing else does", () => {
     "400 `overlay:hight` is not a variant the hub stores pictures for.",
   );
 });
+
+/** The faction strips draw a logo at 24px, so 128px is the vocabulary's ceiling
+ * and not a size anything displays. It is not square, because sides are not all
+ * drawn in a square badge. */
+test("a faction logo gets 128px, any aspect, and has to be lossless", () => {
+  expect(checkAssetImage("logo", "image/webp", webp(128, 128, true))).toEqual({
+    ok: true,
+    width: 128,
+    height: 128,
+  });
+  expect(checkAssetImage("logo", "image/webp", webp(96, 48, true)).ok).toBe(true);
+
+  expect(refusal("logo", "image/webp", webp(129, 64, true))).toBe(
+    '413 A "logo" may be at most 128px on its longest edge, and that one is 129x64.',
+  );
+  expect(refusal("logo", "image/webp", webp(64, 64))).toBe(
+    '400 A "logo" must be losslessly encoded, and that one is not.',
+  );
+  expect(refusal("logo", "image/png", png(64, 64))).toBe(
+    '415 A "logo" must be image/webp, and that one declares image/png.',
+  );
+});

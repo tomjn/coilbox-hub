@@ -163,6 +163,13 @@ export const UNIT_RENDER_ANGLES = vocabulary.unit.renderAngles;
 export const UNIT_TOP_RENDER_VARIANT = `${UNIT_RENDER_VARIANT_PREFIX}top`;
 
 /**
+ * The only variant a faction has: its logo, the small picture on a game's side
+ * toggles and faction strips (#238). One per faction, so it is a name rather than
+ * a list, and it is read off the vocabulary like the unit side is.
+ */
+export const FACTION_LOGO_VARIANT = vocabulary.faction.logoVariant;
+
+/**
  * The map side of the variant vocabulary, which #105 is the first change to
  * know in full: the minimap texture, and the three extracted overlay layers.
  *
@@ -176,7 +183,7 @@ export const UNIT_TOP_RENDER_VARIANT = `${UNIT_RENDER_VARIANT_PREFIX}top`;
  * and a JSON array does not. The two unit classes are the exclusion, so a layer
  * added upstream arrives here without this line being touched.
  */
-export type MapVariant = Exclude<keyof typeof vocabulary.classes, "buildpic" | "render">;
+export type MapVariant = Exclude<keyof typeof vocabulary.classes, "buildpic" | "render" | "logo">;
 
 export const MAP_VARIANTS = vocabulary.mapVariants;
 
@@ -195,7 +202,7 @@ export function isMapVariant(value: string): value is MapVariant {
 }
 
 /**
- * Which of the two keys addresses this asset. They are different shapes on
+ * Which of the three keys addresses this asset. They are different shapes on
  * purpose and are not unified, so a caller has to say which one it means rather
  * than filling in whichever fields it happens to have.
  *
@@ -206,10 +213,17 @@ export function isMapVariant(value: string): value is MapVariant {
  * `mapName` is the full canonical name the engine reports, version string and
  * all. Do not split a version out of it. A map is not scoped to a game, because
  * the same map archive is used across all of them.
+ *
+ * `factionKey` is `public.game_faction.key`, the normalised side name, and is
+ * scoped to a game the way a unit name is: two games can both have a side called
+ * `armada`. The hub checks the game really reports that side before it takes a
+ * logo, but the row names it as text and holds no foreign key, for the reason
+ * `public.game` gives about pictures arriving before facts do.
  */
 export type AssetIdentity =
   | { keyedOn: "unit"; game: string; unitName: string; variant: string }
-  | { keyedOn: "map"; mapName: string; variant: string };
+  | { keyedOn: "map"; mapName: string; variant: string }
+  | { keyedOn: "faction"; game: string; factionKey: string; variant: string };
 
 /**
  * A row as the table stores it, in the table's own column names, so a
@@ -217,7 +231,8 @@ export type AssetIdentity =
  *
  * The nullability here is the table's, not a convenience: `game` and `unit_name`
  * are null on a map row, `map_name` is null on a unit row, and `map_width` and
- * `map_height` are set on a map row and null on a unit row. Read
+ * `map_height` are set on a map row and null on a unit row. A faction logo row
+ * sets `game` and `faction_key` and leaves `unit_name` and `map_name` null. Read
  * {@link AssetIdentity} rather than testing the columns by hand.
  */
 export interface AssetRow {
@@ -226,6 +241,7 @@ export interface AssetRow {
   game: string | null;
   unit_name: string | null;
   map_name: string | null;
+  faction_key: string | null;
   variant: string;
 
   /** Over the raw archive bytes. This is what carries identity: dedupe, the

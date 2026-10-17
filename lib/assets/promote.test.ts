@@ -38,6 +38,7 @@ interface Row {
   game: string | null;
   unit_name: string | null;
   map_name: string | null;
+  faction_key: string | null;
   variant: string;
   hash: string;
   mime: string;
@@ -60,6 +61,7 @@ function unit(id: string, name: string, hash: string, over: Partial<Row> = {}): 
     game: "bar",
     unit_name: name,
     map_name: null,
+    faction_key: null,
     variant: "buildpic",
     hash,
     mime: "image/webp",
@@ -316,6 +318,16 @@ test("the durable path is recomputed from identity and hash", () => {
   const row = unit("00000000-0000-4000-8000-00000000000f", "armsolar", "aaa1");
 
   expect(durablePath({ ...row, tier: "bucket" })).toBe("units/bar/buildpic/aaa1.webp");
+});
+
+test("a faction logo's durable path is recomputed from its game and hash", () => {
+  const row = unit("00000000-0000-4000-8000-0000000000fa", "ignored", "ccc3", {
+    unit_name: null,
+    faction_key: "armada",
+    variant: "logo",
+  });
+
+  expect(durablePath({ ...row, tier: "bucket" })).toBe("factions/bar/logo/ccc3.webp");
 });
 
 test("a whole run moves the rows and empties the staging store", async () => {
