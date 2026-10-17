@@ -392,6 +392,92 @@ test("a blueprint shows the build its game field carries, not just the shortname
   expect(result.accepted.gameKey).toBe("SF");
 });
 
+// A unit builder module (#507), shaped as coilbox's `src/lego/model.ts` writes
+// one. The pieces are what the geometry rule reads.
+function moduleCode(pieces: unknown[], game: unknown = null) {
+  return encodeContainerCode("module", SUPPORTED_KIND_VERSIONS.module, {
+    name: "Twin barrel turret",
+    packId: "coilbox-parts",
+    rootPieceId: "root",
+    pieces,
+    game,
+  });
+}
+
+const partPieces = [
+  { id: "root", name: "base" },
+  { id: "p1", name: "turret", partId: "turret-round", parentId: "root" },
+];
+
+const liftedBarrel = {
+  id: "p2",
+  name: "barrel",
+  meshId: "mesh-1",
+  parentId: "p1",
+  lifted: {
+    game: { name: "Beyond All Reason", archive: "byar.sdd", shortname: "BAR" },
+    model: "objects3d/armcom.s3o",
+  },
+};
+
+const LIFTED_REFUSAL =
+  "This module holds a piece from Beyond All Reason: barrel. Geometry lifted from a game cannot be uploaded to the hub.";
+
+test("a module of parts and empty pieces is accepted, for no game", () => {
+  const result = accept(moduleCode(partPieces));
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.kind).toBe("module");
+  expect(result.accepted.gameName).toBeNull();
+  expect(result.accepted.gameKey).toBeNull();
+});
+
+test("a module tagged to a game names that game", () => {
+  const result = accept(
+    moduleCode(partPieces, { name: "Beyond All Reason", archive: "byar.sdd", shortname: "BAR" }),
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.accepted.gameName).toBe("Beyond All Reason");
+  expect(result.accepted.gameKey).toBe("BAR");
+});
+
+test("a module holding a piece lifted from a game is refused, naming the piece and the game", () => {
+  const result = accept(moduleCode([...partPieces, liftedBarrel]));
+  expect(result).toEqual({ ok: false, reason: LIFTED_REFUSAL });
+});
+
+test("tagging a module to the game its lifted piece came from does not let it through", () => {
+  const result = accept(
+    moduleCode([...partPieces, liftedBarrel], {
+      name: "Beyond All Reason",
+      archive: "byar.sdd",
+      shortname: "BAR",
+    }),
+  );
+  expect(result).toEqual({ ok: false, reason: LIFTED_REFUSAL });
+});
+
+test("a module holding an imported mesh with no lifted record is refused", () => {
+  const result = accept(
+    moduleCode([...partPieces, { id: "p3", name: "hull", meshId: "mesh-2", parentId: "root" }]),
+  );
+  expect(result).toEqual({
+    ok: false,
+    reason:
+      "This module holds imported meshes: hull. The hub carries modules built from parts and empty pieces only.",
+  });
+});
+
+test("a module envelope whose payload has no pieces is refused as unreadable", () => {
+  const code = encodeContainerCode("module", SUPPORTED_KIND_VERSIONS.module, {
+    name: "Broken",
+    packId: "coilbox-parts",
+    rootPieceId: "root",
+  });
+  expect(accept(code)).toEqual({ ok: false, reason: "That module could not be read." });
+});
+
 // publishItem is the shared middle of the publish form and the API's
 // POST /api/v1/items (issue 25): accept() plus the insert. These stand in
 // for a real Supabase client with a fake that records what it was asked to
@@ -555,4 +641,36 @@ test("publishItem maps any other database error to a storage_error status", asyn
   if (outcome.ok) return;
   expect(outcome.status).toBe("storage_error");
   expect(outcome.reason).toBe("Could not publish it: connection refused");
+});
+
+test("publishItem stores a module of parts under its title", async () => {
+  const inserted: Record<string, unknown>[] = [];
+  const supabase = fakeSupabase({ data: { id: "item-1" } }, inserted);
+
+  const outcome = await publishItem(supabase, "author-1", {
+    code: moduleCode(partPieces),
+    title: "Twin barrel turret",
+    description: "",
+    tags: [],
+  });
+
+  expect(outcome.ok).toBe(true);
+  expect(inserted).toHaveLength(1);
+  expect(inserted[0].kind).toBe("module");
+  expect(inserted[0].title).toBe("Twin barrel turret");
+});
+
+test("publishItem refuses a module holding a lifted piece, without touching the database", async () => {
+  const inserted: Record<string, unknown>[] = [];
+  const supabase = fakeSupabase({ data: { id: "item-1" } }, inserted);
+
+  const outcome = await publishItem(supabase, "author-1", {
+    code: moduleCode([...partPieces, liftedBarrel]),
+    title: "Twin barrel turret",
+    description: "",
+    tags: [],
+  });
+
+  expect(outcome).toEqual({ ok: false, reason: LIFTED_REFUSAL, status: "invalid" });
+  expect(inserted).toHaveLength(0);
 });
