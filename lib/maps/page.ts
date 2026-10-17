@@ -54,6 +54,8 @@ import { type MapPreview, mapPreview } from "./preview";
  */
 
 export interface MapPage {
+  /** The row's id, which is what a report of this map names. */
+  mapId: string;
   /** The canonical name, which is identity and is what the facts were found
    *  under. Beside the facts rather than in them, the same way
    *  `MapLookupResult` carries it. */
@@ -99,6 +101,7 @@ export function markerPosition(
 /** What only `public.map` has: the canonical name everything else is keyed on,
  *  and the filename a mirror template needs. */
 interface MapRow {
+  id: string;
   map_name: string;
   archive_filename: string | null;
 }
@@ -106,7 +109,7 @@ interface MapRow {
 /**
  * The row behind a slug, or null when nothing has that slug.
  *
- * Two columns the wire shape does not carry. `map_slug_idx` is unique, so a slug
+ * Columns the wire shape does not carry. `map_slug_idx` is unique, so a slug
  * names one map or none.
  *
  * `archive_filename` is here rather than on `MapFacts` because it is not a fact
@@ -122,7 +125,7 @@ interface MapRow {
 async function mapBySlug(supabase: SupabaseClient, slug: string): Promise<MapRow | null> {
   const { data } = await supabase
     .from("map")
-    .select("map_name, archive_filename")
+    .select("id, map_name, archive_filename")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -198,6 +201,7 @@ export async function loadMapPage(
   );
 
   return {
+    mapId: row.id,
     mapName,
     facts,
     picture,
