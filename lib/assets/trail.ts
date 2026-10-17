@@ -227,6 +227,8 @@ export function eventLine(event: TrailEvent): string {
       return "Returned to the queue";
     case "conflict_acknowledged":
       return "Source disagreement looked at and cleared, picture left as it was";
+    case "replaced":
+      return "Replaced another account's picture, on a capability";
     case "rejected":
       return event.rejectionKind === "safety"
         ? "Rejected on safety grounds, which is final"

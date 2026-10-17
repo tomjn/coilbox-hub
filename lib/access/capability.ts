@@ -52,6 +52,11 @@ export const USER_CAPABILITIES = [
    * uploads also skip the queue, because they could approve them in the grid
    * anyway (`uploaderSkipsQueue` in `lib/assets/upload.ts`). */
   "can_moderate",
+  /** Replace a picture another account uploaded, or one whose uploader has
+   * closed their account, so a newer archive can refresh it (#138). The
+   * replacement still goes to the queue and the row becomes this account's
+   * (`uploaderMayReplaceAnyAsset` in `lib/assets/upload.ts`). */
+  "can_replace_any_asset",
 ] as const;
 
 export type UserCapability = (typeof USER_CAPABILITIES)[number];
