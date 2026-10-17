@@ -334,6 +334,12 @@ select has_trigger('public', 'asset', 'asset_touch_updated_at',
 
 -- Closing an account must not take approved pictures the gallery is serving with
 -- it, unlike an item, which is the author's own work and cascades.
+--
+-- Giving the row an uploader after the fact is a takeover as far as the table
+-- is concerned (#138), so the account holds the grant that allows one.
+insert into public.user_capability (user_id, capability)
+values ('33333333-3333-3333-3333-333333333333', 'can_replace_any_asset');
+
 update public.asset
   set uploaded_by = '33333333-3333-3333-3333-333333333333'
   where hash = 'enc-m';

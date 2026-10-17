@@ -35,3 +35,9 @@ test("seeding and publishing unreviewed are two capabilities, not one trusted fl
   expect(USER_CAPABILITIES).toContain("can_publish_unreviewed");
   expect(USER_CAPABILITIES.filter((name) => name.includes("trust"))).toEqual([]);
 });
+
+/** #138. Replacing somebody else's picture is its own grant. A moderator does
+ * not get it by being a moderator, and neither does a seeder. */
+test("replacing another account's picture is a capability of its own", () => {
+  expect(USER_CAPABILITIES).toContain("can_replace_any_asset");
+});

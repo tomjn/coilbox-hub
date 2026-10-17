@@ -51,6 +51,7 @@ const CAPABILITY_LABEL: Record<string, string> = {
   can_moderate: "moderator",
   can_publish_unreviewed: "publishes unreviewed",
   can_seed_unit_assets: "seeds pictures",
+  can_replace_any_asset: "replaces others' pictures",
 };
 
 function Account({ account }: { account: ModeratorAccount }) {

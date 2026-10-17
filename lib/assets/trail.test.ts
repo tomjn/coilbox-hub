@@ -44,6 +44,16 @@ test("seeding and waiving the queue are different lines", () => {
   expect(eventLine(event({ action: "seeded" }))).not.toBe(eventLine(event({ action: "bypassed" })));
 });
 
+/** #138. A trusted account replacing somebody else's picture has to read as
+ * exactly that, not as an ordinary return to the queue. */
+test("a takeover says it was another account's picture, replaced on a capability", () => {
+  const line = eventLine(event({ action: "replaced" }));
+
+  expect(line).toContain("another account");
+  expect(line).toContain("capability");
+  expect(line).not.toBe(eventLine(event({ action: "returned" })));
+});
+
 test("every action the database can record has something to say", () => {
   for (const action of ASSET_EVENT_ACTIONS) {
     const kind = action === "rejected" ? "editorial" : null;

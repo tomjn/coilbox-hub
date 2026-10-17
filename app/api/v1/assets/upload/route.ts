@@ -7,7 +7,12 @@ import { encodedHash } from "@/lib/assets/hash";
 import { IMAGE_HEADER_BYTES } from "@/lib/assets/imageHeader";
 import { recordSourceConflict } from "@/lib/assets/sourceConflict";
 import { putStagedAsset, StagedAssetExistsError } from "@/lib/assets/staging";
-import { checkAssetUpload, uploaderSkipsQueue, writeUploadedAsset } from "@/lib/assets/upload";
+import {
+  checkAssetUpload,
+  uploaderMayReplaceAnyAsset,
+  uploaderSkipsQueue,
+  writeUploadedAsset,
+} from "@/lib/assets/upload";
 import { clientIp, recordUploadIp } from "@/lib/assets/uploadIp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticateBearer } from "@/lib/supabase/bearer";
@@ -70,8 +75,9 @@ import { SUPABASE_SERVICE_ROLE_ERROR } from "@/lib/supabase/config";
  * same order, so a replacement is held to every rule a first upload is.
  *
  * The 409s that remain all mean stop asking rather than try again: the identity
- * belongs to another account, or it was rejected, or it already holds the same
- * `source_hash`.
+ * belongs to another account and the uploader does not hold
+ * `can_replace_any_asset` (#138), or it was rejected, or it already holds the
+ * same `source_hash`.
  *
  * ## Why either of them says so little
  *
@@ -178,7 +184,12 @@ export async function POST(request: Request) {
     return apiError(SUPABASE_SERVICE_ROLE_ERROR, 503);
   }
 
-  const check = await checkAssetUpload(admin, auth.user.id, parsed.declaration, hash);
+  // Whether the uploader may replace a picture another account uploaded (#138)
+  // is asked with their own client, because the capability is theirs, and only
+  // when the identity turns out to be somebody else's.
+  const check = await checkAssetUpload(admin, auth.user.id, parsed.declaration, hash, () =>
+    uploaderMayReplaceAnyAsset(auth.supabase),
+  );
 
   // Before the answer either way, because the 409 below is where #116's case
   // actually lands: a second account reporting different bytes for the same

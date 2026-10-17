@@ -9,6 +9,7 @@ import {
   SUBJECT_UPLOADS_PER_HOUR,
   UNIT_RENDER_CEILING,
   checkAssetUpload,
+  uploaderMayReplaceAnyAsset,
   uploaderSkipsQueue,
   writeUploadedAsset,
 } from "./upload";
@@ -875,5 +876,190 @@ test("a faction logo row names its faction and no unit or map", async () => {
     moderation: "pending",
     approval_source: null,
     tier: "bucket",
+  });
+});
+
+/**
+ * #138. A trusted account may replace a picture it did not upload, so a newer
+ * archive held by somebody else can still refresh the corpus. Everything else
+ * a replacement faces still applies, and the account takes the row over, so
+ * the quota and the hourly limit both count it against the replacing account.
+ */
+const STRANGER = "22222222-2222-2222-2222-222222222222";
+
+/** The capability answer the route hands in, counting how often it was asked. */
+function replaceCapability(answer: boolean) {
+  const asked = { count: 0 };
+  const ask = () => {
+    asked.count += 1;
+    return Promise.resolve(answer);
+  };
+  return { ask, asked };
+}
+
+async function checkAs(
+  holder: boolean,
+  state: World,
+  overrides: Partial<AssetUploadDeclaration> = {},
+) {
+  return checkAssetUpload(
+    fakeSupabase(state),
+    USER,
+    declaration(overrides),
+    HASH,
+    replaceCapability(holder).ask,
+  );
+}
+
+test("an account holding can_replace_any_asset may replace another account's picture", async () => {
+  expect(await checkAs(true, world({ existing: held({ uploaded_by: STRANGER }) }))).toEqual({
+    ok: true,
+    path: "units/BYAR/buildpic/encabc.webp",
+    replacing: "held",
+  });
+});
+
+test("an account without the capability still may not", async () => {
+  const result = await checkAs(false, world({ existing: held({ uploaded_by: STRANGER }) }));
+
+  expect(result).toEqual({
+    ok: false,
+    error: "Another account uploaded the asset with that identity, so it cannot be replaced.",
+    status: 409,
+  });
+});
+
+test("a picture whose uploader closed their account is replaceable only on the capability", async () => {
+  const orphaned = world({ existing: held({ uploaded_by: null }) });
+
+  expect((await checkAs(true, orphaned)).ok).toBe(true);
+  expect((await checkAs(false, orphaned)).ok).toBe(false);
+});
+
+test("the capability covers map pictures and faction logos as well as units", async () => {
+  const existing = held({ uploaded_by: STRANGER });
+  const map = { identity: MAP, mapWidth: 8192, mapHeight: 8192 };
+
+  expect(await checkAs(true, world({ existing }), map)).toMatchObject({ ok: true, replacing: "held" });
+  expect(await checkAs(true, world({ existing }), LOGO)).toMatchObject({ ok: true, replacing: "held" });
+  expect((await checkAs(false, world({ existing }), map)).ok).toBe(false);
+  expect((await checkAs(false, world({ existing }), LOGO)).ok).toBe(false);
+});
+
+/** One round trip saved on every ordinary upload, and nothing to ask about on
+ * a first upload or on the account's own picture. */
+test("the capability is asked only when the picture is somebody else's", async () => {
+  for (const existing of [null, held()]) {
+    const capability = replaceCapability(true);
+    await checkAssetUpload(fakeSupabase(world({ existing })), USER, declaration(), HASH, capability.ask);
+    expect(capability.asked.count).toBe(0);
+  }
+
+  const capability = replaceCapability(true);
+  await checkAssetUpload(
+    fakeSupabase(world({ existing: held({ uploaded_by: STRANGER }) })),
+    USER,
+    declaration(),
+    HASH,
+    capability.ask,
+  );
+  expect(capability.asked.count).toBe(1);
+});
+
+test("without a capability answer, somebody else's picture is refused", async () => {
+  const result = await checkAssetUpload(
+    fakeSupabase(world({ existing: held({ uploaded_by: STRANGER }) })),
+    USER,
+    declaration(),
+    HASH,
+  );
+
+  expect(result.ok).toBe(false);
+});
+
+test("a holder still cannot undo a rejection", async () => {
+  const result = await checkAs(
+    true,
+    world({ existing: held({ uploaded_by: STRANGER, moderation: "rejected" }) }),
+  );
+
+  expect(result).toMatchObject({ ok: false, status: 409 });
+  if (result.ok) return;
+  expect(result.error).toContain("rejected");
+});
+
+test("a holder sending the same source bytes is refused like anybody else", async () => {
+  const result = await checkAs(
+    true,
+    world({ existing: held({ uploaded_by: STRANGER, source_hash: "raw-abc" }) }),
+  );
+
+  expect(result).toMatchObject({ ok: false, status: 409 });
+  if (result.ok) return;
+  expect(result.error).toContain("/api/v1/assets/have");
+});
+
+test("a holder is held to the hourly limit", async () => {
+  const result = await checkAs(
+    true,
+    world({ existing: held({ uploaded_by: STRANGER }), recent: SUBJECT_UPLOADS_PER_HOUR }),
+  );
+
+  expect(result).toMatchObject({ ok: false, status: 429 });
+});
+
+test("a holder is held to the class's byte ceiling", async () => {
+  const ceiling = ASSET_CAPS.buildpic.maxBytes ?? 0;
+  const result = await checkAs(true, world({ existing: held({ uploaded_by: STRANGER }) }), {
+    bytes: ceiling + 1,
+  });
+
+  expect(result).toMatchObject({ ok: false, status: 413 });
+});
+
+/** The superseded row was never in the holder's total, so nothing comes off
+ * it: taking a picture over is charged the whole object. */
+test("a holder taking a picture over is charged the whole object", async () => {
+  const existing = held({ uploaded_by: STRANGER, bytes: 4096 });
+  const roomFor = (bytes: number) =>
+    world({ existing, accountBytes: ACCOUNT_STORAGE_QUOTA_BYTES - bytes });
+
+  expect((await checkAs(true, roomFor(4096))).ok).toBe(true);
+  expect(await checkAs(true, roomFor(4095))).toMatchObject({ ok: false, status: 413 });
+});
+
+test("only can_replace_any_asset lets an account replace somebody else's picture", async () => {
+  expect(await uploaderMayReplaceAnyAsset(capabilities(["can_replace_any_asset"]))).toBe(true);
+  expect(
+    await uploaderMayReplaceAnyAsset(
+      capabilities(["can_moderate", "can_publish_unreviewed", "can_seed_unit_assets"]),
+    ),
+  ).toBe(false);
+});
+
+test("a replace capability that could not be read is a refusal", async () => {
+  expect(await uploaderMayReplaceAnyAsset(capabilities("down"))).toBe(false);
+});
+
+/** The row moves to the replacing account, which is what makes the hourly
+ * limit and the quota count it there, and the trail record the takeover. */
+test("a replacement belongs to the account that uploaded the new bytes", async () => {
+  const written: Record<string, unknown>[] = [];
+
+  await writeUploadedAsset(
+    recordingWrites(written),
+    USER,
+    declaration(),
+    HASH,
+    "units/BYAR/buildpic/encabc.webp",
+    { width: 256, height: 256 },
+    "held",
+    false,
+  );
+
+  expect(written[0]).toMatchObject({
+    uploaded_by: USER,
+    moderation: "pending",
+    approval_source: null,
   });
 });

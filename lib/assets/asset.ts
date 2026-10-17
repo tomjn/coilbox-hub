@@ -117,7 +117,9 @@ export function isModeratorRejectionKind(value: string): value is ModeratorRejec
  * pending, either because a moderator undid an editorial rejection or because a
  * newer archive replaced the bytes. `conflict_acknowledged` is the one entry
  * that changes nothing the public sees: a moderator cleared a source
- * disagreement on an approved picture (#149) and the log says who.
+ * disagreement on an approved picture (#149) and the log says who. `replaced`
+ * is an account holding `can_replace_any_asset` taking over another account's
+ * picture (#138), with the previous uploader kept on the row.
  */
 export const ASSET_EVENT_ACTIONS = [
   "seeded",
@@ -126,6 +128,7 @@ export const ASSET_EVENT_ACTIONS = [
   "rejected",
   "returned",
   "conflict_acknowledged",
+  "replaced",
 ] as const;
 
 export type AssetEventAction = (typeof ASSET_EVENT_ACTIONS)[number];

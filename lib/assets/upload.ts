@@ -300,12 +300,18 @@ const QUOTA_UNAVAILABLE = {
  * `hash` is the hub's own, out of `./hash`, and is a parameter rather than a
  * field on the declaration so that there is no declared value here to reach for
  * by mistake. It is the leaf of the path this answers with (#154).
+ *
+ * `mayReplaceAnyAsset` is {@link uploaderMayReplaceAnyAsset} bound to the
+ * uploader's own client. It is asked only when the identity belongs to somebody
+ * else, so an ordinary upload costs no extra round trip, and without it every
+ * such upload is refused.
  */
 export async function checkAssetUpload(
   supabase: SupabaseClient,
   userId: string,
   declaration: AssetUploadDeclaration,
   hash: string,
+  mayReplaceAnyAsset: () => Promise<boolean> = () => Promise.resolve(false),
 ): Promise<AssetUploadCheck> {
   const { identity, mime, bytes } = declaration;
 
@@ -411,19 +417,25 @@ export async function checkAssetUpload(
     ? (sourceConflict(replacing, declaration, userId) ?? undefined)
     : undefined;
 
+  // Whether this upload takes the row over from another account, or from one
+  // that has closed. Only an account holding `can_replace_any_asset` may.
+  const takingOver = replacing !== null && replacing.uploaded_by !== userId;
+
   if (replacing) {
-    // Only the account that uploaded it. The alternative, anyone may replace
-    // anyone's asset, hands every signed in account a way to take the whole
-    // corpus off the site: a replacement resets the row to pending, so one
-    // account could de-publish every approved picture it can name and leave a
-    // moderator to re-review the lot. The rate limits bound how fast that goes
-    // and not whether it works. A seeded row has a null `uploaded_by` and is
-    // nobody's to replace, which is the same rule and not an extra one.
+    // Only the account that uploaded it, unless the uploader holds
+    // `can_replace_any_asset` (#138). Letting anyone replace anyone's asset
+    // hands every signed in account a way to take the whole corpus off the
+    // site: a replacement resets the row to pending, so one account could
+    // de-publish every approved picture it can name and leave a moderator to
+    // re-review the lot. The rate limits bound how fast that goes and not
+    // whether it works. A seeded row, or one whose uploader closed their
+    // account, has a null `uploaded_by` and is the same case.
     //
-    // The cost is that a newer archive held by somebody else cannot refresh a
-    // picture, so the corpus can go stale. That is the lesser harm and the
-    // fixable one: replacing across accounts wants a capability of the kind
-    // #101 already has, and #138 is where it goes.
+    // The capability is there so a newer archive held by somebody else can
+    // still refresh a picture. Everything below still applies to a holder, and
+    // the row becomes theirs, so the quota and the hourly limit count it
+    // against them. The table refuses the takeover for anybody else
+    // regardless of this check.
     //
     // This refusal is also the whole of #116's interesting case, which is why
     // it carries the conflict. "A second user reports different source bytes
@@ -431,7 +443,7 @@ export async function checkAssetUpload(
     // above already stops it dead and, until now, stopped it silently. The
     // upload is still refused, unchanged. What the note adds is that the
     // picture the hub is keeping gets marked, so somebody looks at it.
-    if (replacing.uploaded_by !== userId) {
+    if (takingOver && !(await mayReplaceAnyAsset())) {
       return {
         ok: false,
         error: "Another account uploaded the asset with that identity, so it cannot be replaced.",
@@ -495,7 +507,11 @@ export async function checkAssetUpload(
   // measured over rows and the replacement leaves one row where there was one.
   // The superseded object outlives the row it belonged to, but that is an
   // orphan for #113 to clear rather than storage this account still holds.
-  if (accountBytes.data - (replacing?.bytes ?? 0) + bytes > ACCOUNT_STORAGE_QUOTA_BYTES) {
+  //
+  // Not on a takeover. The superseded row was in another account's total and
+  // never in this one, so the whole object is new to this account.
+  const superseded = replacing && !takingOver ? replacing.bytes : 0;
+  if (accountBytes.data - superseded + bytes > ACCOUNT_STORAGE_QUOTA_BYTES) {
     return {
       ok: false,
       error: `That upload would put this account over its ${ACCOUNT_STORAGE_QUOTA_BYTES} byte storage quota.`,
@@ -581,6 +597,28 @@ export async function uploaderSkipsQueue(supabase: SupabaseClient): Promise<bool
 }
 
 /**
+ * Whether the account uploading may replace a picture another account uploaded,
+ * or one whose uploader has closed their account (#138).
+ *
+ * `supabase` must be the uploader's own client, for the reason
+ * {@link uploaderSkipsQueue} gives.
+ *
+ * `can_replace_any_asset` alone. A moderator does not get it by being one: a
+ * replacement takes the row over and puts new bytes in the queue, which is a
+ * different power from approving or withdrawing what is already there, and
+ * #101 keeps powers like that apart.
+ *
+ * False when the question could not be answered. The safe way to be wrong is a
+ * 409 the holder can retry.
+ */
+export async function uploaderMayReplaceAnyAsset(supabase: SupabaseClient): Promise<boolean> {
+  return supabase.rpc("has_capability", { capability: "can_replace_any_asset" }).then(
+    ({ data, error }) => !error && data === true,
+    () => false,
+  );
+}
+
+/**
  * Write the row for an upload the hub has just accepted, replacing the row named
  * by `replacing` when a newer archive changed the bytes (#106).
  *
@@ -644,6 +682,10 @@ export async function writeUploadedAsset(
         promoted_at: null,
         bytes_missing_at: null,
         ...moderation,
+        // The account that sent these bytes, which on an account's own
+        // replacement is who it was already. On a takeover (#138) the row
+        // changes hands, and the table records that in `asset_event`.
+        uploaded_by: userId,
       })
       .eq("id", replacing);
 
