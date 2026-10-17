@@ -1,11 +1,22 @@
-/** Discord gives a display name under more than one key depending on whether the
- * account has a global name set. Publishing stores whichever it had at the time,
- * so anything that shows you your own name has to read it the same way or the
- * header and your items disagree. */
-export function displayName(metadata: Record<string, unknown>): string {
-  for (const key of ["full_name", "name", "preferred_username", "user_name"]) {
-    const value = metadata[key];
-    if (typeof value === "string" && value.trim() !== "") return value;
-  }
-  return "Unknown";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/**
+ * An account's display name, from public.profile (issue #429).
+ *
+ * The same row `current_author_name()` reads when somebody publishes, so the
+ * header, the account page and an item published afterwards all agree. Null
+ * when the read fails or finds no row, and the caller decides what to show,
+ * because a header that throws takes every page down with it.
+ */
+export async function fetchDisplayName(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("profile")
+    .select("display_name")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (data as { display_name: string }).display_name;
 }

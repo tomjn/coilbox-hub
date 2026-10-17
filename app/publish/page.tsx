@@ -6,7 +6,7 @@ import { setupPacks } from "@/components/art/drawings";
 import { Skeleton } from "@/components/Skeleton";
 import { SignInWithDiscord } from "@/components/SignInWithDiscord";
 import { kindsSingular } from "@/lib/gallery/label";
-import { currentUser } from "@/lib/supabase/user";
+import { currentDisplayName, currentUser } from "@/lib/supabase/user";
 import { PublishForm } from "./PublishForm";
 
 export const metadata: Metadata = {
@@ -48,9 +48,7 @@ async function PublishPanel() {
         <span>
           Publishing as{" "}
           <span className="text-neutral-300">
-            {(user.metadata.full_name as string) ??
-              (user.metadata.name as string) ??
-              "you"}
+            {(await currentDisplayName()) ?? "you"}
           </span>
         </span>
         <Link

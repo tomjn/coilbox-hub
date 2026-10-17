@@ -1,17 +1,15 @@
 import { cache } from "react";
+import { fetchDisplayName } from "@/lib/author";
 import { createClient } from "./server";
 
-/** As much of a signed in visitor as a page needs: who, and what to call them. */
+/** As much of a signed in visitor as a page needs to know who they are. What
+ *  to call them is `currentDisplayName`, which reads the hub's own table. */
 export interface SessionUser {
   id: string;
-  metadata: Record<string, unknown>;
 }
 
-export function userFromClaims(claims: {
-  sub: string;
-  user_metadata?: Record<string, unknown>;
-}): SessionUser {
-  return { id: claims.sub, metadata: claims.user_metadata ?? {} };
+export function userFromClaims(claims: { sub: string }): SessionUser {
+  return { id: claims.sub };
 }
 
 /**
@@ -32,6 +30,19 @@ export const currentUser = cache(async (): Promise<SessionUser | null> => {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   return data ? userFromClaims(data.claims) : null;
+});
+
+/**
+ * What to call the signed in visitor, once per request.
+ *
+ * Read from public.profile rather than the token's metadata, so a rename shows
+ * on the next page rather than at the next sign in. Null when nobody is signed
+ * in or the read failed.
+ */
+export const currentDisplayName = cache(async (): Promise<string | null> => {
+  const user = await currentUser();
+  if (!user) return null;
+  return fetchDisplayName(await createClient(), user.id);
 });
 
 /**
