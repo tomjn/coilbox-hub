@@ -3,25 +3,40 @@ import { expect, mock, test } from "bun:test";
 let claims: { sub: string } | null = null;
 let rpcResult: { data: unknown; error: unknown } = { data: true, error: null };
 const rpc = mock(async () => rpcResult);
+const from = mock(() => {
+  const builder = {
+    select: () => builder,
+    eq: () => builder,
+    maybeSingle: async () => ({ data: { display_name: "Ada" }, error: null }),
+  };
+  return builder;
+});
 
 mock.module("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getClaims: async () => ({ data: claims ? { claims } : null }) },
     rpc,
+    from,
   }),
 }));
 
-const { isModerator, userFromClaims } = await import("@/lib/supabase/user");
+const { currentDisplayName, isModerator, userFromClaims } = await import("@/lib/supabase/user");
 
-test("reads the id and the display metadata off a token's claims", () => {
-  expect(userFromClaims({ sub: "abc", user_metadata: { full_name: "Ada" } })).toEqual({
-    id: "abc",
-    metadata: { full_name: "Ada" },
-  });
+test("reads the id off a token's claims, and nothing the provider wrote", () => {
+  expect(userFromClaims({ sub: "abc" })).toEqual({ id: "abc" });
 });
 
-test("a token without metadata still names its user", () => {
-  expect(userFromClaims({ sub: "abc" })).toEqual({ id: "abc", metadata: {} });
+test("a signed out visitor has no display name and the database is not asked", async () => {
+  claims = null;
+  from.mockClear();
+  expect(await currentDisplayName()).toBeNull();
+  expect(from).not.toHaveBeenCalled();
+});
+
+test("a signed in visitor's display name comes from their profile", async () => {
+  claims = { sub: "abc" };
+  expect(await currentDisplayName()).toBe("Ada");
+  expect(from).toHaveBeenCalledWith("profile");
 });
 
 test("a signed out visitor is not a moderator and the database is not asked", async () => {

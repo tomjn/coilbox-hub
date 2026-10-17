@@ -3,9 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
-import { displayName } from "@/lib/author";
 import { createClient } from "@/lib/supabase/server";
-import { currentUser } from "@/lib/supabase/user";
+import { currentDisplayName, currentUser } from "@/lib/supabase/user";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 
 export const metadata: Metadata = {
@@ -28,8 +27,10 @@ export default async function Account() {
 
   const published = count ?? 0;
   // The same name publishing writes to author_name, so the gallery link below
-  // matches the rows it is meant to find.
-  const name = displayName(user.metadata);
+  // matches the rows it is meant to find. The delete form asks for it too, so a
+  // page without it cannot be drawn.
+  const name = await currentDisplayName();
+  if (!name) throw new Error("Could not read your display name. Reload the page to try again.");
 
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
