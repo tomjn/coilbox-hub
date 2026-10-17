@@ -8,6 +8,8 @@ import { ModerationNav } from "@/components/ModerationNav";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { setItemFeatured } from "@/app/item/actions";
 import { createClient } from "@/lib/supabase/server";
+import { mapReportKindLabel } from "@/lib/maps/report";
+import { mapTitle } from "@/lib/maps/labels";
 import { actOnReport } from "./actions";
 import { Button, buttonClass } from "@/components/Button";
 
@@ -38,7 +40,9 @@ export default async function Moderation() {
   const [{ data: reports }, { data: featured }] = await Promise.all([
     supabase
       .from("report")
-      .select("id,item_id,reason,created_at,item(id,title,kind,deleted_at)")
+      .select(
+        "id,item_id,map_id,kind,reason,created_at,item(id,title,kind,deleted_at),map(slug,map_name,display_name)",
+      )
       .is("handled_at", null)
       .order("created_at", { ascending: false })
       .limit(100),
@@ -77,6 +81,45 @@ export default async function Moderation() {
                 title: string;
                 deleted_at: string | null;
               } | null;
+              const map = r.map as unknown as {
+                slug: string;
+                map_name: string;
+                display_name: string | null;
+              } | null;
+              if (r.map_id) {
+                return (
+                  <li
+                    key={r.id}
+                    className="flex flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5"
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      {map ? (
+                        <Link
+                          href={`/map/${map.slug}`}
+                          className="break-words text-base font-medium hover:underline active:underline"
+                        >
+                          {mapTitle(map.display_name, map.map_name)}
+                        </Link>
+                      ) : (
+                        <span className="text-base font-medium">A deleted map</span>
+                      )}
+                      <span className="text-xs text-neutral-400">
+                        <DateTime value={r.created_at} />
+                      </span>
+                    </div>
+                    <p className="text-xs uppercase tracking-wide text-neutral-400">
+                      Map: {mapReportKindLabel(r.kind)}
+                    </p>
+                    <p className="whitespace-pre-wrap text-sm text-neutral-400">
+                      {r.reason}
+                    </p>
+                    <form action={actOnReport}>
+                      <input type="hidden" name="report_id" value={r.id} />
+                      <Button type="submit">Mark handled</Button>
+                    </form>
+                  </li>
+                );
+              }
               return (
                 <li
                   key={r.id}
