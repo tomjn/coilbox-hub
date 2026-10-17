@@ -3,12 +3,12 @@
   "ref": "main",
   "dir": "src/container",
   "files": {
-    "container.ts": "ce5cc96e5f7e3253120595af4e501de4887132d0",
+    "container.ts": "32d377d7cc14be19df7931c5aedf8d756096a6c8",
     "gameIdentity.ts": "3e965d9065845318c5fdd195b19faf3b645db7cc",
     "shortnames.ts": "f7b595c2ebc7f9312d325b99ae346ba00c2e8961"
   },
   "sha256": {
-    "container.ts": "ed0ab2ff2e63f1638a1bb75a633b8b429596ffa2b464193e92a914457e57a921",
+    "container.ts": "60d02d86c320b61e209dc5108cb2d5c719206c435b9813c2dccd277007b31f51",
     "gameIdentity.ts": "6a5b1a61ba55d3fb58fca59e252477bd137da24d3b2e69b65dd202aa0545ac1f",
     "shortnames.ts": "c24e15b45a2bdb3c60e9c40c671f21618c1c227cda63023427f5f9727c083371"
   }

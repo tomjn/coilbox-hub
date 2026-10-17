@@ -28,6 +28,7 @@ export {
   encodeContainerJson,
   identify,
   makeContainer,
+  moduleGeometryRefusal,
   readContainer,
   sniffPayloadKind,
   SUPPORTED_KIND_VERSIONS,
@@ -45,7 +46,7 @@ export type {
 export type { GameIdentity } from "./gameIdentity";
 
 /**
- * Kinds the gallery carries, out of the eight coilbox understands.
+ * Kinds the gallery carries, out of the nine coilbox understands.
  *
  * Campaigns are out of v1: they inline images and audio as base64 data URIs,
  * which puts them past the import ceiling below. See the design doc in coilbox
@@ -62,6 +63,7 @@ export const GALLERY_KINDS = [
   "scenario",
   "blueprint",
   "mod-project",
+  "module",
 ] as const;
 
 export type GalleryKind = (typeof GALLERY_KINDS)[number];
