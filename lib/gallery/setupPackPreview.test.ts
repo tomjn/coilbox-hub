@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   setupPackEngine,
+  setupPackBlueprints,
   setupPackGameNames,
   setupPackMapNames,
   setupPackMaps,
@@ -65,4 +66,66 @@ test("an entry with no archive name is dropped rather than shown blank", () => {
   expect(
     setupPackGameNames({ games: [{ shortname: "BAR" }, { name: "SplinterFaction 0.1.78" }] }),
   ).toEqual(["SplinterFaction 0.1.78"]);
+});
+
+const layout = (name: string, defs: string[], extra: object = {}) => ({
+  name,
+  buildings: defs.map((def, i) => ({
+    def,
+    offset: { x: i * 64, z: 0 },
+    facing: 0,
+  })),
+  footprints: { armsolar: { x: 4, z: 4 } },
+  ...extra,
+});
+
+test("a pack's blueprints are listed in the order it lists them", () => {
+  const found = setupPackBlueprints({
+    blueprints: [
+      layout("Opening", ["armsolar", "armlab"]),
+      layout("Wall", ["armllt"]),
+    ],
+  });
+
+  expect(found.map((b) => b.name)).toEqual(["Opening", "Wall"]);
+  expect(found[0].shape.squares).toHaveLength(2);
+});
+
+test("a layout names the game it was drawn for by shortname", () => {
+  const [found] = setupPackBlueprints({
+    blueprints: [layout("Opening", ["armsolar"], { game: { shortname: "BAR" } })],
+  });
+
+  expect(found.game).toBe("BAR");
+});
+
+test("a layout that names no game has no game", () => {
+  const [found] = setupPackBlueprints({
+    blueprints: [layout("Opening", ["armsolar"])],
+  });
+
+  expect(found.game).toBeNull();
+});
+
+test("a pack with no blueprints, or an empty list, has none", () => {
+  expect(setupPackBlueprints({ maps: ["One"] })).toEqual([]);
+  expect(setupPackBlueprints({ blueprints: [] })).toEqual([]);
+  expect(setupPackBlueprints({ blueprints: "armsolar" })).toEqual([]);
+  expect(setupPackBlueprints({ blueprints: { name: "Opening" } })).toEqual([]);
+});
+
+test("a malformed or empty layout is dropped and the rest are kept", () => {
+  const found = setupPackBlueprints({
+    blueprints: [
+      null,
+      "Opening",
+      42,
+      { name: "No buildings field" },
+      layout("Empty", []),
+      { ...layout("Broken", ["armsolar"]), buildings: [{ def: "armsolar" }] },
+      layout("Good", ["armsolar"]),
+    ],
+  });
+
+  expect(found.map((b) => b.name)).toEqual(["Good"]);
 });

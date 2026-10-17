@@ -259,7 +259,12 @@ export default async function Item({
         </div>
 
         {item.kind === "setup-pack" ? (
-          <SetupPackContents container={item.container} maps={packMaps} />
+          <SetupPackContents
+            container={item.container}
+            maps={packMaps}
+            units={pictures.units}
+            gameKey={item.game_key}
+          />
         ) : minimap ? (
           // Where and who, side by side: the two halves of what a preset is.
           // `empty:hidden` because a kind can render no preview at all, and an

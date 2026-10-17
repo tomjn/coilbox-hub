@@ -15,8 +15,10 @@
  */
 
 import { MapMinimap, type MinimapFacts } from "@/components/MapMinimap";
-import type { ResolvedAsset } from "@/lib/assets/resolve";
+import { BlueprintLayoutArt } from "@/components/ItemPreview";
+import type { ResolvedAsset, ServedAsset } from "@/lib/assets/resolve";
 import {
+  setupPackBlueprints,
   setupPackEngine,
   setupPackGameNames,
 } from "@/lib/gallery/setupPackPreview";
@@ -48,13 +50,25 @@ function Section({
   );
 }
 
+const NO_UNITS: ReadonlyMap<string, ServedAsset> = new Map();
+
+/** The size {@link BlueprintLayoutArt} fits a layout's sheet to, matching the
+ *  `aspect-[4/3]` class it is drawn with below. */
+const LAYOUT_BOX = { width: 320, height: 240 };
+
 export function SetupPackContents({
   container,
   maps,
+  units = NO_UNITS,
+  gameKey = null,
 }: {
   container: unknown;
   /** The pack's maps in the order it lists them, from `packMapCards`. */
   maps: PackMap[];
+  /** The unit pictures the hub holds, from `lib/gallery/itemPictures.ts`. A
+   *  layout is drawn with them only when it was drawn for the pack's game. */
+  units?: ReadonlyMap<string, ServedAsset>;
+  gameKey?: string | null;
 }) {
   const payload = (container as { payload?: unknown } | null)?.payload;
   if (typeof payload !== "object" || payload === null) return null;
@@ -62,10 +76,18 @@ export function SetupPackContents({
 
   const games = setupPackGameNames(record);
   const engine = setupPackEngine(record);
+  const blueprints = setupPackBlueprints(record);
   // A pack that installs nothing this page can name renders nothing at all,
   // the way every other kind with no preview does. An empty frame reads as
   // broken where an absence reads as a pack with nothing in it.
-  if (games.length === 0 && !engine && maps.length === 0) return null;
+  if (
+    games.length === 0 &&
+    !engine &&
+    maps.length === 0 &&
+    blueprints.length === 0
+  ) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -103,6 +125,39 @@ export function SetupPackContents({
                 />
               </li>
             ))}
+          </ul>
+        </Section>
+      ) : null}
+
+      {blueprints.length > 0 ? (
+        <Section title={blueprints.length === 1 ? "Blueprint" : "Blueprints"}>
+          <ul className="grid gap-6 sm:grid-cols-2">
+            {blueprints.map((layout, i) => {
+              const buildings = layout.shape.squares.length;
+              return (
+                // A pack can carry two layouts of one name, so the name alone
+                // is not a key.
+                <li key={i} className="flex flex-col gap-2">
+                  <BlueprintLayoutArt
+                    shape={layout.shape}
+                    box={LAYOUT_BOX}
+                    className="aspect-[4/3] w-full"
+                    units={
+                      layout.game === null || layout.game === gameKey
+                        ? units
+                        : NO_UNITS
+                    }
+                  />
+                  <p className="break-words text-sm text-neutral-100">
+                    {layout.name.trim() || "Untitled layout"}
+                  </p>
+                  <p className="text-xs text-neutral-400">
+                    {buildings} {buildings === 1 ? "building" : "buildings"}
+                    {layout.shape.ordered ? ", in build order" : ""}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         </Section>
       ) : null}

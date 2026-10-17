@@ -192,7 +192,50 @@ test("a layout with no game names units nothing can be looked up by", () => {
   ).toEqual([]);
 });
 
-test("only a blueprint has units in it", () => {
+const packOf = (blueprints: unknown[], game_key: string | null = "bar"): PicturedItem => ({
+  kind: "setup-pack",
+  game_key,
+  map_name: null,
+  container: { payload: { games: [{ name: "Beyond All Reason" }], blueprints } },
+});
+
+const layoutOf = (defs: string[], game?: { shortname: string }) => ({
+  name: "Opening",
+  ...(game ? { game } : {}),
+  buildings: defs.map((def, i) => ({ def, offset: { x: i * 64, z: 0 }, facing: 0 })),
+  footprints: {},
+});
+
+test("a pack asks for one top render per distinct def across all its layouts", () => {
+  const item = packOf([layoutOf(["ArmSolar", "armlab"]), layoutOf(["armsolar", "armllt"])]);
+
+  expect(blueprintUnitIdentities(item).map((u) => u.unitName)).toEqual([
+    "armsolar",
+    "armlab",
+    "armllt",
+  ]);
+});
+
+test("a pack's layout drawn for another game asks for nothing", () => {
+  const item = packOf([
+    layoutOf(["armsolar"], { shortname: "bar" }),
+    layoutOf(["corsolar"], { shortname: "other" }),
+    layoutOf(["armlab"]),
+  ]);
+
+  expect(blueprintUnitIdentities(item).map((u) => u.unitName)).toEqual(["armsolar", "armlab"]);
+});
+
+test("a pack with no game, no blueprints or damaged ones asks for no units", () => {
+  expect(blueprintUnitIdentities(packOf([layoutOf(["armsolar"])], null))).toEqual([]);
+  expect(blueprintUnitIdentities(packOf([]))).toEqual([]);
+  expect(blueprintUnitIdentities(packOf([null, "x", { name: "y" }]))).toEqual([]);
+  expect(
+    blueprintUnitIdentities({ ...packOf([]), container: { payload: { maps: ["One"] } } }),
+  ).toEqual([]);
+});
+
+test("only a blueprint or a setup pack has units in it", () => {
   const preset: PicturedItem = {
     kind: "preset",
     game_key: "bar",
