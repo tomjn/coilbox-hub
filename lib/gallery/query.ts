@@ -241,12 +241,20 @@ export interface Filters {
   /** Empty means no filter. More than one is a union: any of these tags. */
   tag: string[];
   /** Empty means no filter. More than one is a union: any of these authors.
-   *  An item has exactly one author, so "and" would always match nothing. */
+   *  An item has exactly one author, so "and" would always match nothing.
+   *  Matches the `author_name` snapshot taken at publish time. Kept for links
+   *  shared before `account` existed and for the name on a card. */
   author: string[];
+  /** Account ids, matched against `author_id`. Empty means no filter, and more
+   *  than one is a union, for the same reason as `author`. Unlike a name, an
+   *  id survives the account being renamed. */
+  account: string[];
   q: string | null;
   sort: SortOrder;
   page: number;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function one(value: string | string[] | undefined): string | null {
   const first = Array.isArray(value) ? value[0] : value;
@@ -286,6 +294,11 @@ export function parseFilters(
     map: one(params.map),
     tag: many(params.tag).map((t) => t.toLowerCase()),
     author: many(params.author),
+    // Anything that is not a uuid is dropped: Postgres rejects it for a uuid
+    // column, which would fail the whole page instead of ignoring a bad link.
+    account: many(params.account)
+      .map((id) => id.toLowerCase())
+      .filter((id) => UUID.test(id)),
     q: one(params.q),
     sort:
       sort && (SORT_ORDERS as readonly string[]).includes(sort)
@@ -334,6 +347,7 @@ export function applyFilters<Query extends FilterableQuery<Query>>(
   if (filters.map) next = next.eq("map_name", filters.map);
   if (filters.tag.length > 0) next = next.overlaps("tags", filters.tag);
   if (filters.author.length > 0) next = next.in("author_name", filters.author);
+  if (filters.account.length > 0) next = next.in("author_id", filters.account);
   // websearch_to_tsquery takes what a person would actually type, quotes and all,
   // and never throws on punctuation the way plainto_ or to_tsquery can.
   if (filters.q) next = next.textSearch("search", filters.q, { type: "websearch" });
@@ -355,6 +369,7 @@ export function filterHref(
   if (next.map) params.set("map", next.map);
   for (const tag of next.tag) params.append("tag", tag);
   for (const author of next.author) params.append("author", author);
+  for (const account of next.account) params.append("account", account);
   if (next.q) params.set("q", next.q);
   if (next.sort !== "newest") params.set("sort", next.sort);
   if (next.page > 1 && change.page !== undefined) {
