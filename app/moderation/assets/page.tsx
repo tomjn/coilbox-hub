@@ -5,10 +5,11 @@ import { notFound } from "next/navigation";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { ModerationNav } from "@/components/ModerationNav";
+import { fetchApprovedSourceConflicts } from "@/lib/assets/approvedConflicts";
 import { fetchPictureQueue } from "@/lib/assets/queue";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { approveSelected, rejectOne } from "./actions";
+import { acknowledgeConflict, approveSelected, rejectOne } from "./actions";
 
 export const metadata: Metadata = {
   title: "Pictures - Moderation",
@@ -89,6 +90,29 @@ const FLAGGED = "relative flex flex-col gap-1 rounded-md p-0.5 ring-2 ring-amber
 const FLAG =
   "rounded-sm bg-amber-950/80 px-1.5 py-1 text-[0.65rem] leading-tight font-medium text-amber-300";
 
+const DISAGREEMENT = "flex flex-col gap-3 rounded-md border border-neutral-800 bg-card p-4 text-sm";
+
+/** An account as a link to its trail, or a plain note where the account has
+ * closed and the id is gone. */
+function AccountLink({ id }: { id: string | null }) {
+  if (!id) return <span className="text-neutral-400">an account that has closed</span>;
+
+  return (
+    <Link
+      href={`/moderation/trail?account=${id}`}
+      title={id}
+      className="font-mono text-neutral-300 underline decoration-neutral-700 underline-offset-2 transition-colors hover:text-neutral-100 active:text-neutral-100"
+    >
+      {id.slice(0, 8)}
+    </Link>
+  );
+}
+
+function disagreementsLine(shown: number, total: number): string {
+  if (total > shown) return `The ${shown} oldest of ${total}.`;
+  return total === 1 ? "One entry." : `${total} entries.`;
+}
+
 function waitingLine(shown: number, total: number): string {
   if (total > shown) return `The ${shown} oldest of ${total} waiting.`;
   return total === 1 ? "One picture waiting." : `${total} pictures waiting.`;
@@ -102,6 +126,9 @@ export default async function PictureQueue() {
   if (!allowed) notFound();
 
   const { waiting, total } = await fetchPictureQueue(createAdminClient());
+  // Read with the moderator's own session: the database function asks
+  // is_moderator() itself and the table stays closed to the browser roles.
+  const disagreements = await fetchApprovedSourceConflicts(supabase);
 
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
@@ -260,6 +287,109 @@ export default async function PictureQueue() {
               </div>
             </form>
           </>
+        )}
+
+        {/* Pictures already approved that a second account reported different
+            bytes for (#149). A list and not a state change: moving an approved
+            picture on a stranger's report would let any signed in account
+            de-publish pictures. A moderator looks, and rejects if it deserves
+            it. */}
+        {(disagreements.error || disagreements.conflicts.length > 0) && (
+          <section className="flex flex-col gap-3" aria-labelledby="disagreements-heading">
+            <h2 id="disagreements-heading" className="text-xl font-semibold tracking-tight">
+              Approved pictures with a source disagreement
+            </h2>
+            {disagreements.error ? (
+              <p className="rounded-md border border-neutral-800 bg-card p-4 text-sm text-red-400">
+                The list did not load: {disagreements.error}
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-neutral-400">
+                  {disagreementsLine(disagreements.conflicts.length, disagreements.total)} Each
+                  is a picture already on the site that another account reported different
+                  bytes for, out of the same archive. Nothing has changed on the site.
+                  Reject the picture if it deserves it, or mark the entry as looked at.
+                </p>
+                <ul className="flex flex-col gap-3">
+                  {disagreements.conflicts.map((conflict) => (
+                    <li key={conflict.conflictId} className={DISAGREEMENT}>
+                      <div className="flex flex-wrap items-baseline justify-between gap-3">
+                        <Link
+                          href={`/moderation/assets/${conflict.assetId}`}
+                          className="font-medium text-neutral-200 hover:underline active:underline"
+                        >
+                          {conflict.name}
+                          {conflict.detail ? (
+                            <span className="text-neutral-400"> {conflict.detail}</span>
+                          ) : null}
+                        </Link>
+                        <span className="text-xs text-neutral-400">
+                          {conflict.at.replace("T", " ").slice(0, 16)}
+                        </span>
+                      </div>
+                      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+                        <dt className="text-neutral-400">Archive</dt>
+                        <dd className="break-all text-neutral-300">{conflict.sourceArchive}</dd>
+                        <dt className="text-neutral-400">Held</dt>
+                        <dd className="font-mono break-all text-neutral-300">
+                          {conflict.heldSourceHash}
+                        </dd>
+                        <dt className="text-neutral-400">Reported</dt>
+                        <dd className="font-mono break-all text-neutral-300">
+                          {conflict.reportedSourceHash}
+                        </dd>
+                        <dt className="text-neutral-400">Uploaded by</dt>
+                        <dd>
+                          <AccountLink id={conflict.uploadedBy} />
+                        </dd>
+                        <dt className="text-neutral-400">Reported by</dt>
+                        <dd>
+                          <AccountLink id={conflict.reportedBy} />
+                        </dd>
+                      </dl>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <form action={rejectOne}>
+                          <input type="hidden" name="asset" value={conflict.assetId} />
+                          <input type="hidden" name="kind" value="editorial" />
+                          <button
+                            type="submit"
+                            title="Out of scope, the wrong game, a duplicate or junk. Can be put back."
+                            className={buttonClass("ghost", { size: "sm" })}
+                          >
+                            Reject
+                            <span className="sr-only"> {conflict.name} as not belonging here</span>
+                          </button>
+                        </form>
+                        <form action={rejectOne}>
+                          <input type="hidden" name="asset" value={conflict.assetId} />
+                          <input type="hidden" name="kind" value="safety" />
+                          <button
+                            type="submit"
+                            title="Illegal or seriously harmful. Nothing in the hub can undo this."
+                            className={buttonClass("ghost", { size: "sm" })}
+                          >
+                            Unsafe
+                            <span className="sr-only">
+                              {" "}
+                              {conflict.name} on safety grounds, which cannot be undone
+                            </span>
+                          </button>
+                        </form>
+                        <form action={acknowledgeConflict}>
+                          <input type="hidden" name="conflict" value={conflict.conflictId} />
+                          <button type="submit" className={buttonClass("ghost", { size: "sm" })}>
+                            Looked at
+                            <span className="sr-only"> {conflict.name}, leave it approved</span>
+                          </button>
+                        </form>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
         )}
       </div>
     </main>

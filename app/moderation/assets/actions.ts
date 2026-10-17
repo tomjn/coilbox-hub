@@ -3,6 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath, updateTag } from "next/cache";
 import { isModeratorRejectionKind } from "@/lib/assets/asset";
+import { acknowledgeSourceConflict, conflictId } from "@/lib/assets/approvedConflicts";
 import { TAGS } from "@/lib/cache/tags";
 import { approvePictures, pictureIds, rejectPicture } from "@/lib/assets/queue";
 import { createClient } from "@/lib/supabase/server";
@@ -50,6 +51,28 @@ export async function approveSelected(form: FormData): Promise<void> {
   // Approving is what makes a picture public, and it can appear on a map page,
   // the catalog or any item played on that map.
   updateTag(TAGS.assets);
+}
+
+/**
+ * Mark a disagreement on an approved picture as looked at (issue #149).
+ *
+ * The picture stays as it is. This only takes the entry off the list, so the
+ * list does not grow for ever. Clearing is logged against the moderator by the
+ * database function, which asks `is_moderator()` for itself.
+ */
+export async function acknowledgeConflict(form: FormData): Promise<void> {
+  const supabase = await moderatorClient();
+  if (!supabase) return;
+
+  const id = conflictId(String(form.get("conflict") ?? ""));
+  if (id === null) return;
+
+  await acknowledgeSourceConflict(supabase, id);
+
+  revalidatePath("/moderation/assets");
+  // Clearing is a line in the trail, so the trail is stale too. The picture
+  // itself is untouched, so no cache tag needs to move.
+  revalidatePath("/moderation/trail");
 }
 
 /**
