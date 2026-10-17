@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(97);
+select plan(103);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -273,6 +273,27 @@ select table_privs_are('public', 'author_map_count', 'authenticated', ARRAY['SEL
   'authenticated can only select on author_map_count');
 select table_privs_are('public', 'author_map_count', 'service_role', ARRAY['SELECT'],
   'service_role can only select on author_map_count, since the count is computed and nothing writes it');
+
+-- public.author_spelling: every spelling under the key it counts as (issue
+-- #442). The merge form offers these as the name to show. Read for everybody,
+-- because public.author_display_name reads it as the invoker.
+select table_privs_are('public', 'author_spelling', 'anon', ARRAY['SELECT'],
+  'anon can only select on author_spelling');
+select table_privs_are('public', 'author_spelling', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on author_spelling');
+select table_privs_are('public', 'author_spelling', 'service_role', ARRAY['SELECT'],
+  'service_role can only select on author_spelling, since every column on it is computed');
+
+-- public.author_name: the name a moderator chose for an author (issue #442).
+-- Read for everybody for the same reason. Written only by
+-- public.merge_author_keys, which runs as service_role, and never deleted,
+-- because unmerging leaves the person's chosen name in place.
+select table_privs_are('public', 'author_name', 'anon', ARRAY['SELECT'],
+  'anon can only select on author_name');
+select table_privs_are('public', 'author_name', 'authenticated', ARRAY['SELECT'],
+  'authenticated can only select on author_name');
+select table_privs_are('public', 'author_name', 'service_role', ARRAY['SELECT', 'INSERT', 'UPDATE'],
+  'service_role can select, insert and update author_name and nothing else');
 
 -- public.map_source_conflict: two clients disagreeing about what one archive
 -- contains, and the same line asset_source_conflict draws. The reported hash

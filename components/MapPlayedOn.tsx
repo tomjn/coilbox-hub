@@ -49,6 +49,7 @@ export function MapPlayedOn({
     map: mapName,
     tag: [],
     author: [],
+    account: [],
     q: null,
     sort: "newest",
     page: 1,

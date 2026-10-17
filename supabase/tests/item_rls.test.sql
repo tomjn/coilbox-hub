@@ -5,7 +5,7 @@
 -- nobody.
 
 begin;
-select plan(34);
+select plan(35);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -35,6 +35,16 @@ select is(
   (select count(*) from public.item
     where id in ('aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002'))::int, 1,
   'anon sees the live item and not the withdrawn one'
+);
+
+-- The gallery's account filter is `author_id in (...)` as anon. The index
+-- item_author_idx serves it and the read policy still hides the withdrawn row,
+-- whatever name the items were published under.
+select is(
+  (select array_agg(id order by id) from public.item
+    where author_id in ('11111111-1111-1111-1111-111111111111')),
+  array['aaaaaaaa-0000-0000-0000-000000000001'::uuid],
+  'anon filtering by author_id gets the live item and not the withdrawn one'
 );
 
 select throws_ok(
