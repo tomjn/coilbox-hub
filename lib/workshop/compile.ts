@@ -30,6 +30,9 @@ export interface Chunk {
   /** Why the compiler wrote it in this form and not the other. */
   reason: string;
   lua: string;
+  /** The one unit this chunk is about, or null when it folds several units
+   *  into one table or block. Coilbox links its preflight checks to it. */
+  unit: string | null;
 }
 
 export interface CompiledProject {
@@ -43,6 +46,13 @@ export class TooLarge extends Error {}
 
 function sorted<T>(map: Map<string, T>): Array<[string, T]> {
   return [...map].sort(([a], [b]) => compareKeys(a, b));
+}
+
+/** The one name every item shares, or null when there is more than one
+ *  distinct name or none at all. */
+function singletonUnit(units: string[]): string | null {
+  const distinct = new Set(units);
+  return distinct.size === 1 ? units[0] : null;
 }
 
 function plural(n: number): string {
@@ -467,6 +477,7 @@ export function compile(project: ModProject): CompiledProject {
       reason:
         "Carried from a decoded import as it stands. Coilbox never runs it, and cannot edit it either, so it is written out the way it arrived.",
       lua: block.lua,
+      unit: null,
     });
   }
 
@@ -485,6 +496,7 @@ export function compile(project: ModProject): CompiledProject {
       lua: addedBlock(
         added.map((clone) => [clone.key, luaLiteral(resolvedCloneDef(clone, edits), "    ")]),
       ),
+      unit: singletonUnit(added.map((clone) => clone.key)),
     });
   }
 
@@ -496,6 +508,7 @@ export function compile(project: ModProject): CompiledProject {
       title: `${clone.key} replaced`,
       reason: `The game defines ${clone.key} too, so this has to be written after its definitions have loaded, and it replaces rather than merges.`,
       lua: replaceBlock(clone, resolvedCloneDef(clone, edits)),
+      unit: clone.key,
     });
   }
 
@@ -530,6 +543,7 @@ export function compile(project: ModProject): CompiledProject {
       reason:
         "Each one is a value the user typed, so none of them has to read the game's own first.",
       lua: table(patches),
+      unit: singletonUnit(patches.map(([unit]) => unit)),
     });
   }
   if (positional.length > 0) {
@@ -539,6 +553,7 @@ export function compile(project: ModProject): CompiledProject {
       reason:
         "A list with a gap in it, such as weapons 1 and 3 and no 2, keeps its own numbers, so which entry each change is for has to be read off the game's own list.",
       lua: positionalBlock(positional),
+      unit: singletonUnit(positional.map(([unit]) => unit)),
     });
   }
 
@@ -550,6 +565,7 @@ export function compile(project: ModProject): CompiledProject {
       reason:
         "Replayed over the list the game ships, so a unit it adds to this builder later is still there.",
       lua: menuBlock(builder, ops),
+      unit: builder,
     });
   }
 
@@ -560,6 +576,7 @@ export function compile(project: ModProject): CompiledProject {
       title: `${edits.disabled.length} unit${plural(edits.disabled.length)} switched off`,
       reason: "It reads every builder in the game before it writes to any of them.",
       lua: disabledBlock(edits.disabled),
+      unit: singletonUnit(edits.disabled),
     });
   }
 

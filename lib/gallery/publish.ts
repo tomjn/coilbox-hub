@@ -9,6 +9,7 @@ import {
   identify,
   makeContainer,
   MAX_CONTAINER_BYTES,
+  moduleGeometryRefusal,
 } from "@/lib/container";
 import { ITEM_SUMMARY_COLUMNS, type ItemSummary } from "@/lib/gallery/query";
 
@@ -222,6 +223,15 @@ export function accept(input: string): AcceptResult {
       ok: false,
       reason: "This is too large to share. Coilbox would refuse to import it.",
     };
+  }
+
+  // Geometry lifted from a game never goes on the hub (#507), whatever game
+  // the module is tagged to. The app runs the same check before it sends, but
+  // anyone can post a hand made code, so the hub runs it too. The database
+  // repeats it as a check on public.item for a write that skips this path.
+  if (result.kind === "module") {
+    const refusal = moduleGeometryRefusal(container.payload);
+    if (refusal !== null) return { ok: false, reason: refusal };
   }
 
   return {

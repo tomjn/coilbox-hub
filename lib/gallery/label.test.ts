@@ -11,13 +11,13 @@ import { kindLabelPlural, kindsPlural, kindsSingular } from "./label";
 
 test("the kinds read as a sentence, in the plural", () => {
   expect(kindsPlural()).toBe(
-    "Presets, challenges, setup packs, scenarios, blueprints and projects",
+    "Presets, challenges, setup packs, scenarios, blueprints, projects and modules",
   );
 });
 
 test("the kinds read as a sentence in the singular, for sharing one thing", () => {
   expect(kindsSingular()).toBe(
-    "preset, challenge, setup pack, scenario, blueprint or project",
+    "preset, challenge, setup pack, scenario, blueprint, project or module",
   );
 });
 

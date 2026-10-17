@@ -16,6 +16,7 @@ const KIND: Record<string, string> = {
   scenario: "Scenario",
   blueprint: "Blueprint",
   "mod-project": "Project",
+  module: "Module",
 };
 
 const MODE: Record<string, string> = {
@@ -35,6 +36,7 @@ const KIND_PLURAL: Record<string, string> = {
   scenario: "Scenarios",
   blueprint: "Blueprints",
   "mod-project": "Projects",
+  module: "Modules",
 };
 
 /** The plural, for a filter chip. */
