@@ -8,6 +8,8 @@ import {
   type ReleaseUnit,
 } from "./changes";
 
+const FULL = { from: true, to: true };
+
 function unit(name: string, over: Partial<ReleaseUnit> = {}): ReleaseUnit {
   return {
     unit_name: name,
@@ -20,7 +22,7 @@ function unit(name: string, over: Partial<ReleaseUnit> = {}): ReleaseUnit {
 }
 
 test("a unit only the newer release holds is added", () => {
-  const changes = diffReleases([unit("a")], [unit("a"), unit("b")]);
+  const changes = diffReleases([unit("a")], [unit("a"), unit("b")], FULL);
   expect(changes.added.map((u) => u.unit_name)).toEqual(["b"]);
   expect(changes.removed).toEqual([]);
   expect(changes.changed).toEqual([]);
@@ -28,23 +30,55 @@ test("a unit only the newer release holds is added", () => {
 });
 
 test("a unit only the older release holds is removed", () => {
-  const changes = diffReleases([unit("a"), unit("b")], [unit("a")]);
+  const changes = diffReleases([unit("a"), unit("b")], [unit("a")], FULL);
   expect(changes.removed.map((u) => u.unit_name)).toEqual(["b"]);
   expect(changes.added).toEqual([]);
+});
+
+test("removed units are not listed when the newer release is not known to be complete", () => {
+  // The newer release may simply not have been told about "b".
+  const changes = diffReleases([unit("a"), unit("b")], [unit("a")], { from: true, to: false });
+  expect(changes.removed).toEqual([]);
+  expect(changes.removedKnown).toBe(false);
+  expect(changes.addedKnown).toBe(true);
+});
+
+test("added units are not listed when the older release is not known to be complete", () => {
+  // The older release may simply not have been told about "b".
+  const changes = diffReleases([unit("a")], [unit("a"), unit("b")], { from: false, to: true });
+  expect(changes.added).toEqual([]);
+  expect(changes.addedKnown).toBe(false);
+  expect(changes.removedKnown).toBe(true);
+});
+
+test("changed and unchanged counts do not depend on completeness", () => {
+  const changes = diffReleases(
+    [unit("a"), unit("b", { full_name: "Old" })],
+    [unit("a"), unit("b", { full_name: "New" })],
+    { from: false, to: false },
+  );
+  expect(changes.changed.map((u) => u.unit_name)).toEqual(["b"]);
+  expect(changes.unchanged).toBe(1);
+});
+
+test("both lists are known when both releases are complete", () => {
+  const changes = diffReleases([unit("a")], [unit("b")], FULL);
+  expect(changes.addedKnown).toBe(true);
+  expect(changes.removedKnown).toBe(true);
 });
 
 test("a unit neither release holds is nowhere in the answer", () => {
   // A revision is the only evidence a release held a unit, and `removed_at` is
   // today's state and not a release's. Retired later or not, a unit with no
   // revision in either release did not change between them.
-  const changes = diffReleases([unit("a")], [unit("a")]);
+  const changes = diffReleases([unit("a")], [unit("a")], FULL);
   expect(changes.added).toEqual([]);
   expect(changes.removed).toEqual([]);
   expect(changes.unchanged).toBe(1);
 });
 
 test("a unit with the same facts in both releases is unchanged", () => {
-  const changes = diffReleases([unit("a")], [unit("a")]);
+  const changes = diffReleases([unit("a")], [unit("a")], FULL);
   expect(changes.changed).toEqual([]);
   expect(changes.unchanged).toBe(1);
 });
@@ -53,6 +87,7 @@ test("a changed stat is listed with both values and its label", () => {
   const changes = diffReleases(
     [unit("a", { stats: { health: 100, metalCost: 50 } })],
     [unit("a", { stats: { health: 120, metalCost: 50 } })],
+    FULL,
   );
   expect(changes.changed).toHaveLength(1);
   expect(changes.changed[0].stats).toEqual([{ key: "health", label: "Health", from: "100", to: "120" }]);
@@ -62,37 +97,39 @@ test("a stat only one release carries reads as a dash on the other side", () => 
   const changes = diffReleases(
     [unit("a", { stats: { health: 100 } })],
     [unit("a", { stats: { health: 100, buildTime: 30 } })],
+    FULL,
   );
   expect(changes.changed[0].stats).toEqual([{ key: "buildTime", label: "Build time", from: "-", to: "30" }]);
 
   const dropped = diffReleases(
     [unit("a", { stats: { health: 100, buildTime: 30 } })],
     [unit("a", { stats: { health: 100 } })],
+    FULL,
   );
   expect(dropped.changed[0].stats).toEqual([{ key: "buildTime", label: "Build time", from: "30", to: "-" }]);
 });
 
 test("a stat that is null on one side and absent on the other is not a change", () => {
-  const changes = diffReleases([unit("a", { stats: { health: 1, x: null } })], [unit("a", { stats: { health: 1 } })]);
+  const changes = diffReleases([unit("a", { stats: { health: 1, x: null } })], [unit("a", { stats: { health: 1 } })], FULL);
   expect(changes.changed).toEqual([]);
 });
 
 test("a number and the same number as a string read the same, as the compare page reads them", () => {
-  const changes = diffReleases([unit("a", { stats: { health: 100 } })], [unit("a", { stats: { health: "100" } })]);
+  const changes = diffReleases([unit("a", { stats: { health: 100 } })], [unit("a", { stats: { health: "100" } })], FULL);
   expect(changes.changed).toEqual([]);
 });
 
 test("a number and a different string is a change", () => {
-  const changes = diffReleases([unit("a", { stats: { health: 100 } })], [unit("a", { stats: { health: "high" } })]);
+  const changes = diffReleases([unit("a", { stats: { health: 100 } })], [unit("a", { stats: { health: "high" } })], FULL);
   expect(changes.changed[0].stats).toEqual([{ key: "health", label: "Health", from: "100", to: "high" }]);
 });
 
 test("nested and array stats differ by their printed value", () => {
   const weapons = (damage: number) => [{ range: 300, damage }];
-  const same = diffReleases([unit("a", { stats: { weapons: weapons(10) } })], [unit("a", { stats: { weapons: weapons(10) } })]);
+  const same = diffReleases([unit("a", { stats: { weapons: weapons(10) } })], [unit("a", { stats: { weapons: weapons(10) } })], FULL);
   expect(same.changed).toEqual([]);
 
-  const changes = diffReleases([unit("a", { stats: { weapons: weapons(10) } })], [unit("a", { stats: { weapons: weapons(12) } })]);
+  const changes = diffReleases([unit("a", { stats: { weapons: weapons(10) } })], [unit("a", { stats: { weapons: weapons(12) } })], FULL);
   expect(changes.changed[0].stats).toEqual([
     { key: "weapons", label: "weapons", from: '[{"range":300,"damage":10}]', to: '[{"range":300,"damage":12}]' },
   ]);
@@ -102,6 +139,7 @@ test("stats read in the compare page's order, known keys first", () => {
   const changes = diffReleases(
     [unit("a", { stats: { zeta: 1, metalCost: 1, health: 1 } })],
     [unit("a", { stats: { zeta: 2, metalCost: 2, health: 2 } })],
+    FULL,
   );
   expect(changes.changed[0].stats.map((s) => s.key)).toEqual(["health", "metalCost", "zeta"]);
 });
@@ -110,6 +148,7 @@ test("build options gained and lost are listed, lower cased and sorted", () => {
   const changes = diffReleases(
     [unit("a", { build_options: ["Armmex", "armsolar"] })],
     [unit("a", { build_options: ["armsolar", "armwin", "ARMLAB"] })],
+    FULL,
   );
   expect(changes.changed[0].builds).toEqual({ gained: ["armlab", "armwin"], lost: ["armmex"] });
 });
@@ -120,12 +159,13 @@ test("build options in another order are not a change", () => {
   const changes = diffReleases(
     [unit("a", { build_options: ["x", "y"] })],
     [unit("a", { build_options: ["y", "x", "x"] })],
+    FULL,
   );
   expect(changes.changed).toEqual([]);
 });
 
 test("a rename on its own is a change", () => {
-  const changes = diffReleases([unit("a", { full_name: "Old" })], [unit("a", { full_name: "New" })]);
+  const changes = diffReleases([unit("a", { full_name: "Old" })], [unit("a", { full_name: "New" })], FULL);
   expect(changes.changed).toHaveLength(1);
   expect(changes.changed[0].renamed).toEqual({ from: "Old", to: "New" });
   expect(changes.changed[0].full_name).toBe("New");
@@ -133,21 +173,28 @@ test("a rename on its own is a change", () => {
 });
 
 test("a unit moving to another faction is a change", () => {
-  const changes = diffReleases([unit("a", { faction_key: "arm" })], [unit("a", { faction_key: "cor" })]);
+  const changes = diffReleases([unit("a", { faction_key: "arm" })], [unit("a", { faction_key: "cor" })], FULL);
   expect(changes.changed[0].faction).toEqual({ from: "arm", to: "cor" });
   expect(changes.changed[0].faction_key).toBe("cor");
 });
 
 test("the same release on both sides changes nothing", () => {
   const units = [unit("a"), unit("b")];
-  const changes = diffReleases(units, units);
-  expect(changes).toEqual({ added: [], removed: [], changed: [], unchanged: 2 });
+  const changes = diffReleases(units, units, FULL);
+  expect(changes).toEqual({
+    added: [],
+    removed: [],
+    addedKnown: true,
+    removedKnown: true,
+    changed: [],
+    unchanged: 2,
+  });
 });
 
 test("a unit held by an intermediate release only is nowhere in a pair that skips it", () => {
   // Release 2 held `mid` and releases 1 and 3 did not. Comparing 1 with 3 must
   // not invent it: only revisions in the two releases asked for count.
-  const changes = diffReleases([unit("a")], [unit("a")]);
+  const changes = diffReleases([unit("a")], [unit("a")], FULL);
   expect(changes.added.map((u) => u.unit_name)).not.toContain("mid");
 });
 
@@ -155,6 +202,7 @@ test("an added unit keeps its name and faction, a removed one its older ones", (
   const changes = diffReleases(
     [unit("gone", { full_name: "Gone", faction_key: "cor" })],
     [unit("new", { full_name: "New", faction_key: "arm" })],
+    FULL,
   );
   expect(changes.added).toEqual([{ unit_name: "new", full_name: "New", faction_key: "arm" }]);
   expect(changes.removed).toEqual([{ unit_name: "gone", full_name: "Gone", faction_key: "cor" }]);
@@ -212,7 +260,7 @@ test("resolveReleasePair has no pair for fewer than two releases", () => {
 });
 
 /** A client whose revisions come back a window at a time, counting the reads. */
-function fakeRevisions(rows: unknown[]) {
+function fakeRevisions(rows: unknown[], versions: unknown[] = []) {
   const calls: { table: string; filters: [string, unknown][] }[] = [];
   const client = {
     from(table: string) {
@@ -225,6 +273,8 @@ function fakeRevisions(rows: unknown[]) {
         order: () => builder,
         range: (from: number, to: number) =>
           Promise.resolve({ data: rows.slice(from, to + 1), error: null }),
+        then: (resolve: (value: unknown) => unknown) =>
+          Promise.resolve({ data: versions, error: null }).then(resolve),
       };
       return builder;
     },
@@ -245,19 +295,64 @@ function revision(name: string, version: string, over: Record<string, unknown> =
 }
 
 test("loadReleaseChanges reads both releases with one paged query and splits the rows by release", async () => {
-  const { client, calls } = fakeRevisions([
-    revision("kept", "1"),
-    revision("kept", "2", { stats: { health: 2 } }),
-    revision("gone", "1"),
-    revision("fresh", "2"),
-  ]);
+  const { client, calls } = fakeRevisions(
+    [
+      revision("kept", "1"),
+      revision("kept", "2", { stats: { health: 2 } }),
+      revision("gone", "1"),
+      revision("fresh", "2"),
+    ],
+    [
+      { version: "1", reported_in_full: true },
+      { version: "2", reported_in_full: true },
+    ],
+  );
   const changes = await loadReleaseChanges(client, "game", "1", "2");
-  // One window of rows and the empty window `readAll` stops on, never a read per unit.
-  expect(calls).toHaveLength(2);
-  expect(calls.every((call) => call.table === "game_unit_revision")).toBe(true);
+  // One window of rows and the empty window `readAll` stops on, never a read per
+  // unit, plus one read of the two releases' completeness.
+  const revisionReads = calls.filter((call) => call.table === "game_unit_revision");
+  expect(revisionReads).toHaveLength(2);
+  expect(calls.filter((call) => call.table === "game_version")).toHaveLength(1);
   expect(changes?.added.map((u) => u.unit_name)).toEqual(["fresh"]);
   expect(changes?.removed.map((u) => u.unit_name)).toEqual(["gone"]);
   expect(changes?.changed.map((u) => u.unit_name)).toEqual(["kept"]);
+});
+
+test("loadReleaseChanges reads a release as not complete when the hub holds no word that it is", async () => {
+  const { client } = fakeRevisions(
+    [revision("gone", "1"), revision("fresh", "2")],
+    [
+      { version: "1", reported_in_full: true },
+      { version: "2", reported_in_full: false },
+    ],
+  );
+  const changes = await loadReleaseChanges(client, "game", "1", "2");
+  expect(changes?.removed).toEqual([]);
+  expect(changes?.removedKnown).toBe(false);
+  expect(changes?.added.map((u) => u.unit_name)).toEqual(["fresh"]);
+  expect(changes?.addedKnown).toBe(true);
+});
+
+test("loadReleaseChanges is null when the read of completeness fails", async () => {
+  const failing = {
+    from: (table: string) => {
+      const builder = {
+        select: () => builder,
+        eq: () => builder,
+        in: () => builder,
+        order: () => builder,
+        range: () => Promise.resolve({ data: [], error: null }),
+        then: (resolve: (value: unknown) => unknown) =>
+          Promise.resolve(
+            table === "game_version"
+              ? { data: null, error: { message: "boom" } }
+              : { data: [], error: null },
+          ).then(resolve),
+      };
+      return builder;
+    },
+  } as unknown as SupabaseClient;
+  expect(await loadReleaseChanges(failing, "game", "1", "2")).toBeNull();
 });
 
 test("loadReleaseChanges is null when the read fails", async () => {
