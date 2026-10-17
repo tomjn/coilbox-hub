@@ -112,7 +112,15 @@ set -a; . ./.env.development.local; set +a; bun run build
 
 Vercel deploys `main`. `vercel.json` enables deployments for that branch and sets `github.silent`. The rest of the Vercel project, including its environment variables, is not in this repository.
 
-Migrations live in `supabase/migrations` and are applied to the hosted project by hand with `supabase db push --linked`. Merging a migration does not apply it. Deploys do not run it. Two open issues track this: [#211](https://github.com/tomjn/coilbox-hub/issues/211) and [#416](https://github.com/tomjn/coilbox-hub/issues/416).
+Migrations live in `supabase/migrations`. A push to `main` runs the `migrate` job in `.github/workflows/ci.yml` once the `check` and `database` jobs pass. It links the hosted project, prints `supabase db push --dry-run` to the log and the job summary, then runs `supabase db push`. Vercel deploys on its own, so the job cannot hold the deploy back. A migration must work against the code that is already live as well as the code arriving. Renaming or removing a column takes two deploys.
+
+The job runs in a GitHub environment named `production`. Add required reviewers to that environment in the repository settings to approve each run before it writes. It needs three secrets, set on the repository or on that environment:
+
+- `SUPABASE_ACCESS_TOKEN` is a Supabase personal access token.
+- `SUPABASE_DB_PASSWORD` is the production database password.
+- `SUPABASE_PROJECT_REF` is the project ref of the hosted project.
+
+If any are missing, the job logs a warning, lists the missing names in its summary, applies nothing and passes. You can still apply migrations by hand with `supabase db push --linked`.
 
 ## Next.js in this repository
 
