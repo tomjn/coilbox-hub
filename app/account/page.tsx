@@ -26,9 +26,7 @@ export default async function Account() {
     .eq("author_id", user.id);
 
   const published = count ?? 0;
-  // The same name publishing writes to author_name, so the gallery link below
-  // matches the rows it is meant to find. The delete form asks for it too, so a
-  // page without it cannot be drawn.
+  // The delete form asks for the name, so a page without it cannot be drawn.
   const name = await currentDisplayName();
   if (!name) throw new Error("Could not read your display name. Reload the page to try again.");
 
@@ -48,7 +46,7 @@ export default async function Account() {
 
         <div className="flex flex-col gap-3">
           <Link
-            href={`/gallery?author=${encodeURIComponent(name)}`}
+            href={`/gallery?account=${user.id}`}
             className="text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
           >
             Everything you have published

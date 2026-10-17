@@ -9,7 +9,7 @@ import { cardCountsFromEntries } from "@/lib/gallery/cardCounts";
 import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
 import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
 import { cardTitles } from "@/lib/gallery/cardTitles";
-import { galleryFacets, galleryPage } from "@/lib/gallery/cached";
+import { accountDisplayName, galleryFacets, galleryPage } from "@/lib/gallery/cached";
 import { GALLERY_KINDS } from "@/lib/container";
 import { kindLabelPlural, kindsPlural } from "@/lib/gallery/label";
 import { filterHref, PAGE_SIZE, parseFilters } from "@/lib/gallery/query";
@@ -43,7 +43,19 @@ export default async function Gallery({
   const [
     { items, count, error, pictures: entries, shapes: shapeEntries, counts: countEntries },
     { games, maps },
-  ] = await Promise.all([galleryPage(filters), galleryFacets()]);
+    accountNames,
+  ] = await Promise.all([
+    galleryPage(filters),
+    galleryFacets(),
+    Promise.all(filters.account.map((id) => accountDisplayName(id))),
+  ]);
+  // Current names, so the heading is right after a rename while the cards keep
+  // the name they were published under. An account with no profile row reads
+  // as "Unknown account" rather than showing its id.
+  const accounts = filters.account.map((id, i) => ({
+    id,
+    name: accountNames[i] ?? "Unknown account",
+  }));
   const pictures = cardPicturesFromEntries(entries);
   const shapes = cardShapesFromEntries(shapeEntries);
   const counts = cardCountsFromEntries(countEntries);
@@ -58,7 +70,9 @@ export default async function Gallery({
       <SearchShortcut inputId="gallery-q" />
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Gallery</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {accounts.length === 1 ? `Gallery by ${accounts[0].name}` : "Gallery"}
+          </h1>
           <p className="text-neutral-400">
             Made by other players. Importing needs no account.
           </p>
@@ -75,6 +89,9 @@ export default async function Gallery({
           ))}
           {filters.author.map((author) => (
             <input key={author} type="hidden" name="author" value={author} />
+          ))}
+          {filters.account.map((account) => (
+            <input key={account} type="hidden" name="account" value={account} />
           ))}
           <input
             id="gallery-q"
@@ -157,8 +174,19 @@ export default async function Gallery({
             </FilterRow>
           ) : null}
 
-          {filters.author.length > 0 ? (
+          {filters.author.length > 0 || accounts.length > 0 ? (
             <FilterRow label="By">
+              {accounts.map(({ id, name }) => (
+                <Chip
+                  key={id}
+                  href={filterHref(filters, {
+                    account: filters.account.filter((a) => a !== id),
+                  })}
+                  active
+                >
+                  {name}
+                </Chip>
+              ))}
               {filters.author.map((author) => (
                 <Chip
                   key={author}
@@ -186,6 +214,7 @@ export default async function Gallery({
                 filters.map ||
                 filters.tag.length ||
                 filters.author.length ||
+                filters.account.length ||
                 filters.q,
             )}
           />

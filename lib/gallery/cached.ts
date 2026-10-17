@@ -1,4 +1,5 @@
 import { cacheLife, cacheTag } from "next/cache";
+import { fetchDisplayName } from "@/lib/author";
 import { TAGS } from "@/lib/cache/tags";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { getSupabaseConfig } from "@/lib/supabase/config";
@@ -186,6 +187,22 @@ export async function galleryPage(filters: Filters): Promise<GalleryPage> {
     shapes: [...shapes],
     counts: [...counts],
   };
+}
+
+/**
+ * An account's current display name, for the heading of a gallery filtered to
+ * it. Read from `public.profile`, not from the items, so it stays right after a
+ * rename while the cards below it keep the name they were published under.
+ * Null when the account has no profile row. Renaming calls `updateTag(items)`,
+ * so this refreshes with the listing.
+ */
+export async function accountDisplayName(userId: string): Promise<string | null> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.items);
+
+  if (notConfigured()) return null;
+  return fetchDisplayName(createAnonClient(), userId);
 }
 
 export interface GalleryFacets {

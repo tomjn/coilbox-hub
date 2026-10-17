@@ -209,6 +209,40 @@ test("clearing everything is a bare path", () => {
   expect(filterHref(current, { kind: [], game: null })).toBe("/gallery");
 });
 
+const ADA = "11111111-1111-1111-1111-111111111111";
+const BOB = "22222222-2222-2222-2222-222222222222";
+
+test("account takes account ids, a union when repeated, and drops anything else", () => {
+  expect(parseFilters({ account: ADA }).account).toEqual([ADA]);
+  expect(parseFilters({ account: [ADA, BOB, ADA] }).account).toEqual([ADA, BOB]);
+  // A value the database cannot read as a uuid would fail the whole query.
+  expect(parseFilters({ account: ["Alice", "", ADA.toUpperCase()] }).account).toEqual([ADA]);
+  expect(parseFilters({}).account).toEqual([]);
+});
+
+test("account filters on author_id, not on the author_name snapshot", () => {
+  const { query, calls } = recordingQuery();
+  applyFilters(query, parseFilters({ account: ADA }));
+
+  expect(calls).toContainEqual({ method: "in", column: "author_id", value: [ADA] });
+  expect(calls.some((c) => c.column === "author_name")).toBe(false);
+});
+
+test("the older author name filter still matches author_name", () => {
+  const { query, calls } = recordingQuery();
+  applyFilters(query, parseFilters({ author: "Alice" }));
+
+  expect(calls).toContainEqual({ method: "in", column: "author_name", value: ["Alice"] });
+  expect(calls.some((c) => c.column === "author_id")).toBe(false);
+});
+
+test("filterHref keeps and clears the account filter", () => {
+  const current = parseFilters({ account: ADA, kind: "preset" });
+
+  expect(filterHref(current, { page: 2 })).toBe(`/gallery?kind=preset&account=${ADA}&page=2`);
+  expect(filterHref(current, { account: [] })).toBe("/gallery?kind=preset");
+});
+
 /** A fake `.range()` call over an in-memory table, standing in for the
  * Supabase client so the paging logic can be exercised without a database. */
 function tablePage(rows: number[], from: number, to: number) {
