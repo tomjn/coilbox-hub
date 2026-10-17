@@ -312,16 +312,23 @@ async function Changes({ params, searchParams }: { params: Params; searchParams:
     <>
       <Notices notes={notices} />
       <p className="text-neutral-300">
-        From {from} to {to}: <Count count={changes.added.length} noun="added" />,{" "}
-        <Count count={changes.removed.length} noun="removed" />,{" "}
+        From {from} to {to}:{" "}
+        {changes.addedKnown ? <Count count={changes.added.length} noun="added" /> : "added not known"},{" "}
+        {changes.removedKnown ? <Count count={changes.removed.length} noun="removed" /> : "removed not known"},{" "}
         <Count count={changes.changed.length} noun="changed" />, {changes.unchanged} unchanged.
       </p>
 
       <section className="flex flex-col gap-3" aria-labelledby="changes-added">
         <h2 id="changes-added" className="text-sm uppercase tracking-wide text-neutral-400">
-          Added in {to} ({changes.added.length})
+          Added in {to}
+          {changes.addedKnown ? ` (${changes.added.length})` : ""}
         </h2>
-        {added.length === 0 ? (
+        {!changes.addedKnown ? (
+          <p className="text-sm text-neutral-400">
+            The hub does not know that {from} was reported in full, so a unit {to} holds and {from}{" "}
+            does not may only be missing from the report. Added units are not listed.
+          </p>
+        ) : added.length === 0 ? (
           <p className="text-sm text-neutral-400">No unit was added.</p>
         ) : (
           <Groups groups={added}>{(unit) => <UnitLink game={shortname} unit={unit} />}</Groups>
@@ -330,9 +337,15 @@ async function Changes({ params, searchParams }: { params: Params; searchParams:
 
       <section className="flex flex-col gap-3" aria-labelledby="changes-removed">
         <h2 id="changes-removed" className="text-sm uppercase tracking-wide text-neutral-400">
-          Removed in {to} ({changes.removed.length})
+          Removed in {to}
+          {changes.removedKnown ? ` (${changes.removed.length})` : ""}
         </h2>
-        {removed.length === 0 ? (
+        {!changes.removedKnown ? (
+          <p className="text-sm text-neutral-400">
+            The hub does not know that {to} was reported in full, so a unit {from} holds and {to}{" "}
+            does not may only be missing from the report. Removed units are not listed.
+          </p>
+        ) : removed.length === 0 ? (
           <p className="text-sm text-neutral-400">No unit was removed.</p>
         ) : (
           <Groups groups={removed}>{(unit) => <UnitLink game={shortname} unit={unit} />}</Groups>
@@ -363,7 +376,8 @@ async function Changes({ params, searchParams }: { params: Params; searchParams:
 
       <p className="text-sm text-neutral-400">
         A unit counts as added or removed when one release holds a record of it and the other does
-        not. A release the hub was only told part of can show units as removed that it still ships.
+        not. Added units are listed only when the older release was reported in full, and removed
+        units only when the newer one was.
       </p>
     </>
   );

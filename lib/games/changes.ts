@@ -23,7 +23,15 @@ import { formatStatValue, statLabel, statRows, statValueChanged } from "./stats"
  *
  * The weak spot is a partial submission, which names only some units and
  * retires none. A release reported that way holds revisions for only those
- * units, and this reads the rest as missing from it.
+ * units, and the rest would read as missing from it.
+ *
+ * `game_version.reported_in_full` closes that. It is true once a complete
+ * submission stored every unit it named, and false for every other release,
+ * including all that were reported before the column existed. A list that
+ * depends on a release's revisions being exhaustive is only given when that
+ * release is known to be complete: removed units need the newer release to be,
+ * added units need the older one to be. Changed and unchanged units need only
+ * that both releases hold a revision, so they do not depend on it.
  */
 
 /** One unit as a release stored it. */
@@ -61,8 +69,16 @@ export interface UnitChange extends UnitRef {
 }
 
 export interface ReleaseChanges {
+  /** Empty when `addedKnown` is false. */
   added: UnitRef[];
+  /** Empty when `removedKnown` is false. */
   removed: UnitRef[];
+  /** False when the older release is not known to be complete, so a unit it
+   *  has no revision of may only be unreported there. */
+  addedKnown: boolean;
+  /** False when the newer release is not known to be complete, so a unit it
+   *  has no revision of may only be unreported there. */
+  removedKnown: boolean;
   changed: UnitChange[];
   /** Units both releases hold with nothing different. */
   unchanged: number;
@@ -110,11 +126,21 @@ function diffUnit(from: ReleaseUnit, to: ReleaseUnit): UnitChange | null {
   return { ...ref(to), renamed, faction, stats, builds };
 }
 
+/** Whether the hub knows each release was reported in full. */
+export interface ReleaseCompleteness {
+  from: boolean;
+  to: boolean;
+}
+
 /**
  * The difference between two releases, each as the units its revisions hold.
  * Lists come back unsorted. Callers order them for display.
  */
-export function diffReleases(from: ReleaseUnit[], to: ReleaseUnit[]): ReleaseChanges {
+export function diffReleases(
+  from: ReleaseUnit[],
+  to: ReleaseUnit[],
+  complete: ReleaseCompleteness,
+): ReleaseChanges {
   const older = new Map(from.map((unit) => [unit.unit_name, unit]));
   const newer = new Map(to.map((unit) => [unit.unit_name, unit]));
 
@@ -133,7 +159,14 @@ export function diffReleases(from: ReleaseUnit[], to: ReleaseUnit[]): ReleaseCha
   }
 
   const removed = [...older.values()].filter((unit) => !newer.has(unit.unit_name)).map(ref);
-  return { added, removed, changed, unchanged };
+  return {
+    added: complete.from ? added : [],
+    removed: complete.to ? removed : [],
+    addedKnown: complete.from,
+    removedKnown: complete.to,
+    changed,
+    unchanged,
+  };
 }
 
 /** Units under one heading. */
@@ -271,5 +304,16 @@ export async function loadReleaseChanges(
         build_options: row.build_options ?? [],
         stats: row.stats ?? {},
       }));
-  return diffReleases(side(from), side(to));
+
+  const { data: versions, error } = await supabase
+    .from("game_version")
+    .select("version,reported_in_full,game!inner(shortname)")
+    .eq("game.shortname", shortname)
+    .in("version", [...new Set([from, to])]);
+  if (error || !versions) return null;
+  const reported = (version: string) =>
+    (versions as unknown as { version: string; reported_in_full: boolean }[]).some(
+      (row) => row.version === version && row.reported_in_full === true,
+    );
+  return diffReleases(side(from), side(to), { from: reported(from), to: reported(to) });
 }
