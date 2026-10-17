@@ -1,40 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Saying that two author keys are one person, and taking it back (issue #193).
+ * Saying that several author keys are one person, naming them, and taking a
+ * merge back (issues #193 and #442).
  *
- * `public.author_key` gets most of the way there on its own: it folds case,
- * strips a clan tag and collapses whitespace, so `[BAR]Beherith` and `beherith`
- * are already one key. What no rule applied to a string can know is that
- * `bherith` is a typo, that somebody changed handle, or that a joint credit
- * split into a person who does not exist. Those are a maintainer's judgement,
- * and `public.author_alias` is where the judgement is recorded.
+ * `public.author_key` gets some of the way on its own: it folds case, strips a
+ * clan tag and collapses whitespace, so `[BAR]Beherith` and `beherith` are
+ * already one key. What no rule applied to a string can know is that `bherith`
+ * is a typo, that `original from Beherith` is Beherith, or that somebody
+ * changed handle. Those are a maintainer's judgement, and `public.author_alias`
+ * is where the judgement is recorded.
  *
- * ## The list is ordered by map count
+ * ## Picked from a list
  *
- * Which is #193's own reasoning: a key with one map and a typo in it is worth
- * less attention than two keys with forty maps between them. So the page shows
- * the busiest keys and a moderator spots two that are obviously one person.
- * Everything below is still mergeable by typing both keys in, because a
- * moderator who already knows about a mapper should not have to page to them.
+ * The list is ordered by map count, which is #193's reasoning: two keys with
+ * forty maps between them are worth more attention than a typo with one. A
+ * search narrows it to the keys containing a name, which is how a moderator
+ * finds every `... Beherith ...` key, most of which have one map each. They
+ * tick the ones that are one person and merge them in one go.
  *
- * ## One hop, and this refuses to make a chain
+ * ## One hop
  *
- * `public.author_alias` resolves `from_key` to `to_key` and stops. The schema
- * says why: a chain is a loop waiting to happen, and a maintainer merging into
- * an alias rather than into a person is the mistake to notice rather than to
- * follow. Noticing it has to happen somewhere, and here is the only place a
- * chain can be created.
- *
- * So a merge is refused when either end of it would leave a chain, and refused
- * rather than quietly rewritten. Rewriting the target to wherever the existing
- * alias points would be following the mistake: the merge that gets recorded is
- * then not the one that was asked for, and the maintainer is never told that the
- * key they named is not a person. Both directions are checked, because either
- * one makes a chain. Merging into a key that is itself merged is the obvious
- * one. Merging away a key that other aliases already point at is the same thing
- * seen from the other end, and it is the one that arrives by accident weeks
- * later.
+ * `public.author_alias` resolves `from_key` to `to_key` and stops.
+ * `public.merge_author_keys` keeps that true: it refuses to merge into a key
+ * that is itself merged, and repoints aliases into a key it merges away.
+ * `20261018140000_author_merging.sql` says why.
  */
 
 /**
@@ -65,7 +55,7 @@ export interface AuthorCount {
 }
 
 /**
- * The busiest author keys first.
+ * The busiest author keys first, optionally only those containing a search.
  *
  * `public.author_map_count` is the grouped read, and the migration says why it
  * is a view: PostgREST cannot group, and counting in TypeScript would mean
@@ -77,16 +67,118 @@ export interface AuthorCount {
  */
 export async function fetchAuthorCounts(
   supabase: SupabaseClient,
+  search?: string,
   limit = AUTHOR_PAGE_SIZE,
 ): Promise<AuthorCount[]> {
-  const { data } = await supabase
-    .from("author_map_count")
-    .select("key, name, maps")
+  let query = supabase.from("author_map_count").select("key, name, maps");
+
+  const pattern = searchPattern(search);
+  if (pattern) query = query.ilike("key", pattern);
+
+  const { data } = await query
     .order("maps", { ascending: false })
     .order("key", { ascending: true })
     .limit(limit);
 
   return (data ?? []) as unknown as AuthorCount[];
+}
+
+/**
+ * An `ilike` pattern matching the search anywhere in a key, or null for no
+ * search.
+ *
+ * The three characters `like` treats as special are escaped, so `the_yak`
+ * matches `the_yak` and not `the-yak`.
+ */
+export function searchPattern(search: string | undefined): string | null {
+  const trimmed = (search ?? "").trim();
+  if (trimmed === "") return null;
+
+  return `%${trimmed.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+}
+
+/**
+ * The keys a moderator ticked, read out of the URL.
+ *
+ * Once each and in the order they came, so the merge form lists them the way
+ * the list did.
+ */
+export function selectedKeys(value: string | string[] | undefined): string[] {
+  const values = Array.isArray(value) ? value : value === undefined ? [] : [value];
+
+  return [...new Set(values.filter((key) => key.trim() !== ""))];
+}
+
+/**
+ * The authors behind the ticked keys, in the order they were ticked.
+ *
+ * One read per key rather than one `in` filter, because a key is free text out
+ * of an archive and a quote in one would break the filter expression. A key
+ * that is no longer an author of its own, because it was merged since the list
+ * was drawn, is left out.
+ */
+export async function fetchAuthors(
+  supabase: SupabaseClient,
+  keys: string[],
+): Promise<AuthorCount[]> {
+  const found = await Promise.all(
+    keys.map(async (key) => {
+      const { data } = await supabase
+        .from("author_map_count")
+        .select("key, name, maps")
+        .eq("key", key)
+        .maybeSingle();
+
+      return data as AuthorCount | null;
+    }),
+  );
+
+  return found.filter((author): author is AuthorCount => author !== null);
+}
+
+/** One spelling of an author, out of `public.author_spelling`. */
+export interface AuthorSpelling {
+  key: string;
+  raw: string;
+  credits: number;
+}
+
+/** Every spelling credited under the given keys, read one key at a time for
+ *  the reason {@link fetchAuthors} gives. */
+export async function fetchSpellings(
+  supabase: SupabaseClient,
+  keys: string[],
+): Promise<AuthorSpelling[]> {
+  const found = await Promise.all(
+    keys.map(async (key) => {
+      const { data } = await supabase
+        .from("author_spelling")
+        .select("key, raw, credits")
+        .eq("key", key);
+
+      return (data ?? []) as unknown as AuthorSpelling[];
+    }),
+  );
+
+  return found.flat();
+}
+
+/**
+ * The names the merge form offers, each spelling once, the most credited
+ * first.
+ *
+ * The same spelling can sit under two keys, so the credits are added up before
+ * ordering. The spelling breaks ties so the order is the same on every request.
+ */
+export function nameChoices(spellings: AuthorSpelling[]): string[] {
+  const credits = new Map<string, number>();
+  for (const spelling of spellings) {
+    credits.set(spelling.raw, (credits.get(spelling.raw) ?? 0) + spelling.credits);
+  }
+
+  return [...credits.entries()]
+    .sort(([a, aCredits], [b, bCredits]) => bCredits - aCredits || (a < b ? -1 : a > b ? 1 : 0))
+    .map(([raw]) => raw);
 }
 
 /** One recorded merge. */
@@ -128,6 +220,19 @@ export function markChains(rows: AliasRow[]): AuthorAlias[] {
   }));
 }
 
+/**
+ * Recorded merges grouped under the person they point at, so the page can list
+ * every key merged into one author together.
+ */
+export function aliasesByTarget(aliases: AuthorAlias[]): Map<string, AuthorAlias[]> {
+  const grouped = new Map<string, AuthorAlias[]>();
+  for (const alias of [...aliases].sort((a, b) => (a.toKey < b.toKey ? -1 : a.toKey > b.toKey ? 1 : 0))) {
+    grouped.set(alias.toKey, [...(grouped.get(alias.toKey) ?? []), alias]);
+  }
+
+  return grouped;
+}
+
 /** Every merge a maintainer has recorded, by the key that was merged away. */
 export async function fetchAuthorAliases(
   supabase: SupabaseClient,
@@ -143,84 +248,42 @@ export async function fetchAuthorAliases(
 }
 
 /**
- * The key a typed name folds to, as the database folds it.
- *
- * `public.author_key` and never a copy of it here.
- * `20260818110000_author_keys.sql` argues that at length, and names the failure
- * a second copy causes: an alias recorded under a key a hair different from the
- * stored one, matching nothing, with everything about the row looking correct.
- *
- * Only the fold, and deliberately not `public.resolved_author_key` after it. A
- * merge is about the key as it was written down, so resolving the key being
- * merged away would record an alias from whatever it already points at.
- */
-async function foldAuthorKey(supabase: SupabaseClient, typed: string): Promise<string> {
-  const { data } = await supabase.rpc("author_key", { credit: typed });
-
-  return typeof data === "string" ? data : "";
-}
-
-/**
  * What a merge came to.
  *
  * `chained` is its own answer rather than a refusal, because it is the one a
- * maintainer needs told: the key they aimed at is an alias, not a person, and
- * the merge they meant is into whoever that key points at.
+ * maintainer needs told: the key they kept is an alias, not a person.
  */
 export type MergeOutcome = "merged" | "chained" | "refused";
 
+const OUTCOMES: readonly MergeOutcome[] = ["merged", "chained", "refused"];
+
 /**
- * Record that two keys are one person.
+ * Merge every key in `keys` into `into`, and name the person if a name is
+ * given.
  *
- * An upsert on `from_key`, so pointing a key somewhere else is the same act as
- * merging it in the first place. The table is keyed on `from_key` alone, which
- * is the one hop rule as a primary key: a key can be merged into one person and
- * not into two.
- *
- * A key that folds to nothing is refused. `[BAR]` with no name behind it is a
- * group rather than a person, and an alias from or to an empty string would
- * match every credit that keyed to nothing, which is none of them, forever.
+ * One call to `public.merge_author_keys`, so the whole merge is one
+ * transaction and the one hop rule is kept in one place. The migration says
+ * what it refuses and why. The keys are passed as the list showed them and
+ * are not folded again, because `public.author_key` is not idempotent on every
+ * input.
  */
 export async function mergeAuthorKeys(
   supabase: SupabaseClient,
-  typedFrom: string,
-  typedTo: string,
+  into: string,
+  keys: string[],
+  name: string,
   note: string,
 ): Promise<MergeOutcome> {
-  const fromKey = await foldAuthorKey(supabase, typedFrom);
-  const toKey = await foldAuthorKey(supabase, typedTo);
+  const { data, error } = await supabase.rpc("merge_author_keys", {
+    p_into: into,
+    p_keys: keys,
+    p_name: name.trim() === "" ? null : name.trim(),
+    p_note: note.trim() === "" ? null : note.trim(),
+  });
 
-  if (fromKey === "" || toKey === "") return "refused";
-  // `author_alias_not_self_check` refuses this too. It is caught here so the
-  // answer is a refusal rather than a database error nobody sees.
-  if (fromKey === toKey) return "refused";
+  if (error) return "refused";
 
-  // Two reads rather than one filter holding both, because either half is enough
-  // to refuse and because a key typed by hand is not something to interpolate
-  // into a PostgREST filter expression.
-  const { data: targetMerged } = await supabase
-    .from("author_alias")
-    .select("from_key")
-    .eq("from_key", toKey)
-    .maybeSingle();
-
-  const { data: sourcePointedAt } = await supabase
-    .from("author_alias")
-    .select("from_key")
-    .eq("to_key", fromKey)
-    .limit(1)
-    .maybeSingle();
-
-  if (targetMerged || sourcePointedAt) return "chained";
-
-  const { error } = await supabase
-    .from("author_alias")
-    .upsert(
-      { from_key: fromKey, to_key: toKey, note: note.trim() === "" ? null : note.trim() },
-      { onConflict: "from_key" },
-    );
-
-  return error ? "refused" : "merged";
+  return OUTCOMES.includes(data as MergeOutcome) ? (data as MergeOutcome) : "refused";
 }
 
 /**

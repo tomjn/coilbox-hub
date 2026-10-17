@@ -8,8 +8,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Recording that two author keys are one person, and taking it back (issue
- * #193).
+ * Recording that several author keys are one person, and taking it back
+ * (issues #193 and #442).
  *
  * Both ask `is_moderator()` for themselves, because both are reachable as a
  * plain POST, and both write with the secret key for the reason
@@ -18,7 +18,7 @@ import { createClient } from "@/lib/supabase/server";
  * ## Why merging answers back and clearing does not
  *
  * A merge can be refused for a reason the moderator has to be told: the key they
- * aimed at is itself merged, so the merge they meant is into whoever that key
+ * kept is itself merged, so the merge they meant is into whoever that key
  * points at. There is no client JavaScript on this page and a server action
  * returns nothing to a form, so the answer rides back in the URL, the same way
  * `app/account/actions.ts` reports a deleted account.
@@ -36,19 +36,26 @@ async function isModerator(): Promise<boolean> {
 }
 
 /**
- * Point one author key at another.
+ * Merge the ticked keys into the one the moderator kept, and name the person.
  *
- * Both keys are folded by `public.author_key` before anything is written, so a
- * moderator typing `Beherith` records the same merge as one typing `beherith`.
- * `lib/maps/authorMerge.ts` holds that and the one hop rule.
+ * The name is the typed one if anything was typed, otherwise the spelling
+ * picked from the list. `public.merge_author_keys` holds the one hop rule.
+ *
+ * The search goes back in the URL so the moderator lands on the list they were
+ * working through. A merge that did not happen keeps the ticked keys too, so
+ * the form is still open with the answer above it.
  */
 export async function mergeAuthors(form: FormData): Promise<void> {
   if (!(await isModerator())) return;
 
+  const keys = form.getAll("key").map(String);
+  const typedName = String(form.get("typed_name") ?? "").trim();
+
   const outcome = await mergeAuthorKeys(
     createAdminClient(),
-    String(form.get("from") ?? ""),
-    String(form.get("to") ?? ""),
+    String(form.get("into") ?? ""),
+    keys,
+    typedName === "" ? String(form.get("name") ?? "") : typedName,
     // Capped where it is read rather than by the column, which allows 2000. A
     // note is a sentence saying why these are one person.
     String(form.get("note") ?? "").slice(0, 500),
@@ -58,7 +65,13 @@ export async function mergeAuthors(form: FormData): Promise<void> {
   // A merge changes the credits on every map that person made, so the whole
   // catalog and every map page go with it.
   updateTag(TAGS.maps);
-  redirect(`/moderation/authors?outcome=${outcome}`);
+
+  const next = new URLSearchParams({ outcome });
+  const search = String(form.get("q") ?? "").trim();
+  if (search !== "") next.set("q", search);
+  if (outcome !== "merged") for (const key of keys) next.append("merge", key);
+
+  redirect(`/moderation/authors?${next}`);
 }
 
 /**
