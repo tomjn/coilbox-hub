@@ -35,7 +35,7 @@ export interface PresetComposition {
 export function participantColorCss(color: PresetParticipant["color"]): string {
   const to = (v: number | undefined) =>
     Math.round(Math.min(1, Math.max(0, v ?? 0)) * 255);
-  const [r, g, b] = color ?? [];
+  const [r, g, b] = Array.isArray(color) ? color : [];
   return `rgb(${to(r)} ${to(g)} ${to(b)})`;
 }
 
