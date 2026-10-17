@@ -131,10 +131,12 @@ function load(catalog: Catalog) {
   return loadMapPage(supabase, supabase, SLUG);
 }
 
+const MAP_ID = "0f8fad5b-0294-4000-8000-000000000001";
+
 /** The whole catalog answering yes, which is the ordinary state. */
 function held(extra: Catalog = {}): Catalog {
   return {
-    map: [{ map_name: COMET, slug: SLUG }],
+    map: [{ id: MAP_ID, map_name: COMET, slug: SLUG }],
     facts: [{ map_name: COMET, facts: facts() }],
     asset_licence: [BLANKET as unknown as Row],
     ...extra,
@@ -166,6 +168,12 @@ test("a map denied in asset_licence has no page even though the hub holds the ro
 
 test("a licence read that fails withholds the page rather than publishing anyway", async () => {
   expect(await load(held({ licenceError: true }))).toBeNull();
+});
+
+test("the page carries the map's id, which is what a report names", async () => {
+  const page = await load(held());
+
+  expect(page?.mapId).toBe(MAP_ID);
 });
 
 test("a map with no licence row at all has no page", async () => {

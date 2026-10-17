@@ -5,6 +5,7 @@ import { cache } from "react";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { skirmish } from "@/components/art/drawings";
 import { MapFigure } from "@/components/MapFigure";
+import { MapReportButton } from "@/components/MapReportButton";
 import { MapMirrors } from "@/components/MapMirrors";
 import { MapPreview } from "@/components/MapPreview";
 import { MapPlayedOn } from "@/components/MapPlayedOn";
@@ -92,7 +93,7 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
   const page = await load(slug);
   if (!page) notFound();
 
-  const { mapName, facts, picture, preview, played, mirrors } = page;
+  const { mapId, mapName, facts, picture, preview, played, mirrors } = page;
   const origin = importOrigin();
   const title = mapTitle(facts.display_name, mapName);
   const players = playerCountLabel(facts.points.start.length);
@@ -194,6 +195,8 @@ export default async function Map({ params }: { params: Promise<{ slug: string }
           <MapMirrors links={mirrors} />
 
           <MapPlayedOn mapName={mapName} items={played} picture={picture} origin={origin} />
+
+          <MapReportButton mapId={mapId} />
         </div>
       </div>
     </main>
