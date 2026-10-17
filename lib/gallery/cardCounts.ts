@@ -22,13 +22,13 @@ import type { ItemSummary } from "./query";
  * so one query serves a page mixing every kind and a preset or a blueprint on
  * it pays a handful of bytes of nulls rather than its own container.
  *
- * What this does not avoid is the byte cost of a clone's own definition: a
- * clone's whole unit table travels here even though only its `source` field
- * is read, because PostgREST can narrow a jsonb path but cannot reduce an
- * object to a key count without a database function, and adding one was
- * judged out of scope for this card (see the issue's own PR). A project
- * whose clones carry large definitions costs more here than the other four
- * stores do, and is worth a follow-up if it turns out to matter.
+ * The clone count is the exception to the paths above. A clone's whole unit
+ * table is large and only the number of clones is read, so the database counts
+ * them: `public.clone_count(item)` (migration `20261017150000`) is a computed
+ * column, and PostgREST serves it by name in the select. A function rather
+ * than a generated column, because a stored one would rewrite every row of
+ * `public.item` and a generated expression cannot hold the subquery that does
+ * the counting (issue #415).
  */
 
 /** A page's worth of counts, keyed on the item id, as it crosses a `"use
@@ -45,7 +45,7 @@ export function cardCountsFromEntries(
 const CARD_COUNT_COLUMNS =
   "id," +
   "overrides:container->payload->edits->overrides," +
-  "clones:container->payload->edits->clones," +
+  "clone_count," +
   "menus:container->payload->edits->menus," +
   "text:container->payload->edits->text," +
   "disabled:container->payload->edits->disabled";
@@ -54,10 +54,10 @@ const CARD_COUNT_COLUMNS =
 interface CardCountRow {
   id: string;
   overrides: unknown;
-  clones: unknown;
   menus: unknown;
   text: unknown;
   disabled: unknown;
+  clone_count: number | null;
 }
 
 /** The counts for every mod-project item on the page. `supabase` is the same
@@ -81,7 +81,10 @@ export async function cardCounts(
 
   const counts = new Map<string, ModProjectCounts>();
   for (const row of (data ?? []) as unknown as CardCountRow[]) {
-    counts.set(row.id, editCountsFromParsed(parseProjectEdits(row)));
+    counts.set(row.id, {
+      ...editCountsFromParsed(parseProjectEdits(row)),
+      clones: row.clone_count ?? 0,
+    });
   }
   return counts;
 }

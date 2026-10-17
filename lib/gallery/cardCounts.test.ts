@@ -7,20 +7,26 @@ import { cardCounts } from "./cardCounts";
 interface Row {
   id: string;
   overrides: unknown;
-  clones: unknown;
   menus: unknown;
   text: unknown;
   disabled: unknown;
+  /** `public.clone_count(item)`, already counted in the database. */
+  clone_count: number | null;
 }
 
-const empty = { overrides: null, clones: null, menus: null, text: null, disabled: null };
+const empty = { overrides: null, menus: null, text: null, disabled: null, clone_count: 0 };
 
 /** Answers from a list of rows and records every set of ids it was asked
  *  for, the same shape `lib/gallery/cardShapes.test.ts` fakes with. */
-function fakeSupabase(rows: Row[], asked: string[][] = []): SupabaseClient {
+function fakeSupabase(
+  rows: Row[],
+  asked: string[][] = [],
+  selected: string[] = [],
+): SupabaseClient {
   const from = () => ({
-    select: () => ({
+    select: (columns: string) => ({
       in(_column: string, ids: readonly string[]) {
+        selected.push(columns);
         asked.push([...ids]);
         return Promise.resolve({
           data: rows.filter((row) => ids.includes(row.id)),
@@ -37,7 +43,15 @@ test("a whole page costs one query, naming only the mod-project rows", async () 
   const asked: string[][] = [];
   const counts = await cardCounts(
     fakeSupabase(
-      [{ id: "a", ...empty, overrides: { armsolar: { maxdamage: 1 } }, disabled: ["armmex"] }],
+      [
+        {
+          id: "a",
+          ...empty,
+          overrides: { armsolar: { maxdamage: 1 } },
+          disabled: ["armmex"],
+          clone_count: 3,
+        },
+      ],
       asked,
     ),
     [
@@ -51,7 +65,7 @@ test("a whole page costs one query, naming only the mod-project rows", async () 
   expect(counts.get("a")).toEqual({
     unitsTouched: 1,
     fields: 1,
-    clones: 0,
+    clones: 3,
     menuOps: 0,
     disabled: 1,
   });
@@ -74,4 +88,21 @@ test("a row the query answered nothing for is absent, not a null entry", async (
 
   expect(counts.size).toBe(0);
   expect(counts.has("a")).toBe(false);
+});
+
+test("the clone count comes from the database and no clone definition is requested", async () => {
+  const selected: string[] = [];
+  await cardCounts(fakeSupabase([], [], selected), [{ id: "a", kind: "mod-project" }]);
+
+  expect(selected).toHaveLength(1);
+  expect(selected[0]).toContain("clone_count");
+  expect(selected[0]).not.toContain("edits->clones");
+});
+
+test("a row with a null clone count reads as no clones", async () => {
+  const counts = await cardCounts(fakeSupabase([{ id: "a", ...empty, clone_count: null }]), [
+    { id: "a", kind: "mod-project" },
+  ]);
+
+  expect(counts.get("a")?.clones).toBe(0);
 });
