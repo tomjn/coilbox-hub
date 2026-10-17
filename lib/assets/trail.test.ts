@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { ASSET_EVENT_ACTIONS } from "./asset";
-import { eventLine, type TrailEvent } from "./trail";
+import { eventLine, type TrailEvent, uploaderNameLine } from "./trail";
 
 function event(over: Partial<TrailEvent>): TrailEvent {
   return {
@@ -9,6 +9,7 @@ function event(over: Partial<TrailEvent>): TrailEvent {
     rejectionKind: null,
     actor: null,
     uploader: null,
+    uploaderName: null,
     at: "2026-08-14T09:00:00Z",
     assetId: "0f8fad5b-d9cb-469f-a165-70867728950e",
     name: "armsolar",
@@ -59,4 +60,46 @@ test("every action the database can record has something to say", () => {
     const kind = action === "rejected" ? "editorial" : null;
     expect(eventLine(event({ action, rejectionKind: kind }))).not.toBe("");
   }
+});
+
+/** #146. A safety rejection keeps who uploaded the picture, and the trail has to
+ * say so, and say when the account behind it has gone. */
+test("a safety rejection names the uploader by both names", () => {
+  const line = uploaderNameLine(
+    event({
+      action: "rejected",
+      rejectionKind: "safety",
+      uploaderName: { displayName: "Zyx Hub Name", providerName: "zyx_handle", accountClosed: false },
+    }),
+  );
+
+  expect(line).toContain("Zyx Hub Name");
+  expect(line).toContain("zyx_handle");
+  expect(line).not.toContain("closed");
+});
+
+test("the names say they were kept once the account has closed", () => {
+  const line = uploaderNameLine(
+    event({
+      action: "rejected",
+      rejectionKind: "safety",
+      uploaderName: { displayName: "Zyx Hub Name", providerName: null, accountClosed: true },
+    }),
+  );
+
+  expect(line).toContain("Zyx Hub Name");
+  expect(line).toContain("kept after the account closed");
+});
+
+test("an event with no names kept says nothing about them", () => {
+  expect(uploaderNameLine(event({ action: "rejected", rejectionKind: "editorial" }))).toBeNull();
+  expect(
+    uploaderNameLine(
+      event({
+        action: "rejected",
+        rejectionKind: "safety",
+        uploaderName: { displayName: null, providerName: null, accountClosed: true },
+      }),
+    ),
+  ).toBeNull();
 });
