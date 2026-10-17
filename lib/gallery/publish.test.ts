@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { encodeContainerCode, SUPPORTED_KIND_VERSIONS } from "@/lib/container";
+import {
+  encodeContainerCode,
+  encodeContainerJson,
+  MAX_CONTAINER_BYTES,
+  SUPPORTED_KIND_VERSIONS,
+} from "@/lib/container";
 import { accept, describe, publishItem } from "./publish";
 import type { ItemSummary } from "./query";
 
@@ -133,6 +138,48 @@ test("a pack carrying several maps claims none of them", () => {
   if (!result.ok) return;
   expect(result.accepted.gameName).toBe("SplinterFaction 0.1.78");
   expect(result.accepted.mapName).toBeNull();
+});
+
+// A pack that carries blueprints has no fixed size (tomjn/coilbox#1727), so
+// accept() has to refuse one the app would refuse to read back.
+function oversizedPack() {
+  const buildings = Array.from({ length: 12000 }, (_, i) => ({
+    def: "armsolar",
+    offset: { x: i * 16, z: i * 32 },
+    facing: 0,
+  }));
+  const payload = {
+    games: [{ name: "Beyond All Reason 1.2", shortname: "BAR" }],
+    blueprints: [{ name: "Huge", buildings, footprints: {} }],
+  };
+  const bytes = new TextEncoder().encode(
+    encodeContainerJson("setup-pack", SUPPORTED_KIND_VERSIONS["setup-pack"], payload),
+  ).byteLength;
+  expect(bytes).toBeGreaterThan(MAX_CONTAINER_BYTES);
+  return payload;
+}
+
+test("a setup pack too big to read back is refused as a compressed code", () => {
+  const code = encodeContainerCode(
+    "setup-pack",
+    SUPPORTED_KIND_VERSIONS["setup-pack"],
+    oversizedPack(),
+  );
+
+  expect(accept(code).ok).toBe(false);
+});
+
+test("a setup pack too big to read back is refused as pasted JSON", () => {
+  const json = encodeContainerJson(
+    "setup-pack",
+    SUPPORTED_KIND_VERSIONS["setup-pack"],
+    oversizedPack(),
+  );
+
+  const result = accept(json);
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.reason).toContain("too large");
 });
 
 test("a pack published as a collection of games is named for the first of them", () => {
