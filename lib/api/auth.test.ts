@@ -81,6 +81,61 @@ test("the body carries the map catalog digest, without a version bump", () => {
   }
 });
 
+/**
+ * The providers the desktop offers (#439). Discord is the only one enabled on
+ * the hosted project until #428 registers the others, and email and password
+ * sign in is off in supabase/config.toml.
+ */
+test("the body lists Discord as the only provider and email sign in as off", () => {
+  env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_example";
+
+  const result = buildAuthBody();
+
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(result.body.providers).toEqual(["discord"]);
+    expect(result.body.email_password).toBe(false);
+  }
+});
+
+/**
+ * Existing desktop builds refuse a document above version 1 and read only the
+ * fields they know, so every earlier field must survive and the new ones must
+ * sit beside them.
+ */
+test("the body keeps version 1 and every field it had before the provider fields", () => {
+  env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_example";
+
+  const result = buildAuthBody();
+
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(result.body.version).toBe(1);
+    expect(result.body).toMatchObject({
+      format: "coilbox-hub-auth",
+      version: 1,
+      supabase_url: "http://127.0.0.1:54321",
+      publishable_key: "sb_publishable_example",
+      asset_vocabulary: ASSET_VOCABULARY_DIGEST,
+      map_catalog: MAP_CATALOG_DIGEST,
+    });
+    expect(Object.keys(result.body).sort()).toEqual(
+      [
+        "asset_vocabulary",
+        "email_password",
+        "format",
+        "map_catalog",
+        "providers",
+        "publishable_key",
+        "supabase_url",
+        "version",
+      ].sort(),
+    );
+  }
+});
+
 test("a missing Supabase URL is not ok, rather than a body with an undefined field", () => {
   delete env.NEXT_PUBLIC_SUPABASE_URL;
   env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_example";

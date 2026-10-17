@@ -26,6 +26,7 @@ const ENDPOINTS = [
   { id: "games", label: "List games", path: "GET /api/v1/games" },
   { id: "map-packs", label: "List map packs", path: "GET /api/v1/map-packs" },
   { id: "auth", label: "Sign in configuration", path: "GET /api/v1/auth" },
+  { id: "profile", label: "Get the signed in account's name", path: "GET /api/v1/profile" },
   { id: "container", label: "Get an item's container", path: "GET /i/[id]" },
   { id: "export", label: "Export the gallery", path: "GET /export" },
   { id: "feed", label: "Atom feed", path: "GET /feed.xml" },
@@ -108,6 +109,8 @@ const AUTH_EXAMPLE: AuthBody = {
   publishable_key: "sb_publishable_PLACEHOLDER",
   asset_vocabulary: "sha256:4879f85b17a5cee05e71b04fbe44607ba2cfb957bef0b2ac7c3dd658519d8b4e",
   map_catalog: "sha256:f013ff255fef10683673599df2d513e53eab69dddc87c79622ae1d207f611b20",
+  providers: ["discord"],
+  email_password: false,
 };
 
 const json = (value: unknown) => JSON.stringify(value, null, 2);
@@ -470,6 +473,8 @@ export default function DevelopersPage() {
             { name: "publishable_key", type: "string", text: "The key for that project. It is public: the website sends the same key to every browser." },
             { name: "asset_vocabulary", type: "string", text: "A digest of the picture encoding rules the app must follow when it uploads." },
             { name: "map_catalog", type: "string", text: "A digest of the map fact catalog the app must describe maps by." },
+            { name: "providers", type: "string[], optional", text: "The sign in providers this hub offers, in the order to show them. Each is a Supabase provider id." },
+            { name: "email_password", type: "boolean, optional", text: "Whether email and password sign in is available." },
           ]}
         />
         <Sub>Example response</Sub>
@@ -481,6 +486,27 @@ export default function DevelopersPage() {
         <Errors
           rows={[
             { status: 503, body: '{"error":"This deployment has not configured Supabase sign-in."}', text: "The hub is missing its sign in settings." },
+          ]}
+        />
+      </Section>
+
+      <Section id="profile" title="Get the signed in account's name" path="GET /api/v1/profile">
+        <p className={prose}>
+          Returns the display name of the account that owns an access token. It takes no
+          parameters. Send the token as <Inline>Authorization: Bearer &lt;token&gt;</Inline>. The
+          answer is never cached.
+        </p>
+        <Code label="Example request">{`curl -H "Authorization: Bearer $TOKEN" ${origin}/api/v1/profile`}</Code>
+        <Sub>Response</Sub>
+        <Fields
+          items={[
+            { name: "display_name", type: "string or null", text: "The account's display name, or null if it has none." },
+          ]}
+        />
+        <Sub>Errors</Sub>
+        <Errors
+          rows={[
+            { status: 401, body: '{"error":"Send an access token as \\"Authorization: Bearer <token>\\"."}', text: "No token was sent, or the token is not valid." },
           ]}
         />
       </Section>
