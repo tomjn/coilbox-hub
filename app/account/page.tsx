@@ -6,6 +6,7 @@ import { games } from "@/components/art/drawings";
 import { createClient } from "@/lib/supabase/server";
 import { currentDisplayName, currentUser } from "@/lib/supabase/user";
 import { DeleteAccountForm } from "./DeleteAccountForm";
+import { RenameAccountForm } from "./RenameAccountForm";
 
 export const metadata: Metadata = {
   title: "Your account",
@@ -61,6 +62,11 @@ export default async function Account() {
               Sign out
             </button>
           </form>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5">
+          <h2 className="text-sm font-medium">Change your display name</h2>
+          <RenameAccountForm name={name} />
         </div>
 
         <div className="flex flex-col gap-3 rounded-md border border-red-950 bg-card p-5">

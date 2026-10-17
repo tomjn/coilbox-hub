@@ -4,6 +4,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { confirmsDeletion } from "@/lib/account/confirmDeletion";
+import { checkDisplayName, renameErrorMessage } from "@/lib/account/displayName";
 import { fetchDisplayName } from "@/lib/author";
 import { TAGS } from "@/lib/cache/tags";
 import { createClient } from "@/lib/supabase/server";
@@ -11,6 +12,52 @@ import { requireSupabaseConfig, requireSupabaseServiceRoleKey } from "@/lib/supa
 
 export interface DeleteState {
   error?: string;
+}
+
+export interface RenameState {
+  error?: string;
+  /** The name now held, set after a save so the form can say so. */
+  saved?: string;
+  /** What was typed, so a refused name is still in the box to edit. */
+  typed?: string;
+}
+
+/**
+ * Changes the signed in account's display name (issue #434).
+ *
+ * This uses the session client, not the service role one, so the profile
+ * table's own policy decides who may write which row. The row is picked by the
+ * session's id and never by the form. Items already published keep the
+ * `author_name` they were published under.
+ */
+export async function renameAccount(
+  _previous: RenameState,
+  form: FormData,
+): Promise<RenameState> {
+  const raw = form.get("displayName");
+  const typed = typeof raw === "string" ? raw : undefined;
+  const checked = checkDisplayName(raw);
+  if ("error" in checked) return { error: checked.error, typed };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/publish");
+
+  const { data, error } = await supabase
+    .from("profile")
+    .update({ display_name: checked.name })
+    .eq("user_id", user.id)
+    .select("display_name");
+  if (error) return { error: renameErrorMessage(error.code), typed };
+  // Row level security hides a row it refuses rather than failing, so no row
+  // back means nothing was written.
+  if (!data || data.length === 0) return { error: renameErrorMessage(undefined), typed };
+
+  // A loader that looks an account up by name reads the listing's tag.
+  updateTag(TAGS.items);
+  return { saved: checked.name };
 }
 
 /**
