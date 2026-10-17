@@ -154,6 +154,11 @@ export default async function Account() {
             those items stop working. It cannot be undone, and it is not the
             same as withdrawing something, which is reversible.
           </p>
+          <p className="text-sm text-neutral-400">
+            If a moderator rejected a picture you uploaded for safety reasons,
+            your display name and Discord username are kept with that record
+            after your account is deleted, so it still says who uploaded it.
+          </p>
           {published > 0 ? (
             <p className="text-sm text-neutral-400">
               {published} {published === 1 ? "item" : "items"} will go with

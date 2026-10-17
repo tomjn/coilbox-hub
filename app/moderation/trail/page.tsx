@@ -14,6 +14,7 @@ import {
   type TrailAsset,
   type TrailEvent,
   TRAIL_PAGE_SIZE,
+  uploaderNameLine,
 } from "@/lib/assets/trail";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -88,6 +89,8 @@ function PictureLink({ event }: { event: Pick<TrailEvent, "assetId" | "name" | "
 const ROW = "flex flex-col gap-1 rounded-md border border-neutral-800 bg-card p-4 text-sm";
 
 function EventRow({ event }: { event: TrailEvent }) {
+  const uploaderName = uploaderNameLine(event);
+
   return (
     <li className={ROW}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -109,6 +112,7 @@ function EventRow({ event }: { event: TrailEvent }) {
         )}
         {event.uploader ? <AccountLink id={event.uploader} label="uploaded by" /> : null}
       </p>
+      {uploaderName ? <p className="text-xs text-neutral-300">{uploaderName}</p> : null}
     </li>
   );
 }

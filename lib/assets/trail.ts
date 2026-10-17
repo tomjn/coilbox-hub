@@ -38,6 +38,8 @@ interface EventRow {
   rejection_kind: AssetRejectionKind | null;
   actor: string | null;
   uploader: string | null;
+  uploader_display_name: string | null;
+  uploader_provider_name: string | null;
   at: string;
   asset: {
     id: string;
@@ -50,7 +52,7 @@ interface EventRow {
 }
 
 const EVENT_COLUMNS =
-  "id, action, rejection_kind, actor, uploader, at, asset(id, game, unit_name, map_name, faction_key, variant)";
+  "id, action, rejection_kind, actor, uploader, uploader_display_name, uploader_provider_name, at, asset(id, game, unit_name, map_name, faction_key, variant)";
 
 export interface TrailEvent {
   id: number;
@@ -62,6 +64,10 @@ export interface TrailEvent {
    * write the upload route made with the secret key. */
   actor: string | null;
   uploader: string | null;
+  /** Who uploaded the picture by name, kept on a safety rejection and on
+   * nothing else (#146), so the record still says who it was once the account
+   * has closed. Null on every other event. */
+  uploaderName: UploaderName | null;
   at: string;
   assetId: string;
   /** What the picture is of, for a moderator reading down the list. */
@@ -69,7 +75,18 @@ export interface TrailEvent {
   detail: string;
 }
 
-function toEvent(row: EventRow): TrailEvent {
+export interface UploaderName {
+  /** The hub display name the account had when the picture was rejected. */
+  displayName: string | null;
+  /** The username the account signed in with, Discord's for every account
+   * today. */
+  providerName: string | null;
+  /** Whether the account has been deleted since, which is when these names are
+   * all that is left of it. */
+  accountClosed: boolean;
+}
+
+function toEvent(row: EventRow, open: Set<string>): TrailEvent {
   const caption = row.asset
     ? pictureCaption(row.asset)
     : { name: "A picture that is no longer there", detail: "" };
@@ -80,10 +97,44 @@ function toEvent(row: EventRow): TrailEvent {
     rejectionKind: row.rejection_kind,
     actor: row.actor,
     uploader: row.uploader,
+    uploaderName:
+      row.uploader_display_name === null && row.uploader_provider_name === null
+        ? null
+        : {
+            displayName: row.uploader_display_name,
+            providerName: row.uploader_provider_name,
+            accountClosed: !row.uploader || !open.has(row.uploader),
+          },
     at: row.at,
     assetId: row.asset?.id ?? "",
     ...caption,
   };
+}
+
+/**
+ * The events, with each kept name marked by whether its account still exists.
+ *
+ * Every account has a `public.profile` row from the moment it is made, and the
+ * row goes with the account, so a missing profile is a closed account. Only the
+ * uploaders of events that kept a name are asked about.
+ */
+async function toEvents(supabase: SupabaseClient, rows: EventRow[]): Promise<TrailEvent[]> {
+  const named = [
+    ...new Set(
+      rows
+        .filter((row) => row.uploader && (row.uploader_display_name || row.uploader_provider_name))
+        .map((row) => row.uploader as string),
+    ),
+  ];
+
+  const open = new Set<string>();
+  if (named.length > 0) {
+    const { data, error } = await supabase.from("profile").select("user_id").in("user_id", named);
+    if (error) throw new Error(`Could not check which uploaders still have accounts: ${error.message}`);
+    for (const profile of (data ?? []) as { user_id: string }[]) open.add(profile.user_id);
+  }
+
+  return rows.map((row) => toEvent(row, open));
 }
 
 /** Everything that has happened lately, newest first, which is the view a
@@ -98,7 +149,7 @@ export async function fetchRecentEvents(
     .order("at", { ascending: false })
     .limit(limit);
 
-  return ((data ?? []) as unknown as EventRow[]).map(toEvent);
+  return toEvents(supabase, (data ?? []) as unknown as EventRow[]);
 }
 
 /**
@@ -126,7 +177,7 @@ export async function fetchAccountEvents(
     .order("at", { ascending: false })
     .limit(limit);
 
-  return ((data ?? []) as unknown as EventRow[]).map(toEvent);
+  return toEvents(supabase, (data ?? []) as unknown as EventRow[]);
 }
 
 interface AccountAssetRow {
@@ -234,4 +285,25 @@ export function eventLine(event: TrailEvent): string {
         ? "Rejected on safety grounds, which is final"
         : `Rejected as ${event.rejectionKind}`;
   }
+}
+
+/**
+ * Who uploaded the picture, by the names a safety rejection kept (#146), or
+ * null where none were kept.
+ *
+ * Once the account has closed these names are all that identifies it, and the
+ * line says so, so a moderator knows the uuid beside it leads nowhere.
+ */
+export function uploaderNameLine(event: TrailEvent): string | null {
+  const kept = event.uploaderName;
+  if (!kept || (!kept.displayName && !kept.providerName)) return null;
+
+  const names = [
+    kept.displayName ? `Uploaded by ${kept.displayName}` : "Uploaded",
+    kept.providerName ? `signed in as ${kept.providerName}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return kept.accountClosed ? `${names}. Name kept after the account closed.` : names;
 }
