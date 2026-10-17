@@ -3,6 +3,7 @@ import {
   type BlueprintShape,
   BUILDING_GAP,
   blueprintBuildOrder,
+  blueprintDesignedFor,
   blueprintRoster,
   blueprintShape,
   blueprintSheet,
@@ -438,4 +439,23 @@ test("a layout that never claimed an order has no build order to read", () => {
 test("an empty or unreadable layout has no build order", () => {
   expect(blueprintBuildOrder(payload({ ordered: true }))).toBeNull();
   expect(blueprintBuildOrder(null)).toBeNull();
+});
+
+test("the map a layout was designed for is read from the payload", () => {
+  expect(blueprintDesignedFor(payload({ designedFor: "Comet Catcher" }))).toBe(
+    "Comet Catcher",
+  );
+  expect(blueprintDesignedFor(payload({ designedFor: "  Tabula  " }))).toBe(
+    "Tabula",
+  );
+});
+
+test("a missing, empty or non-string designedFor is no map, and never throws", () => {
+  for (const value of [undefined, "", "   ", null, 7, {}, ["Tabula"], true]) {
+    expect(blueprintDesignedFor(payload({ designedFor: value }))).toBeNull();
+  }
+  expect(blueprintDesignedFor(payload({}))).toBeNull();
+  expect(blueprintDesignedFor(null)).toBeNull();
+  expect(blueprintDesignedFor("not a payload")).toBeNull();
+  expect(blueprintDesignedFor({ designedFor: "Tabula" })).toBeNull();
 });
