@@ -1,6 +1,7 @@
 import {
   ASSET_ORIGINS,
   type AssetOrigin,
+  FACTION_LOGO_VARIANT,
   MAP_HEIGHT_OVERLAY_VARIANT,
   MAP_VARIANTS,
   UNIT_BUILDPIC_VARIANT,
@@ -85,6 +86,7 @@ const COMMON_FIELDS = [
 ] as const;
 
 const UNIT_FIELDS = [...COMMON_FIELDS, "game", "unit_name"] as const;
+const FACTION_FIELDS = [...COMMON_FIELDS, "game", "faction_key"] as const;
 const MAP_FIELDS = [
   ...COMMON_FIELDS,
   "map_name",
@@ -100,6 +102,7 @@ const MAP_FIELDS = [
 const MAX_LENGTHS = {
   game: 64,
   unit_name: 128,
+  faction_key: 128,
   map_name: 256,
   variant: 64,
   source_hash: 128,
@@ -222,7 +225,7 @@ function readHeightRange(
  * would get a row that dedupes against nothing and re-uploads on every run,
  * against an allowance of 2,000 a month.
  *
- * The two identity shapes are read separately, so a declaration naming a game
+ * The three identity shapes are read separately, so a declaration naming a game
  * alongside a map is a 400 rather than a row that fails the table's identity
  * check after the bytes are already in the store.
  */
@@ -233,11 +236,14 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
   const record = value as Record<string, unknown>;
 
   const keyedOn = record.keyed_on;
-  if (keyedOn !== "unit" && keyedOn !== "map") {
-    return { ok: false, error: '`keyed_on` must be "unit" or "map".' };
+  if (keyedOn !== "unit" && keyedOn !== "map" && keyedOn !== "faction") {
+    return { ok: false, error: '`keyed_on` must be "unit", "map" or "faction".' };
   }
 
-  const extra = unknownField(record, keyedOn === "unit" ? UNIT_FIELDS : MAP_FIELDS);
+  const extra = unknownField(
+    record,
+    keyedOn === "unit" ? UNIT_FIELDS : keyedOn === "faction" ? FACTION_FIELDS : MAP_FIELDS,
+  );
   if (extra) {
     return { ok: false, error: `Unknown field: ${extra}` };
   }
@@ -313,6 +319,36 @@ export function parseAssetUpload(value: unknown): ParsedAssetUpload {
 
   const game = readText(record, "game");
   if (!game.ok) return game;
+
+  // The same rule as `asset_faction_variant_check`. A faction has one picture,
+  // so this is a name and not a prefix. A faction is also the only identity that
+  // carries no map size and no height range, which the field list above has
+  // already refused.
+  if (keyedOn === "faction") {
+    const factionKey = readText(record, "faction_key");
+    if (!factionKey.ok) return factionKey;
+
+    if (variant.value !== FACTION_LOGO_VARIANT) {
+      return { ok: false, error: `\`variant\` on a faction must be "${FACTION_LOGO_VARIANT}".` };
+    }
+
+    return {
+      ok: true,
+      declaration: {
+        identity: {
+          keyedOn: "faction",
+          game: game.value,
+          factionKey: factionKey.value,
+          variant: variant.value,
+        },
+        ...common,
+        mapWidth: null,
+        mapHeight: null,
+        worldHeightMin: null,
+        worldHeightMax: null,
+      },
+    };
+  }
 
   const unitName = readText(record, "unit_name");
   if (!unitName.ok) return unitName;

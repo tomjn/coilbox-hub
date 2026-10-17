@@ -17,7 +17,8 @@ import type { AssetIdentity } from "./asset";
  *
  * `moderation` and `bytes_missing_at` decide whether a row counts as held at
  * all. See {@link heldForHave}. */
-const HAVE_COLUMNS = "game, unit_name, map_name, variant, source_hash, moderation, bytes_missing_at";
+const HAVE_COLUMNS =
+  "game, unit_name, map_name, faction_key, variant, source_hash, moderation, bytes_missing_at";
 
 /**
  * How many identity keys go into one PostgREST request.
@@ -35,6 +36,7 @@ interface AssetHaveRow {
   game: string | null;
   unit_name: string | null;
   map_name: string | null;
+  faction_key: string | null;
   variant: string;
   source_hash: string;
   moderation: string;
@@ -63,9 +65,14 @@ export function heldForHave(row: { moderation: string; bytes_missing_at: string 
  * so `("bar", "armsolar")` and `("bar\u0000armsolar", "")` cannot collide.
  */
 export function identityKey(identity: AssetIdentity): string {
-  return identity.keyedOn === "unit"
-    ? ["unit", identity.game, identity.unitName, identity.variant].join("\u0000")
-    : ["map", identity.mapName, identity.variant].join("\u0000");
+  switch (identity.keyedOn) {
+    case "unit":
+      return ["unit", identity.game, identity.unitName, identity.variant].join("\u0000");
+    case "faction":
+      return ["faction", identity.game, identity.factionKey, identity.variant].join("\u0000");
+    case "map":
+      return ["map", identity.mapName, identity.variant].join("\u0000");
+  }
 }
 
 /**
@@ -99,12 +106,18 @@ export function operand(value: string): string {
  * unbounded amount of work for a caller to ask for.
  *
  * A unit group names `game` as well, since unit names are not unique across
- * games. A map group does not, since a map is not scoped to one.
+ * games, and so does a faction group for the same reason. A map group does not,
+ * since a map is not scoped to one.
  */
 export function identityFilter(identity: AssetIdentity): string {
-  return identity.keyedOn === "unit"
-    ? `and(game.eq.${operand(identity.game)},unit_name.eq.${operand(identity.unitName)},variant.eq.${operand(identity.variant)})`
-    : `and(map_name.eq.${operand(identity.mapName)},variant.eq.${operand(identity.variant)})`;
+  switch (identity.keyedOn) {
+    case "unit":
+      return `and(game.eq.${operand(identity.game)},unit_name.eq.${operand(identity.unitName)},variant.eq.${operand(identity.variant)})`;
+    case "faction":
+      return `and(game.eq.${operand(identity.game)},faction_key.eq.${operand(identity.factionKey)},variant.eq.${operand(identity.variant)})`;
+    case "map":
+      return `and(map_name.eq.${operand(identity.mapName)},variant.eq.${operand(identity.variant)})`;
+  }
 }
 
 /** Splits a batch into the requests it will take. */
@@ -117,8 +130,9 @@ export function queryChunks<T>(identities: T[], size = KEYS_PER_QUERY): T[][] {
 }
 
 /** Which key a row answers for, read back from the columns. `map_name` is set
- * on a map row and null on a unit row, and `asset_identity_check` in the
- * migration is what makes that a safe thing to test.
+ * on a map row, `faction_key` on a faction row and `unit_name` on a unit row,
+ * and `asset_identity_check` in the migration is what makes that a safe thing
+ * to test.
  *
  * Exported for `./resolve`, which reads a different set of columns off the same
  * table and has to key them the same way. */
@@ -126,16 +140,30 @@ export function rowIdentity(row: {
   game: string | null;
   unit_name: string | null;
   map_name: string | null;
+  /** Absent from the select lists that predate faction logos, which can only
+   * ever return unit and map rows. */
+  faction_key?: string | null;
   variant: string;
 }): AssetIdentity {
-  return row.map_name === null
-    ? {
-        keyedOn: "unit",
-        game: row.game ?? "",
-        unitName: row.unit_name ?? "",
-        variant: row.variant,
-      }
-    : { keyedOn: "map", mapName: row.map_name, variant: row.variant };
+  if (row.map_name !== null) {
+    return { keyedOn: "map", mapName: row.map_name, variant: row.variant };
+  }
+
+  if (row.faction_key !== undefined && row.faction_key !== null) {
+    return {
+      keyedOn: "faction",
+      game: row.game ?? "",
+      factionKey: row.faction_key,
+      variant: row.variant,
+    };
+  }
+
+  return {
+    keyedOn: "unit",
+    game: row.game ?? "",
+    unitName: row.unit_name ?? "",
+    variant: row.variant,
+  };
 }
 
 export type SourceHashLookup =

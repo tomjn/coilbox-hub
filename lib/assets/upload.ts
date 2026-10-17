@@ -113,7 +113,8 @@ export const UNIT_RENDER_CEILING = 8;
 
 /**
  * How many assets one account may upload for one subject in an hour, where the
- * subject is a game for a unit asset and maps as a whole for a map asset.
+ * subject is a game for a unit asset, a game's faction logos for a faction logo,
+ * and maps as a whole for a map asset.
  *
  * Backfill is meant to be lazy: the units a viewed blueprint actually
  * references, not the roster. This is insurance against a client looping, in
@@ -227,6 +228,32 @@ async function countRows(
 }
 
 /**
+ * How many rows the account has written for this identity's subject since
+ * `since`. A unit's subject is its game, a faction logo's is the game's logos,
+ * and a map's is maps as a whole, for the reason {@link SUBJECT_UPLOADS_PER_HOUR}
+ * gives. Faction logos are their own subject rather than part of the game's
+ * units, so a backfill of one cannot use up the other's hour.
+ */
+function recentUploads(
+  supabase: SupabaseClient,
+  userId: string,
+  identity: AssetIdentity,
+  since: string,
+) {
+  const mine = () =>
+    supabase.from("asset").select("id", { count: "exact", head: true }).eq("uploaded_by", userId);
+
+  switch (identity.keyedOn) {
+    case "unit":
+      return mine().eq("game", identity.game).gte("seen_at", since);
+    case "faction":
+      return mine().eq("game", identity.game).not("faction_key", "is", null).gte("seen_at", since);
+    case "map":
+      return mine().not("map_name", "is", null).gte("seen_at", since);
+  }
+}
+
+/**
  * The row this identity already has, or null when it has none.
  *
  * `maybeSingle` rather than a list, because both identity indexes are unique
@@ -249,6 +276,12 @@ async function fetchExisting(
 
   return error ? { ok: false } : { ok: true, row: data as ExistingAsset | null };
 }
+
+const FACTIONS_UNAVAILABLE = {
+  ok: false,
+  error: "The game's factions could not be read just now. Try again shortly.",
+  status: 503,
+} as const;
 
 const QUOTA_UNAVAILABLE = {
   ok: false,
@@ -312,24 +345,39 @@ export async function checkAssetUpload(
     };
   }
 
+  // A logo is for a side the game reports, and a game or a key the hub has never
+  // heard of is a typo or a probe, so it is turned away before the rest of the
+  // database is asked anything. One round trip, and the only one a faction
+  // upload makes ahead of the batch below.
+  //
+  // The key is matched on the game's shortname, the way `game_faction` is
+  // reached everywhere else. Not a foreign key on the asset row: a picture can
+  // arrive before the facts do (`public.game`), so what is checked here is the
+  // state of the catalog now, and a logo for a side a later report drops simply
+  // has no side to show it.
+  if (identity.keyedOn === "faction") {
+    const reported = await countRows(
+      supabase
+        .from("game")
+        .select("id, game_faction!inner(key)", { count: "exact", head: true })
+        .eq("shortname", identity.game)
+        .eq("game_faction.key", identity.factionKey),
+    );
+    if (reported === null) return FACTIONS_UNAVAILABLE;
+    if (reported === 0) {
+      return {
+        ok: false,
+        error: `The game "${identity.game}" has no faction with the key "${identity.factionKey}".`,
+        status: 404,
+      };
+    }
+  }
+
   // One round trip for the rest. Read in a fixed order below, so a request that
   // trips two limits always hears about the same one.
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-  const recentForSubject =
-    identity.keyedOn === "unit"
-      ? supabase
-          .from("asset")
-          .select("id", { count: "exact", head: true })
-          .eq("uploaded_by", userId)
-          .eq("game", identity.game)
-          .gte("seen_at", since)
-      : supabase
-          .from("asset")
-          .select("id", { count: "exact", head: true })
-          .eq("uploaded_by", userId)
-          .not("map_name", "is", null)
-          .gte("seen_at", since);
+  const recentForSubject = recentUploads(supabase, userId, identity, since);
 
   const [existing, unitRenders, accountBytes, recent] =
     await Promise.all([
@@ -605,9 +653,10 @@ export async function writeUploadedAsset(
   const { data, error } = await supabase
     .from("asset")
     .insert({
-      game: identity.keyedOn === "unit" ? identity.game : null,
+      game: identity.keyedOn === "map" ? null : identity.game,
       unit_name: identity.keyedOn === "unit" ? identity.unitName : null,
       map_name: identity.keyedOn === "map" ? identity.mapName : null,
+      faction_key: identity.keyedOn === "faction" ? identity.factionKey : null,
       variant: identity.variant,
       ...columns,
       ...moderation,

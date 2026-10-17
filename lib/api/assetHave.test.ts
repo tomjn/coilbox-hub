@@ -82,7 +82,7 @@ test("a key without keyed_on cannot be guessed at", () => {
 
   expect(parsed).toEqual({
     ok: false,
-    error: 'keys[0] `keyed_on` must be "unit" or "map".',
+    error: 'keys[0] `keyed_on` must be "unit", "map" or "faction".',
     status: 400,
   });
 });
@@ -238,4 +238,60 @@ test("nothing in a result says what the moderation queue holds", () => {
     "unit_name",
     "variant",
   ]);
+});
+
+const FACTION_KEY = {
+  keyed_on: "faction",
+  game: "bar",
+  faction_key: "armada",
+  variant: "logo",
+  source_hash: "src-c",
+};
+
+test("a faction key parses into the faction identity", () => {
+  const keys = keysOf({ keys: [FACTION_KEY] });
+
+  expect(keys[0].identity).toEqual({
+    keyedOn: "faction",
+    game: "bar",
+    factionKey: "armada",
+    variant: "logo",
+  });
+  expect(keys[0].sourceHash).toBe("src-c");
+});
+
+test("a faction key takes the logo variant and nothing else", () => {
+  const parsed = parseAssetHaveBody({ keys: [{ ...FACTION_KEY, variant: "buildpic" }] });
+
+  expect(parsed).toEqual({
+    ok: false,
+    error: 'keys[0] `variant` on a faction must be "logo".',
+    status: 400,
+  });
+});
+
+test("a unit field on a faction key is an unknown field", () => {
+  const parsed = parseAssetHaveBody({ keys: [{ ...FACTION_KEY, unit_name: "armsolar" }] });
+
+  expect(parsed).toEqual({ ok: false, error: "keys[0] unknown field: unit_name", status: 400 });
+});
+
+test("a faction key without its faction is refused with the length the table accepts", () => {
+  const bare = Object.fromEntries(Object.entries(FACTION_KEY).filter(([field]) => field !== "faction_key"));
+
+  expect(parseAssetHaveBody({ keys: [bare] })).toEqual({
+    ok: false,
+    error: "keys[0] `faction_key` is required and must be a string of 1 to 128 characters.",
+    status: 400,
+  });
+});
+
+test("a faction answer is echoed in the shape it was asked in", () => {
+  const keys = keysOf({ keys: [FACTION_KEY] });
+  const held = new Map([[identityKey(keys[0].identity), "src-old"]]);
+
+  expect(buildAssetHaveBody(keys, held).results).toEqual([
+    { keyed_on: "faction", game: "bar", faction_key: "armada", variant: "logo", status: "changed" },
+  ]);
+  expect(buildAssetHaveBody(keys, new Map()).results[0]).toMatchObject({ status: "missing" });
 });

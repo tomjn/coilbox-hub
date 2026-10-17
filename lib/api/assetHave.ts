@@ -1,5 +1,6 @@
 import {
   type AssetIdentity,
+  FACTION_LOGO_VARIANT,
   isMapVariant,
   MAP_VARIANTS,
   UNIT_BUILDPIC_VARIANT,
@@ -62,7 +63,14 @@ export type AssetHaveResult =
       variant: string;
       status: AssetHaveStatus;
     }
-  | { keyed_on: "map"; map_name: string; variant: string; status: AssetHaveStatus };
+  | { keyed_on: "map"; map_name: string; variant: string; status: AssetHaveStatus }
+  | {
+      keyed_on: "faction";
+      game: string;
+      faction_key: string;
+      variant: string;
+      status: AssetHaveStatus;
+    };
 
 export interface AssetHaveBody {
   format: typeof ASSET_HAVE_FORMAT;
@@ -83,12 +91,16 @@ export type ParsedAssetHaveBody =
 const BODY_FIELDS = ["keys"] as const;
 const UNIT_FIELDS = ["keyed_on", "game", "unit_name", "variant", "source_hash"] as const;
 const MAP_FIELDS = ["keyed_on", "map_name", "variant", "source_hash"] as const;
+const FACTION_FIELDS = ["keyed_on", "game", "faction_key", "variant", "source_hash"] as const;
+
+const IDENTITY_FIELDS = { unit: UNIT_FIELDS, map: MAP_FIELDS, faction: FACTION_FIELDS } as const;
 
 /** The lengths `public.asset` accepts, so a key the table could never hold is
  * refused here rather than looked up and reported as missing. */
 const MAX_LENGTHS = {
   game: 64,
   unit_name: 128,
+  faction_key: 128,
   map_name: 256,
   variant: 64,
   source_hash: 128,
@@ -138,11 +150,11 @@ function parseKey(value: unknown): { ok: true; key: AssetHaveKey } | { ok: false
   const record = value as Record<string, unknown>;
 
   const keyedOn = record.keyed_on;
-  if (keyedOn !== "unit" && keyedOn !== "map") {
-    return { ok: false, error: '`keyed_on` must be "unit" or "map".' };
+  if (keyedOn !== "unit" && keyedOn !== "map" && keyedOn !== "faction") {
+    return { ok: false, error: '`keyed_on` must be "unit", "map" or "faction".' };
   }
 
-  const extra = unknownField(record, keyedOn === "unit" ? UNIT_FIELDS : MAP_FIELDS);
+  const extra = unknownField(record, IDENTITY_FIELDS[keyedOn]);
   if (extra) {
     return { ok: false, error: `unknown field: ${extra}` };
   }
@@ -186,6 +198,34 @@ function parseKey(value: unknown): { ok: true; key: AssetHaveKey } | { ok: false
 
   const game = readField(record, "game");
   if (!game.ok) return game;
+
+  // The same rule as `asset_faction_variant_check` and as `parseAssetUpload`. A
+  // refusal rather than a `missing`, for the reason the map side gives above:
+  // `missing` tells the caller to go and make the picture.
+  if (keyedOn === "faction") {
+    const factionKey = readField(record, "faction_key");
+    if (!factionKey.ok) return factionKey;
+
+    if (variant.value !== FACTION_LOGO_VARIANT) {
+      return {
+        ok: false,
+        error: `\`variant\` on a faction must be "${FACTION_LOGO_VARIANT}".`,
+      };
+    }
+
+    return {
+      ok: true,
+      key: {
+        identity: {
+          keyedOn: "faction",
+          game: game.value,
+          factionKey: factionKey.value,
+          variant: variant.value,
+        },
+        sourceHash: sourceHash.value,
+      },
+    };
+  }
 
   const unitName = readField(record, "unit_name");
   if (!unitName.ok) return unitName;
@@ -310,20 +350,32 @@ export function buildAssetHaveBody(
     version: ASSET_HAVE_VERSION,
     results: keys.map((key) => {
       const status = resolveStatus(key, sourceHashes);
-      return key.identity.keyedOn === "unit"
-        ? {
+      const { identity } = key;
+      switch (identity.keyedOn) {
+        case "unit":
+          return {
             keyed_on: "unit" as const,
-            game: key.identity.game,
-            unit_name: key.identity.unitName,
-            variant: key.identity.variant,
-            status,
-          }
-        : {
-            keyed_on: "map" as const,
-            map_name: key.identity.mapName,
-            variant: key.identity.variant,
+            game: identity.game,
+            unit_name: identity.unitName,
+            variant: identity.variant,
             status,
           };
+        case "faction":
+          return {
+            keyed_on: "faction" as const,
+            game: identity.game,
+            faction_key: identity.factionKey,
+            variant: identity.variant,
+            status,
+          };
+        case "map":
+          return {
+            keyed_on: "map" as const,
+            map_name: identity.mapName,
+            variant: identity.variant,
+            status,
+          };
+      }
     }),
   };
 }

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   ASSET_ORIGINS,
   type AssetOrigin,
+  FACTION_LOGO_VARIANT,
   MAP_HEIGHT_OVERLAY_VARIANT,
   MAP_MINIMAP_VARIANT,
   MAP_VARIANTS,
@@ -95,4 +96,18 @@ test("the origins union is exactly what the vocabulary lists", () => {
   };
 
   expect(Object.keys(declared).sort()).toEqual([...ASSET_ORIGINS].sort());
+});
+
+/**
+ * The faction side is a single name, so it is read off the vocabulary and has to
+ * resolve to the class that caps it. It is not a map variant, which is what
+ * keeps `logo` off a map upload.
+ */
+test("the faction logo variant is a class the vocabulary caps, and not a map variant", () => {
+  expect(Object.keys(vocabulary.classes)).toContain(FACTION_LOGO_VARIANT);
+  expect(capForVariant(FACTION_LOGO_VARIANT)).toBe(ASSET_CAPS[FACTION_LOGO_VARIANT]);
+  expect(Object.entries(vocabulary.classes).find(([name]) => name === FACTION_LOGO_VARIANT)?.[1].keyedOn).toBe(
+    "faction",
+  );
+  expect(MAP_VARIANTS).not.toContain(FACTION_LOGO_VARIANT);
 });

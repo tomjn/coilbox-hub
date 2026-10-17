@@ -44,12 +44,13 @@ interface EventRow {
     game: string | null;
     unit_name: string | null;
     map_name: string | null;
+    faction_key: string | null;
     variant: string;
   } | null;
 }
 
 const EVENT_COLUMNS =
-  "id, action, rejection_kind, actor, uploader, at, asset(id, game, unit_name, map_name, variant)";
+  "id, action, rejection_kind, actor, uploader, at, asset(id, game, unit_name, map_name, faction_key, variant)";
 
 export interface TrailEvent {
   id: number;
@@ -133,6 +134,7 @@ interface AccountAssetRow {
   game: string | null;
   unit_name: string | null;
   map_name: string | null;
+  faction_key: string | null;
   variant: string;
   moderation: AssetModeration;
   rejection_kind: AssetRejectionKind | null;
@@ -142,7 +144,7 @@ interface AccountAssetRow {
 }
 
 const ACCOUNT_ASSET_COLUMNS =
-  "id, game, unit_name, map_name, variant, moderation, rejection_kind, approval_source, origin, created_at";
+  "id, game, unit_name, map_name, faction_key, variant, moderation, rejection_kind, approval_source, origin, created_at";
 
 export interface TrailAsset {
   id: string;

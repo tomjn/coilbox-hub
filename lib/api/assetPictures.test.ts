@@ -201,7 +201,7 @@ test("every key the have check accepts is a key this accepts, and every one it r
 
     expect([key, pictures.ok]).toEqual([key, have.ok]);
     if (pictures.ok && have.ok) {
-      expect(pictures.identities[0]).toEqual(have.keys[0].identity);
+      expect<AssetIdentity>(pictures.identities[0]).toEqual(have.keys[0].identity);
     }
   }
 });

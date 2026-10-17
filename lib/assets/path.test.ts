@@ -83,3 +83,32 @@ test("nothing that could climb out of the tree can be spelled", () => {
   expect(assetObjectPath(UNIT, ".hidden", "image/webp")).toBeNull();
   expect(assetObjectPath({ ...MAP, variant: "mini map" }, "abc", "image/webp")).toBeNull();
 });
+
+const FACTION: AssetIdentity = {
+  keyedOn: "faction",
+  game: "BYAR",
+  factionKey: "armada",
+  variant: "logo",
+};
+
+test("a faction logo path names the game and the variant, and the hash is the leaf", () => {
+  expect(assetObjectPath(FACTION, "0a1b2c3d", "image/webp")).toBe(
+    "factions/BYAR/logo/0a1b2c3d.webp",
+  );
+});
+
+/**
+ * A faction key is whatever the archive's side name normalises to, so it is not
+ * promised to be a safe path segment. Like a unit name, it stays on the row and
+ * out of the object key.
+ */
+test("a faction logo path carries no faction key", () => {
+  const odd: AssetIdentity = { ...FACTION, factionKey: "../a b/c" };
+
+  expect(assetObjectPath(odd, "abc", "image/webp")).toBe(assetObjectPath(FACTION, "abc", "image/webp"));
+});
+
+test("a faction logo cannot climb out of the tree through its game", () => {
+  expect(assetObjectPath({ ...FACTION, game: ".." }, "abc", "image/webp")).toBeNull();
+  expect(assetObjectPath({ ...FACTION, game: "a/b" }, "abc", "image/webp")).toBeNull();
+});
