@@ -55,7 +55,7 @@ export async function renameAccount(
   // back means nothing was written.
   if (!data || data.length === 0) return { error: renameErrorMessage(undefined), typed };
 
-  // A loader that looks an account up by name reads the listing's tag.
+  // `accountDisplayName` caches the gallery heading under the listing's tag.
   updateTag(TAGS.items);
   return { saved: checked.name };
 }
