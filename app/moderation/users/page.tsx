@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
-import { notFound } from "next/navigation";
+import { refuseModeration } from "@/lib/access/secondFactor";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { DateTime } from "@/components/DateTime";
@@ -81,7 +81,7 @@ export default async function Accounts({ searchParams }: PageProps<"/moderation/
   const { data: allowed } = await supabase.rpc("is_moderator");
   // Not a 403, for the same reason as every other moderation page: whether
   // this page exists is not something a stranger needs to learn.
-  if (!allowed) notFound();
+  if (!allowed) await refuseModeration("/moderation/users");
 
   const { q, page } = await searchParams;
   const term = typeof q === "string" ? q.trim() : "";

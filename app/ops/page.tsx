@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { refuseModeration } from "@/lib/access/secondFactor";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { ModerationNav } from "@/components/ModerationNav";
@@ -296,7 +296,7 @@ function unclaimedSummary(objects: UnclaimedStagedObject[]) {
 export default async function Ops() {
   const supabase = await createClient();
   const { data: allowed } = await supabase.rpc("is_moderator");
-  if (!allowed) notFound();
+  if (!allowed) await refuseModeration("/ops");
 
   const admin = createAdminClient();
   const now = new Date();

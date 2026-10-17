@@ -2,7 +2,8 @@ import Link from "next/link";
 import { AccountIcon, ModerationIcon, SignOutIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
 import { NavSignIn } from "@/components/NavSignIn";
-import { currentDisplayName, currentUser, isModerator } from "@/lib/supabase/user";
+import { capabilityAccess } from "@/lib/access/secondFactor";
+import { currentDisplayName, currentUser } from "@/lib/supabase/user";
 
 /**
  * The part of the header that differs per visitor: whether they are signed in,
@@ -47,12 +48,16 @@ export async function NavAccount({ className }: { className: string }) {
 /**
  * The moderation link, which only a moderator gets.
  *
+ * Shown as well to a moderator whose session still needs a code from their
+ * authenticator (#145), because the moderation page is what sends them to
+ * enter it. Without the link they would sign in and find it gone.
+ *
  * Split from `NavAccount` because it sits with the section links, and on a phone
  * the account controls sit on the logo row instead. `data-moderator` lets the
  * nav see that it holds six links rather than five.
  */
 export async function NavModeration({ className }: { className: string }) {
-  return (await isModerator()) ? (
+  return (await capabilityAccess("can_moderate")) !== "none" ? (
     <Link href="/moderation" className={className} data-moderator>
       <LinkPending className="flex flex-col items-center gap-0.5 sm:flex-row sm:gap-2">
         <ModerationIcon className="w-4" />

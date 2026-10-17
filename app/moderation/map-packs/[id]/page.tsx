@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
 import { notFound } from "next/navigation";
+import { refuseModeration } from "@/lib/access/secondFactor";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { ModerationCrumb, ModerationNav } from "@/components/ModerationNav";
@@ -52,7 +53,7 @@ export default async function MapPackPage({ params }: PageProps<"/moderation/map
   const supabase = await createClient();
   const { data: allowed } = await supabase.rpc("is_moderator");
   // Not a 403, for the same reason as every other moderation page.
-  if (!allowed) notFound();
+  if (!allowed) await refuseModeration(`/moderation/map-packs/${encodeURIComponent((await params).id)}`);
 
   const { id } = await params;
   if (!isUuid(id)) notFound();

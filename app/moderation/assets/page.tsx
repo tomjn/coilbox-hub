@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/Button";
-import { notFound } from "next/navigation";
+import { refuseModeration } from "@/lib/access/secondFactor";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { archives } from "@/components/art/drawings";
 import { ModerationNav } from "@/components/ModerationNav";
@@ -99,7 +99,7 @@ export default async function PictureQueue() {
   const { data: allowed } = await supabase.rpc("is_moderator");
   // Not a 403, for the same reason as the reports page: whether this page exists
   // is not something a stranger needs to learn.
-  if (!allowed) notFound();
+  if (!allowed) await refuseModeration("/moderation/assets");
 
   const { waiting, total } = await fetchPictureQueue(createAdminClient());
 
