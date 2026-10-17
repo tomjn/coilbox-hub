@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { AssetIdentity } from "./asset";
-import { heldForHave, identityFilter, identityKey, queryChunks } from "./have";
+import { heldForHave, identityFilter, identityKey, queryChunks, rowIdentity } from "./have";
 
 const UNIT: AssetIdentity = {
   keyedOn: "unit",
@@ -88,4 +88,36 @@ test("a row whose bytes the store lost is not held, so Coilbox offers it again",
 
 test("a rejected row is held whatever happened to its bytes, since an upload cannot undo it", () => {
   expect(heldForHave({ moderation: "rejected", bytes_missing_at: "2026-09-14T12:00:00Z" })).toBe(true);
+});
+
+const FACTION: AssetIdentity = {
+  keyedOn: "faction",
+  game: "bar",
+  factionKey: "armada",
+  variant: "logo",
+};
+
+test("a faction never produces the same lookup key as a unit with the same names", () => {
+  expect(identityKey(FACTION)).not.toBe(
+    identityKey({ keyedOn: "unit", game: "bar", unitName: "armada", variant: "logo" }),
+  );
+});
+
+test("a faction filter names the game, since faction keys repeat across games", () => {
+  expect(identityFilter(FACTION)).toBe(
+    'and(game.eq."bar",faction_key.eq."armada",variant.eq."logo")',
+  );
+});
+
+test("a row with a faction key reads back as a faction identity", () => {
+  expect(
+    rowIdentity({ game: "bar", unit_name: null, map_name: null, faction_key: "armada", variant: "logo" }),
+  ).toEqual(FACTION);
+});
+
+test("a row read without a faction key still reads back as a unit or a map", () => {
+  expect(rowIdentity({ game: "bar", unit_name: "armsolar", map_name: null, variant: "buildpic" })).toEqual(UNIT);
+  expect(
+    rowIdentity({ game: null, unit_name: null, map_name: "Comet Catcher Remake 1.8", variant: "minimap" }),
+  ).toEqual(MAP);
 });

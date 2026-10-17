@@ -58,13 +58,14 @@ export const QUEUE_PAGE_SIZE = 240;
  * this file. Nothing that builds a tile has any use for it, so the safest place
  * for the rule is the select list. */
 const TILE_COLUMNS =
-  "id, game, unit_name, map_name, variant, width, height, bytes, origin, source_archive, seen_at";
+  "id, game, unit_name, map_name, faction_key, variant, width, height, bytes, origin, source_archive, seen_at";
 
 interface QueueRow {
   id: string;
   game: string | null;
   unit_name: string | null;
   map_name: string | null;
+  faction_key: string | null;
   variant: string;
   width: number;
   height: number;
@@ -101,18 +102,24 @@ export interface QueuedPicture {
 }
 
 /**
- * The two identity shapes as a caption. A map is not scoped to a game, so it
+ * The three identity shapes as a caption. A map is not scoped to a game, so it
  * does not name one. A unit is, and unit names repeat across games, so it does.
+ * So is a faction logo, which is captioned by the faction's key.
  */
 export function pictureCaption(row: {
   game: string | null;
   unit_name: string | null;
   map_name: string | null;
+  /** Absent from callers that predate faction logos. */
+  faction_key?: string | null;
   variant: string;
 }): { name: string; detail: string } {
-  return row.map_name === null
-    ? { name: row.unit_name ?? "", detail: `${row.game ?? ""} ${row.variant}` }
-    : { name: row.map_name, detail: row.variant };
+  if (row.map_name !== null) return { name: row.map_name, detail: row.variant };
+
+  return {
+    name: row.faction_key ?? row.unit_name ?? "",
+    detail: `${row.game ?? ""} ${row.variant}`,
+  };
 }
 
 export interface PictureQueue {

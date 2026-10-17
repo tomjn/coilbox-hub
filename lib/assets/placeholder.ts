@@ -75,13 +75,24 @@ export interface MissingPicture {
   footprint: Footprint | null;
 }
 
-/** The name off either shape of identity. */
+function identityName(identity: AssetIdentity): string {
+  switch (identity.keyedOn) {
+    case "unit":
+      return identity.unitName;
+    case "faction":
+      return identity.factionKey;
+    case "map":
+      return identity.mapName;
+  }
+}
+
+/** The name off any shape of identity. */
 export function missingPicture(
   identity: AssetIdentity,
   footprint: Footprint | null,
 ): MissingPicture {
   return {
-    name: identity.keyedOn === "unit" ? identity.unitName : identity.mapName,
+    name: identityName(identity),
     keyedOn: identity.keyedOn,
     footprint,
   };

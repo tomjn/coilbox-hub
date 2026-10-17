@@ -140,3 +140,9 @@ test("the staging download reaches the staged-pictures bucket", async () => {
 
   expect(seenBucket).toBe(STAGED_PICTURES_BUCKET);
 });
+
+test("a faction logo is captioned by its faction and names the game", () => {
+  expect(
+    pictureCaption({ game: "bar", unit_name: null, map_name: null, faction_key: "armada", variant: "logo" }),
+  ).toEqual({ name: "armada", detail: "bar logo" });
+});

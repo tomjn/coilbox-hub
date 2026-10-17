@@ -10,6 +10,13 @@ import { identityKey } from "@/lib/assets/have";
 import { type HeldAssets, resolveAsset } from "@/lib/assets/resolve";
 
 /**
+ * What this route answers for: a unit's pictures and a map's. A faction logo is
+ * not one of them. The hub shows it from `game_faction` once promotion has
+ * written it there, so there is nothing for a client to resolve.
+ */
+type PictureIdentity = Exclude<AssetIdentity, { keyedOn: "faction" }>;
+
+/**
  * The wire shape of the batch picture lookup (issue #171), the question
  * `/api/v1/assets/have` is not: given an identity, what does the hub hold a
  * picture of, and where is it.
@@ -101,7 +108,7 @@ export interface AssetPicturesBody {
 }
 
 export type ParsedAssetPicturesBody =
-  | { ok: true; identities: AssetIdentity[] }
+  | { ok: true; identities: PictureIdentity[] }
   | { ok: false; error: string; status: number };
 
 const BODY_FIELDS = ["keys"] as const;
@@ -162,7 +169,7 @@ function readField(
  */
 function parseKey(
   value: unknown,
-): { ok: true; identity: AssetIdentity } | { ok: false; error: string } {
+): { ok: true; identity: PictureIdentity } | { ok: false; error: string } {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return { ok: false, error: "must be a JSON object." };
   }
@@ -266,7 +273,7 @@ export function parseAssetPicturesBody(body: unknown): ParsedAssetPicturesBody {
     };
   }
 
-  const identities: AssetIdentity[] = [];
+  const identities: PictureIdentity[] = [];
   const seen = new Set<string>();
 
   for (const [index, value] of raw.entries()) {
@@ -304,7 +311,7 @@ export function parseAssetPicturesBody(body: unknown): ParsedAssetPicturesBody {
  * because `resolveAsset` only ever serves an identity it found a row for, and a
  * null if it somehow did is the same "no picture" the caller already handles.
  */
-function pictureFor(identity: AssetIdentity, held: HeldAssets): AssetPicture | null {
+function pictureFor(identity: PictureIdentity, held: HeldAssets): AssetPicture | null {
   const resolved = resolveAsset(identity, held);
   if (resolved.from === "placeholder") return null;
 
@@ -323,7 +330,7 @@ function pictureFor(identity: AssetIdentity, held: HeldAssets): AssetPicture | n
 }
 
 export function buildAssetPicturesBody(
-  identities: AssetIdentity[],
+  identities: PictureIdentity[],
   held: HeldAssets,
 ): AssetPicturesBody {
   return {

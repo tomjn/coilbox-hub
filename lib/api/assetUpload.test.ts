@@ -206,7 +206,9 @@ test("a field longer than the column is refused here rather than by the table", 
 test("a declaration that is not an object, or names neither key, is refused", () => {
   expect(error([UNIT])).toBe("The asset declaration must be a JSON object.");
   expect(error("unit")).toBe("The asset declaration must be a JSON object.");
-  expect(error({ ...UNIT, keyed_on: "blueprint" })).toBe('`keyed_on` must be "unit" or "map".');
+  expect(error({ ...UNIT, keyed_on: "blueprint" })).toBe(
+    '`keyed_on` must be "unit", "map" or "faction".',
+  );
 });
 
 test("the reply carries the envelope a shipped build reads first, and no path", () => {
@@ -218,4 +220,69 @@ test("the reply carries the envelope a shipped build reads first, and no path", 
     moderation: "pending",
   });
   expect(buildAssetUploadBody("approved").moderation).toBe("approved");
+});
+
+const FACTION = {
+  keyed_on: "faction",
+  game: "BYAR",
+  faction_key: "armada",
+  variant: "logo",
+  source_hash: "raw-ghi",
+  encode_profile: "webp-lossless-128",
+  origin: "extracted",
+  mime: "image/webp",
+  bytes: 3000,
+  source_archive: "byar_1.2.sdz",
+};
+
+test("a faction declaration becomes a faction identity with no map or height fields", () => {
+  expect(parseAssetUpload(FACTION)).toEqual({
+    ok: true,
+    declaration: {
+      identity: { keyedOn: "faction", game: "BYAR", factionKey: "armada", variant: "logo" },
+      sourceHash: "raw-ghi",
+      encodeProfile: "webp-lossless-128",
+      origin: "extracted",
+      mime: "image/webp",
+      bytes: 3000,
+      sourceArchive: "byar_1.2.sdz",
+      mapWidth: null,
+      mapHeight: null,
+      worldHeightMin: null,
+      worldHeightMax: null,
+    },
+  });
+});
+
+test("a faction logo can be uploaded by a person", () => {
+  expect(parseAssetUpload({ ...FACTION, origin: "uploaded" }).ok).toBe(true);
+});
+
+test("a faction declaration takes the logo variant and nothing else", () => {
+  expect(error({ ...FACTION, variant: "buildpic" })).toBe('`variant` on a faction must be "logo".');
+  expect(error({ ...FACTION, variant: "minimap" })).toBe('`variant` on a faction must be "logo".');
+});
+
+test("the logo variant belongs to a faction and to nothing else", () => {
+  expect(error({ ...UNIT, variant: "logo" })).toContain("`variant` on a unit must be");
+  expect(error({ ...MAP, variant: "logo" })).toContain("`variant` on a map must be one of");
+});
+
+test("a faction declaration is as strict about fields as the other two", () => {
+  expect(error({ ...FACTION, unit_name: "armsolar" })).toBe("Unknown field: unit_name");
+  expect(error({ ...FACTION, map_width: 8192 })).toBe("Unknown field: map_width");
+  expect(error({ ...FACTION, hash: "enc" })).toBe("Unknown field: hash");
+});
+
+test("a faction declaration needs its game and its faction key", () => {
+  const without = (field: string) =>
+    Object.fromEntries(Object.entries(FACTION).filter(([name]) => name !== field));
+  const noKey = without("faction_key");
+  const noGame = without("game");
+
+  expect(error(noKey)).toBe("`faction_key` is required and must be a string of 1 to 128 characters.");
+  expect(error(noGame)).toBe("`game` is required and must be a string of 1 to 64 characters.");
+  expect(error({ ...FACTION, faction_key: "k".repeat(129) })).toBe(
+    "`faction_key` is required and must be a string of 1 to 128 characters.",
+  );
 });

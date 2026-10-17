@@ -38,6 +38,13 @@ const MAP: AssetIdentity = {
 /** The one class with no cap of its own, so the backstop is what refuses it. */
 const HEIGHT_OVERLAY: AssetIdentity = { ...MAP, variant: "overlay:height" };
 
+const FACTION: AssetIdentity = {
+  keyedOn: "faction",
+  game: "BYAR",
+  factionKey: "armada",
+  variant: "logo",
+};
+
 function declaration(overrides: Partial<AssetUploadDeclaration> = {}): AssetUploadDeclaration {
   return {
     identity: UNIT,
@@ -87,6 +94,8 @@ interface World {
   unitRenders: number;
   accountBytes: number;
   recent: number;
+  /** Whether the game reports a side under the key the upload names. */
+  factionExists: boolean;
   broken?: "identity" | "bytes";
 }
 
@@ -96,6 +105,7 @@ function world(overrides: Partial<World> = {}): World {
     unitRenders: 0,
     accountBytes: 0,
     recent: 0,
+    factionExists: true,
     ...overrides,
   };
 }
@@ -120,6 +130,10 @@ function fakeSupabase(state: World, seen: Query[] = []): SupabaseClient {
     // because the stand in happened to hand it a permissive row.
     if (query.table === "asset_licence") {
       throw new Error("the upload path must not consult asset_licence");
+    }
+
+    if (query.table === "game") {
+      return { count: state.factionExists ? 1 : 0, error: null };
     }
 
     if (query.filters.some((filter) => filter.startsWith("or:"))) {
@@ -729,4 +743,137 @@ test("an upload's row says its bytes are in the bucket, at the path the hub comp
   ]);
   // A replacement has the bytes the row was missing (#336).
   expect(written[1].bytes_missing_at).toBeNull();
+});
+
+/**
+ * Faction logos go through the same checks as the other two kinds, and one more:
+ * the faction has to exist for that game. They are untrusted bytes headed for a
+ * page every visitor sees, so none of the usual refusals is waived.
+ */
+const LOGO = { identity: FACTION, encodeProfile: "webp-lossless-128", bytes: 3000 };
+
+test("a faction logo for a faction the game reports comes back with its path", async () => {
+  expect(await check(world(), LOGO)).toEqual({
+    ok: true,
+    path: "factions/BYAR/logo/encabc.webp",
+    replacing: null,
+  });
+});
+
+test("a faction that is not one of the game's is refused before any quota is read", async () => {
+  const seen: Query[] = [];
+  const result = await checkAssetUpload(
+    fakeSupabase(world({ factionExists: false }), seen),
+    USER,
+    declaration(LOGO),
+    HASH,
+  );
+
+  expect(result).toEqual({
+    ok: false,
+    error: 'The game "BYAR" has no faction with the key "armada".',
+    status: 404,
+  });
+  expect(seen.filter((query) => query.table === "game")).toHaveLength(1);
+  expect(seen.some((query) => query.table === "rpc:account_asset_bytes")).toBe(false);
+});
+
+test("the faction lookup is on the game's shortname and the faction's key together", async () => {
+  const seen: Query[] = [];
+  await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration(LOGO), HASH);
+
+  expect(seen.find((query) => query.table === "game")?.filters).toEqual([
+    "eq:shortname",
+    "eq:game_faction.key",
+  ]);
+});
+
+test("a unit or a map upload never asks about factions", async () => {
+  const seen: Query[] = [];
+  await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration(), HASH);
+  await checkAssetUpload(
+    fakeSupabase(world(), seen),
+    USER,
+    declaration({ identity: MAP, mapWidth: 8192, mapHeight: 8192 }),
+    HASH,
+  );
+
+  expect(seen.some((query) => query.table === "game")).toBe(false);
+});
+
+test("a faction logo is held to the logo class's byte ceiling", async () => {
+  const ceiling = ASSET_CAPS.logo.maxBytes ?? 0;
+  const result = await check(world(), { ...LOGO, bytes: ceiling + 1 });
+
+  expect(result).toEqual({
+    ok: false,
+    error: `A "logo" may be at most ${ceiling} bytes. That one declares ${ceiling + 1}.`,
+    status: 413,
+  });
+});
+
+test("a faction logo has to be the type the class encodes", async () => {
+  const result = await check(world(), { ...LOGO, mime: "image/gif" });
+
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.status).toBe(415);
+});
+
+test("a faction logo is scoped to one account, one game and the game's logos", async () => {
+  const seen: Query[] = [];
+  await checkAssetUpload(fakeSupabase(world(), seen), USER, declaration(LOGO), HASH);
+
+  const hourly = seen.find((query) => query.filters.includes("eq:uploaded_by"));
+  expect(hourly?.filters).toEqual(["eq:uploaded_by", "eq:game", "not:faction_key", "gte:seen_at"]);
+});
+
+test("a client looping on one game's faction logos is slowed down", async () => {
+  const result = await check(world({ recent: SUBJECT_UPLOADS_PER_HOUR }), LOGO);
+
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.status).toBe(429);
+});
+
+test("another account's faction logo cannot be replaced", async () => {
+  const result = await check(world({ existing: held({ uploaded_by: "someone-else" }) }), LOGO);
+
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.status).toBe(409);
+});
+
+test("a rejected faction logo stays rejected", async () => {
+  const result = await check(world({ existing: held({ moderation: "rejected" }) }), LOGO);
+
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.status).toBe(409);
+});
+
+test("a faction logo row names its faction and no unit or map", async () => {
+  const written: Record<string, unknown>[] = [];
+
+  await writeUploadedAsset(
+    recordingWrites(written),
+    USER,
+    declaration(LOGO),
+    HASH,
+    "factions/BYAR/logo/encabc.webp",
+    { width: 64, height: 64 },
+    null,
+    false,
+  );
+
+  expect(written[0]).toMatchObject({
+    game: "BYAR",
+    faction_key: "armada",
+    unit_name: null,
+    map_name: null,
+    variant: "logo",
+    moderation: "pending",
+    approval_source: null,
+    tier: "bucket",
+  });
 });

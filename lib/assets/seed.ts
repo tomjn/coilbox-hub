@@ -206,7 +206,9 @@ export function seedIdentityKey(identity: AssetIdentity): string {
   const fields =
     identity.keyedOn === "unit"
       ? ["unit", identity.game, identity.unitName, identity.variant]
-      : ["map", identity.mapName, identity.variant];
+      : identity.keyedOn === "faction"
+        ? ["faction", identity.game, identity.factionKey, identity.variant]
+        : ["map", identity.mapName, identity.variant];
 
   // Joined on something that cannot appear in a field rather than on anything
   // readable. A map name is free text with spaces and punctuation in it, so a
