@@ -56,7 +56,26 @@ export interface AuthBody {
    * is why the version above did not move.
    */
   map_catalog: string;
+  /**
+   * The OAuth providers the hub has switched on, in the order to offer them
+   * (#439). Each is the Supabase provider id, so a client can pass it straight
+   * into an authorize URL. Additive, so the version above did not move.
+   */
+  providers: string[];
+  /** Whether email and password sign in is available (#439). Additive too. */
+  email_password: boolean;
 }
+
+/**
+ * The sign in methods this deployment offers. The hub cannot read the Supabase
+ * auth settings at runtime, so this list is the one place that states them and
+ * it must match supabase/config.toml and the hosted project: `[auth.external.*]`
+ * for providers, `[auth.email] enable_signup` for email and password. Today that
+ * is Discord only. When #428 registers GitHub, Google and Twitch, add their ids
+ * here, in the order they should be offered.
+ */
+export const SIGN_IN_PROVIDERS: readonly string[] = ["discord"];
+export const EMAIL_PASSWORD_ENABLED = false;
 
 export type AuthResult = { ok: true; body: AuthBody } | { ok: false };
 
@@ -83,6 +102,8 @@ export function buildAuthBody(): AuthResult {
       publishable_key: config.config.publishableKey,
       asset_vocabulary: ASSET_VOCABULARY_DIGEST,
       map_catalog: MAP_CATALOG_DIGEST,
+      providers: [...SIGN_IN_PROVIDERS],
+      email_password: EMAIL_PASSWORD_ENABLED,
     },
   };
 }
