@@ -75,17 +75,20 @@ export const FILTER_KEYS = [
   "map",
   "tag",
   "author",
+  "account",
   "q",
   "sort",
   "page",
 ] as const;
 
-/** `kind`, `tag` and `author` take more than one value, by repeating the
+/** `kind`, `tag`, `author` and `account` take more than one value, by repeating the
  *  parameter (`?kind=preset&kind=blueprint`). Everything else takes exactly
  *  one: a second `game` or `page` is as much a client bug as an unknown
  *  parameter name, and the same silent-take-one failure this file exists to
  *  rule out for `kind`, so it is rejected the same way. */
 export const SINGLE_VALUE_KEYS = ["game", "map", "q", "sort", "page"] as const;
+
+const ACCOUNT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type ParsedApiFilters =
   | { ok: true; filters: Filters }
@@ -98,7 +101,7 @@ export type ParsedApiFilters =
  * `kind=challeng` gets silently dropped, the API hands back everything and
  * the client renders it believing it is looking at only challenges. So here,
  * unknown parameter names, a repeated single-value parameter, an unrecognised
- * `kind` and an unrecognised `sort` are all rejected outright rather than
+ * `kind`, an `account` that is not a UUID and an unrecognised `sort` are all rejected outright rather than
  * dropped or silently narrowed to one value.
  */
 export function parseApiFilters(searchParams: URLSearchParams): ParsedApiFilters {
@@ -120,6 +123,12 @@ export function parseApiFilters(searchParams: URLSearchParams): ParsedApiFilters
         ? ". Repeat kind for more than one, e.g. kind=preset&kind=blueprint."
         : "";
       return { ok: false, error: `Unknown kind: ${kind}${hint}` };
+    }
+  }
+
+  for (const account of searchParams.getAll("account")) {
+    if (!ACCOUNT_ID.test(account.trim())) {
+      return { ok: false, error: `Unknown account: ${account}. An account is a UUID.` };
     }
   }
 

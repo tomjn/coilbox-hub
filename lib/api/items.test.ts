@@ -22,6 +22,7 @@ const SUMMARY: ItemSummary = {
   map_name: null,
   tags: ["eco"],
   author_name: "Someone",
+  author_id: "22222222-2222-2222-2222-222222222222",
   created_at: "2026-01-01T00:00:00Z",
   featured_at: null,
 };
@@ -185,4 +186,31 @@ test("a repeated page is rejected", () => {
   const result = parseApiFilters(new URLSearchParams("page=2&page=1"));
 
   expect(result.ok).toBe(false);
+});
+
+const ADA = "0f8fad5b-0449-4000-8000-0000000000aa";
+const BOB = "0f8fad5b-0449-4000-8000-0000000000bb";
+
+test("account takes account ids, and repeating it is a union", () => {
+  const result = parseApiFilters(new URLSearchParams(`account=${ADA}&account=${BOB}`));
+
+  expect(result.ok).toBe(true);
+  if (result.ok) expect(result.filters.account).toEqual([ADA, BOB]);
+});
+
+test("an account that is not a uuid is rejected, not silently dropped", () => {
+  const result = parseApiFilters(new URLSearchParams("account=Alice"));
+
+  expect(result.ok).toBe(false);
+  if (!result.ok) expect(result.error).toBe("Unknown account: Alice. An account is a UUID.");
+});
+
+test("author still works alongside account", () => {
+  const result = parseApiFilters(new URLSearchParams(`author=Alice&account=${ADA}`));
+
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(result.filters.author).toEqual(["Alice"]);
+    expect(result.filters.account).toEqual([ADA]);
+  }
 });

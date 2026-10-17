@@ -173,6 +173,10 @@ export interface ItemSummary {
   map_name: string | null;
   tags: string[];
   author_name: string;
+  /** The publishing account, which `?account=` filters on and a card's author
+   *  link points at. Survives the author being renamed, which `author_name`
+   *  does not. Null when the item has no account to link to. */
+  author_id: string | null;
   created_at: string;
   /** When a moderator said this one is worth seeing first, or null (#395). A
    *  listing reads it as a flag and orders on it. The card says so too, since
@@ -182,7 +186,7 @@ export interface ItemSummary {
 }
 
 export const ITEM_SUMMARY_COLUMNS =
-  "id,kind,mode,title,description,game_name,game_key,map_name,tags,author_name,created_at,featured_at";
+  "id,kind,mode,title,description,game_name,game_key,map_name,tags,author_name,author_id,created_at,featured_at";
 
 /** The two orderings a listing offers. Newest first is the default, since a
  *  gallery is "what's new" until asked otherwise. Title is the one an

@@ -162,7 +162,11 @@ export function ItemCard({
           <dd>
             by{" "}
             <Link
-              href={filterHref(filters, { author: [item.author_name] })}
+              href={
+                item.author_id
+                  ? filterHref(filters, { author: [], account: [item.author_id] })
+                  : filterHref(filters, { author: [item.author_name] })
+              }
               className="transition-colors hover:text-neutral-200 active:text-neutral-200"
             >
               {item.author_name}

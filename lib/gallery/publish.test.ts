@@ -578,6 +578,7 @@ test("publishItem inserts as the given author and returns the stored item on suc
     map_name: "Comet Catcher Remake",
     tags: ["eco"],
     author_name: "Someone",
+    author_id: "author-1",
     created_at: "2026-01-01T00:00:00Z",
     featured_at: null,
   };

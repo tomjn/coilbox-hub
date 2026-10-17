@@ -5,6 +5,7 @@ import {
   fetchAllPages,
   fetchPage,
   filterHref,
+  ITEM_SUMMARY_COLUMNS,
   maxPage,
   PAGE_GAP,
   PAGE_SIZE,
@@ -424,4 +425,8 @@ test("a page outside the listing still gets a usable pager", () => {
   expect(pageNumbers(40, 3)).toEqual([1, 2, 3]);
   expect(pageNumbers(0, 5)).toEqual([1, 2, 3, PAGE_GAP, 5]);
   expect(pageNumbers(-2, 1)).toEqual([1]);
+});
+
+test("the summary columns include author_id", () => {
+  expect(ITEM_SUMMARY_COLUMNS.split(",")).toContain("author_id");
 });

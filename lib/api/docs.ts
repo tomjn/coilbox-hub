@@ -56,6 +56,14 @@ export const ITEMS_PARAMS: ItemsParam[] = [
       "An author name, matched exactly against the author_name field. Send it more than once for items by any of the authors.",
   },
   {
+    name: "account",
+    repeatable: true,
+    type: "string",
+    default: "none",
+    description:
+      "An account id, a UUID, matched against the author_id field. Unlike author, it still matches after the account is renamed. Send it more than once for items by any of the accounts. Anything that is not a UUID is a 400.",
+  },
+  {
     name: "q",
     repeatable: false,
     type: "string",

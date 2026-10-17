@@ -48,6 +48,7 @@ const FIRST_ITEM: ItemSummary = {
   map_name: "Seed Map",
   tags: ["seed"],
   author_name: "Seed Author",
+  author_id: "0f8fad5b-0449-4000-8000-0000000000b1",
   created_at: "2026-10-04T01:34:37.214+00:00",
   featured_at: null,
 };
@@ -371,6 +372,7 @@ export default function DevelopersPage() {
             { name: "map_name", type: "string or null", text: "The map the item uses, if any." },
             { name: "tags", type: "array of strings", text: "The item's tags." },
             { name: "author_name", type: "string", text: "The author's display name." },
+            { name: "author_id", type: "string or null", text: <>The author&apos;s account id, a UUID. Pass it as <Inline>account</Inline> to list that account&apos;s items. Unlike <Inline>author_name</Inline>, it does not change when the account is renamed.</> },
             { name: "created_at", type: "string", text: "When the item was published, as a timestamp with a UTC offset." },
             { name: "featured_at", type: "string or null", text: "When a moderator featured the item, or null. Featured items are listed first." },
             { name: "container_url", type: "string", text: <>Only on this endpoint. The address of the item&apos;s container, which is the <a className="underline underline-offset-2" href="#container">next endpoint</a>.</> },
