@@ -225,6 +225,8 @@ export function eventLine(event: TrailEvent): string {
       return "Approved by a moderator";
     case "returned":
       return "Returned to the queue";
+    case "conflict_acknowledged":
+      return "Source disagreement looked at and cleared, picture left as it was";
     case "rejected":
       return event.rejectionKind === "safety"
         ? "Rejected on safety grounds, which is final"

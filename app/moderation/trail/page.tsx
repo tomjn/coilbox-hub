@@ -243,7 +243,7 @@ export default async function Trail({ searchParams }: PageProps<"/moderation/tra
         ) : (
           <>
             <p className="text-sm text-neutral-400">
-              Every decision that changed what the public can see, newest first, up to{" "}
+              Every moderation action, newest first, up to{" "}
               {TRAIL_PAGE_SIZE}. Follow an account to see everything behind it.
             </p>
             {recent.length === 0 ? (

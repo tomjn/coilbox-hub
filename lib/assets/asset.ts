@@ -115,7 +115,9 @@ export function isModeratorRejectionKind(value: string): value is ModeratorRejec
  * the reason #101 splits the capabilities behind them: seeding content and
  * waiving the queue are different decisions. `returned` is a row going back to
  * pending, either because a moderator undid an editorial rejection or because a
- * newer archive replaced the bytes.
+ * newer archive replaced the bytes. `conflict_acknowledged` is the one entry
+ * that changes nothing the public sees: a moderator cleared a source
+ * disagreement on an approved picture (#149) and the log says who.
  */
 export const ASSET_EVENT_ACTIONS = [
   "seeded",
@@ -123,6 +125,7 @@ export const ASSET_EVENT_ACTIONS = [
   "approved",
   "rejected",
   "returned",
+  "conflict_acknowledged",
 ] as const;
 
 export type AssetEventAction = (typeof ASSET_EVENT_ACTIONS)[number];
