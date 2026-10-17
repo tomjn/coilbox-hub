@@ -18,9 +18,8 @@ export const ACCOUNT_PAGE_SIZE = 50;
 /** One account, as the directory shows it. */
 export interface ModeratorAccount {
   id: string;
-  /** What Discord last reported, or "" where the account has nothing this hub
-   *  can read. The page renders "Unknown" for that, the same word
-   *  `displayName()` picks. */
+  /** The account's name from public.profile, or "" if it has no profile row.
+   *  The page renders "Unknown" for that. */
   display_name: string;
   created_at: string;
   capabilities: string[];

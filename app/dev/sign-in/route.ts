@@ -3,10 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isDevSignInEnabled } from "@/lib/supabase/loopback";
 import { createClient } from "@/lib/supabase/server";
 
-// Discord shaped enough for lib/author.ts and current_author_name() (see
-// supabase/migrations/20260809190500_item_insert_trust.sql) to derive a name
-// instead of falling through to "Unknown" - the same shape the RLS test
-// fixture in supabase/tests/item_rls.test.sql uses for the same reason.
+// Discord shaped enough for the sign up trigger (see
+// supabase/migrations/20261018150000_profile.sql) to seed the profile with a
+// name instead of the email address - the same shape the RLS test fixture in
+// supabase/tests/item_rls.test.sql uses.
 const DEV_USER_EMAIL = "dev@coilbox.local";
 const DEV_USER_METADATA = { full_name: "Dev User" };
 

@@ -4,7 +4,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { confirmsDeletion } from "@/lib/account/confirmDeletion";
-import { displayName } from "@/lib/author";
+import { fetchDisplayName } from "@/lib/author";
 import { TAGS } from "@/lib/cache/tags";
 import { createClient } from "@/lib/supabase/server";
 import { requireSupabaseConfig, requireSupabaseServiceRoleKey } from "@/lib/supabase/config";
@@ -40,8 +40,11 @@ export async function deleteAccount(
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  // An account with no name falls back to "Unknown", and the page asks for that.
-  const name = displayName(user.user_metadata ?? {});
+  // The same profile read the page made, so the name asked for is the one shown.
+  const name = await fetchDisplayName(supabase, user.id);
+  if (!name) {
+    return { error: "Could not read your display name, so nothing was deleted. Try again." };
+  }
   if (!confirmsDeletion(form.get("confirm"), name)) {
     return { error: `That is not your name. Type ${name} exactly to delete your account.` };
   }

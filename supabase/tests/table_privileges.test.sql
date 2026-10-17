@@ -8,7 +8,7 @@
 -- always correctly absent. These assert the grants directly.
 
 begin;
-select plan(90);
+select plan(97);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -354,6 +354,28 @@ select table_privs_are('public', 'user_capability', 'authenticated', ARRAY[]::na
   'authenticated has no table privilege on user_capability');
 select table_privs_are('public', 'user_capability', 'service_role', ARRAY[]::name[],
   'service_role has no table privilege on user_capability');
+
+-- public.profile: the display name the hub owns (issue #429). Every grant is
+-- per column. Anybody may read who an account is called, because the name is
+-- already printed next to every item, and nothing else on the row: when an
+-- account was made is not the public's business. The owner may change the
+-- name and nothing else, profile_update_own narrows that to their own row, and
+-- no role inserts or deletes, because the sign up trigger and the cascade from
+-- auth.users are the only things that should.
+select table_privs_are('public', 'profile', 'anon', ARRAY[]::name[],
+  'anon holds no table wide privilege on profile');
+select table_privs_are('public', 'profile', 'authenticated', ARRAY[]::name[],
+  'authenticated holds no table wide privilege on profile, so it cannot insert or delete one');
+select table_privs_are('public', 'profile', 'service_role', ARRAY[]::name[],
+  'service_role holds no table privilege on profile');
+select column_privs_are('public', 'profile', 'display_name', 'anon', ARRAY['SELECT'],
+  'anon can read profile.display_name');
+select column_privs_are('public', 'profile', 'display_name', 'authenticated', ARRAY['SELECT', 'UPDATE'],
+  'authenticated can read and change profile.display_name');
+select column_privs_are('public', 'profile', 'user_id', 'authenticated', ARRAY['SELECT'],
+  'authenticated can read profile.user_id and cannot move a profile to another account');
+select column_privs_are('public', 'profile', 'created_at', 'anon', ARRAY[]::name[],
+  'anon cannot read when an account was made');
 
 -- public.report: anyone may insert; only authenticated may select or
 -- update, and report_read_moderators / report_handle_moderators are what

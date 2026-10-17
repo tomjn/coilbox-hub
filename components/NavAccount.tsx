@@ -2,8 +2,7 @@ import Link from "next/link";
 import { AccountIcon, ModerationIcon, SignOutIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
 import { NavSignIn } from "@/components/NavSignIn";
-import { displayName } from "@/lib/author";
-import { currentUser, isModerator } from "@/lib/supabase/user";
+import { currentDisplayName, currentUser, isModerator } from "@/lib/supabase/user";
 
 /**
  * The part of the header that differs per visitor: whether they are signed in,
@@ -21,7 +20,9 @@ import { currentUser, isModerator } from "@/lib/supabase/user";
  */
 export async function NavAccount({ className }: { className: string }) {
   const user = await currentUser();
-  const author = user ? displayName(user.metadata) : null;
+  // A signed in visitor whose name could not be read still gets the account
+  // controls, under a label that does not pretend to know who they are.
+  const author = user ? ((await currentDisplayName()) ?? "Your account") : null;
 
   return author ? (
     <>
