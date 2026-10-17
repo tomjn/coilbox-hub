@@ -10,6 +10,9 @@
  * has to keep working.
  */
 
+import { parseBlueprintPayload } from "@/lib/blueprint/payload";
+import { type BlueprintShape, blueprintShape } from "./blueprintPreview";
+
 /** The archive names of a pack's games, in the order the pack lists them.
  *
  * Only `name` is printed, because the row says which builds a pack installs and
@@ -36,6 +39,36 @@ export function setupPackMapNames(payload: Record<string, unknown>): string[] {
   return maps.filter(
     (name): name is string => typeof name === "string" && name !== "",
   );
+}
+
+/** One layout a pack carries, ready to draw. */
+export interface PackBlueprint {
+  name: string;
+  /** The shortname of the game the layout was drawn for, or null when it names
+   *  none. */
+  game: string | null;
+  shape: BlueprintShape;
+}
+
+/**
+ * The layouts a pack carries, in the order it lists them (tomjn/coilbox#1727).
+ *
+ * The pack manifest is not vendored, so this reads `blueprints` by hand, each
+ * entry through the same parser a standalone blueprint is drawn with. Coilbox
+ * refuses a pack holding a damaged layout, but a code can be written by hand,
+ * so an entry that is not a drawable layout (damaged, or with no buildings) is
+ * dropped and the others are kept.
+ */
+export function setupPackBlueprints(
+  payload: Record<string, unknown>,
+): PackBlueprint[] {
+  if (!Array.isArray(payload.blueprints)) return [];
+  return payload.blueprints.flatMap((entry) => {
+    const layout = parseBlueprintPayload(entry);
+    const shape = blueprintShape(entry);
+    if (!layout || !shape) return [];
+    return [{ name: layout.name, game: layout.game?.shortname ?? null, shape }];
+  });
 }
 
 /**

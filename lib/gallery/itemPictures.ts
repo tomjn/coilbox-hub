@@ -89,7 +89,7 @@ import { parseBlueprintPayload } from "@/lib/blueprint/payload";
 import { mapSquares } from "@/lib/maps/labels";
 import { fetchMapFacts } from "@/lib/maps/lookup";
 import { CHANGELOG_ROW_LIMIT, modProjectChangelog } from "./modProjectPreview";
-import { setupPackMaps } from "./setupPackPreview";
+import { setupPackBlueprints, setupPackMaps } from "./setupPackPreview";
 
 /** As much of an item as choosing its pictures depends on. */
 export interface PicturedItem {
@@ -159,16 +159,30 @@ export function packMapIdentities(item: PicturedItem): MapIdentity[] {
  * Lower cased, the way `declaredFootprint` reads a footprint, because a layout
  * holds whatever its author typed and the hub stores one row per unit. A layout
  * with twenty solar collectors is therefore one identity.
+ *
+ * A setup pack asks for the units of every layout it carries (issue #179),
+ * under the game on its row. A layout that names a different game is left out,
+ * because its defs mean other units there.
  */
 export function blueprintUnitIdentities(item: PicturedItem): UnitIdentity[] {
   const game = item.game_key;
-  if (item.kind !== "blueprint" || !game) return [];
+  if (!game) return [];
 
   const payload = (item.container as { payload?: unknown } | null)?.payload;
-  const blueprint = parseBlueprintPayload(payload);
-  if (!blueprint) return [];
+  let squares: string[];
+  if (item.kind === "blueprint") {
+    const blueprint = parseBlueprintPayload(payload);
+    if (!blueprint) return [];
+    squares = blueprint.buildings.map((b) => b.def);
+  } else if (item.kind === "setup-pack" && typeof payload === "object" && payload !== null) {
+    squares = setupPackBlueprints(payload as Record<string, unknown>)
+      .filter((layout) => layout.game === null || layout.game === game)
+      .flatMap((layout) => layout.shape.squares.map((square) => square.def));
+  } else {
+    return [];
+  }
 
-  const defs = new Set(blueprint.buildings.map((b) => b.def.toLowerCase()));
+  const defs = new Set(squares.map((def) => def.toLowerCase()));
   return [...defs].map((unitName) => ({
     keyedOn: "unit",
     game,
