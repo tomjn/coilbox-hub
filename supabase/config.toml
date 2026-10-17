@@ -321,8 +321,9 @@ max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
 # On, because the project had it on and the first `config push` turned it off,
-# these two being CLI defaults the file had never overridden. Nothing enrols a
-# factor today, so this costs nothing and keeps the option open.
+# these two being CLI defaults the file had never overridden. The account page
+# enrols factors and the step up page verifies them (#145), so turning either
+# off locks capability holders who have a factor out of what they hold.
 [auth.mfa.totp]
 enroll_enabled = true
 verify_enabled = true
