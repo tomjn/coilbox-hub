@@ -5,6 +5,7 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { USER_CAPABILITIES } from "@/lib/access/capability";
 import { capabilityAccess, stepUpPath } from "@/lib/access/secondFactor";
+import { contributionsCached } from "@/lib/profile/cached";
 import { createClient } from "@/lib/supabase/server";
 import { currentDisplayName, currentUser } from "@/lib/supabase/user";
 import { DeleteAccountForm } from "./DeleteAccountForm";
@@ -30,6 +31,7 @@ export default async function Account() {
     .eq("author_id", user.id);
 
   const published = count ?? 0;
+  const contributions = await contributionsCached(user.id);
   // The delete form asks for the name, so a page without it cannot be drawn.
   const name = await currentDisplayName();
   if (!name) throw new Error("Could not read your display name. Reload the page to try again.");
@@ -67,6 +69,20 @@ export default async function Account() {
         </div>
 
         <div className="flex flex-col gap-3">
+          <Link
+            href={`/profile/${user.id}`}
+            className="text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
+          >
+            Your public profile
+          </Link>
+          {contributions ? (
+            <p className="text-sm text-neutral-400">
+              {contributions.maps.count} {contributions.maps.count === 1 ? "map" : "maps"} and{" "}
+              {contributions.games.count} {contributions.games.count === 1 ? "game" : "games"} you
+              sent the facts for, and {contributions.pictures.count}{" "}
+              {contributions.pictures.count === 1 ? "picture" : "pictures"} approved.
+            </p>
+          ) : null}
           <Link
             href={`/gallery?account=${user.id}`}
             className="text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
