@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AssetPlaceholder } from "@/components/AssetPlaceholder";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { mapSizeLabel, mapTitle, playerCountLabel } from "@/lib/maps/labels";
-import { type Filters, filterHref, type MapSummary } from "@/lib/maps/query";
+import { type Filters, filterHref, isMapSize, type MapSummary } from "@/lib/maps/query";
 
 /**
  * One map in the catalog listing (issue #189).
@@ -66,8 +66,8 @@ export function MapCard({
    *  rather than replacing it. */
   filters: Filters;
   /** Whether the minimap is fetched with the page or once the card nears the
-   *  viewport. A page of forty is a megabyte and a half of pictures, most of
-   *  them below the fold, so the page says which rows are the first screen. */
+   *  viewport. A page of fifty is fifty pictures, most of them below the
+   *  fold, so the page says which rows are the first screen. */
   eager?: boolean;
 }) {
   const title = mapTitle(map.display_name, map.map_name);
@@ -167,7 +167,10 @@ export function MapCard({
         <ul className="mt-auto flex flex-wrap gap-1.5 pt-1">
           {map.tags.map((tag) => (
             <li key={tag}>
-              <Link href={filterHref(filters, { tag })} className={CHIP}>
+              <Link
+                href={filterHref(filters, isMapSize(tag) ? { size: tag } : { tag })}
+                className={CHIP}
+              >
                 {tag}
               </Link>
             </li>

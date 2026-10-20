@@ -44,16 +44,16 @@ import { mapSquares } from "./labels";
  */
 
 /**
- * Ten rows of four, rather than the gallery's twenty four.
+ * Ten rows of five, rather than the gallery's twenty four.
  *
  * The catalog used to import `PAGE_SIZE` on the reading that two listings a page
  * apart would be a difference nobody could name. The grids have since parted
  * company. A gallery card is a thing somebody wrote and is read three to a row,
- * while a map card is a picture somebody scans and is read four to a row. A
- * reader counts rows, so the page size follows the columns rather than the other
- * way round, and 24 in a four column grid is six rows and a stub.
+ * while a map card is a picture somebody scans and is read five to a row on a
+ * wide screen. A reader counts rows, so the page size follows the columns rather
+ * than the other way round, and 24 in a five column grid is four rows and a stub.
  */
-export const MAP_PAGE_SIZE = 40;
+export const MAP_PAGE_SIZE = 50;
 
 /** A row as a card needs it. Narrow on purpose: `search` is a tsvector nothing
  *  renders, and `created_at` and `longer_edge_elmos` are sorted on rather than
@@ -89,6 +89,10 @@ export const MAP_SUMMARY_COLUMNS =
 export const MAP_SIZES = ["small", "medium", "large"] as const;
 
 export type MapSize = (typeof MAP_SIZES)[number];
+
+export function isMapSize(value: string | null | undefined): value is MapSize {
+  return value != null && (MAP_SIZES as readonly string[]).includes(value);
+}
 
 /** The four orders #189 asks for, in the order the page offers them. */
 export const MAP_SORTS = ["name", "size", "players", "added"] as const;
@@ -146,16 +150,24 @@ function counted(value: string | null): number | null {
 export function parseFilters(
   params: Record<string, string | string[] | undefined>,
 ): Filters {
-  const size = one(params.size);
   const sort = one(params.sort);
+  // Lower cased, the same as the gallery's, because the derived tags are lower
+  // case and a chip a reader clicked carries whatever case it was written in.
+  let tag = one(params.tag)?.toLowerCase() ?? null;
+  const sizeParam = one(params.size);
+  let size: MapSize | null = isMapSize(sizeParam) ? sizeParam : null;
+  // A size band is a derived tag, so `tag=small` from a card's chip is the size
+  // filter, and the form should say so in the Size box rather than the Tag box.
+  if (!size && isMapSize(tag)) {
+    size = tag;
+    tag = null;
+  }
 
   return {
     q: one(params.q),
-    // Lower cased, the same as the gallery's, because the derived tags are lower
-    // case and a chip a reader clicked carries whatever case it was written in.
-    tag: one(params.tag)?.toLowerCase() ?? null,
+    tag,
     author: one(params.author),
-    size: size && (MAP_SIZES as readonly string[]).includes(size) ? (size as MapSize) : null,
+    size,
     players: counted(one(params.players)),
     sort: sort && (MAP_SORTS as readonly string[]).includes(sort) ? (sort as MapSort) : DEFAULT_SORT,
     page: parsePage(one(params.page), MAP_PAGE_SIZE) ?? 1,
