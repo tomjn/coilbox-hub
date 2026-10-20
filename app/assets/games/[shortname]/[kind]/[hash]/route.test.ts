@@ -44,6 +44,16 @@ test("staged art is served with headers that keep it an image and cache it for g
   expect(fetchGameArt).toHaveBeenCalledWith({ role: "anon" }, { role: "admin" }, "BA", "logo", HASH);
 });
 
+test("every game image kind reaches the read", async () => {
+  answer = () => Promise.resolve({ bytes: new Blob(["webp bytes"]), mime: "image/webp" });
+
+  for (const kind of ["logo", "banner", "card"]) {
+    const response = await GET(request(), ctx("BA", kind, HASH));
+    expect(response.status).toBe(200);
+    expect(fetchGameArt).toHaveBeenLastCalledWith({ role: "anon" }, { role: "admin" }, "BA", kind, HASH);
+  }
+});
+
 test("promoted art is a temporary, uncached redirect to the durable tier and nothing else", async () => {
   answer = () => Promise.resolve({ promoted: "https://tomjn.github.io/coilbox-assets/games/BA/banner.webp" });
 
@@ -74,7 +84,7 @@ test("every refusal is the same bodiless, uncached 404", async () => {
   }
 });
 
-test("a kind other than logo or banner, or a malformed hash, is refused without a read", async () => {
+test("a kind that is not a game image, or a malformed hash, is refused without a read", async () => {
   answer = () => Promise.resolve({ bytes: new Blob(["never"]), mime: "image/webp" });
 
   const responses = await Promise.all([

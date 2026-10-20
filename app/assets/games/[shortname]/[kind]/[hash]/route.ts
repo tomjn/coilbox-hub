@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { isGameImageKind } from "@/lib/api/gameBranding";
 import { fetchGameArt, type PromotedGameArt, type StagedGameArt } from "@/lib/games/art";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAnonClient } from "@/lib/supabase/anon";
 
 /**
- * A game's logo or banner from the staging bucket, before promotion (issue
+ * A game's logo, banner or card art from the staging bucket, before promotion (issue
  * #345). `lib/games/art.ts` says why the URL names the hash and what it serves.
  *
  * Refusals are an empty 404 with `no-store`, the same as
@@ -25,7 +26,7 @@ export async function GET(
   ctx: RouteContext<"/assets/games/[shortname]/[kind]/[hash]">,
 ) {
   const { shortname, kind, hash } = await ctx.params;
-  if ((kind !== "logo" && kind !== "banner") || !HASH.test(hash)) return refused(404);
+  if (!isGameImageKind(kind) || !HASH.test(hash)) return refused(404);
 
   let art: StagedGameArt | PromotedGameArt | null;
   try {
