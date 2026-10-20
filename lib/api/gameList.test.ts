@@ -15,6 +15,9 @@ function game(fields: Partial<GameSummary> & Pick<GameSummary, "shortname">): Ga
     card_path: null,
     card_hash: null,
     card_staged_tier: null,
+    banner_path: null,
+    banner_hash: null,
+    banner_staged_tier: null,
     faction_count: 0,
     unit_count: 0,
     item_count: 0,
@@ -40,6 +43,7 @@ test("a bare game answers nulls rather than being left out", () => {
     downloads: [],
     logo: null,
     card: null,
+    banner: null,
     faction_count: 0,
     unit_count: 0,
     item_count: 0,
@@ -84,9 +88,14 @@ test("a stored source the form would refuse today is still published", () => {
 
 test("promoted art is published as its durable address", () => {
   const [row] = buildGameListBody([
-    game({ shortname: "BA", card_path: "games/BA/card.webp" }),
+    game({
+      shortname: "BA",
+      card_path: "games/BA/card.webp",
+      banner_path: "games/BA/banner.webp",
+    }),
   ]).games;
   expect(row.card).toBe(staticTierUrl("games/BA/card.webp"));
+  expect(row.banner).toBe(staticTierUrl("games/BA/banner.webp"));
 });
 
 test("featured is a flag, not a timestamp", () => {
