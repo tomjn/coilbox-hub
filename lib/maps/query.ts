@@ -44,16 +44,16 @@ import { mapSquares } from "./labels";
  */
 
 /**
- * Ten rows of four, rather than the gallery's twenty four.
+ * Ten rows of five, rather than the gallery's twenty four.
  *
  * The catalog used to import `PAGE_SIZE` on the reading that two listings a page
  * apart would be a difference nobody could name. The grids have since parted
  * company. A gallery card is a thing somebody wrote and is read three to a row,
- * while a map card is a picture somebody scans and is read four to a row. A
- * reader counts rows, so the page size follows the columns rather than the other
- * way round, and 24 in a four column grid is six rows and a stub.
+ * while a map card is a picture somebody scans and is read five to a row on a
+ * wide screen. A reader counts rows, so the page size follows the columns rather
+ * than the other way round, and 24 in a five column grid is four rows and a stub.
  */
-export const MAP_PAGE_SIZE = 40;
+export const MAP_PAGE_SIZE = 50;
 
 /** A row as a card needs it. Narrow on purpose: `search` is a tsvector nothing
  *  renders, and `created_at` and `longer_edge_elmos` are sorted on rather than

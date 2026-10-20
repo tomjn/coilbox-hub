@@ -81,105 +81,109 @@ export default async function Maps({
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={skirmish} strength={BACKDROP_STRENGTH} />
       <SearchShortcut inputId="maps-q" />
-      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Maps</h1>
-          <p className="text-neutral-400">
-            What the hub knows about the maps people play on, from the archives
-            themselves.
-          </p>
-        </div>
-
-        {/* A GET to this same route, so submitting it produces the URL the
-            filters describe and the back button works. The page is deliberately
-            not in the form: changing a filter and staying on page 7 is almost
-            never where anybody wanted to be. */}
-        <BusyForm
-          action="/maps"
-          className="grid gap-4 border-b border-neutral-900 pb-6 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          <Field label="Search" htmlFor="maps-q">
-            <input
-              id="maps-q"
-              type="search"
-              name="q"
-              aria-keyshortcuts="/"
-              defaultValue={filters.q ?? ""}
-              className={CONTROL}
-            />
-          </Field>
-
-          <Field label="Made by" htmlFor="maps-author">
-            <input
-              id="maps-author"
-              type="text"
-              name="author"
-              defaultValue={filters.author ?? ""}
-              className={CONTROL}
-            />
-          </Field>
-
-          {/* A text box rather than a list to pick from. The derived tags are
-              named in 20260818120000_map_listing.sql and the curated ones are
-              whatever a maintainer wrote, so a list here would either be a second
-              copy of that vocabulary or a scan of the whole catalog on every page
-              load. The chips on the cards are how a reader finds a tag, and this
-              is how they keep it. */}
-          <Field label="Tag" htmlFor="maps-tag">
-            <input
-              id="maps-tag"
-              type="text"
-              name="tag"
-              defaultValue={filters.tag ?? ""}
-              className={CONTROL}
-            />
-          </Field>
-
-          <Field label="Size" htmlFor="maps-size">
-            <select id="maps-size" name="size" defaultValue={filters.size ?? ""} className={CONTROL}>
-              <option value="">Any size</option>
-              {MAP_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {SIZE_LABELS[size]}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Players, at least" htmlFor="maps-players">
-            <input
-              id="maps-players"
-              type="number"
-              name="players"
-              min={1}
-              defaultValue={filters.players ?? ""}
-              className={CONTROL}
-            />
-          </Field>
-
-          <Field label="Sort by" htmlFor="maps-sort">
-            <select id="maps-sort" name="sort" defaultValue={filters.sort} className={CONTROL}>
-              {MAP_SORTS.map((sort) => (
-                <option key={sort} value={sort}>
-                  {SORT_LABELS[sort]}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <div className="flex items-end gap-3">
-            <Button
-              type="submit"
-            >
-              Filter
-            </Button>
-            {isFiltered(filters) ? (
-              <Link href="/maps" className="text-sm text-neutral-400 hover:text-neutral-200 active:text-neutral-200">
-                Clear
-              </Link>
-            ) : null}
+      {/* Edge to edge, so a wide screen gets more maps to a row rather than
+          wider margins. The heading and the filters keep the readable width. */}
+      <div className="relative z-10 flex w-full flex-col gap-8 px-6 py-12">
+        <div className="flex max-w-5xl flex-col gap-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-semibold tracking-tight">Maps</h1>
+            <p className="text-neutral-400">
+              What the hub knows about the maps people play on, from the archives
+              themselves.
+            </p>
           </div>
-        </BusyForm>
+
+          {/* A GET to this same route, so submitting it produces the URL the
+              filters describe and the back button works. The page is deliberately
+              not in the form: changing a filter and staying on page 7 is almost
+              never where anybody wanted to be. */}
+          <BusyForm
+            action="/maps"
+            className="grid gap-4 border-b border-neutral-900 pb-6 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            <Field label="Search" htmlFor="maps-q">
+              <input
+                id="maps-q"
+                type="search"
+                name="q"
+                aria-keyshortcuts="/"
+                defaultValue={filters.q ?? ""}
+                className={CONTROL}
+              />
+            </Field>
+
+            <Field label="Made by" htmlFor="maps-author">
+              <input
+                id="maps-author"
+                type="text"
+                name="author"
+                defaultValue={filters.author ?? ""}
+                className={CONTROL}
+              />
+            </Field>
+
+            {/* A text box rather than a list to pick from. The derived tags are
+                named in 20260818120000_map_listing.sql and the curated ones are
+                whatever a maintainer wrote, so a list here would either be a second
+                copy of that vocabulary or a scan of the whole catalog on every page
+                load. The chips on the cards are how a reader finds a tag, and this
+                is how they keep it. */}
+            <Field label="Tag" htmlFor="maps-tag">
+              <input
+                id="maps-tag"
+                type="text"
+                name="tag"
+                defaultValue={filters.tag ?? ""}
+                className={CONTROL}
+              />
+            </Field>
+
+            <Field label="Size" htmlFor="maps-size">
+              <Select id="maps-size" name="size" defaultValue={filters.size ?? ""}>
+                <option value="">Any size</option>
+                {MAP_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {SIZE_LABELS[size]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="Players, at least" htmlFor="maps-players">
+              <input
+                id="maps-players"
+                type="number"
+                name="players"
+                min={1}
+                defaultValue={filters.players ?? ""}
+                className={CONTROL}
+              />
+            </Field>
+
+            <Field label="Sort by" htmlFor="maps-sort">
+              <Select id="maps-sort" name="sort" defaultValue={filters.sort}>
+                {MAP_SORTS.map((sort) => (
+                  <option key={sort} value={sort}>
+                    {SORT_LABELS[sort]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <div className="flex items-center gap-3 self-end">
+              <Button
+                type="submit"
+              >
+                Filter
+              </Button>
+              {isFiltered(filters) ? (
+                <Link href="/maps" className="text-sm text-neutral-400 hover:text-neutral-200 active:text-neutral-200">
+                  Clear
+                </Link>
+              ) : null}
+            </div>
+          </BusyForm>
+        </div>
 
         {error ? (
           <p className="text-sm text-red-400">
@@ -189,15 +193,15 @@ export default async function Maps({
           <Empty filtered={isFiltered(filters)} filters={filters} total={count} />
         ) : (
           <>
-            <ul className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            <ul className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {maps.map((map, index) => {
                 const picture = pictures.get(map.map_name);
                 return picture ? (
                   <li key={map.id}>
-                    {/* Two rows of four fill a desktop's first screen and more
+                    {/* Two rows of five fill a desktop's first screen and more
                         than a phone's, so those load with the page and the rest
                         wait until they are scrolled towards. */}
-                    <MapCard map={map} picture={picture} filters={filters} eager={index < 8} />
+                    <MapCard map={map} picture={picture} filters={filters} eager={index < 10} />
                   </li>
                 ) : null;
               })}
@@ -217,6 +221,23 @@ export default async function Maps({
 
 const CONTROL =
   "w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400";
+
+/** A native select with its own chevron. The browser's arrow ignores padding,
+ *  so it sat against the right edge of the box. */
+function Select(props: React.ComponentProps<"select">) {
+  return (
+    <div className="relative">
+      <select {...props} className={`${CONTROL} appearance-none pr-9`} />
+      <svg
+        aria-hidden
+        viewBox="0 0 16 16"
+        className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400"
+      >
+        <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    </div>
+  );
+}
 
 /** Every step in the pager is the same box, so a number, a previous and a next
  *  are one row of equal targets rather than two words with digits between them.
