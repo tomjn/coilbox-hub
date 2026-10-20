@@ -34,6 +34,11 @@ export interface GameSummary {
   card_path: string | null;
   card_hash: string | null;
   card_staged_tier: string | null;
+  /** The banner the game's page draws as its header, resolved the same way.
+   *  The listing does not draw it, but the API publishes it. */
+  banner_path: string | null;
+  banner_hash: string | null;
+  banner_staged_tier: string | null;
   faction_count: number;
   unit_count: number;
   /** Live community content filed under this game's shortname (#244). */
@@ -46,7 +51,7 @@ export interface GameSummary {
    supabase-js select is typed off the literal, and a `+` widens it to `string`,
    at which point the rows come back as an error type. */
 export const GAME_SUMMARY_COLUMNS =
-  "shortname,display_name,description,logo_path,logo_hash,logo_staged_tier,featured_at,downloads,card_path,card_hash,card_staged_tier,faction_count,unit_count,item_count";
+  "shortname,display_name,description,logo_path,logo_hash,logo_staged_tier,featured_at,downloads,card_path,card_hash,card_staged_tier,banner_path,banner_hash,banner_staged_tier,faction_count,unit_count,item_count";
 
 /**
  * Featured first, then alphabetical.

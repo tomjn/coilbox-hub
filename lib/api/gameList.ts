@@ -62,11 +62,10 @@ export interface GameListEntry {
   featured: boolean;
   /** Best source first, empty when the game names nowhere. */
   downloads: GameDownload[];
-  /** Resolved addresses, so a caller never has to know about tiers or staging.
-   *  The banner is not here: it is not a column `public.game_browse` publishes,
-   *  and a field that is structurally always null is worse than no field. */
+  /** Resolved addresses, so a caller never has to know about tiers or staging. */
   logo: string | null;
   card: string | null;
+  banner: string | null;
   faction_count: number;
   unit_count: number;
   item_count: number;
@@ -99,6 +98,11 @@ export function buildGameListBody(games: GameSummary[]): GameListResponseBody {
         path: game.card_path,
         hash: game.card_hash,
         staged_tier: game.card_staged_tier,
+      }),
+      banner: gameArtUrl(game.shortname, "banner", {
+        path: game.banner_path,
+        hash: game.banner_hash,
+        staged_tier: game.banner_staged_tier,
       }),
       faction_count: game.faction_count,
       unit_count: game.unit_count,
