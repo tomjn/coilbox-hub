@@ -260,6 +260,15 @@ test("a size nobody has heard of is dropped rather than passed to the database",
   expect(parseFilters({ size: "'; drop table map; --" }).size).toBeNull();
 });
 
+test("a size band given as a tag is read as the size, so the form shows it there", () => {
+  expect(parseFilters({ tag: "Small" })).toMatchObject({ tag: null, size: "small" });
+  // An explicit size wins, and the tag is left for the query to combine.
+  expect(parseFilters({ tag: "small", size: "large" })).toMatchObject({
+    tag: "small",
+    size: "large",
+  });
+});
+
 test("a sort nobody has heard of falls back to the one a bare listing uses", () => {
   expect(parseFilters({ sort: "cheapest" }).sort).toBe("name");
   expect(parseFilters({}).sort).toBe("name");
@@ -378,9 +387,9 @@ test("an unknown query parameter neither narrows nor widens the result", async (
 });
 
 test("an unknown parameter is dropped rather than carried into a link", () => {
-  const filters = parseFilters({ tag: "small", mode: "wild" });
+  const filters = parseFilters({ tag: "metal", mode: "wild" });
 
-  expect(filterHref(filters, {})).toBe("/maps?tag=small");
+  expect(filterHref(filters, {})).toBe("/maps?tag=metal");
 });
 
 // ## Sorting and paging
@@ -488,7 +497,7 @@ test("paging keeps every filter", () => {
 });
 
 test("the ordinary listing is a bare path", () => {
-  const current = parseFilters({ tag: "small", sort: "name" });
+  const current = parseFilters({ tag: "metal", sort: "name" });
 
   expect(filterHref(current, { tag: null })).toBe("/maps");
 });
