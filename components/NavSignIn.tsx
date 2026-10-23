@@ -6,9 +6,10 @@ import { isDevSignInEnabled } from "@/lib/supabase/loopback";
  *
  * A form post to `app/auth/signin/route.ts`, the same shape as the sign out form
  * beside it, so it works with scripting off and no page ships supabase-js for
- * one button. The route sends you back to the page you were reading, which it
- * learns from the post's referer, because signing in from the nav is rarely the
- * start of publishing something.
+ * one button. It names no provider, so the route sends it on to `/sign-in` to
+ * choose one. Either way you come back to the page you were reading, which the
+ * route learns from the post's referer, because signing in from the nav is
+ * rarely the start of publishing something.
  */
 export function NavSignIn({ className }: { className?: string }) {
   return (

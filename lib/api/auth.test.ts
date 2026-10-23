@@ -82,11 +82,10 @@ test("the body carries the map catalog digest, without a version bump", () => {
 });
 
 /**
- * The providers the desktop offers (#439). Discord is the only one enabled on
- * the hosted project until #428 registers the others, and email and password
- * sign in is off in supabase/config.toml.
+ * The providers the desktop offers (#439), in the order the website offers
+ * them. Email and password sign in stays off until #432 builds it.
  */
-test("the body lists Discord as the only provider and email sign in as off", () => {
+test("the body lists Discord, GitHub and Twitch and email sign in as off", () => {
   env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
   env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_example";
 
@@ -94,7 +93,7 @@ test("the body lists Discord as the only provider and email sign in as off", () 
 
   expect(result.ok).toBe(true);
   if (result.ok) {
-    expect(result.body.providers).toEqual(["discord"]);
+    expect(result.body.providers).toEqual(["discord", "github", "twitch"]);
     expect(result.body.email_password).toBe(false);
   }
 });

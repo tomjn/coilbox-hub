@@ -4,7 +4,7 @@ import { apiError } from "@/lib/api/response";
 import { buildAuthBody } from "@/lib/api/auth";
 
 /**
- * Tells a desktop client which Supabase project to run its Discord PKCE
+ * Tells a desktop client which Supabase project to run its PKCE
  * sign-in flow against, and with which publishable key. Coilbox has exactly
  * one configurable address, the hub, and everything else hangs off it - so
  * rather than a second constant baked into the binary (which would sign

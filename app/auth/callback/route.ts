@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { signInProvider } from "@/lib/supabase/signInProvider";
 
 /**
- * Where Discord sends people back to. Exchanges the one time code for a session
+ * Where an OAuth provider sends people back to. Exchanges the one time code for a session
  * and puts them where they were heading.
  */
 export async function GET(request: NextRequest) {
@@ -21,7 +22,11 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(new URL("/?error=sign_in_failed", url.origin));
+    // Named so somebody with two providers linked knows which one to try
+    // instead. Checked against the list, since it came in on the query string.
+    const provider = signInProvider(url.searchParams.get("provider"));
+    const failed = provider ? `/?error=sign_in_failed&provider=${provider}` : "/?error=sign_in_failed";
+    return NextResponse.redirect(new URL(failed, url.origin));
   }
 
   return NextResponse.redirect(new URL(next, url.origin));
