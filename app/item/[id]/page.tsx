@@ -27,8 +27,10 @@ import { setupPackMaps } from "@/lib/gallery/setupPackPreview";
 import {
   gameFactionsCached,
   unitNameLabelsCached,
+  unitRolesCached,
   type UnitNameLabel,
 } from "@/lib/games/cached";
+import type { BuildingRoles } from "@/lib/blueprint/role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lobbyCommands } from "@/lib/workshop/lobbyCommands";
 import { presetCommands } from "@/lib/workshop/presetCommands";
@@ -157,10 +159,18 @@ export default async function Item({
   // encyclopedia page rather than spelling the def key. An item without a
   // game, or in a game the hub holds no catalog for, gets an empty map and
   // keeps the raw keys.
-  const names: ReadonlyMap<string, UnitNameLabel> =
-    (item.kind === "blueprint" || item.kind === "mod-project") && item.game_key
-      ? await unitNameLabelsCached(item.game_key)
-      : new Map();
+  //
+  // What each unit does colours a layout's buildings, on a blueprint and on
+  // the layouts a setup pack carries. Neither read waits on the other.
+  const [names, roles]: [ReadonlyMap<string, UnitNameLabel>, BuildingRoles] =
+    await Promise.all([
+      (item.kind === "blueprint" || item.kind === "mod-project") && item.game_key
+        ? unitNameLabelsCached(item.game_key)
+        : new Map(),
+      (item.kind === "blueprint" || item.kind === "setup-pack") && item.game_key
+        ? unitRolesCached(item.game_key)
+        : {},
+    ]);
   const unitNames: ReadonlyMap<string, UnitNameLink> = new Map(
     [...names].map(([def, entry]) => [
       def,
@@ -263,6 +273,7 @@ export default async function Item({
             container={item.container}
             maps={packMaps}
             units={pictures.units}
+            roles={roles}
             gameKey={item.game_key}
           />
         ) : minimap ? (
@@ -277,6 +288,7 @@ export default async function Item({
                 container={item.container}
                 units={pictures.units}
                 names={unitNames}
+                roles={roles}
               />
             </div>
           </div>
@@ -286,6 +298,7 @@ export default async function Item({
             container={item.container}
             units={pictures.units}
             names={unitNames}
+            roles={roles}
           />
         )}
 

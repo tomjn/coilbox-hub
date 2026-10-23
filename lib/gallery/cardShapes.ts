@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { BuildingRoles } from "@/lib/blueprint/role";
+import { unitRoles } from "@/lib/games/units";
 import { type BlueprintShape, blueprintShape } from "./blueprintPreview";
 import { conquestGalaxy, type GalaxyShape } from "./conquestGalaxy";
 import type { ItemSummary } from "./query";
@@ -57,7 +59,14 @@ import { type RunShape, warpathRun } from "./warpathRun";
 export type CardShape =
   | { type: "galaxy"; galaxy: GalaxyShape }
   | { type: "run"; run: RunShape }
-  | { type: "blueprint"; layout: BlueprintShape };
+  | {
+      type: "blueprint";
+      layout: BlueprintShape;
+      /** What each building in this layout does, read from the catalog for
+       *  the row's game. Only this layout's defs, so a page of cards does not
+       *  carry a whole game's roles once per card. */
+      roles: BuildingRoles;
+    };
 
 /** A page's worth of drawings, keyed on the item id, as it crosses a
  *  `"use cache"` boundary. `lib/maps/cached.ts` sets out why a `Map` cannot
@@ -169,7 +178,7 @@ export function cardShape(
       buildings: parts.buildings,
       footprints: parts.footprints,
     });
-    return layout ? { type: "blueprint", layout } : null;
+    return layout ? { type: "blueprint", layout, roles: {} } : null;
   }
 
   return null;
@@ -181,10 +190,13 @@ export function cardShape(
  * A row nothing came back for, and a row whose parts do not rebuild, is simply
  * absent from the answer rather than present as a null, so a caller reading
  * this by id gets `undefined` for "no drawing" either way.
+ *
+ * A blueprint's buildings are coloured by what they do, which takes one more
+ * read per game among the page's blueprints, made together.
  */
 export async function cardShapes(
   supabase: SupabaseClient,
-  items: Pick<ItemSummary, "id" | "kind" | "mode">[],
+  items: Pick<ItemSummary, "id" | "kind" | "mode" | "game_key">[],
 ): Promise<ReadonlyMap<string, CardShape>> {
   const drawable = items.filter(itemHasCardShape);
   if (drawable.length === 0) return new Map();
@@ -209,6 +221,30 @@ export async function cardShapes(
     if (!part) continue;
     const shape = cardShape(item, part);
     if (shape) shapes.set(item.id, shape);
+  }
+
+  const games = [
+    ...new Set(
+      drawable
+        .filter((item) => shapes.get(item.id)?.type === "blueprint")
+        .flatMap((item) => (item.game_key ? [item.game_key] : [])),
+    ),
+  ];
+  const rolesByGame = new Map(
+    await Promise.all(
+      games.map(async (game) => [game, await unitRoles(supabase, game)] as const),
+    ),
+  );
+  for (const item of drawable) {
+    const shape = shapes.get(item.id);
+    const roles = item.game_key ? rolesByGame.get(item.game_key) : undefined;
+    if (shape?.type !== "blueprint" || !roles) continue;
+    const own: Record<string, BuildingRoles[string]> = {};
+    for (const square of shape.layout.squares) {
+      const def = square.def.toLowerCase();
+      if (roles[def]) own[def] = roles[def];
+    }
+    shapes.set(item.id, { ...shape, roles: own });
   }
   return shapes;
 }

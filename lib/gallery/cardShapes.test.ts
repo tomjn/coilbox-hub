@@ -23,8 +23,28 @@ const empty = {
 
 /** Answers from a list of rows and records every set of ids it was asked for,
  *  the same shape `lib/gallery/cardPictures.test.ts` fakes with. */
-function fakeSupabase(rows: Row[], asked: string[][] = []): SupabaseClient {
-  const from = () => ({
+function fakeSupabase(
+  rows: Row[],
+  asked: string[][] = [],
+  units: Record<string, unknown>[] = [],
+  unitGames: string[] = [],
+): SupabaseClient {
+  // `readAll` reads until a page comes back empty, so a read is counted on
+  // its first page rather than on every page.
+  let game = "";
+  const catalog = {
+    select: () => catalog,
+    eq: (_column: string, value: string) => {
+      game = value;
+      return catalog;
+    },
+    order: () => catalog,
+    range: (from: number, to: number) => {
+      if (from === 0) unitGames.push(game);
+      return Promise.resolve({ data: units.slice(from, to + 1), error: null });
+    },
+  };
+  const from = (table: string) => table === "game_unit" ? catalog : ({
     select: () => ({
       in(_column: string, ids: readonly string[]) {
         asked.push([...ids]);
@@ -176,11 +196,11 @@ test("a whole page costs one query, naming only the rows worth asking about", as
       asked,
     ),
     [
-      { id: "a", kind: "challenge", mode: "conquest" },
-      { id: "b", kind: "challenge", mode: "warpath" },
-      { id: "c", kind: "blueprint", mode: null },
-      { id: "d", kind: "scenario", mode: null },
-      { id: "e", kind: "setup-pack", mode: null },
+      { id: "a", kind: "challenge", mode: "conquest" , game_key: null },
+      { id: "b", kind: "challenge", mode: "warpath" , game_key: null },
+      { id: "c", kind: "blueprint", mode: null , game_key: null },
+      { id: "d", kind: "scenario", mode: null , game_key: null },
+      { id: "e", kind: "setup-pack", mode: null , game_key: null },
     ],
   );
 
@@ -194,8 +214,8 @@ test("a whole page costs one query, naming only the rows worth asking about", as
 test("a page with nothing to draw makes no query at all", async () => {
   const asked: string[][] = [];
   const shapes = await cardShapes(fakeSupabase([], asked), [
-    { id: "a", kind: "scenario", mode: null },
-    { id: "b", kind: "preset", mode: null },
+    { id: "a", kind: "scenario", mode: null , game_key: null },
+    { id: "b", kind: "preset", mode: null , game_key: null },
   ]);
 
   expect(asked).toHaveLength(0);
@@ -204,9 +224,65 @@ test("a page with nothing to draw makes no query at all", async () => {
 
 test("a row the query answered nothing for is absent, not a null entry", async () => {
   const shapes = await cardShapes(fakeSupabase([]), [
-    { id: "a", kind: "challenge", mode: "conquest" },
+    { id: "a", kind: "challenge", mode: "conquest" , game_key: null },
   ]);
 
   expect(shapes.size).toBe(0);
   expect(shapes.has("a")).toBe(false);
 });
+
+test("a blueprint card carries the roles of its own buildings, read once per game", async () => {
+  const unitGames: string[] = [];
+  const shapes = await cardShapes(
+    fakeSupabase(
+      [
+        { id: "c", ...empty, ...blueprintParts },
+        { id: "f", ...empty, ...blueprintParts },
+      ],
+      [],
+      [
+        unitRow("ArmSolar", { energyMake: null, energyUpkeep: -20 }),
+        unitRow("armmex", {}),
+        unitRow("armllt", { weapon: { range: 430 } }),
+      ],
+      unitGames,
+    ),
+    [
+      { id: "c", kind: "blueprint", mode: null, game_key: "ba" },
+      { id: "f", kind: "blueprint", mode: null, game_key: "ba" },
+    ],
+  );
+
+  expect(unitGames).toEqual(["ba"]);
+  const shape = shapes.get("c");
+  if (shape?.type !== "blueprint") throw new Error("expected a layout");
+  // Only this layout's defs: the turret is in the game but not the layout.
+  expect(shape.roles).toEqual({ armsolar: "energy" });
+});
+
+test("a blueprint with no game is drawn without roles and asks the catalog nothing", async () => {
+  const unitGames: string[] = [];
+  const shapes = await cardShapes(
+    fakeSupabase([{ id: "c", ...empty, ...blueprintParts }], [], [], unitGames),
+    [{ id: "c", kind: "blueprint", mode: null, game_key: null }],
+  );
+
+  expect(unitGames).toHaveLength(0);
+  const shape = shapes.get("c");
+  if (shape?.type !== "blueprint") throw new Error("expected a layout");
+  expect(shape.roles).toEqual({});
+});
+
+function unitRow(unit_name: string, stats: Record<string, unknown>) {
+  return {
+    unit_name,
+    build_options: [],
+    builder: null,
+    weapon: null,
+    energyMake: null,
+    windGenerator: null,
+    tidalGenerator: null,
+    energyUpkeep: null,
+    ...stats,
+  };
+}
