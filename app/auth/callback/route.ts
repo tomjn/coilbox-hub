@@ -14,6 +14,27 @@ export async function GET(request: NextRequest) {
   const raw = url.searchParams.get("next") ?? "/publish";
   const next = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/publish";
 
+  // Checked against the list, since it came in on the query string.
+  const provider = signInProvider(url.searchParams.get("provider"));
+
+  // Linking another way in from /account (issue #435) goes back there either
+  // way. A provider or Supabase refusing the link arrives here with no code and
+  // an `error_code`, such as an identity already on another account.
+  if (url.searchParams.get("link") && provider) {
+    const failed = (reason: string | null) =>
+      NextResponse.redirect(
+        new URL(
+          `/account?link_failed=${provider}${reason ? `&link_reason=${encodeURIComponent(reason)}` : ""}#sign-in-methods`,
+          url.origin,
+        ),
+      );
+    if (!code) return failed(url.searchParams.get("error_code"));
+    const supabase = await createClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) return failed(error.code ?? null);
+    return NextResponse.redirect(new URL("/account#sign-in-methods", url.origin));
+  }
+
   if (!code) {
     return NextResponse.redirect(new URL("/?error=no_code", url.origin));
   }
@@ -23,8 +44,7 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     // Named so somebody with two providers linked knows which one to try
-    // instead. Checked against the list, since it came in on the query string.
-    const provider = signInProvider(url.searchParams.get("provider"));
+    // instead.
     const failed = provider ? `/?error=sign_in_failed&provider=${provider}` : "/?error=sign_in_failed";
     return NextResponse.redirect(new URL(failed, url.origin));
   }

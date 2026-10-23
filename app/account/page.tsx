@@ -5,12 +5,19 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { USER_CAPABILITIES } from "@/lib/access/capability";
 import { capabilityAccess, stepUpPath } from "@/lib/access/secondFactor";
+import {
+  linkableProviders,
+  linkFailureMessage,
+  signInMethods,
+} from "@/lib/account/signInMethods";
 import { contributionsCached } from "@/lib/profile/cached";
 import { createClient } from "@/lib/supabase/server";
+import { signInProvider } from "@/lib/supabase/signInProvider";
 import { currentDisplayName, currentUser } from "@/lib/supabase/user";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 import { RenameAccountForm } from "./RenameAccountForm";
 import { SecondFactor } from "./SecondFactor";
+import { SignInMethods } from "./SignInMethods";
 
 export const metadata: Metadata = {
   title: "Your account",
@@ -19,7 +26,11 @@ export const metadata: Metadata = {
 // Content is sparse here, closer to the landing page than to the gallery.
 const BACKDROP_STRENGTH = 0.09;
 
-export default async function Account() {
+export default async function Account({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await currentUser();
   if (!user) redirect("/publish");
 
@@ -39,10 +50,11 @@ export default async function Account() {
   // Second factors (issue #145). Whether this session has entered a code, the
   // authenticators the account has, and what it holds, so the page can say
   // why an authenticator matters to this account in particular.
-  const [{ data: session }, { data: factors }, access] = await Promise.all([
+  const [{ data: session }, { data: factors }, access, { data: linked }] = await Promise.all([
     supabase.auth.getClaims(),
     supabase.auth.mfa.listFactors(),
     Promise.all(USER_CAPABILITIES.map((capability) => capabilityAccess(capability))),
+    supabase.auth.getUserIdentities(),
   ]);
   const verified = session?.claims.aal === "aal2";
   const authenticators = (factors?.totp ?? []).map((factor) => ({
@@ -53,6 +65,23 @@ export default async function Account() {
   // Only the capabilities need the code, so for anybody else an authenticator
   // would protect nothing and the page does not offer one.
   const showAuthenticators = holdsCapability || authenticators.length > 0;
+
+  // Ways to sign in (issue #435). A link the provider or Supabase refused
+  // comes back here from the callback, named on the query string.
+  const identities = linked?.identities ?? [];
+  if (identities.length === 0) {
+    throw new Error("Could not read how you sign in. Reload the page to try again.");
+  }
+  const query = await searchParams;
+  const failedProvider = signInProvider(
+    typeof query.link_failed === "string" ? query.link_failed : null,
+  );
+  const linkFailure = failedProvider
+    ? linkFailureMessage(
+        failedProvider,
+        typeof query.link_reason === "string" ? query.link_reason : null,
+      )
+    : null;
 
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
@@ -102,6 +131,29 @@ export default async function Account() {
         <div className="flex flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5">
           <h2 className="text-sm font-medium">Change your display name</h2>
           <RenameAccountForm name={name} />
+        </div>
+
+        <div
+          id="sign-in-methods"
+          className="flex scroll-mt-24 flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5"
+        >
+          <h2 className="text-sm font-medium">How you sign in</h2>
+          <p className="text-sm text-neutral-400">
+            Any of these signs you in to this same account. With a second one
+            linked, losing access to the first does not lose you your account
+            or what you published.
+          </p>
+          {linkFailure ? (
+            <p role="alert" className="text-sm text-red-400">
+              {linkFailure}
+            </p>
+          ) : null}
+          <SignInMethods
+            methods={signInMethods(identities)}
+            linkable={linkableProviders(identities)}
+            mayChange={authenticators.length === 0 || verified}
+            stepUpHref={stepUpPath("/account#sign-in-methods")}
+          />
         </div>
 
         {showAuthenticators ? (
