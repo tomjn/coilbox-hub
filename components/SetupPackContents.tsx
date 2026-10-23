@@ -17,6 +17,7 @@
 import { MapMinimap, type MinimapFacts } from "@/components/MapMinimap";
 import { BlueprintLayoutArt } from "@/components/ItemPreview";
 import type { ResolvedAsset, ServedAsset } from "@/lib/assets/resolve";
+import type { BuildingRoles } from "@/lib/blueprint/role";
 import {
   setupPackBlueprints,
   setupPackEngine,
@@ -51,6 +52,7 @@ function Section({
 }
 
 const NO_UNITS: ReadonlyMap<string, ServedAsset> = new Map();
+const NO_ROLES: BuildingRoles = {};
 
 /** The size {@link BlueprintLayoutArt} fits a layout's sheet to, matching the
  *  `aspect-[4/3]` class it is drawn with below. */
@@ -60,6 +62,7 @@ export function SetupPackContents({
   container,
   maps,
   units = NO_UNITS,
+  roles = NO_ROLES,
   gameKey = null,
 }: {
   container: unknown;
@@ -68,6 +71,9 @@ export function SetupPackContents({
   /** The unit pictures the hub holds, from `lib/gallery/itemPictures.ts`. A
    *  layout is drawn with them only when it was drawn for the pack's game. */
   units?: ReadonlyMap<string, ServedAsset>;
+  /** What each of the pack's game's units does, from `unitRolesCached`. Used
+   *  under the same rule as `units`. */
+  roles?: BuildingRoles;
   gameKey?: string | null;
 }) {
   const payload = (container as { payload?: unknown } | null)?.payload;
@@ -134,6 +140,7 @@ export function SetupPackContents({
           <ul className="grid gap-6 sm:grid-cols-2">
             {blueprints.map((layout, i) => {
               const buildings = layout.shape.squares.length;
+              const ours = layout.game === null || layout.game === gameKey;
               return (
                 // A pack can carry two layouts of one name, so the name alone
                 // is not a key.
@@ -142,11 +149,8 @@ export function SetupPackContents({
                     shape={layout.shape}
                     box={LAYOUT_BOX}
                     className="aspect-[4/3] w-full"
-                    units={
-                      layout.game === null || layout.game === gameKey
-                        ? units
-                        : NO_UNITS
-                    }
+                    units={ours ? units : NO_UNITS}
+                    roles={ours ? roles : NO_ROLES}
                   />
                   <p className="break-words text-sm text-neutral-100">
                     {layout.name.trim() || "Untitled layout"}

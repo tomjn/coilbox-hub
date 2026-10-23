@@ -106,6 +106,7 @@ const BLUEPRINT_SHAPE: CardShape = {
     squares: [],
     ordered: false,
   },
+  roles: {},
 };
 
 test("a conquest challenge whose shape rebuilt to a galaxy draws it", () => {

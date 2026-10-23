@@ -30,6 +30,7 @@ import {
 import { ProjectChanges } from "@/components/ProjectChanges";
 import type { ServedAsset } from "@/lib/assets/resolve";
 import type { PayloadFootprint } from "@/lib/blueprint/payload";
+import { type BuildingRoles, roleCss } from "@/lib/blueprint/role";
 import {
   blueprintBuildOrder,
   blueprintDesignedFor,
@@ -980,6 +981,11 @@ function BuildOrder({
  * would turn one fetch into one per building per card, the exact cost issue
  * #310 exists to avoid. The item page passes the map it looked up.
  *
+ * `roles` colours a building by what it does, the way coilbox and the in-game
+ * widget do: yellow for energy, red for a weapon, green for a builder
+ * (`lib/blueprint/role.ts`). A def with no role, or a game the catalog holds
+ * nothing for, keeps the plan's blue.
+ *
  * Exported so the card can draw the same geometry the item page does, the
  * same split issue #309 made for {@link ConquestGalaxyArt} and
  * {@link WarpathRunArt}. A card marks it `decorative`, because its kind badge
@@ -990,12 +996,15 @@ export function BlueprintLayoutArt({
   box,
   className,
   units = EMPTY,
+  roles = NO_ROLES,
   decorative = false,
 }: {
   shape: BlueprintShape;
   box: PlanBox;
   className: string;
   units?: ReadonlyMap<string, ServedAsset>;
+  /** What each building does, keyed on the lower cased def. */
+  roles?: BuildingRoles;
   /** True for a card, where the kind badge already names the thing in
    *  words and the drawing itself has nothing left to announce. */
   decorative?: boolean;
@@ -1064,7 +1073,10 @@ export function BlueprintLayoutArt({
         />
       ) : null}
       {shape.squares.map((square, i) => {
-        const picture = units.get(square.def.toLowerCase());
+        const def = square.def.toLowerCase();
+        const picture = units.get(def);
+        const role = roles[def];
+        const color = (role && roleCss(role)) ?? "currentColor";
         return (
           <g key={i}>
             {picture ? (
@@ -1089,12 +1101,12 @@ export function BlueprintLayoutArt({
               width={square.width}
               height={square.height}
               rx={corner(sheet.scale, square.width, square.height)}
-              fill="currentColor"
+              fill={color}
               // A building the payload never sized is left an outline, so a
               // guess at one square does not read as a measurement, and a
               // building showing its own picture needs no tint under it.
               fillOpacity={picture || !square.sized ? 0 : FILL}
-              stroke="currentColor"
+              stroke={color}
               strokeOpacity={OUTLINE}
               // Strokes in pixels rather than build squares, so a big base
               // gets the same hairline as a small one instead of a line
@@ -1132,6 +1144,7 @@ function BlueprintLayout({
   designedFor,
   units,
   names,
+  roles,
 }: {
   shape: BlueprintShape;
   kinds: BuildingKind[];
@@ -1141,6 +1154,7 @@ function BlueprintLayout({
   designedFor: string | null;
   units: ReadonlyMap<string, ServedAsset>;
   names: ReadonlyMap<string, UnitNameLink>;
+  roles: BuildingRoles;
 }) {
   const buildings = shape.squares.length;
 
@@ -1153,6 +1167,7 @@ function BlueprintLayout({
         // No colour class here: BlueprintLayoutArt fixes its own now.
         className="mx-auto aspect-[4/3] w-full max-w-md"
         units={units}
+        roles={roles}
       />
       <p className="text-xs text-neutral-400">
         {buildings} {buildings === 1 ? "building" : "buildings"}
@@ -1175,6 +1190,9 @@ function BlueprintLayout({
 /** No pictures, which is what a caller that has not looked any up passes and
  *  what every caller got before issue #109. */
 const EMPTY: ReadonlyMap<string, ServedAsset> = new Map();
+
+/** No roles, which draws every building in the plan's blue. */
+const NO_ROLES: BuildingRoles = {};
 
 /** No catalog names, which is the same "draw it as before" absence. */
 const EMPTY_NAMES: ReadonlyMap<string, UnitNameLink> = new Map();
@@ -1271,6 +1289,7 @@ export function ItemPreview({
   container,
   units = EMPTY,
   names = EMPTY_NAMES,
+  roles = NO_ROLES,
 }: {
   kind: string;
   container: unknown;
@@ -1281,6 +1300,9 @@ export function ItemPreview({
   /** What the game catalog calls each unit, keyed by lower case def name. Only
    *  the blueprint lists read it; a def that is absent keeps its raw key. */
   names?: ReadonlyMap<string, UnitNameLink>;
+  /** What each unit does, keyed by lower case def name, which colours a
+   *  blueprint's buildings. */
+  roles?: BuildingRoles;
 }) {
   const payload = (container as { payload?: unknown } | null)?.payload;
   if (typeof payload !== "object" || payload === null) return null;
@@ -1302,6 +1324,7 @@ export function ItemPreview({
         designedFor={blueprintDesignedFor(record)}
         units={units}
         names={names}
+        roles={roles}
       />
     ) : null;
   }

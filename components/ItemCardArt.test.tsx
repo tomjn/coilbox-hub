@@ -157,6 +157,7 @@ const BLUEPRINT_SHAPE: CardShape = {
       { def: "armlab", sized: true, x: 4, y: 0, width: 3, height: 3 },
     ],
   },
+  roles: { armsolar: "energy" },
 };
 
 test("a blueprint with a layout shape draws one rect per building, aria-hidden, with no pictures", () => {
@@ -175,4 +176,8 @@ test("a blueprint with a layout shape draws one rect per building, aria-hidden, 
   expect(html).not.toContain("<img");
   // The plan fixes its own colour (issue #318), so a card cannot draw it grey.
   expect(html).toContain("text-blue-500");
+  // Each solar collector in the energy yellow, and the lab with no role in the
+  // plan's own blue.
+  expect(html.match(/fill="#f2cc40"/g)).toHaveLength(2);
+  expect(html.match(/fill="currentColor"/g)).toHaveLength(1);
 });

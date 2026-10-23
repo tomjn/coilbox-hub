@@ -117,6 +117,7 @@ export function ItemCardArt({
             shape={choice.shape.layout}
             box={CARD_BOX}
             className="size-full"
+            roles={choice.shape.roles}
             decorative
           />
         )}
