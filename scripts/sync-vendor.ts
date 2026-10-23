@@ -193,11 +193,12 @@ const GROUPS: VendorGroup[] = [
     files: ["nodeMaps.ts"],
   },
   {
-    // Reached from the conquest generator's threat.ts, for `clamp`. Four small
-    // functions and no imports, so it vendors cleanly.
+    // Reached from the conquest generator's threat.ts. Upstream keeps `clamp`
+    // in its own file because helpers.ts imports i18n, and it has no imports,
+    // so it vendors cleanly.
     dir: "src/lib",
     vendor: "lib/lib",
-    files: ["helpers.ts"],
+    files: ["clamp.ts"],
   },
   {
     // What coilbox's Rust compiler and packer make of a set of projects (#418).

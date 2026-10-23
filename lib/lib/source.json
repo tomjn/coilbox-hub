@@ -3,9 +3,9 @@
   "ref": "main",
   "dir": "src/lib",
   "files": {
-    "helpers.ts": "b0aff4a4135030927b99db2745bb012748799a41"
+    "clamp.ts": "39476b070140b50ee4b5afee63586cff51427dec"
   },
   "sha256": {
-    "helpers.ts": "30ec0fb31bc0bad9255714ae13cf30a1ce5c92316f3a9cff16edb523b9744d0f"
+    "clamp.ts": "a4c282264782bb29a4953f0cf7eea0ddbd4c5737c58fd77bd36ebfb60b690edd"
   }
 }
