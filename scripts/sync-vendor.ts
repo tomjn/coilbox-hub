@@ -55,6 +55,41 @@ const GROUPS: VendorGroup[] = [
     dir: "src/blueprint",
     vendor: "lib/blueprint",
     files: ["payload.ts"],
+    // The colour a building is drawn in by what it does. Upstream's role.ts
+    // reaches its unit type through the Tauri binding layer, so
+    // `lib/blueprint/role.ts` restates the rule and the colours instead.
+    restated: {
+      file: "role.ts",
+      text: [
+        "export const ROLE_RGB: Record<Exclude<BuildingRole, \"other\">, number[]> = {\n" +
+          "  builder: [0.4, 0.8, 0.4],\n" +
+          "  weapon: [0.9, 0.33, 0.28],\n" +
+          "  energy: [0.95, 0.8, 0.25],\n" +
+          "};",
+        "function declared(stats: Record<string, unknown>, key: string): number {\n" +
+          "  const value = stats[key];\n" +
+          '  return typeof value === "number" ? value : 0;\n' +
+          "}",
+        "export function buildingRole(unit: RoleUnit): BuildingRole {\n" +
+          "  const stats = unit.stats ?? {};\n" +
+          "  if (stats.builder === true || (unit.buildOptions?.length ?? 0) > 0) {\n" +
+          '    return "builder";\n' +
+          "  }\n" +
+          "  if (Array.isArray(stats.weapons) && stats.weapons.length > 0) {\n" +
+          '    return "weapon";\n' +
+          "  }\n" +
+          "  if (\n" +
+          '    declared(stats, "energyMake") > 0 ||\n' +
+          '    declared(stats, "windGenerator") > 0 ||\n' +
+          '    declared(stats, "tidalGenerator") > 0 ||\n' +
+          '    declared(stats, "energyUpkeep") < 0\n' +
+          "  ) {\n" +
+          '    return "energy";\n' +
+          "  }\n" +
+          '  return "other";\n' +
+          "}",
+      ],
+    },
   },
   {
     // The conquest generator, so a challenge's galaxy can be drawn from its
