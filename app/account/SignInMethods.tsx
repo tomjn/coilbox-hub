@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { buttonClass } from "@/components/Button";
+import { ProviderLogo } from "@/components/ProviderLogo";
 import { LAST_METHOD_REASON, type SignInMethod } from "@/lib/account/signInMethods";
+import { type SignInProviderId, signInProvider } from "@/lib/supabase/signInProvider";
 import { type UnlinkState, unlinkSignInMethod } from "./signInMethodActions";
 
 /**
@@ -22,7 +24,7 @@ export function SignInMethods({
   stepUpHref,
 }: {
   methods: SignInMethod[];
-  linkable: readonly { id: string; label: string }[];
+  linkable: readonly { id: SignInProviderId; label: string }[];
   mayChange: boolean;
   stepUpHref: string;
 }) {
@@ -34,11 +36,14 @@ export function SignInMethods({
         {methods.map((method) => (
           <li key={method.identityId} className="flex flex-col gap-1 text-sm">
             <div className="flex items-center justify-between gap-3">
-              <span>
-                {method.label}
-                {method.account ? (
-                  <span className="text-neutral-400"> as {method.account}</span>
-                ) : null}
+              <span className="flex items-center gap-2">
+                <MethodLogo provider={method.provider} />
+                <span>
+                  {method.label}
+                  {method.account ? (
+                    <span className="text-neutral-400"> as {method.account}</span>
+                  ) : null}
+                </span>
               </span>
               {mayChange ? (
                 <UnlinkMethod identityId={method.identityId} label={method.label} last={last} />
@@ -66,7 +71,11 @@ export function SignInMethods({
           {linkable.map((provider) => (
             <form key={provider.id} action="/auth/link" method="post">
               <input type="hidden" name="provider" value={provider.id} />
-              <button type="submit" className={buttonClass("ghost", { size: "sm" })}>
+              <button
+                type="submit"
+                className={buttonClass("ghost", { size: "sm", className: "inline-flex items-center gap-2" })}
+              >
+                <ProviderLogo provider={provider.id} />
                 Link {provider.label}
               </button>
             </form>
@@ -75,6 +84,12 @@ export function SignInMethods({
       ) : null}
     </div>
   );
+}
+
+/** Nothing for an identity from a provider the hub does not offer. */
+function MethodLogo({ provider }: { provider: string }) {
+  const known = signInProvider(provider);
+  return known ? <ProviderLogo provider={known} /> : null;
 }
 
 function UnlinkMethod({

@@ -1,7 +1,9 @@
+import { ProviderLogo } from "@/components/ProviderLogo";
 import { isDevSignInEnabled } from "@/lib/supabase/loopback";
 import { SIGN_IN_PROVIDERS, type SignInProviderId } from "@/lib/supabase/signInProvider";
 
-const BUTTON = "rounded-md px-5 py-2.5 text-sm font-medium text-white transition-colors";
+const BUTTON =
+  "inline-flex items-center gap-2.5 rounded-md px-5 py-2.5 text-sm font-medium text-white transition-colors";
 
 // Each provider's own brand colour. White text on each passes AA.
 const COLOURS: Record<SignInProviderId, string> = {
@@ -40,6 +42,7 @@ export function SignInButtons({ next = "/publish" }: { next?: string }) {
           <input type="hidden" name="next" value={next} />
           <input type="hidden" name="provider" value={provider.id} />
           <button type="submit" className={`${BUTTON} ${COLOURS[provider.id]}`}>
+            <ProviderLogo provider={provider.id} />
             Sign in with {provider.label}
           </button>
         </form>
