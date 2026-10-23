@@ -111,7 +111,7 @@ const AUTH_EXAMPLE: AuthBody = {
   publishable_key: "sb_publishable_PLACEHOLDER",
   asset_vocabulary: "sha256:4879f85b17a5cee05e71b04fbe44607ba2cfb957bef0b2ac7c3dd658519d8b4e",
   map_catalog: "sha256:f013ff255fef10683673599df2d513e53eab69dddc87c79622ae1d207f611b20",
-  providers: ["discord"],
+  providers: ["discord", "github", "twitch"],
   email_password: false,
 };
 

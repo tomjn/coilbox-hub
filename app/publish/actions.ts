@@ -41,7 +41,7 @@ export async function publish(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return fail("Sign in with Discord before publishing.");
+    return fail("Sign in before publishing.");
   }
 
   const outcome = await publishItem(supabase, user.id, {

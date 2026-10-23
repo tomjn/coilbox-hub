@@ -1,9 +1,10 @@
 import { ASSET_VOCABULARY_DIGEST } from "@/lib/assets/vocabularyDigest";
 import { MAP_CATALOG_DIGEST } from "@/lib/maps/catalogDigest";
 import { getSupabaseConfig } from "@/lib/supabase/config";
+import { SIGN_IN_PROVIDERS } from "@/lib/supabase/signInProvider";
 
 /**
- * What a client needs to run the Discord PKCE sign-in flow: which Supabase
+ * What a client needs to run the PKCE sign-in flow: which Supabase
  * project to talk to, and the publishable key for it. Neither is a secret -
  * both already ship in the website's own browser bundle (see
  * `lib/supabase/client.ts`) - this just lets a client discover them from the
@@ -67,14 +68,10 @@ export interface AuthBody {
 }
 
 /**
- * The sign in methods this deployment offers. The hub cannot read the Supabase
- * auth settings at runtime, so this list is the one place that states them and
- * it must match supabase/config.toml and the hosted project: `[auth.external.*]`
- * for providers, `[auth.email] enable_signup` for email and password. Today that
- * is Discord only. When #428 registers GitHub, Google and Twitch, add their ids
- * here, in the order they should be offered.
+ * Whether this deployment offers email and password sign in. It must match
+ * `[auth.email] enable_signup` in supabase/config.toml. The providers come from
+ * `lib/supabase/signInProvider.ts`, the same list the website's buttons use.
  */
-export const SIGN_IN_PROVIDERS: readonly string[] = ["discord"];
 export const EMAIL_PASSWORD_ENABLED = false;
 
 export type AuthResult = { ok: true; body: AuthBody } | { ok: false };
@@ -102,7 +99,7 @@ export function buildAuthBody(): AuthResult {
       publishable_key: config.config.publishableKey,
       asset_vocabulary: ASSET_VOCABULARY_DIGEST,
       map_catalog: MAP_CATALOG_DIGEST,
-      providers: [...SIGN_IN_PROVIDERS],
+      providers: SIGN_IN_PROVIDERS.map((provider) => provider.id),
       email_password: EMAIL_PASSWORD_ENABLED,
     },
   };

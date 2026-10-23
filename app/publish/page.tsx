@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { setupPacks } from "@/components/art/drawings";
 import { Skeleton } from "@/components/Skeleton";
-import { SignInWithDiscord } from "@/components/SignInWithDiscord";
+import { SignInButtons } from "@/components/SignInButtons";
 import { kindsSingular } from "@/lib/gallery/label";
 import { currentDisplayName, currentUser } from "@/lib/supabase/user";
 import { PublishForm } from "./PublishForm";
@@ -37,7 +37,7 @@ async function PublishPanel() {
           Signing in is only needed to publish, so your name is on it and
           you can change or withdraw it later.
         </p>
-        <SignInWithDiscord />
+        <SignInButtons />
       </div>
     );
   }

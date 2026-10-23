@@ -2,9 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isDevSignInEnabled } from "@/lib/supabase/loopback";
 import { createClient } from "@/lib/supabase/server";
 import { signInNext } from "@/lib/supabase/signInNext";
+import { signInProvider } from "@/lib/supabase/signInProvider";
 
 /**
- * Starts Discord sign in from a plain form post.
+ * Starts OAuth sign in from a plain form post, with the provider named in the
+ * form's `provider` field.
  *
  * The header and the publish page used to start it in the browser, which meant
  * every page shipped supabase-js for one button. A form post needs no script, so
@@ -34,16 +36,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // The header's button names no provider, so it lands on the page that offers
+  // them all, carrying the page it was posted from.
+  const field = form.get("provider");
+  if (field === null) {
+    return NextResponse.redirect(
+      new URL(`/sign-in?next=${encodeURIComponent(next)}`, origin),
+      303,
+    );
+  }
+  const provider = signInProvider(field.toString());
+  if (!provider) {
+    return new NextResponse("Unknown sign in provider", { status: 400 });
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "discord",
+    provider,
     options: {
-      redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}&provider=${provider}`,
       skipBrowserRedirect: true,
     },
   });
   if (error || !data.url) {
-    return NextResponse.redirect(new URL("/?error=sign_in_failed", origin), 303);
+    return NextResponse.redirect(
+      new URL(`/?error=sign_in_failed&provider=${provider}`, origin),
+      303,
+    );
   }
 
   return NextResponse.redirect(data.url, 303);
