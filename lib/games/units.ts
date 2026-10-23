@@ -7,6 +7,7 @@ import {
 } from "@/lib/assets/asset";
 import { fetchHeldAssets, resolveAsset, type ResolvedAsset } from "@/lib/assets/resolve";
 import { fetchPage, maxPage } from "@/lib/gallery/query";
+import { type BuildingRole, type BuildingRoles, buildingRole } from "@/lib/blueprint/role";
 import { readAll } from "@/lib/supabase/readAll";
 import { isRandomFaction } from "./factions";
 import { morphGroups, type MorphStage } from "./morph";
@@ -570,6 +571,68 @@ export async function unitNameLabels(
     });
   }
   return names;
+}
+
+/** The parts of a `game_unit` row {@link buildingRole} reads, as the select in
+ *  {@link unitRoles} names them. */
+interface RoleRow {
+  unit_name: string;
+  build_options: string[] | null;
+  builder: unknown;
+  /** The first weapon, which is all the rule asks: whether there is one. */
+  weapon: unknown;
+  energyMake: unknown;
+  windGenerator: unknown;
+  tidalGenerator: unknown;
+  energyUpkeep: unknown;
+}
+
+/**
+ * What every unit of a game does, keyed on the lower cased def, for colouring
+ * a blueprint's buildings the way coilbox does (`lib/blueprint/role.ts`).
+ *
+ * Reads only the stats the rule looks at rather than the whole blob, and only
+ * the first weapon rather than the list, because a game's units each carry a
+ * stats blob of up to 8,192 bytes (`MAX_STATS_JSON` in `lib/api/gameFacts.ts`)
+ * and this reads every one.
+ * Retired units are kept: a layout made before a balance patch still names
+ * them. Keyed lower cased for the reason {@link unitNameLabels} gives.
+ */
+export async function unitRoles(
+  supabase: SupabaseClient,
+  shortname: string,
+): Promise<BuildingRoles> {
+  const data = await readAll<RoleRow>((from, to) =>
+    supabase
+      .from("game_unit")
+      .select(
+        "unit_name,build_options," +
+          "builder:stats->builder,weapon:stats->weapons->0," +
+          "energyMake:stats->energyMake,windGenerator:stats->windGenerator," +
+          "tidalGenerator:stats->tidalGenerator,energyUpkeep:stats->energyUpkeep," +
+          "game!inner(shortname)",
+      )
+      .eq("game.shortname", shortname)
+      .order("unit_name")
+      .range(from, to),
+  );
+
+  const roles: Record<string, Exclude<BuildingRole, "other">> = {};
+  for (const row of data ?? []) {
+    const role = buildingRole({
+      buildOptions: row.build_options ?? [],
+      stats: {
+        builder: row.builder,
+        weapons: row.weapon == null ? [] : [row.weapon],
+        energyMake: row.energyMake,
+        windGenerator: row.windGenerator,
+        tidalGenerator: row.tidalGenerator,
+        energyUpkeep: row.energyUpkeep,
+      },
+    });
+    if (role !== "other") roles[row.unit_name.toLowerCase()] = role;
+  }
+  return roles;
 }
 
 /**

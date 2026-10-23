@@ -14,6 +14,7 @@ import {
   unbuildableUnits,
   unitBuilders,
   unitRenders,
+  unitRoles,
 } from "./units";
 
 /**
@@ -868,4 +869,54 @@ test("the random side hides from every faction list", async () => {
   const supabase = { from: () => factionQuery } as unknown as SupabaseClient;
 
   expect(await gameFactions(supabase, "BA")).toEqual([{ key: "arm", name: "Arm" }]);
+});
+
+/**
+ * Roles colour a blueprint's buildings. The read asks for the first weapon
+ * only, so a row with one is a weapon and a row with none is not.
+ */
+
+function fakeRoles(rows: Record<string, unknown>[], selected: string[]): SupabaseClient {
+  const build = {
+    select: (columns: string) => {
+      selected.push(columns);
+      return build;
+    },
+    eq: () => build,
+    order: () => build,
+    range: (from: number, to: number) =>
+      Promise.resolve({ data: rows.slice(from, to + 1), error: null }),
+  };
+  return { from: () => build } as unknown as SupabaseClient;
+}
+
+const NO_STATS = {
+  build_options: [],
+  builder: null,
+  weapon: null,
+  energyMake: null,
+  windGenerator: null,
+  tidalGenerator: null,
+  energyUpkeep: null,
+};
+
+test("unit roles key each unit lower cased and leave out the ones with no role", async () => {
+  const selected: string[] = [];
+  const roles = await unitRoles(
+    fakeRoles(
+      [
+        { ...NO_STATS, unit_name: "ArmCK", build_options: ["armsolar"] },
+        { ...NO_STATS, unit_name: "armllt", weapon: { range: 430 } },
+        { ...NO_STATS, unit_name: "armwin", windGenerator: 25 },
+        { ...NO_STATS, unit_name: "armmex" },
+      ],
+      selected,
+    ),
+    "BA",
+  );
+
+  expect(roles).toEqual({ armck: "builder", armllt: "weapon", armwin: "energy" });
+  // The stats the rule reads, and not the whole blob.
+  expect(selected[0]).toContain("weapon:stats->weapons->0");
+  expect(selected[0]).not.toMatch(/(^|,)stats(,|$)/);
 });

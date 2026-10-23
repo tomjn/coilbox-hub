@@ -19,6 +19,7 @@ import {
   unitBuildpics,
   unitNameLabels,
   unitRenders,
+  unitRoles,
   unbuildableUnits,
   type FactionOption,
   type UnitComparison,
@@ -27,6 +28,7 @@ import {
   type UnitRenderView,
 } from "./units";
 import type { UnitNameLabel } from "./units";
+import type { BuildingRoles } from "@/lib/blueprint/role";
 
 export type { UnitNameLabel };
 import { loadTree, type Tree } from "./tree";
@@ -266,6 +268,18 @@ export async function unitNameLabelsCached(shortname: string): Promise<
   cacheTag(TAGS.games);
 
   return unitNameLabels(createAnonClient(), shortname);
+}
+
+/** What every unit of a game does, for colouring a blueprint's buildings. An
+ *  empty object for a game the catalog holds nothing for, which draws every
+ *  building in the plan's own colour. */
+export async function unitRolesCached(shortname: string): Promise<BuildingRoles> {
+  "use cache";
+  cacheLife(LISTING_LIFE);
+  cacheTag(TAGS.games);
+
+  if (notConfigured()) return {};
+  return unitRoles(createAnonClient(), shortname);
 }
 
 /** The buildpics for a tree's units, keyed by unit name, one batched read. */
