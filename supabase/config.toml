@@ -233,11 +233,10 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# On, without a captcha yet (#432), because the hub's traffic is low enough
-# that bulk email signups are an accepted risk for now. While the project uses
-# Supabase's built in mailer, confirmation mail only reaches members of the
-# Supabase organisation, so nobody else can confirm an account this way.
-enable_signup = true
+# Off. Supabase's built in mailer only delivers to members of the Supabase
+# organisation, so nobody else could receive the confirmation mail an email
+# signup needs. Turning this on needs a custom SMTP provider first (#432).
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
