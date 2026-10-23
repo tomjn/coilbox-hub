@@ -171,9 +171,13 @@ site_url = "https://coilbox-hub.vercel.app"
 # path. That keeps the wildcard scoped to "some port on this machine's loopback
 # interface", not "some host", which matters because this list is the only
 # check standing between a real session and wherever the redirect points.
+#
+# GoTrue matches the query string too, and sign in adds `?next=...&provider=...`
+# to the callback, so the local callback entry needs the trailing `**`. Without
+# it, signing in on localhost against this project lands on the live site.
 additional_redirect_urls = [
   "http://localhost:3000",
-  "http://localhost:3000/auth/callback",
+  "http://localhost:3000/auth/callback**",
   "https://coilbox-hub.vercel.app/auth/callback",
   "http://127.0.0.1:*/**",
 ]
