@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@lingui/core/macro": ["./lib/lingui/macro.ts"]
     }
   },
   "include": [

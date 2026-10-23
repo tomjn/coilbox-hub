@@ -3,9 +3,9 @@
   "ref": "main",
   "dir": "src/runlite",
   "files": {
-    "generate.ts": "c97d2acf3d51d1fb1b8baabfd94ff0295eb78a9b"
+    "generate.ts": "788e3df603d07fb8fbe36378049e67e224f18211"
   },
   "sha256": {
-    "generate.ts": "1a01d2fce9a12c13f716931e2a10e5f96b51cc9a88582141ff1106136a85121f"
+    "generate.ts": "1e5b0747c8fcadbc7c31b0919108e3199420dcc33e4c3fd8ae2036a80bb24ee4"
   }
 }
