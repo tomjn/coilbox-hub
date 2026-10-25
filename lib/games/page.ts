@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ConquestFaction, parseConquestFactions, parseGameLinks, type GameLink } from "./catalog";
 import { type GameDownload, readDownloads } from "./download";
 import { isRandomFaction } from "./factions";
+import { loadBaseGame, loadMutators, type RelatedGame } from "./mutators";
 
 /**
  * Everything one game's page shows, in one place a test can reach (#226).
@@ -58,6 +59,15 @@ export interface GamePage {
   /** Where coilbox fetches the game, best source first (#396). Empty when the
    *  game names nowhere. */
   downloads: GameDownload[];
+  /** The shortname of the game this one is built on, or null when it is not a
+   *  mutator (#546). */
+  base_game: string | null;
+  /** The base game as the hub holds it, or null when this is not a mutator or
+   *  the base game is not on the hub. The page links only when this is set
+   *  (#547). */
+  base: RelatedGame | null;
+  /** The mutators built on this game, by title. */
+  mutators: RelatedGame[];
 }
 
 /** The row as the query hands it back, before the page shapes it. */
@@ -69,6 +79,7 @@ interface GameRow {
   conquest_factions: unknown;
   owner_user_id: string | null;
   hidden_at: string | null;
+  base_game: string | null;
   logo_path: string | null;
   logo_hash: string | null;
   logo_staged_tier: string | null;
@@ -96,7 +107,7 @@ export async function loadGamePage(
     supabase
       .from("game")
       .select(
-        "shortname,display_name,description,links,conquest_factions,owner_user_id,hidden_at," +
+        "shortname,display_name,description,links,conquest_factions,owner_user_id,hidden_at,base_game," +
           "logo_path,logo_hash,logo_staged_tier,banner_path,banner_hash,banner_staged_tier," +
           "card_path,card_hash,card_staged_tier," +
           "game_download_source(kind,value,asset,filename,sort_order)," +
@@ -119,6 +130,11 @@ export async function loadGamePage(
 
   const held = row.data as GameRow | null;
   if (row.error || !held || counts.error || !counts.data) return null;
+
+  const [base, mutators] = await Promise.all([
+    held.base_game ? loadBaseGame(supabase, held.base_game) : null,
+    loadMutators(supabase, held.shortname),
+  ]);
 
   return {
     shortname: held.shortname,
@@ -143,5 +159,8 @@ export async function loadGamePage(
     card_hash: held.card_hash,
     card_staged_tier: held.card_staged_tier,
     downloads: readDownloads(held.game_download_source),
+    base_game: held.base_game,
+    base,
+    mutators,
   };
 }

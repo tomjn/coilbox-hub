@@ -37,7 +37,13 @@ const GAME_ROW = {
   game_version: [{ version: "2.0.0", last_seen_at: "2026-08-21T00:00:00Z" }],
 };
 
-function fakeSupabase(row: unknown, counts: unknown): SupabaseClient {
+/** `mutators` answers the read for games built on this one, and `base` the
+ *  lookup of this game's own base game. */
+function fakeSupabase(
+  row: unknown,
+  counts: unknown,
+  related: { base?: unknown; mutators?: unknown[] } = {},
+): SupabaseClient {
   // `order` and `limit` answer themselves, so the double does not have to be
   // rewritten every time the real query sorts one more embedded table.
   const answer = (data: unknown) => {
@@ -48,8 +54,18 @@ function fakeSupabase(row: unknown, counts: unknown): SupabaseClient {
     };
     return { select: () => ({ eq: () => chain, maybeSingle: chain.maybeSingle }) };
   };
+  const browse = (columns: string) => ({
+    eq: (column: string) => {
+      if (column === "base_game") return Promise.resolve({ data: related.mutators ?? [], error: null });
+      if (columns === "shortname,display_name") {
+        return { maybeSingle: () => Promise.resolve({ data: related.base ?? null, error: null }) };
+      }
+      return answer(counts).select().eq();
+    },
+  });
   return {
-    from: (table: string) => (table === "game_browse" ? answer(counts) : answer(row)),
+    from: (table: string) =>
+      table === "game_browse" ? { select: (columns: string) => browse(columns) } : answer(row),
   } as unknown as SupabaseClient;
 }
 
@@ -89,4 +105,51 @@ test("no release reported yet means no claim about freshness", async () => {
     "BA",
   );
   expect(page?.release).toBeNull();
+});
+
+const COUNTS = { faction_count: 0, unit_count: 0 };
+
+test("a game that is not a mutator has no base game and no mutators", async () => {
+  const page = await loadGamePage(fakeSupabase({ ...GAME_ROW, base_game: null }, COUNTS), "BA");
+  expect(page?.base_game).toBeNull();
+  expect(page?.base).toBeNull();
+  expect(page?.mutators).toEqual([]);
+});
+
+test("a base game lists its mutators by the title a reader sees", async () => {
+  const page = await loadGamePage(
+    fakeSupabase(GAME_ROW, COUNTS, {
+      mutators: [
+        { shortname: "zz-rush", display_name: null },
+        { shortname: "ba-wrapper", display_name: "Wrapper" },
+        { shortname: "ba-arena", display_name: "Arena" },
+      ],
+    }),
+    "BA",
+  );
+  expect(page?.mutators).toEqual([
+    { shortname: "ba-arena", title: "Arena" },
+    { shortname: "ba-wrapper", title: "Wrapper" },
+    { shortname: "zz-rush", title: "zz-rush" },
+  ]);
+});
+
+test("a mutator links to its base game when the hub holds it", async () => {
+  const page = await loadGamePage(
+    fakeSupabase({ ...GAME_ROW, shortname: "BA-Rush", base_game: "BA" }, COUNTS, {
+      base: { shortname: "BA", display_name: "Balanced Annihilation" },
+    }),
+    "BA-Rush",
+  );
+  expect(page?.base_game).toBe("BA");
+  expect(page?.base).toEqual({ shortname: "BA", title: "Balanced Annihilation" });
+});
+
+test("a mutator whose base game is not on the hub keeps the name and has no link target", async () => {
+  const page = await loadGamePage(
+    fakeSupabase({ ...GAME_ROW, shortname: "BA-Rush", base_game: "Elsewhere" }, COUNTS),
+    "BA-Rush",
+  );
+  expect(page?.base_game).toBe("Elsewhere");
+  expect(page?.base).toBeNull();
 });
