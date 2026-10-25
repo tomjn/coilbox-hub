@@ -39,6 +39,7 @@ export interface GameSubmission {
   units: UnitSubmission[];
   display_name: string | null;
   description: string | null;
+  base_game: string | null;
   links: { label: string; url: string }[] | null;
 }
 

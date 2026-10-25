@@ -76,6 +76,7 @@ const GAMES_EXAMPLE: GameListResponseBody = {
       faction_count: 2,
       unit_count: 12,
       item_count: 0,
+      base_game: null,
     },
   ],
 };
@@ -412,6 +413,7 @@ export default function DevelopersPage() {
             { name: "games[].faction_count", type: "number", text: "How many factions the hub holds for the game." },
             { name: "games[].unit_count", type: "number", text: "How many units the hub holds for the game." },
             { name: "games[].item_count", type: "number", text: "How many gallery items name the game." },
+            { name: "games[].base_game", type: "string or null", text: "The shortname of the game this one is built on, when it is a mutator. Null for any other game. The hub may not hold a game with that shortname yet." },
           ]}
         />
         <Sub>Example response</Sub>
