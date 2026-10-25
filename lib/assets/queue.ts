@@ -297,10 +297,16 @@ export async function approvePictures(
 /**
  * Reject one picture, saying which kind of rejection it is.
  *
- * Nothing deletes the object. Nobody holds delete on `public.asset`, the bytes
- * stay in the store, and a safety rejection freezes the row against every
- * writer including the secret key, so the picture and its provenance are still
- * there afterwards to be handed to whoever asks for them.
+ * Nothing deletes the row, and nothing deletes the object here. Nobody holds
+ * delete on `public.asset`, and a safety rejection freezes the row against every
+ * writer including the secret key, so a safety rejected picture and its
+ * provenance are still there afterwards to be handed to whoever asks for them.
+ *
+ * An editorial rejection stops claiming its bucket object once it is older than
+ * the grace period in `public.asset_holds_staged_bytes`
+ * (`20261018120000_release_rejected_staged_pictures.sql`), and the daily sweep
+ * deletes the object then. The row, its kind and its `asset_event` trail stay,
+ * and `public.return_asset` refuses the row from then on.
  *
  * `approval_source` is untouched on purpose: on a rejected row it reads "how
  * this was approved before it was rejected", which is the record #115 needs
