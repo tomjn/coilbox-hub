@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { compareGames, type GameSummary } from "./query";
+import { compareGames, type GameSummary, withoutMutators } from "./query";
 
 /** A row with only the fields a test cares about. The rest of GameSummary is
  *  filled in so the type holds without every test restating it. */
@@ -82,4 +82,16 @@ test("two games with the same title are told apart by shortname", () => {
     .map((row) => row.shortname);
 
   expect(sorted).toEqual(["AA", "BB"]);
+});
+
+test("the top level list leaves out a mutator and keeps every other game", () => {
+  const listed = withoutMutators([
+    game({ shortname: "BAR" }),
+    game({ shortname: "BAR-Rush", base_game: "BAR" }),
+    game({ shortname: "Orphan", base_game: "NotOnTheHub" }),
+  ]).map((row) => row.shortname);
+
+  // A mutator whose base game is not on the hub is still a mutator, so it stays
+  // off the list too.
+  expect(listed).toEqual(["BAR"]);
 });

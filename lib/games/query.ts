@@ -82,6 +82,13 @@ export function compareGames(left: GameSummary, right: GameSummary): number {
   return left.shortname.localeCompare(right.shortname);
 }
 
+/** The games the top level list draws: every game that is not a mutator
+ *  (#547). A mutator is reached from its base game's page, from a direct link
+ *  and from `GET /api/v1/games`, which keeps returning it with `base_game` set. */
+export function withoutMutators(games: GameSummary[]): GameSummary[] {
+  return games.filter((game) => game.base_game === null);
+}
+
 export async function fetchGames(
   supabase: SupabaseClient,
 ): Promise<{ games: GameSummary[]; error: string | null }> {

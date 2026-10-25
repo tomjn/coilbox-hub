@@ -345,6 +345,21 @@ async function GameContent({ params }: { params: Params }) {
           {describes && page.description ? (
             <RichText text={page.description} className="max-w-prose text-neutral-300" />
           ) : null}
+          {page.base_game ? (
+            <p className="text-sm text-neutral-400" data-testid="base-game">
+              Mutator of{" "}
+              {page.base ? (
+                <Link
+                  href={`/games/${page.base.shortname}`}
+                  className="text-neutral-300 underline-offset-4 hover:underline active:underline"
+                >
+                  {page.base.title}
+                </Link>
+              ) : (
+                <span className="text-neutral-300">{page.base_game}</span>
+              )}
+            </p>
+          ) : null}
           {page.release ? (
             <p className="text-sm text-neutral-400">Game version {page.release}</p>
           ) : null}
@@ -404,6 +419,25 @@ async function GameContent({ params }: { params: Params }) {
             />
           </ul>
         </section>
+
+        {page.mutators.length > 0 ? (
+          <section className="flex flex-col gap-3" aria-labelledby="game-mutators">
+            <h2 id="game-mutators" className="text-sm uppercase tracking-wide text-neutral-400">
+              Mutators
+            </h2>
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {page.mutators.map((mutator) => (
+                <li key={mutator.shortname}>
+                  <Link href={`/games/${mutator.shortname}`} className={`${CARD} items-center px-4 py-3`}>
+                    <span className="min-w-0 break-words font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">
+                      {mutator.title}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {/* Last, because they leave the hub. Each carries the outbound arrow so
          *  it does not read as one more way into this game's pages. */}
