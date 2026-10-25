@@ -4,7 +4,7 @@ import { ArtBackdrop } from "@/components/art/ArtBackdrop";
 import { games } from "@/components/art/drawings";
 import { GameCard } from "@/components/GameCard";
 import { gameSidesCached, gamesListing } from "@/lib/games/cached";
-import type { GameSummary } from "@/lib/games/query";
+import { type GameSummary, withoutMutators } from "@/lib/games/query";
 import type { GameSides } from "@/lib/games/sides";
 
 /**
@@ -83,7 +83,8 @@ function GameGrid({
 }
 
 export default async function Games() {
-  const { games: rows, error } = await gamesListing();
+  const { games: listed, error } = await gamesListing();
+  const rows = withoutMutators(listed);
   const sides = await gameSidesCached(rows.map((game) => game.shortname));
 
   // `compareGames` has already put the featured ones first, so this is a split
