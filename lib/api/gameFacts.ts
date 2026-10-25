@@ -132,6 +132,9 @@ export interface GameFactsSubmission {
    * here, matching the column it fills, though the wire field is `name`. */
   display_name: string | null;
   description: string | null;
+  /** The shortname of the game this one is built on, when it is a mutator
+   * (#546). Null when the client did not name one. */
+  base_game: string | null;
   links: SubmittedLink[] | null;
   /** Where the client believes the game can be fetched from (#408). Held for a
    * person to accept rather than written, so absent and empty mean the same
@@ -154,6 +157,7 @@ const BODY_FIELDS = [
   "units",
   "name",
   "description",
+  "baseGame",
   "links",
   "downloads",
 ] as const;
@@ -183,6 +187,8 @@ const MAX_LENGTHS = {
   buildOption: 128,
   // The same bound `public.game.display_name` and `.description` check.
   displayName: 256,
+  // The same bound as `shortname`, since it names another game's shortname.
+  baseGame: 64,
   description: 4000,
 } as const;
 
@@ -600,6 +606,14 @@ export function parseGameFactsBody(body: unknown): ParsedGameFactsBody {
     return { ok: false, error: description.error, status: 400 };
   }
 
+  const baseGame = optionalText(body, "baseGame", MAX_LENGTHS.baseGame);
+  if (!baseGame.ok) {
+    return { ok: false, error: baseGame.error, status: 400 };
+  }
+  if (baseGame.value === shortname.value) {
+    return { ok: false, error: "`baseGame` must name a different game from `shortname`.", status: 400 };
+  }
+
   const links = readLinks(body);
   if (!links.ok) {
     return { ok: false, error: links.error, status: 400 };
@@ -621,6 +635,7 @@ export function parseGameFactsBody(body: unknown): ParsedGameFactsBody {
       units,
       display_name: displayName.value,
       description: description.value,
+      base_game: baseGame.value,
       links: links.value,
       downloads: downloads.value,
     },

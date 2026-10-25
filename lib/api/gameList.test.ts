@@ -21,6 +21,7 @@ function game(fields: Partial<GameSummary> & Pick<GameSummary, "shortname">): Ga
     faction_count: 0,
     unit_count: 0,
     item_count: 0,
+    base_game: null,
     ...fields,
   };
 }
@@ -47,7 +48,18 @@ test("a bare game answers nulls rather than being left out", () => {
     faction_count: 0,
     unit_count: 0,
     item_count: 0,
+    base_game: null,
   });
+});
+
+test("a mutator publishes the shortname of the game it is built on", () => {
+  const [row] = buildGameListBody([game({ shortname: "BAR-Rush", base_game: "BAR" })]).games;
+  expect(row.base_game).toBe("BAR");
+});
+
+test("a game that is not a mutator publishes a null base game", () => {
+  const [row] = buildGameListBody([game({ shortname: "BAR" })]).games;
+  expect(row.base_game).toBeNull();
 });
 
 test("the title falls back to the shortname the way every page does", () => {

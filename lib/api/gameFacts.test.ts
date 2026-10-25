@@ -243,6 +243,47 @@ test("a blank name or description arrives as null, the way other optional text d
   expect(parsed.submission.description).toBeNull();
 });
 
+// #546: the game a mutator is built on.
+test("a submission naming a base game parses it, trimmed", () => {
+  const parsed = parseGameFactsBody(body({ baseGame: "  BAR  " }));
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.base_game).toBe("BAR");
+});
+
+test("a submission without a base game leaves it null", () => {
+  const parsed = parseGameFactsBody(body());
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.submission.base_game).toBeNull();
+});
+
+test("a blank or null base game arrives as null", () => {
+  for (const baseGame of ["  ", "", null]) {
+    const parsed = parseGameFactsBody(body({ baseGame }));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.submission.base_game).toBeNull();
+  }
+});
+
+test("a base game past 64 characters, or that is not a string, is refused", () => {
+  for (const baseGame of ["x".repeat(65), 7, ["BAR"]]) {
+    const parsed = parseGameFactsBody(body({ baseGame }));
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.status).toBe(400);
+      expect(parsed.error).toContain("baseGame");
+    }
+  }
+});
+
+test("a game cannot be its own base game", () => {
+  const parsed = parseGameFactsBody(body({ shortname: "BAR", baseGame: "BAR" }));
+  expect(parsed.ok).toBe(false);
+  if (!parsed.ok) expect(parsed.error).toContain("baseGame");
+});
+
 test("a name past 256 characters is refused", () => {
   const parsed = parseGameFactsBody(body({ name: "x".repeat(257) }));
   expect(parsed.ok).toBe(false);

@@ -69,6 +69,9 @@ export interface GameListEntry {
   faction_count: number;
   unit_count: number;
   item_count: number;
+  /** The shortname of the game this one is built on, or null when it is not a
+   *  mutator (#546). The hub may not hold that game. */
+  base_game: string | null;
 }
 
 export interface GameListResponseBody {
@@ -107,6 +110,7 @@ export function buildGameListBody(games: GameSummary[]): GameListResponseBody {
       faction_count: game.faction_count,
       unit_count: game.unit_count,
       item_count: game.item_count,
+      base_game: game.base_game,
     })),
   };
 }

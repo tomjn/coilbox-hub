@@ -109,6 +109,7 @@ test("one request carries one game and its whole batch to submit_game_facts", as
     units: [unit("armcom"), unit("armmex")],
     display_name: "Balanced Annihilation",
     description: null,
+    base_game: "BAR",
     links: null,
   });
 
@@ -143,6 +144,7 @@ test("a failure from the database is one refusal for the request, not per entry"
       units: [],
       display_name: null,
       description: null,
+      base_game: null,
       links: null,
     }),
     USER,

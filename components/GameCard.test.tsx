@@ -22,6 +22,7 @@ const GAME: GameSummary = {
   faction_count: 2,
   unit_count: 340,
   item_count: 12,
+  base_game: null,
 };
 
 test("a card leads with the name and links to the game's page", () => {

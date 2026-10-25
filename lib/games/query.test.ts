@@ -21,6 +21,7 @@ function game(fields: Partial<GameSummary> & Pick<GameSummary, "shortname">): Ga
     faction_count: 0,
     unit_count: 0,
     item_count: 0,
+    base_game: null,
     ...fields,
   };
 }
