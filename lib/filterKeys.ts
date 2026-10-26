@@ -9,3 +9,15 @@
  * No imports, because `next.config.ts` loads this before the app is built.
  */
 export const MAP_FILTER_KEYS = ["q", "tag", "author", "size", "players", "sort", "page"] as const;
+
+export const GALLERY_FILTER_KEYS = [
+  "kind",
+  "game",
+  "map",
+  "tag",
+  "author",
+  "account",
+  "q",
+  "sort",
+  "page",
+] as const;

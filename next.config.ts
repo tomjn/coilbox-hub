@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { MAP_FILTER_KEYS } from "./lib/filterKeys";
+import { GALLERY_FILTER_KEYS, MAP_FILTER_KEYS } from "./lib/filterKeys";
 import { getSupabaseConfig, SUPABASE_CONFIG_ERROR } from "./lib/supabase/config";
 
 // The cached listings build empty without Supabase settings, so CI can build
@@ -40,7 +40,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return {
       // Before the pages are matched, or the listing's own page would answer.
-      beforeFiles: [...whenFiltered("/maps", "/maps/filtered", MAP_FILTER_KEYS)],
+      beforeFiles: [
+        ...whenFiltered("/maps", "/maps/filtered", MAP_FILTER_KEYS),
+        ...whenFiltered("/gallery", "/gallery/filtered", GALLERY_FILTER_KEYS),
+      ],
     };
   },
 };

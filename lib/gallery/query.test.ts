@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { GALLERY_FILTER_KEYS } from "@/lib/filterKeys";
+import { GALLERY_KINDS } from "@/lib/container";
 import {
   applyFilters,
   applyOrder,
@@ -429,4 +431,24 @@ test("a page outside the listing still gets a usable pager", () => {
 
 test("the summary columns include author_id", () => {
   expect(ITEM_SUMMARY_COLUMNS.split(",")).toContain("author_id");
+});
+
+test("every key a gallery link can carry is one next.config.ts rewrites on", () => {
+  const href = filterHref(
+    {
+      kind: [GALLERY_KINDS[0]],
+      game: "BA",
+      map: "Comet",
+      tag: ["water"],
+      author: ["Ada"],
+      account: ["abc"],
+      q: "rush",
+      sort: "title",
+      page: 3,
+    },
+    { page: 3 },
+  );
+  const keys = new Set(new URLSearchParams(href.split("?")[1]).keys());
+  expect(keys.size).toBe(9);
+  for (const key of keys) expect(GALLERY_FILTER_KEYS as readonly string[]).toContain(key);
 });
