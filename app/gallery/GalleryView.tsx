@@ -1,0 +1,319 @@
+import Link from "next/link";
+import { ArtBackdrop } from "@/components/art/ArtBackdrop";
+import { hub } from "@/components/art/drawings";
+import { BusyForm } from "@/components/BusyForm";
+import { ItemCard } from "@/components/ItemCard";
+import { LinkPending } from "@/components/LinkPending";
+import { cardCountsFromEntries } from "@/lib/gallery/cardCounts";
+import { cardPicturesFromEntries } from "@/lib/gallery/cardPictures";
+import { cardShapesFromEntries } from "@/lib/gallery/cardShapes";
+import { cardTitles } from "@/lib/gallery/cardTitles";
+import { accountDisplayName, galleryFacets, galleryPage } from "@/lib/gallery/cached";
+import { GALLERY_KINDS } from "@/lib/container";
+import { kindLabelPlural } from "@/lib/gallery/label";
+import { type Filters, filterHref, PAGE_SIZE } from "@/lib/gallery/query";
+import { importOrigin } from "@/lib/site";
+import { Button } from "@/components/Button";
+import { SearchShortcut } from "@/components/SearchShortcut";
+
+// Lower than the landing page's: this page is filter chips and a grid of
+// cards rather than a sparse hero, so the same `hub` drawing needs to sit
+// further back to read as atmosphere rather than noise behind real content.
+const BACKDROP_STRENGTH = 0.07;
+
+/** The gallery for `filters`. `page.tsx` draws it unfiltered and reads nothing
+ *  from the request, so the CDN serves it. A request with a filter in its query
+ *  is rewritten to `filtered/page.tsx` by `next.config.ts`. */
+export async function GalleryView({ filters }: { filters: Filters }) {
+  const origin = importOrigin();
+  // The rows, the count and the chips, all held between requests. The filters
+  // are the cache key of the page, so a filtered view is held separately from a
+  // bare one. The chips take no filters, so they are read once for all of them.
+  // `lib/gallery/cached.ts` says why the reads moved out of the page.
+  const [
+    { items, count, error, pictures: entries, shapes: shapeEntries, counts: countEntries },
+    { games, maps },
+    accountNames,
+  ] = await Promise.all([
+    galleryPage(filters),
+    galleryFacets(),
+    Promise.all(filters.account.map((id) => accountDisplayName(id))),
+  ]);
+  // Current names, so the heading is right after a rename while the cards keep
+  // the name they were published under. An account with no profile row reads
+  // as "Unknown account" rather than showing its id.
+  const accounts = filters.account.map((id, i) => ({
+    id,
+    name: accountNames[i] ?? "Unknown account",
+  }));
+  const pictures = cardPicturesFromEntries(entries);
+  const shapes = cardShapesFromEntries(shapeEntries);
+  const counts = cardCountsFromEntries(countEntries);
+  // Computed here rather than in `galleryPage()`: two titles only collide on
+  // the page a reader can see, and this page's rows are exactly that (#311).
+  const titles = cardTitles(items);
+  const lastPage = Math.max(1, Math.ceil(count / PAGE_SIZE));
+
+  return (
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
+      <ArtBackdrop drawing={hub} strength={BACKDROP_STRENGTH} />
+      <SearchShortcut inputId="gallery-q" />
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {accounts.length === 1 ? `Gallery by ${accounts[0].name}` : "Gallery"}
+          </h1>
+          <p className="text-neutral-400">
+            Made by other players. Importing needs no account.
+          </p>
+        </div>
+
+        <BusyForm className="flex gap-2" action="/gallery">
+          {filters.kind.map((kind) => (
+            <input key={kind} type="hidden" name="kind" value={kind} />
+          ))}
+          {filters.game ? <input type="hidden" name="game" value={filters.game} /> : null}
+          {filters.map ? <input type="hidden" name="map" value={filters.map} /> : null}
+          {filters.tag.map((tag) => (
+            <input key={tag} type="hidden" name="tag" value={tag} />
+          ))}
+          {filters.author.map((author) => (
+            <input key={author} type="hidden" name="author" value={author} />
+          ))}
+          {filters.account.map((account) => (
+            <input key={account} type="hidden" name="account" value={account} />
+          ))}
+          <input
+            id="gallery-q"
+            type="search"
+            name="q"
+            aria-keyshortcuts="/"
+            aria-label="Search titles and descriptions"
+            defaultValue={filters.q ?? ""}
+            placeholder="Search titles and descriptions"
+            className="w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+          />
+          <Button
+            type="submit"
+            className="shrink-0"
+          >
+            Search
+          </Button>
+        </BusyForm>
+
+        <nav className="flex flex-col gap-3 border-b border-neutral-900 pb-6">
+          <FilterRow label="Kind">
+            {GALLERY_KINDS.map((kind) => (
+              <Chip
+                key={kind}
+                href={filterHref(filters, {
+                  kind: filters.kind.includes(kind) ? [] : [kind],
+                })}
+                active={filters.kind.includes(kind)}
+              >
+                {kindLabelPlural(kind)}
+              </Chip>
+            ))}
+          </FilterRow>
+
+          {games.length > 1 || filters.game ? (
+            <FilterRow label="Game">
+              {games.map((game) => (
+                <Chip
+                  key={game}
+                  href={filterHref(filters, {
+                    game: filters.game === game ? null : game,
+                  })}
+                  active={filters.game === game}
+                >
+                  {game}
+                </Chip>
+              ))}
+            </FilterRow>
+          ) : null}
+
+          {maps.length > 1 || filters.map ? (
+            <FilterRow label="Map">
+              {maps.map((map) => (
+                <Chip
+                  key={map}
+                  href={filterHref(filters, {
+                    map: filters.map === map ? null : map,
+                  })}
+                  active={filters.map === map}
+                >
+                  {map}
+                </Chip>
+              ))}
+            </FilterRow>
+          ) : null}
+
+          {filters.tag.length > 0 ? (
+            <FilterRow label="Tag">
+              {filters.tag.map((tag) => (
+                <Chip
+                  key={tag}
+                  href={filterHref(filters, {
+                    tag: filters.tag.filter((t) => t !== tag),
+                  })}
+                  active
+                >
+                  {tag}
+                </Chip>
+              ))}
+            </FilterRow>
+          ) : null}
+
+          {filters.author.length > 0 || accounts.length > 0 ? (
+            <FilterRow label="By">
+              {accounts.map(({ id, name }) => (
+                <Chip
+                  key={id}
+                  href={filterHref(filters, {
+                    account: filters.account.filter((a) => a !== id),
+                  })}
+                  active
+                >
+                  {name}
+                </Chip>
+              ))}
+              {filters.author.map((author) => (
+                <Chip
+                  key={author}
+                  href={filterHref(filters, {
+                    author: filters.author.filter((a) => a !== author),
+                  })}
+                  active
+                >
+                  {author}
+                </Chip>
+              ))}
+            </FilterRow>
+          ) : null}
+        </nav>
+
+        {error ? (
+          <p className="text-sm text-red-400">
+            The gallery could not be read just now. Try again in a moment.
+          </p>
+        ) : items.length === 0 ? (
+          <Empty
+            filtered={Boolean(
+              filters.kind.length ||
+                filters.game ||
+                filters.map ||
+                filters.tag.length ||
+                filters.author.length ||
+                filters.account.length ||
+                filters.q,
+            )}
+          />
+        ) : (
+          <>
+            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <ItemCard
+                    item={item}
+                    filters={filters}
+                    origin={origin}
+                    picture={item.map_name ? pictures.get(item.map_name) : undefined}
+                    shape={shapes.get(item.id)}
+                    counts={counts.get(item.id)}
+                    title={titles.get(item.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+
+            {lastPage > 1 ? (
+              <div className="flex items-center justify-between text-sm text-neutral-400">
+                {filters.page > 1 ? (
+                  <Link
+                    href={filterHref(filters, { page: filters.page - 1 })}
+                    className="hover:text-neutral-200 active:text-neutral-200"
+                  >
+                    <LinkPending>Newer</LinkPending>
+                  </Link>
+                ) : (
+                  <span />
+                )}
+                <span>
+                  Page {filters.page} of {lastPage}
+                </span>
+                {filters.page < lastPage ? (
+                  <Link
+                    href={filterHref(filters, { page: filters.page + 1 })}
+                    className="hover:text-neutral-200 active:text-neutral-200"
+                  >
+                    <LinkPending>Older</LinkPending>
+                  </Link>
+                ) : (
+                  <span />
+                )}
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function FilterRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-2">
+      <span className="w-12 shrink-0 text-xs uppercase tracking-wide text-neutral-400">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function Chip({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={
+        active
+          ? "rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-900"
+          : "rounded-full border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200"
+      }
+    >
+      {children}
+    </Link>
+  );
+}
+
+function Empty({ filtered }: { filtered: boolean }) {
+  return (
+    <div className="rounded-md border border-neutral-800 bg-card p-8 text-center">
+      <p className="text-sm text-neutral-400">
+        {filtered
+          ? "Nothing matches that yet."
+          : "Nothing has been published yet."}
+      </p>
+      <Link
+        href={filtered ? "/gallery" : "/publish"}
+        className="mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline"
+      >
+        {filtered ? "Clear the filters" : "Publish the first thing"}
+      </Link>
+    </div>
+  );
+}

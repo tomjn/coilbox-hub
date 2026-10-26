@@ -1,4 +1,11 @@
 import type { NextConfig } from "next";
+import {
+  CHANGES_FILTER_KEYS,
+  GALLERY_FILTER_KEYS,
+  MAP_FILTER_KEYS,
+  TREE_FILTER_KEYS,
+  UNIT_GRID_FILTER_KEYS,
+} from "./lib/filterKeys";
 import { getSupabaseConfig, SUPABASE_CONFIG_ERROR } from "./lib/supabase/config";
 
 // The cached listings build empty without Supabase settings, so CI can build
@@ -36,6 +43,26 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return {
+      // Before the pages are matched, or the listing's own page would answer.
+      beforeFiles: [
+        ...whenFiltered("/maps", "/maps/filtered", MAP_FILTER_KEYS),
+        ...whenFiltered("/gallery", "/gallery/filtered", GALLERY_FILTER_KEYS),
+        // Beside the units rather than under them, where a unit could be named
+        // `filtered`.
+        ...whenFiltered("/games/:shortname/units", "/games/:shortname/units-filtered", UNIT_GRID_FILTER_KEYS),
+        ...whenFiltered("/games/:shortname/tree", "/games/:shortname/tree/filtered", TREE_FILTER_KEYS),
+        ...whenFiltered("/games/:shortname/changes", "/games/:shortname/changes/filtered", CHANGES_FILTER_KEYS),
+      ],
+    };
+  },
 };
+
+/** One rewrite per key, because a rewrite's `has` items must all match and a
+ *  filtered listing holds any one of them (`lib/filterKeys.ts`). */
+function whenFiltered(source: string, destination: string, keys: readonly string[]) {
+  return keys.map((key) => ({ source, destination, has: [{ type: "query" as const, key }] }));
+}
 
 export default nextConfig;

@@ -64,6 +64,9 @@ export async function mapsPage(filters: Filters): Promise<MapsPage> {
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.maps, TAGS.assets);
 
+  // `next build` prerenders the plain listing and can run with no Supabase
+  // settings, as CI does. It builds with no maps then.
+  if (!getSupabaseConfig().ok) return { maps: [], count: 0, error: null, pictures: [] };
   const supabase = createAnonClient();
 
   // The one thing that cannot be worked out here. A reader arrives with a
