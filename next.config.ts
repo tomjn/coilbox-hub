@@ -3,12 +3,24 @@ import type { NextConfig } from "next";
 // The hub serves its own pictures at the size it shows them, so nothing here
 // goes through next/image and no remote host has to be allowed.
 const nextConfig: NextConfig = {
-  // Pages read the session for the header, which makes every route dynamic.
-  // With this on, what a page reads through a "use cache" function is kept
-  // between requests and the header alone is rendered per visitor, so a
-  // logged out visit costs no round trip to the database. `lib/cache/tags.ts`
-  // names what a write has to invalidate.
+  // What a page reads through a "use cache" function is kept between requests.
+  // A public page reads nothing else, and the header draws who is signed in in
+  // the browser (`lib/auth/navCookie.ts`), so the CDN can serve the page without
+  // running a function. `lib/cache/tags.ts` names what a write has to
+  // invalidate.
   cacheComponents: true,
+  async redirects() {
+    return [
+      // A unit at a past release moved from `?v=` to the path, so the unit page
+      // reads nothing from the request and the CDN can serve it.
+      {
+        source: "/games/:shortname/units/:unit",
+        has: [{ type: "query", key: "v", value: "(?<v>.+)" }],
+        destination: "/games/:shortname/units/:unit/v/:v",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
