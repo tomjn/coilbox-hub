@@ -29,6 +29,15 @@ test("production allows the public pages and points at the sitemap", () => {
   expect(disallowed(rules)).not.toContain("/developers");
 });
 
+test("production turns AI training crawlers away from the whole site", () => {
+  const rules = robotsRules(ORIGIN, "production");
+  const list = Array.isArray(rules.rules) ? rules.rules : [rules.rules];
+  const blocked = list.find((rule) => rule.disallow === "/");
+  expect(blocked?.userAgent).toContain("GPTBot");
+  expect(blocked?.userAgent).toContain("ClaudeBot");
+  expect(blocked?.userAgent).toContain("CCBot");
+});
+
 test("a preview disallows everything and offers no sitemap", () => {
   const rules = robotsRules(ORIGIN, "preview");
   expect(disallowed(rules)).toEqual(["/"]);
