@@ -26,6 +26,8 @@ export const TAGS = {
   map: (slug: string) => `map:${slug}`,
   /** The game catalog, every game page, and everything they list. */
   games: "games",
+  /** One unit's pages, at every release, for a write that touches one unit. */
+  unit: (shortname: string, unitName: string) => `unit:${shortname}/${unitName}`,
   /** Every picture the hub holds, on whatever page it is drawn. */
   assets: "assets",
 } as const;

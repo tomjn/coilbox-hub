@@ -473,7 +473,8 @@ export async function setSnippet(
     return { ok: false, message: SNIPPET_MESSAGES.notAllowed };
   }
 
-  revalidatePath(`/games/${shortname}/units/${unitName}`);
+  // The unit's page at every release shows the snippet.
+  updateTag(TAGS.unit(shortname, unitName));
   return { ok: true, message: SNIPPET_MESSAGES.saved };
 }
 

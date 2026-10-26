@@ -33,7 +33,12 @@ import {
  * anywhere else on the site.
  */
 
-const LISTING_LIFE = "hours";
+/** How long a read is held before it is read again. Every write in the app
+ *  clears it by tag straight away, so this only bounds an edit made straight in
+ *  the database, which a redeploy also clears. Long, because a crawler walks
+ *  every unit and map page, and each page whose data has expired is rendered
+ *  again by a function. */
+const LISTING_LIFE = "weeks";
 
 /** A picture lookup as it crosses a cache boundary. */
 export type PictureEntries = [string, ResolvedAsset][];

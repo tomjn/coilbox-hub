@@ -42,7 +42,12 @@ import { loadTree, type Tree } from "./tree";
  * a grid cell, and every loader that draws one has to hear about it.
  */
 
-const LISTING_LIFE = "hours";
+/** How long a read is held before it is read again. Every write in the app
+ *  clears it by tag straight away, so this only bounds an edit made straight in
+ *  the database, which a redeploy also clears. Long, because a crawler walks
+ *  every unit and map page, and each page whose data has expired is rendered
+ *  again by a function. */
+const LISTING_LIFE = "weeks";
 
 /** The games listing is prerendered by `next build`, which can run with no
  *  Supabase settings, as CI does. There is nothing to read then, so the page
@@ -148,7 +153,7 @@ export async function unitPageCached(
 } | null> {
   "use cache";
   cacheLife(LISTING_LIFE);
-  cacheTag(TAGS.games, TAGS.assets);
+  cacheTag(TAGS.games, TAGS.assets, TAGS.unit(shortname, unitName));
 
   const supabase = createAnonClient();
   const page = await loadUnitPage(supabase, shortname, unitName, version);

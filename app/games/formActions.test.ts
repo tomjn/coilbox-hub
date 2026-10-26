@@ -90,7 +90,8 @@ mock.module("@/lib/supabase/admin", () => ({
 
 const revalidated = mock<(path: string) => void>(() => {});
 const realCache = await import("next/cache");
-mock.module("next/cache", () => ({ ...realCache, revalidatePath: revalidated, updateTag: mock(() => {}) }));
+const tagged = mock<(tag: string) => void>(() => {});
+mock.module("next/cache", () => ({ ...realCache, revalidatePath: revalidated, updateTag: tagged }));
 
 const { editConquestFactions, editGameDetails, setSnippet, setGameVisibility, setVersionVisibility } =
   await import("./actions");
@@ -113,6 +114,7 @@ beforeEach(() => {
   gameAdminResult = { error: null };
   versionAdminResult = { error: null };
   revalidated.mockClear();
+  tagged.mockClear();
 });
 
 test("a saved edit tells the form and revalidates the game", async () => {
@@ -211,7 +213,8 @@ test("a saved snippet tells the form", async () => {
   const state = await setSnippet(null, form({ shortname: "BA", unit_name: "infantry", snippet: "Elite." }));
 
   expect(state).toEqual({ ok: true, message: SNIPPET_MESSAGES.saved });
-  expect(revalidated).toHaveBeenCalledWith("/games/BA/units/infantry");
+  // The unit at every release, not only its latest page.
+  expect(tagged).toHaveBeenCalledWith("unit:BA/infantry");
 });
 
 test("a signed out snippet save says so", async () => {
