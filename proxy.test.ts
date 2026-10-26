@@ -5,7 +5,8 @@ import { expect, test } from "bun:test";
 // here does the same, which is why the cookie tests pass plain names.
 import { unstable_doesMiddlewareMatch } from "next/dist/experimental/testing/server/middleware-testing-utils";
 import nextConfig from "./next.config";
-import { config, hasAuthCookie } from "./proxy";
+import { hasAuthCookie } from "./lib/auth/navCookie";
+import { config } from "./proxy";
 
 function runsOn(url: string): boolean {
   return unstable_doesMiddlewareMatch({ config, nextConfig, url });

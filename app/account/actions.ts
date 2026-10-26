@@ -5,6 +5,7 @@ import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { confirmsDeletion } from "@/lib/account/confirmDeletion";
 import { checkDisplayName, renameErrorMessage } from "@/lib/account/displayName";
+import { clearNav, writeNav } from "@/lib/auth/nav";
 import { fetchDisplayName } from "@/lib/author";
 import { TAGS } from "@/lib/cache/tags";
 import { createClient } from "@/lib/supabase/server";
@@ -57,6 +58,8 @@ export async function renameAccount(
 
   // `accountDisplayName` caches the gallery heading under the listing's tag.
   updateTag(TAGS.items);
+  // The header shows the name from `hub_nav`.
+  await writeNav(supabase);
   return { saved: checked.name };
 }
 
@@ -110,5 +113,6 @@ export async function deleteAccount(
   updateTag(TAGS.items);
 
   await supabase.auth.signOut();
+  await clearNav();
   redirect("/?deleted=1");
 }

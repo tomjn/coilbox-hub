@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { writeNav } from "@/lib/auth/nav";
 import { createClient } from "@/lib/supabase/server";
 import { signInProvider } from "@/lib/supabase/signInProvider";
 
@@ -49,5 +50,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(failed, url.origin));
   }
 
+  // The header reads this rather than the session, see `lib/auth/navCookie.ts`.
+  await writeNav(supabase);
   return NextResponse.redirect(new URL(next, url.origin));
 }

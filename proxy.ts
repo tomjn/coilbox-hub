@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { apiError } from "@/lib/api/response";
+import { hasAuthCookie } from "@/lib/auth/navCookie";
 import { getSupabaseConfig, SUPABASE_CONFIG_ERROR } from "@/lib/supabase/config";
 
 /**
@@ -62,11 +63,6 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-/** Whether the cookies hold a Supabase session, as `sb-<ref>-auth-token` or
- *  split into `.0`, `.1` chunks when it is too long for one cookie. */
-export function hasAuthCookie(cookies: { name: string }[]): boolean {
-  return cookies.some(({ name }) => /^sb-.+-auth-token(\.\d+)?$/.test(name));
-}
 
 export const config = {
   matcher: [
