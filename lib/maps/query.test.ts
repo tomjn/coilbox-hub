@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { expect, test } from "bun:test";
+import { MAP_FILTER_KEYS } from "@/lib/filterKeys";
 import { maxPage, PAGE_SIZE } from "@/lib/gallery/query";
 import {
   applyFilters,
@@ -514,4 +515,14 @@ test("a sort is a narrowing of nothing, and neither is a page", () => {
   expect(isFiltered(parseFilters({ sort: "added", page: "3" }))).toBe(false);
   expect(isFiltered(parseFilters({ players: "2" }))).toBe(true);
   expect(isFiltered(parseFilters({ q: "comet" }))).toBe(true);
+});
+
+test("every key a maps link can carry is one next.config.ts rewrites on", () => {
+  const href = filterHref(
+    { q: "dsd", tag: "water", author: "beherith", size: "small", players: 8, sort: "added", page: 3 },
+    { page: 3 },
+  );
+  const keys = [...new URLSearchParams(href.split("?")[1]).keys()];
+  expect(keys.length).toBe(7);
+  for (const key of keys) expect(MAP_FILTER_KEYS as readonly string[]).toContain(key);
 });
