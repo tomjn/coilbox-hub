@@ -29,6 +29,10 @@ export async function proxy(request: NextRequest) {
     });
   }
 
+  // Nothing to refresh for a signed out visitor, which is most visits and every
+  // crawler.
+  if (!hasAuthCookie(request.cookies.getAll())) return NextResponse.next();
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(config.config.url, config.config.publishableKey, {
@@ -58,11 +62,20 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+/** Whether the cookies hold a Supabase session, as `sb-<ref>-auth-token` or
+ *  split into `.0`, `.1` chunks when it is too long for one cookie. */
+export function hasAuthCookie(cookies: { name: string }[]): boolean {
+  return cookies.some(({ name }) => /^sb-.+-auth-token(\.\d+)?$/.test(name));
+}
+
 export const config = {
   matcher: [
-    // Everything except static assets, Vercel's own endpoints (the Speed
-    // Insights script and the vitals it posts back) and the generated OpenGraph
-    // images, which never need a session and would only pay the round trip.
-    "/((?!_next/static|_next/image|_vercel|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|opengraph-image).*)",
+    // Pages only. Vercel runs the proxy before its cache, so every request it
+    // matches costs a function call, even one the CDN could have answered.
+    // Left out: static assets, Vercel's own endpoints, the generated OpenGraph
+    // images, and the routes that never read a session cookie. The API and
+    // `/i/` take bearer tokens or nothing, `/assets/` serves pictures, and the
+    // feed, sitemap, robots and export are the same for everyone.
+    "/((?!_next/static|_next/image|_vercel|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|opengraph-image|api/|i/|assets/|export$|feed\\.xml|sitemap\\.xml|robots\\.txt).*)",
   ],
 };

@@ -23,6 +23,18 @@ const PRIVATE_PATHS = [
   "/games/*/units/*/compare?with=",
 ];
 
+/** Crawlers that gather pages to train AI models rather than for search. Each
+ *  visit renders a page, and none of them send visitors back. */
+const AI_CRAWLERS = [
+  "GPTBot",
+  "ClaudeBot",
+  "CCBot",
+  "Bytespider",
+  "meta-externalagent",
+  "Amazonbot",
+  "PerplexityBot",
+];
+
 /**
  * What `robots.txt` says.
  *
@@ -38,7 +50,10 @@ export function robotsRules(origin: string, vercelEnv: string | undefined): Meta
     return { rules: { userAgent: "*", disallow: "/" } };
   }
   return {
-    rules: { userAgent: "*", allow: "/", disallow: PRIVATE_PATHS },
+    rules: [
+      { userAgent: "*", allow: "/", disallow: PRIVATE_PATHS },
+      { userAgent: AI_CRAWLERS, disallow: "/" },
+    ],
     sitemap: `${origin}/sitemap.xml`,
   };
 }
