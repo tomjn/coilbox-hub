@@ -12,12 +12,11 @@ import { type ItemPictures, itemPictures } from "./itemPictures";
  * `createAnonClient` has no session, so the read policy answers as `anon`: a
  * live item comes back and a withdrawn one comes back as nothing found. That is
  * the whole reason this is safe to hold. An author looking at their own
- * withdrawn item, and a moderator, see something the public does not, and the
- * page reads that for itself with the visitor's own client rather than out of
- * here.
+ * withdrawn item, and a moderator, see something the public does not, and
+ * `/item/[id]/withdrawn` reads that with the visitor's own client rather than
+ * out of here.
  *
- * So a null answer is not "no such item". It is "nothing here for the public",
- * and the page falls back to its own read before it decides that.
+ * So a null answer is not "no such item". It is "nothing here for the public".
  *
  * ## The pictures come with it
  *
@@ -32,7 +31,7 @@ const ITEM_LIFE = "hours";
 /** The columns an item page reads. Wider than a listing's: this is the page
  *  that draws the container. */
 export const DETAIL_COLUMNS =
-  "id,kind,mode,container,title,description,game_name,game_key,map_name,tags,author_name,created_at,updated_at,import_count,featured_at";
+  "id,kind,mode,container,title,description,game_name,game_key,map_name,tags,author_name,author_id,created_at,updated_at,import_count,featured_at";
 
 export interface ItemDetail {
   id: string;
@@ -49,6 +48,9 @@ export interface ItemDetail {
   map_name: string | null;
   tags: string[];
   author_name: string;
+  /** The account that published it, already public on every listing. The page
+   *  compares it with `hub_nav` to show the author their own controls. */
+  author_id: string | null;
   created_at: string;
   updated_at: string;
   /** Imports coilbox has pinged back for (issue #51): only ones that started

@@ -127,7 +127,7 @@ export default async function Moderation() {
                 >
                   <div className="flex items-baseline justify-between gap-3">
                     <Link
-                      href={`/item/${item?.id}`}
+                      href={item?.deleted_at ? `/item/${item.id}/withdrawn` : `/item/${item?.id}`}
                       className="text-base font-medium hover:underline active:underline"
                     >
                       {item?.title ?? "A deleted item"}
