@@ -12,12 +12,15 @@ import {
 
 const ada: NavState = { id: "abc", name: "Ada; Lovelace=1", moderation: "verify" };
 
+/** What the browser holds once Next has set the cookie. */
+const asSet = (state: NavState) => encodeURIComponent(encodeNav(state));
+
 test("a written cookie reads back as what was written, separators in the name included", () => {
-  expect(parseNav(encodeNav(ada))).toEqual(ada);
+  expect(parseNav(asSet(ada))).toEqual(ada);
 });
 
 test("a name that could not be read survives as null", () => {
-  expect(parseNav(encodeNav({ ...ada, name: null }))).toEqual({ ...ada, name: null });
+  expect(parseNav(asSet({ ...ada, name: null }))).toEqual({ ...ada, name: null });
 });
 
 test("anything that is not a NavState reads as nothing", () => {
@@ -37,7 +40,7 @@ test("anything that is not a NavState reads as nothing", () => {
 
 test("no Supabase session is signed out, whatever hub_nav says", () => {
   expect(navFromCookies("")).toEqual({ state: "signed-out" });
-  expect(navFromCookies(`${NAV_COOKIE}=${encodeNav(ada)}`)).toEqual({ state: "signed-out" });
+  expect(navFromCookies(`${NAV_COOKIE}=${asSet(ada)}`)).toEqual({ state: "signed-out" });
 });
 
 test("a session with no readable hub_nav is missing, so the header asks for one", () => {
@@ -63,7 +66,7 @@ test("the inline mark agrees with hasAuthCookie", () => {
 });
 
 test("a session with hub_nav is signed in as hub_nav says", () => {
-  expect(navFromCookies(`theme=dark; sb-ref-auth-token=x; ${NAV_COOKIE}=${encodeNav(ada)}`)).toEqual({
+  expect(navFromCookies(`theme=dark; sb-ref-auth-token=x; ${NAV_COOKIE}=${asSet(ada)}`)).toEqual({
     state: "signed-in",
     nav: ada,
   });

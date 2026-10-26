@@ -24,11 +24,14 @@ export interface NavState {
 
 const ACCESS: readonly CapabilityAccess[] = ["granted", "verify", "enrol", "none"];
 
+/** The cookie's value before it is written. Next percent-encodes a cookie's
+ *  value as it sets it, so this is plain JSON and `parseNav` decodes once. */
 export function encodeNav(state: NavState): string {
-  return encodeURIComponent(JSON.stringify(state));
+  return JSON.stringify(state);
 }
 
-/** Null for a missing cookie or one that does not hold a `NavState`. */
+/** Null for a missing cookie or one that does not hold a `NavState`. `raw` is
+ *  the value as the browser holds it, percent-encoded. */
 export function parseNav(raw: string | undefined | null): NavState | null {
   if (!raw) return null;
   let value: unknown;

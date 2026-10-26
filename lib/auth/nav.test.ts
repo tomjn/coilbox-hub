@@ -49,7 +49,7 @@ test("writing sets a browser readable cookie that parses back", async () => {
   jar.clear();
   await writeNav(client({ sub: "abc", access: { data: "verify", error: null } }));
   const written = jar.get(NAV_COOKIE);
-  expect(parseNav(written?.value)).toEqual({ id: "abc", name: "Ada", moderation: "verify" });
+  expect(parseNav(encodeURIComponent(written?.value ?? ""))).toEqual({ id: "abc", name: "Ada", moderation: "verify" });
   expect(written?.options).toMatchObject({ httpOnly: false, path: "/" });
 });
 
