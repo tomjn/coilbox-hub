@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
   // running a function. `lib/cache/tags.ts` names what a write has to
   // invalidate.
   cacheComponents: true,
+  // An item, map, game or unit page is not listed at build time. With this on,
+  // its first visit gets the shell and Next renders the full page in the
+  // background, so later visits are served whole from the cache rather than
+  // streaming the rest from a function each time.
+  partialPrefetching: true,
   async redirects() {
     return [
       // A unit at a past release moved from `?v=` to the path, so the unit page
