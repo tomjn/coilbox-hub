@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
-import { GALLERY_FILTER_KEYS, MAP_FILTER_KEYS } from "./lib/filterKeys";
+import {
+  CHANGES_FILTER_KEYS,
+  GALLERY_FILTER_KEYS,
+  MAP_FILTER_KEYS,
+  TREE_FILTER_KEYS,
+  UNIT_GRID_FILTER_KEYS,
+} from "./lib/filterKeys";
 import { getSupabaseConfig, SUPABASE_CONFIG_ERROR } from "./lib/supabase/config";
 
 // The cached listings build empty without Supabase settings, so CI can build
@@ -43,6 +49,11 @@ const nextConfig: NextConfig = {
       beforeFiles: [
         ...whenFiltered("/maps", "/maps/filtered", MAP_FILTER_KEYS),
         ...whenFiltered("/gallery", "/gallery/filtered", GALLERY_FILTER_KEYS),
+        // Beside the units rather than under them, where a unit could be named
+        // `filtered`.
+        ...whenFiltered("/games/:shortname/units", "/games/:shortname/units-filtered", UNIT_GRID_FILTER_KEYS),
+        ...whenFiltered("/games/:shortname/tree", "/games/:shortname/tree/filtered", TREE_FILTER_KEYS),
+        ...whenFiltered("/games/:shortname/changes", "/games/:shortname/changes/filtered", CHANGES_FILTER_KEYS),
       ],
     };
   },

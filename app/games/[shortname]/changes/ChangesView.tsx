@@ -397,7 +397,7 @@ function Notices({ notes }: { notes: string[] }) {
  *  at once. Everything that reads `params` or the query string sits behind a
  *  boundary, and the list has one apart from the pickers so that choosing a
  *  pair swaps the list for stand-ins and leaves the rest alone. */
-export default function ReleaseChanges({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
+export function ChangesView({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />

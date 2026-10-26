@@ -174,7 +174,7 @@ async function Tree({ params, searchParams }: { params: Params; searchParams: Se
  *  reads `params` or the query string sits behind a boundary, and the tree has
  *  one apart from the faction toggles so that choosing a side swaps the tree
  *  for stand-ins and leaves the rest alone. */
-export default function TreePage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
+export function TreeView({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">

@@ -21,3 +21,9 @@ export const GALLERY_FILTER_KEYS = [
   "sort",
   "page",
 ] as const;
+
+export const UNIT_GRID_FILTER_KEYS = ["q", "retired", "faction", "page"] as const;
+
+export const TREE_FILTER_KEYS = ["v", "faction"] as const;
+
+export const CHANGES_FILTER_KEYS = ["from", "to"] as const;

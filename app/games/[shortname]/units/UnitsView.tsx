@@ -198,7 +198,7 @@ async function UnitList({ params, searchParams }: { params: Params; searchParams
  *  at once. Everything that reads `params` or the query string sits behind a
  *  boundary, and the list has one apart from the filters so that choosing a
  *  filter or a page swaps the list for stand-ins and leaves the rest alone. */
-export default function Units({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
+export function UnitsView({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
       <ArtBackdrop drawing={archives} strength={BACKDROP_STRENGTH} />
