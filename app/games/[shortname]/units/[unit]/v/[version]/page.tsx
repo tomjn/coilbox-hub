@@ -5,6 +5,13 @@ import { unitMetadata, UnitView } from "../../UnitView";
 
 type Params = Promise<{ shortname: string; unit: string; version: string }>;
 
+/** One placeholder, which renders as not found. On Vercel an unlisted page is
+ *  upgraded to a whole static page after its first visit only when its segment
+ *  has a `generateStaticParams`, and Cache Components refuses an empty list. */
+export function generateStaticParams() {
+  return [{ version: "__none__" }];
+}
+
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { shortname, unit, version } = await params;
   return unitMetadata(shortname, unit, decodeURIComponent(version));

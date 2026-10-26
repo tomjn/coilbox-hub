@@ -23,6 +23,13 @@ const load = cache(async (id: string) => {
   return shared ? { item: shared.item, pictures: itemPicturesFromEntries(shared.pictures) } : null;
 });
 
+/** One placeholder, which renders as not found. On Vercel an unlisted page is
+ *  upgraded to a whole static page after its first visit only when its segment
+ *  has a `generateStaticParams`, and Cache Components refuses an empty list. */
+export function generateStaticParams() {
+  return [{ id: "__none__" }];
+}
+
 export async function generateMetadata({
   params,
 }: {

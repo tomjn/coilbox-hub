@@ -53,6 +53,13 @@ const BACKDROP_STRENGTH = 0.05;
  *  the whole page to 48 rem. */
 const COLUMN = "mx-auto w-full max-w-3xl px-6";
 
+/** One placeholder, which renders as not found. On Vercel an unlisted page is
+ *  upgraded to a whole static page after its first visit only when its segment
+ *  has a `generateStaticParams`, and Cache Components refuses an empty list. */
+export function generateStaticParams() {
+  return [{ slug: "__none__" }];
+}
+
 export async function generateMetadata({
   params,
 }: {
