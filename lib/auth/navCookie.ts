@@ -52,6 +52,15 @@ export function hasAuthCookie(cookies: { name: string }[]): boolean {
   return cookies.some(({ name }) => /^sb-.+-auth-token(\.\d+)?$/.test(name));
 }
 
+/**
+ * Marks `<html>` with `data-session="in"` or `"out"` from whether a Supabase
+ * session cookie is present, run inline while the page parses so the header
+ * shows the right controls before the first paint. The same test as
+ * `hasAuthCookie`, written against the whole `document.cookie` string.
+ */
+export const SESSION_MARK_SCRIPT =
+  'document.documentElement.dataset.session=/(?:^|;\\s*)sb-[^=;]+-auth-token(?:\\.\\d+)?=/.test(document.cookie)?"in":"out"';
+
 /** The cookies in `document.cookie`, by name. */
 export function parseCookieHeader(header: string): Map<string, string> {
   const found = new Map<string, string>();

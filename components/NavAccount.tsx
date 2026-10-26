@@ -1,31 +1,45 @@
+"use client";
+
 import Link from "next/link";
 import { AccountIcon, ModerationIcon, SignOutIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
 import { NavSignIn } from "@/components/NavSignIn";
-import { capabilityAccess } from "@/lib/access/secondFactor";
-import { currentDisplayName, currentUser } from "@/lib/supabase/user";
+import { useNav } from "@/lib/auth/useNav";
 
 /**
  * The part of the header that differs per visitor: whether they are signed in,
  * and what to call them. Whether they moderate is `NavModeration`.
  *
- * Its own component so that the layout around it reads nothing about the
- * request. Everything else on the page is the same for everybody and can be
- * built once and held, and this is rendered per request inside a `Suspense` the
- * layout puts around it. Before that split, one session read in the layout made
- * every route on the site dynamic.
- *
- * `NavAccount.fallback` is what stands in its place until it arrives, and it is
- * exported beside it so the two cannot drift into different widths and shift
- * the header when the real one lands.
+ * Drawn in the browser from cookies (`lib/auth/navCookie.ts`), so the page
+ * around it is the same for everybody and the CDN can serve it without running
+ * a function. Until the page hydrates nothing is known, and the static HTML
+ * carries both the sign in button and a blank the size of it.
+ * `SESSION_MARK_SCRIPT` has marked `<html>` by then, so only the right one shows
+ * and a signed out visitor never sees the header change.
  */
-export async function NavAccount({ className }: { className: string }) {
-  const user = await currentUser();
-  // A signed in visitor whose name could not be read still gets the account
-  // controls, under a label that does not pretend to know who they are.
-  const author = user ? ((await currentDisplayName()) ?? "Your account") : null;
+export function NavAccount({ className }: { className: string }) {
+  const seen = useNav();
 
-  return author ? (
+  if (seen === null) {
+    return (
+      <>
+        <span className="contents in-data-[session=in]:hidden">
+          <NavSignIn className={className} />
+        </span>
+        <span className="hidden in-data-[session=in]:contents">
+          <NavAccountFallback />
+        </span>
+      </>
+    );
+  }
+
+  if (seen.state === "signed-out") return <NavSignIn className={className} />;
+
+  // A session whose name is not known yet, or could not be read, still gets the
+  // account controls, under a label that does not pretend to know who they are.
+  const author = (seen.state === "signed-in" ? seen.nav.name : null) ?? "Your account";
+
+  return (
     <>
       <Link href="/account" className={className}>
         <LinkPending className="flex flex-col items-center gap-0.5 sm:flex-row sm:gap-2">
@@ -40,8 +54,6 @@ export async function NavAccount({ className }: { className: string }) {
         </button>
       </form>
     </>
-  ) : (
-    <NavSignIn className={className} />
   );
 }
 
@@ -50,21 +62,25 @@ export async function NavAccount({ className }: { className: string }) {
  *
  * Shown as well to a moderator whose session still needs a code from their
  * authenticator (#145), because the moderation page is what sends them to
- * enter it. Without the link they would sign in and find it gone.
+ * enter it. Without the link they would sign in and find it gone. It only
+ * decides what is drawn: every moderation page and action asks the database.
  *
  * Split from `NavAccount` because it sits with the section links, and on a phone
  * the account controls sit on the logo row instead. `data-moderator` lets the
  * nav see that it holds six links rather than five.
  */
-export async function NavModeration({ className }: { className: string }) {
-  return (await capabilityAccess("can_moderate")) !== "none" ? (
+export function NavModeration({ className }: { className: string }) {
+  const seen = useNav();
+  if (seen?.state !== "signed-in" || seen.nav.moderation === "none") return null;
+
+  return (
     <Link href="/moderation" className={className} data-moderator>
       <LinkPending className="flex flex-col items-center gap-0.5 sm:flex-row sm:gap-2">
         <ModerationIcon className="w-4" />
         <span>Moderation</span>
       </LinkPending>
     </Link>
-  ) : null;
+  );
 }
 
 /**

@@ -1,5 +1,14 @@
 import { expect, test } from "bun:test";
-import { encodeNav, NAV_COOKIE, navFromCookies, parseNav, type NavState } from "./navCookie";
+import {
+  encodeNav,
+  hasAuthCookie,
+  NAV_COOKIE,
+  navFromCookies,
+  parseCookieHeader,
+  parseNav,
+  SESSION_MARK_SCRIPT,
+  type NavState,
+} from "./navCookie";
 
 const ada: NavState = { id: "abc", name: "Ada; Lovelace=1", moderation: "verify" };
 
@@ -34,6 +43,23 @@ test("no Supabase session is signed out, whatever hub_nav says", () => {
 test("a session with no readable hub_nav is missing, so the header asks for one", () => {
   expect(navFromCookies("sb-ref-auth-token=x")).toEqual({ state: "missing" });
   expect(navFromCookies(`sb-ref-auth-token.0=x; ${NAV_COOKIE}=garbage`)).toEqual({ state: "missing" });
+});
+
+test("the inline mark agrees with hasAuthCookie", () => {
+  const cases = [
+    "",
+    "theme=dark",
+    "sb-ref-auth-token=x",
+    "theme=dark; sb-ref-auth-token.1=x",
+    "sb-ref-auth-token-code-verifier=x",
+    `${NAV_COOKIE}=x`,
+  ];
+  for (const cookie of cases) {
+    const document = { cookie, documentElement: { dataset: {} as Record<string, string> } };
+    new Function("document", SESSION_MARK_SCRIPT)(document);
+    const names = [...parseCookieHeader(cookie).keys()].map((name) => ({ name }));
+    expect(document.documentElement.dataset.session).toBe(hasAuthCookie(names) ? "in" : "out");
+  }
 });
 
 test("a session with hub_nav is signed in as hub_nav says", () => {

@@ -8,7 +8,10 @@ import { CoilLogo } from "@/components/CoilLogo";
 import { DownloadIcon, GalleryIcon, GamesIcon, MapsIcon, PublishIcon } from "@/components/icons";
 import { LinkPending } from "@/components/LinkPending";
 import { NavLink } from "@/components/NavLink";
-import { NavAccount, NavAccountFallback, NavModeration } from "@/components/NavAccount";
+import { InlineScript } from "@/components/InlineScript";
+import { NavAccount, NavModeration } from "@/components/NavAccount";
+import { SESSION_MARK_SCRIPT } from "@/lib/auth/navCookie";
+import { NavRecheck } from "@/lib/auth/useNav";
 import { COILBOX_URL } from "@/lib/coilbox";
 import { siteUrl } from "@/lib/site";
 import { kindsPluralLower } from "@/lib/gallery/label";
@@ -82,18 +85,23 @@ function SectionLink({ href, children }: { href: string; children: React.ReactNo
 /**
  * Nothing here reads the request.
  *
- * That is the point: everything but the account controls is the same for every
- * visitor, so it is built once and held, and `NavAccount` is the one piece
- * rendered per request. A single session read out here used to make every route
- * on the site dynamic.
+ * That is the point: the page is the same for every visitor, so it is built once
+ * and held, and the CDN can serve it without running a function. The account
+ * controls are drawn in the browser. A single session read out here used to
+ * make every route on the site dynamic.
  */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      // `SESSION_MARK_SCRIPT` adds `data-session` before React hydrates.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* Before anything paints, so the header shows sign in or the space
+            for the account controls from the first frame. */}
+        <InlineScript html={SESSION_MARK_SCRIPT} />
         {/* Every page renders its own `<main id="main-content">` for this to
             reach. Hidden until it has focus, so only keyboard users see it. */}
         <a
@@ -143,18 +151,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <DownloadIcon className="w-4" />
               <span>Get Coilbox</span>
             </a>
-            <Suspense>
-              <NavModeration className={navItem} />
-            </Suspense>
+            <NavModeration className={navItem} />
           </nav>
-          {/* The one part of the page that differs per visitor, so it is the
-              one part rendered per request. The rest of the header is served
-              from the held shell while this is read. */}
+          {/* The one part of the page that differs per visitor, drawn in the
+              browser from cookies, so the page itself is the same for
+              everybody. */}
           <div className="order-2 -mr-2 flex items-center gap-3 text-[11px] text-neutral-400 sm:order-none sm:text-sm">
-            <Suspense fallback={<NavAccountFallback />}>
-              <NavAccount className={navItem} />
-            </Suspense>
+            <NavAccount className={navItem} />
           </div>
+          <Suspense>
+            <NavRecheck />
+          </Suspense>
         </header>
         {/* One page fading into the next rather than being replaced by it. Only
             the page: the header is outside this and stays put, which is what it
