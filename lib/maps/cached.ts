@@ -4,6 +4,7 @@ import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { fetchPage } from "@/lib/gallery/query";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 import { applyListingRule, fetchMapListingRule } from "./lookup";
 import { loadMapPage, type MapPage } from "./page";
 import {
@@ -119,6 +120,9 @@ export async function mapPageCached(slug: string): Promise<MapPage | null> {
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.maps, TAGS.map(slug), TAGS.assets, TAGS.items);
 
+  // `next build` prerenders a placeholder of this page and can run with no
+  // Supabase settings, as CI does. It renders as not found then.
+  if (!getSupabaseConfig().ok) return null;
   // The secret key for the facts and the gate they come through, and an
   // anonymous client for everything else. `lib/maps/page.ts` sets out why a
   // public page reads anything as `service_role` at all.

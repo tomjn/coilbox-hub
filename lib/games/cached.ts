@@ -49,9 +49,10 @@ import { loadTree, type Tree } from "./tree";
  *  again by a function. */
 const LISTING_LIFE = "weeks";
 
-/** The games listing is prerendered by `next build`, which can run with no
- *  Supabase settings, as CI does. There is nothing to read then, so the page
- *  builds with no games. A deployment that really lacks them fails its Vercel
+/** `next build` prerenders the games listing and each game's placeholder pages,
+ *  and can run with no Supabase settings, as CI does. There is nothing to read
+ *  then, so every loader returns nothing and the pages build empty or as not
+ *  found. A deployment that really lacks them fails its Vercel
  *  build in `next.config.ts` with `SUPABASE_CONFIG_ERROR`, so this hides nothing. */
 const notConfigured = () => !getSupabaseConfig().ok;
 
@@ -75,6 +76,7 @@ export async function gamePageCached(shortname: string): Promise<GamePage | null
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games);
 
+  if (notConfigured()) return null;
   return loadGamePage(createAnonClient(), shortname);
 }
 
@@ -103,6 +105,7 @@ export async function unitGridCached(
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games, TAGS.assets);
 
+  if (notConfigured()) return { units: [], count: 0, error: null };
   const supabase = createAnonClient();
   // The shelf hides what a player can never reach (#280) and every level of a
   // morph chain but its base (#295), so both exclusions ride into the query
@@ -137,6 +140,7 @@ export async function retiredUnitsHeldCached(shortname: string): Promise<boolean
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games);
 
+  if (notConfigured()) return false;
   return hasRetiredUnits(createAnonClient(), shortname);
 }
 
@@ -155,6 +159,7 @@ export async function unitPageCached(
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games, TAGS.assets, TAGS.unit(shortname, unitName));
 
+  if (notConfigured()) return null;
   const supabase = createAnonClient();
   const page = await loadUnitPage(supabase, shortname, unitName, version);
   if (!page) return null;
@@ -203,6 +208,7 @@ export async function unitCompareCached(
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games);
 
+  if (notConfigured()) return null;
   return loadUnitComparison(createAnonClient(), shortname, unitName, leftVersion, rightVersion);
 }
 
@@ -261,6 +267,7 @@ export async function gameFactionsCached(shortname: string): Promise<FactionOpti
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games);
 
+  if (notConfigured()) return [];
   return gameFactions(createAnonClient(), shortname);
 }
 
@@ -272,6 +279,7 @@ export async function unitNameLabelsCached(shortname: string): Promise<
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games);
 
+  if (notConfigured()) return new Map();
   return unitNameLabels(createAnonClient(), shortname);
 }
 
@@ -296,6 +304,7 @@ export async function treeUnitPicturesCached(
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games, TAGS.assets);
 
+  if (notConfigured()) return new Map();
   const supabase = createAnonClient();
   return unitBuildpics(
     supabase,
@@ -315,5 +324,6 @@ export async function treeCached(
   cacheLife(LISTING_LIFE);
   cacheTag(TAGS.games);
 
+  if (notConfigured()) return null;
   return loadTree(createAnonClient(), shortname, version, factionKey);
 }

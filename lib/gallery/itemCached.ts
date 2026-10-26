@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { TAGS } from "@/lib/cache/tags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 import { type ItemPictures, itemPictures } from "./itemPictures";
 
 /**
@@ -100,6 +101,9 @@ export async function itemPublic(id: string): Promise<PublicItem | null> {
   cacheLife(ITEM_LIFE);
   cacheTag(TAGS.items, TAGS.item(id), TAGS.assets, TAGS.maps);
 
+  // `next build` prerenders a placeholder of this page and can run with no
+  // Supabase settings, as CI does. It renders as not found then.
+  if (!getSupabaseConfig().ok) return null;
   const supabase = createAnonClient();
   const { data } = await supabase
     .from("item")
