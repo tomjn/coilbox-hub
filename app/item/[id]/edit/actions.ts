@@ -62,5 +62,6 @@ export async function setWithdrawn(form: FormData): Promise<void> {
 
   updateTag(TAGS.item(id));
   updateTag(TAGS.items);
-  redirect(`/item/${id}`);
+  // The public page says nothing found for a withdrawn item, to its author too.
+  redirect(withdrawn ? `/item/${id}/withdrawn` : `/item/${id}`);
 }

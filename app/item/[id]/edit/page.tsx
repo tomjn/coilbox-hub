@@ -49,7 +49,7 @@ export default async function EditItem({
     <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-12">
       <div className="flex flex-col gap-2">
         <Link
-          href={`/item/${id}`}
+          href={withdrawn ? `/item/${id}/withdrawn` : `/item/${id}`}
           className="self-start text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300"
         >
           Back to the item

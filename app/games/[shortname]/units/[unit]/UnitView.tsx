@@ -1,0 +1,342 @@
+import type { Metadata } from "next";
+import { buttonClass } from "@/components/Button";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import { Breadcrumb } from "@/components/Breadcrumb";
+import { ShownTo } from "@/components/ShownTo";
+import { Skeleton } from "@/components/Skeleton";
+import { StatTable } from "@/components/StatTable";
+import { UnitCard } from "@/components/UnitCard";
+import { UnitComparePicker } from "@/components/UnitComparePicker";
+import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
+import { StageStats, StageStrip } from "@/components/UnitStages";
+import type { ResolvedAsset } from "@/lib/assets/resolve";
+import { gamePageCached, unitPageCached } from "@/lib/games/cached";
+import { gameTitle } from "@/lib/games/labels";
+import { unitSegment } from "@/lib/games/unitRelease";
+import { SnippetForm } from "./SnippetForm";
+import { Button } from "@/components/Button";
+
+/**
+ * One unit (#227).
+ *
+ * The top down render large, the stats as a table, what builds it and what it
+ * builds, and which release the facts came from. An author snippet will sit
+ * under the description
+ * once ownership exists to write one (#229); the space is deliberately not
+ * drawn now, because an empty box labelled "the author says nothing yet" would
+ * be a promise about a feature rather than a fact about a unit.
+ *
+ * ## Versions
+ *
+ * Current facts by default. `<unit>@<release>` reads that release's revision
+ * instead, and the page says so in the same breath as the numbers, because a
+ * stat table without its version is a claim nobody can check. A release with no
+ * revision for this unit still renders: the page shows current facts and says
+ * the record is missing, since a unit existing today but not in some old
+ * release is an ordinary answer.
+ */
+
+/**
+ * One edge of the build graph as catalog cells (#260): a reader who has just
+ * been scrolling units recognises them by their buildpics. Both directions draw
+ * the same way, because "makes" and "is made by" are one relationship read from
+ * two ends and nothing about the cell should differ.
+ */
+function UnitGrid({
+  game,
+  units,
+  pictures,
+}: {
+  game: string;
+  units: { name: string; label: string }[];
+  pictures: ReadonlyMap<string, ResolvedAsset>;
+}) {
+  return (
+    <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+      {units.map((unit, index) => (
+        <UnitCard
+          key={unit.name}
+          game={game}
+          unit={{ unit_name: unit.name, full_name: unit.label }}
+          picture={
+            pictures.get(unit.name) ?? {
+              from: "placeholder",
+              keyedOn: "unit",
+              name: unit.name,
+              footprint: null,
+            }
+          }
+          eager={index < 16}
+        />
+      ))}
+    </ul>
+  );
+}
+
+/** The page's title and description, for the latest facts or for release `v`. */
+export async function unitMetadata(shortname: string, unit: string, v?: string): Promise<Metadata> {
+  // The same two cached reads the page makes, with the same arguments.
+  const [game, loaded] = await Promise.all([
+    gamePageCached(shortname),
+    unitPageCached(shortname, unit, v),
+  ]);
+  if (!game || !loaded) return { title: "Not found" };
+  const label = loaded.page.full_name ?? loaded.page.unit_name;
+  const name = gameTitle(game);
+  return {
+    title: `${label} - ${name}`,
+    description: `Stats, builders, build options and renders for ${label}, as ${name} ships it.`,
+  };
+}
+
+/**
+ * The snippet form, for the owner or a moderator (#350): the policy on the
+ * write would refuse anybody else anyway, but a form that can never succeed
+ * should not be on the page.
+ *
+ * The only part of the page that depends on who is looking, so it is drawn in
+ * the browser through `ShownTo` and the page stays the same for everybody.
+ */
+function SnippetEditor({
+  shortname,
+  unitName,
+  snippet,
+}: {
+  shortname: string;
+  unitName: string;
+  snippet: string;
+}) {
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="unit-snippet-edit">
+      <h2 id="unit-snippet-edit" className="text-sm uppercase tracking-wide text-neutral-400">
+        Author snippet
+      </h2>
+      <SnippetForm shortname={shortname} unitName={unitName} snippet={snippet} />
+    </section>
+  );
+}
+
+/**
+ * One unit as of release `v`, or its latest facts. The release is in the path
+ * rather than the query so the page reads nothing from the request, and the CDN
+ * can serve it.
+ */
+export async function UnitView({ shortname, unit, v }: { shortname: string; unit: string; v?: string }) {
+  const [game, loaded] = await Promise.all([
+    gamePageCached(shortname),
+    unitPageCached(shortname, unit, v),
+  ]);
+  if (!loaded) notFound();
+  const { page, renders, buildpic, buildPictures } = loaded;
+  const label = page.full_name ?? page.unit_name;
+
+  return (
+    <main id="main-content" tabIndex={-1} className="relative flex-1">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
+        <Breadcrumb
+          crumbs={[
+            { label: "Games", href: "/games" },
+            { label: game ? gameTitle(game) : shortname, href: `/games/${shortname}` },
+            { label: "Units", href: `/games/${shortname}/units` },
+            { label },
+          ]}
+        />
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
+          <UnitPortrait label={label} asset={buildpic} />
+
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-semibold tracking-tight">{label}</h1>
+            <p className="font-mono text-sm text-neutral-400">{page.unit_name}</p>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-400">
+              {page.faction_name ? (
+                <span className="rounded bg-neutral-900 px-2 py-1">{page.faction_name}</span>
+              ) : null}
+              {page.removed_at ? (
+                <span className="rounded bg-neutral-900 px-2 py-1 text-neutral-400">
+                  Retired
+                </span>
+              ) : null}
+              {page.shown_version ? (
+                <span className="rounded bg-neutral-900 px-2 py-1">
+                  Showing release {page.shown_version}
+                </span>
+              ) : null}
+            </div>
+            {page.source_version && !page.shown_version ? (
+              <p className="text-sm text-neutral-400">Facts as of release {page.source_version}.</p>
+            ) : null}
+            {page.shown_version === null && v && v !== page.source_version ? (
+              <p className="text-sm text-neutral-400">
+                No record of this unit in release {v}; showing current facts.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <UnitRenders label={label} renders={renders} />
+
+        {/* Above the stats, because the stages are the frame everything below
+            is read in: these numbers belong to one level of a unit that has
+            several, and a reader who does not know that reads them wrong. */}
+        {page.stages.length > 0 ? (
+          <section className="flex flex-col gap-3" aria-labelledby="unit-stages">
+            <h2 id="unit-stages" className="text-sm uppercase tracking-wide text-neutral-400">
+              Stages
+            </h2>
+            <p className="text-sm text-neutral-400">
+              This unit turns into another. The catalog holds a row for each stage, and
+              every one of them has its own page.
+            </p>
+            <StageStrip game={shortname} stages={page.stages} pictures={buildPictures} />
+          </section>
+        ) : null}
+
+        <section className="flex flex-col gap-3" aria-labelledby="unit-stats">
+          <h2 id="unit-stats" className="text-sm uppercase tracking-wide text-neutral-400">
+            Stats
+          </h2>
+          <StatTable stats={page.stats} />
+        </section>
+
+        {page.stage_stats.length > 0 ? (
+          <section className="flex flex-col gap-3" aria-labelledby="unit-stage-stats">
+            <h2 id="unit-stage-stats" className="text-sm uppercase tracking-wide text-neutral-400">
+              Stats across the stages
+            </h2>
+            <StageStats stages={page.stages} rows={page.stage_stats} />
+            <p className="text-sm text-neutral-400">
+              A stat that draws as its own table, such as a weapons summary, is on each
+              stage&rsquo;s own page rather than in this one.
+            </p>
+          </section>
+        ) : null}
+
+        {page.snippet && !page.shown_version ? (
+          <section className="flex flex-col gap-2 rounded-md border border-neutral-900 bg-card p-4" aria-labelledby="unit-snippet">
+            <h2 id="unit-snippet" className="text-xs uppercase tracking-wide text-neutral-400">
+              From the author
+            </h2>
+            <p className="text-sm text-neutral-200">{page.snippet}</p>
+          </section>
+        ) : null}
+
+        <ShownTo owner={game?.owner_user_id} moderators>
+          <SnippetEditor shortname={shortname} unitName={page.unit_name} snippet={page.snippet ?? ""} />
+        </ShownTo>
+
+        {/* Upstream before downstream: what makes this thing, then what it
+            makes. A reader arriving from a build order wants the first. */}
+        <section className="flex flex-col gap-3" aria-labelledby="unit-built-by">
+          <h2 id="unit-built-by" className="text-sm uppercase tracking-wide text-neutral-400">
+            Built by
+          </h2>
+          {page.built_by.length === 0 ? (
+            <p className="text-sm text-neutral-400">Nothing builds this.</p>
+          ) : (
+            <UnitGrid game={shortname} units={page.built_by} pictures={buildPictures} />
+          )}
+        </section>
+
+        <section className="flex flex-col gap-3" aria-labelledby="unit-builds">
+          <h2 id="unit-builds" className="text-sm uppercase tracking-wide text-neutral-400">
+            Builds
+          </h2>
+          {page.builds.length === 0 ? (
+            <p className="text-sm text-neutral-400">Nothing, or nothing reported yet.</p>
+          ) : (
+            <UnitGrid game={shortname} units={page.builds} pictures={buildPictures} />
+          )}
+        </section>
+
+        {/* Behind a boundary of its own: the list of the game's unit names is a
+            read the rest of the page does not need to wait for. */}
+        <Suspense fallback={<Skeleton className="h-16 w-full" />}>
+          <UnitComparePicker game={shortname} unit={page.unit_name} />
+        </Suspense>
+
+        {page.versions.length > 0 ? (
+          <section className="flex flex-col gap-3" aria-labelledby="unit-versions">
+            <h2 id="unit-versions" className="text-sm uppercase tracking-wide text-neutral-400">
+              Releases
+            </h2>
+            <ul className="flex flex-wrap gap-2">
+              <li>
+                <Link
+                  href={`/games/${shortname}/units/${unitSegment(page.unit_name)}`}
+                  className={
+                    page.shown_version
+                      ? buttonClass("ghost", { size: "md" })
+                      : "rounded-md border border-neutral-600 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100"
+                  }
+                >
+                  Latest
+                </Link>
+              </li>
+              {page.versions.map((version) => (
+                <li key={version}>
+                  <Link
+                    href={`/games/${shortname}/units/${unitSegment(page.unit_name, version)}`}
+                    className={
+                      page.shown_version === version
+                        ? "rounded-md border border-neutral-600 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100"
+                        : buttonClass("ghost", { size: "md" })
+                    }
+                  >
+                    {version}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {page.versions.length >= 2 ? (
+              <form
+                action={`/games/${shortname}/units/${page.unit_name}/compare`}
+                method="get"
+                className="flex flex-wrap items-end gap-3 pt-2"
+              >
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="compare-left" className="text-xs uppercase tracking-wide text-neutral-400">
+                    Compare
+                  </label>
+                  <select id="compare-left" name="left" defaultValue={page.versions[1]} className="rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100">
+                    {page.versions.map((version) => (
+                      <option key={version} value={version}>
+                        {version}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="compare-right" className="text-xs uppercase tracking-wide text-neutral-400">
+                    With
+                  </label>
+                  <select id="compare-right" name="right" defaultValue={page.versions[0]} className="rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100">
+                    {page.versions.map((version) => (
+                      <option key={version} value={version}>
+                        {version}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button
+                  type="submit"
+                >
+                  Compare releases
+                </Button>
+              </form>
+            ) : null}
+          </section>
+        ) : null}
+
+        <p className="text-sm text-neutral-400">
+          <Link href={`/games/${shortname}/units`} className="text-neutral-300 underline-offset-4 hover:underline active:underline">
+            Every unit this game ships
+          </Link>
+          .
+        </p>
+      </div>
+    </main>
+  );
+}

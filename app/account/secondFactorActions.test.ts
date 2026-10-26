@@ -62,6 +62,25 @@ mock.module("@/lib/supabase/server", () => ({
         challengeAndVerify,
       },
     },
+    // What `writeNav` reads to redraw the header once a code has been entered.
+    from: () => {
+      const builder = {
+        select: () => builder,
+        eq: () => builder,
+        maybeSingle: async () => ({ data: { display_name: "Ada" }, error: null }),
+      };
+      return builder;
+    },
+    rpc: navAccess,
+  }),
+}));
+
+const navAccess = mock(async () => ({ data: "granted", error: null }));
+const navCookies = new Map<string, string>();
+mock.module("next/headers", () => ({
+  cookies: async () => ({
+    set: (name: string, value: string) => navCookies.set(name, value),
+    delete: (name: string) => navCookies.delete(name),
   }),
 }));
 
@@ -89,6 +108,7 @@ beforeEach(() => {
   unenroll.mockClear();
   challengeAndVerify.mockClear();
   revalidated.mockClear();
+  navCookies.clear();
 });
 
 // Starting an enrolment.
@@ -165,6 +185,7 @@ test("a code that matches finishes the enrolment and redraws the account page", 
   expect(state).toEqual({ done: true });
   expect(challengeAndVerify).toHaveBeenCalledWith({ factorId: UNVERIFIED, code: "123456" });
   expect(revalidated).toHaveBeenCalledWith("/account");
+  expect(navCookies.has("hub_nav")).toBe(true);
 });
 
 test("a code that does not match says so and changes nothing", async () => {
@@ -176,6 +197,7 @@ test("a code that does not match says so and changes nothing", async () => {
   expect(state.error).toBeString();
   expect(state.done).toBeUndefined();
   expect(revalidated).not.toHaveBeenCalled();
+  expect(navCookies.has("hub_nav")).toBe(false);
 });
 
 test("something that is not digits never reaches Supabase", async () => {
@@ -248,6 +270,8 @@ test("the right code sends a moderator back to the page that asked", async () =>
     verifySecondFactor({}, form({ factorId: VERIFIED, code: "123456", next: "/moderation/maps" })),
   ).rejects.toMatchObject({ digest: expect.stringContaining(";/moderation/maps;") });
   expect(challengeAndVerify).toHaveBeenCalledWith({ factorId: VERIFIED, code: "123456" });
+  // The header learns the session can now moderate.
+  expect(navCookies.has("hub_nav")).toBe(true);
 });
 
 test("with one factor the form does not have to name it", async () => {

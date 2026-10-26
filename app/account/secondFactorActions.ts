@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { writeNav } from "@/lib/auth/nav";
 import { createClient } from "@/lib/supabase/server";
 import { signInNext } from "@/lib/supabase/signInNext";
 
@@ -115,6 +116,8 @@ export async function confirmEnrolment(
   const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: pending.id, code });
   if (error) return { error: CODE_REFUSED };
 
+  // The session is now aal2, which can change what the header offers.
+  await writeNav(supabase);
   revalidatePath("/account");
   return { done: true };
 }
@@ -141,6 +144,7 @@ export async function removeFactor(
   const { error } = await supabase.auth.mfa.unenroll({ factorId: owned.id });
   if (error) return { error: "Could not remove that authenticator. Try again." };
 
+  await writeNav(supabase);
   revalidatePath("/account");
   return {};
 }
@@ -173,6 +177,7 @@ export async function verifySecondFactor(
   const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: chosen.id, code });
   if (error) return { error: CODE_REFUSED };
 
+  await writeNav(supabase);
   const next = form.get("next");
   redirect(signInNext(typeof next === "string" ? next : null, null, ""));
 }

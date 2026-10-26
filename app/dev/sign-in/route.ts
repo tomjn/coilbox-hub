@@ -1,5 +1,6 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import { writeNav } from "@/lib/auth/nav";
 import { isDevSignInEnabled } from "@/lib/supabase/loopback";
 import { createClient } from "@/lib/supabase/server";
 
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
   if (verifyError) {
     return NextResponse.json({ error: verifyError.message }, { status: 500 });
   }
+  await writeNav(supabase);
 
   // Same sanitisation as app/auth/callback/route.ts: only ever a path, so
   // this cannot be pointed at a lookalike site carrying a real session.

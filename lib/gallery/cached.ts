@@ -63,8 +63,8 @@ const NO_ITEMS = { items: [], pictures: [], shapes: [], counts: [] };
 
 /** The landing page is prerendered by `next build`, which can run with no
  *  Supabase settings, as CI does. There is nothing to read then, so the page
- *  builds with no items. A deployment that really lacks them still fails every
- *  request in `proxy.ts` with `SUPABASE_CONFIG_ERROR`, so this hides nothing. */
+ *  builds with no items. A deployment that really lacks them fails its Vercel
+ *  build in `next.config.ts` with `SUPABASE_CONFIG_ERROR`, so this hides nothing. */
 const notConfigured = () => !getSupabaseConfig().ok;
 
 /** The newest few, for the landing page. Six fills two full rows of three at

@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { apiError } from "@/lib/api/response";
+import { hasAuthCookie } from "@/lib/auth/navCookie";
 import { getSupabaseConfig, SUPABASE_CONFIG_ERROR } from "@/lib/supabase/config";
 
 /**
@@ -8,14 +9,11 @@ import { getSupabaseConfig, SUPABASE_CONFIG_ERROR } from "@/lib/supabase/config"
  * response. Without this a signed in visitor looks signed out to the server after
  * their access token expires, and publishing fails for no visible reason.
  *
- * This matcher covers nearly every route in the app (see `config` below), so
- * it is also the one place that catches a deployment missing its Supabase
- * configuration before any page or route handler runs. Without this check,
- * `createServerClient` threw here with an `undefined` URL and every visitor,
- * API client included, got Next's generic HTML 500 page (issue 54). An API
- * client gets a JSON body it can act on instead. A browser gets plain text
- * explaining the deployment is broken, rather than a page that quietly limps
- * along.
+ * It also catches a deployment missing its Supabase configuration on the pages
+ * it covers (see `config` below). Without this check, `createServerClient`
+ * threw here with an `undefined` URL and the visitor got Next's generic HTML
+ * 500 page (issue 54). A browser gets plain text explaining the deployment is
+ * broken instead, rather than a page that quietly limps along.
  */
 export async function proxy(request: NextRequest) {
   const config = getSupabaseConfig();
@@ -62,20 +60,25 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-/** Whether the cookies hold a Supabase session, as `sb-<ref>-auth-token` or
- *  split into `.0`, `.1` chunks when it is too long for one cookie. */
-export function hasAuthCookie(cookies: { name: string }[]): boolean {
-  return cookies.some(({ name }) => /^sb-.+-auth-token(\.\d+)?$/.test(name));
-}
 
 export const config = {
+  // Only the pages that read the session on the server, and the routes that
+  // sign people in and out. Vercel runs the proxy before its cache, so every
+  // request it matches costs a function call, even one the CDN could have
+  // answered. Every other page is the same for everybody and draws who is signed
+  // in from cookies in the browser, so it has no session to refresh. A server
+  // action posted from one of those pages refreshes the session itself, since
+  // an action can write cookies.
   matcher: [
-    // Pages only. Vercel runs the proxy before its cache, so every request it
-    // matches costs a function call, even one the CDN could have answered.
-    // Left out: static assets, Vercel's own endpoints, the generated OpenGraph
-    // images, and the routes that never read a session cookie. The API and
-    // `/i/` take bearer tokens or nothing, `/assets/` serves pictures, and the
-    // feed, sitemap, robots and export are the same for everyone.
-    "/((?!_next/static|_next/image|_vercel|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|opengraph-image|api/|i/|assets/|export$|feed\\.xml|sitemap\\.xml|robots\\.txt).*)",
+    "/account/:path*",
+    "/publish/:path*",
+    "/moderation/:path*",
+    "/ops/:path*",
+    "/sign-in",
+    "/item/:id/edit",
+    "/item/:id/withdrawn",
+    "/games/:shortname/edit",
+    "/auth/:path*",
+    "/dev/:path*",
   ],
 };
