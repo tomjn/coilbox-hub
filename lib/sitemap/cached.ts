@@ -17,8 +17,8 @@ import type { SitemapSource } from "./entries";
  *
  * `next build` prerenders the sitemap and can run with no Supabase settings, as
  * CI does. Each loader returns an empty list then, the same as the listings
- * (`lib/gallery/cached.ts`). A deployment that really lacks them fails every
- * request in `proxy.ts`, so this hides nothing.
+ * (`lib/gallery/cached.ts`). A deployment that really lacks them fails its
+ * Vercel build in `next.config.ts`, so this hides nothing.
  */
 
 const LISTING_LIFE = "hours";

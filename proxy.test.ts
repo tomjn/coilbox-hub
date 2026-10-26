@@ -12,14 +12,42 @@ function runsOn(url: string): boolean {
   return unstable_doesMiddlewareMatch({ config, nextConfig, url });
 }
 
-test("the proxy runs on pages, which read the session for the header", () => {
-  for (const url of ["/", "/item/abc", "/items", "/games/bar", "/account", "/moderation/assets", "/publish", "/auth/callback", "/export-guide"]) {
+test("the proxy runs on the pages that read the session on the server", () => {
+  for (const url of [
+    "/account",
+    "/account/verify",
+    "/publish",
+    "/moderation",
+    "/moderation/assets",
+    "/ops",
+    "/sign-in",
+    "/item/abc/edit",
+    "/item/abc/withdrawn",
+    "/games/bar/edit",
+    "/auth/callback",
+    "/auth/signout",
+    "/auth/nav",
+    "/dev/sign-in",
+  ]) {
     expect(runsOn(url)).toBe(true);
   }
 });
 
-test("the proxy skips routes that never read a session cookie", () => {
+test("the proxy skips every page the CDN can serve, and routes that never read a session cookie", () => {
   for (const url of [
+    "/",
+    "/item/abc",
+    "/gallery",
+    "/maps",
+    "/map/some-map",
+    "/games",
+    "/games/bar",
+    "/games/bar/units",
+    "/games/bar/units/armcom",
+    "/games/bar/units/armcom/v/1.2",
+    "/profile/abc",
+    "/developers",
+    "/accounts",
     "/api/v1/items",
     "/api/v1/items/abc",
     "/i/abc",

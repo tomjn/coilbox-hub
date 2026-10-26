@@ -1,4 +1,12 @@
 import type { NextConfig } from "next";
+import { getSupabaseConfig, SUPABASE_CONFIG_ERROR } from "./lib/supabase/config";
+
+// The cached listings build empty without Supabase settings, so CI can build
+// with none. On Vercel the CDN would then serve those empty pages to everybody,
+// since the proxy no longer runs on them, so a Vercel build fails instead.
+if (process.env.VERCEL && !getSupabaseConfig().ok) {
+  throw new Error(SUPABASE_CONFIG_ERROR);
+}
 
 // The hub serves its own pictures at the size it shows them, so nothing here
 // goes through next/image and no remote host has to be allowed.

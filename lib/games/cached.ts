@@ -46,8 +46,8 @@ const LISTING_LIFE = "hours";
 
 /** The games listing is prerendered by `next build`, which can run with no
  *  Supabase settings, as CI does. There is nothing to read then, so the page
- *  builds with no games. A deployment that really lacks them still fails every
- *  request in `proxy.ts` with `SUPABASE_CONFIG_ERROR`, so this hides nothing. */
+ *  builds with no games. A deployment that really lacks them fails its Vercel
+ *  build in `next.config.ts` with `SUPABASE_CONFIG_ERROR`, so this hides nothing. */
 const notConfigured = () => !getSupabaseConfig().ok;
 
 /** Every game, biggest first. */
