@@ -1,18 +1,7 @@
-import { expect, mock, test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Who the request's cookies say is looking, which is all `editableGameForPage`
- *  is told. Null is a signed out visitor, and a read made for one is a failure. */
-let visitor: string | null = null;
-
-mock.module("@/lib/supabase/server", () => ({
-  createClient: async () => ({
-    auth: { getClaims: async () => ({ data: visitor ? { claims: { sub: visitor } } : null }) },
-    ...(visitor ? clientFor(visitor) : signedOutClient()),
-  }),
-}));
-
-const { editableGame, editableGameForPage } = await import("./editor");
+import { editableGame } from "./editor";
 
 /**
  * Who may change a game (#350). The database side, that the policies let a
@@ -62,12 +51,6 @@ function clientFor(userId: string, moderatorAnswer: { data: unknown; error: unkn
   } as unknown as SupabaseClient;
 }
 
-function signedOutClient() {
-  const refuse = () => {
-    throw new Error("the database was asked about a signed out visitor");
-  };
-  return { rpc: refuse, from: refuse };
-}
 
 test("the owner may change their own game", async () => {
   expect(await editableGame(clientFor(OWNER), OWNER, "BA")).toEqual({ id: "game-ba" });
@@ -99,25 +82,3 @@ test("an is_moderator call that errors is not a yes", async () => {
   expect(await editableGame(failing, STRANGER, "BA")).toBeNull();
 });
 
-test("a page shows the owner their own game's controls", async () => {
-  visitor = OWNER;
-  expect(await editableGameForPage("BA")).toEqual({ id: "game-ba" });
-  expect(await editableGameForPage("ZK")).toBeNull();
-});
-
-test("a page shows a moderator any game's controls", async () => {
-  visitor = MODERATOR;
-  expect(await editableGameForPage("BA")).toEqual({ id: "game-ba" });
-  expect(await editableGameForPage("ZK")).toEqual({ id: "game-zk" });
-});
-
-test("a page shows a signed in stranger no controls", async () => {
-  visitor = STRANGER;
-  expect(await editableGameForPage("BA")).toBeNull();
-  expect(await editableGameForPage("ZK")).toBeNull();
-});
-
-test("a page shows a signed out visitor no controls, and asks the database nothing", async () => {
-  visitor = null;
-  expect(await editableGameForPage("BA")).toBeNull();
-});

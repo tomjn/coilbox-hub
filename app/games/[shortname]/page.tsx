@@ -12,16 +12,15 @@ import { CommanderPicture } from "@/components/CommanderPicture";
 import { GameLogo } from "@/components/GameLogo";
 import { ExternalIcon, GamesIcon } from "@/components/icons";
 import { RichText } from "@/components/RichText";
+import { ShownTo } from "@/components/ShownTo";
 import { VisibilityToggleForm } from "@/components/VisibilityToggleForm";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle, itemCardLabel, saysMoreThanName } from "@/lib/games/labels";
 import { gamePageCached, gameReleasesCached, gameSidesCached } from "@/lib/games/cached";
 import { downloadHref, type GameDownload } from "@/lib/games/download";
-import { editableGameForPage } from "@/lib/games/editor";
 import type { GamePageFaction } from "@/lib/games/page";
 import type { SideCommander } from "@/lib/games/sides";
-import { currentUser } from "@/lib/supabase/user";
 import { richTextToPlainText } from "@/lib/text/richText";
 
 /**
@@ -206,14 +205,11 @@ function Onward({ href, name, detail }: { href: string; name: string; detail: st
 /**
  * The pen and the hide switch, for the owner or a moderator (#350).
  *
- * Its own component behind its own boundary, because it is the only part of the
- * header that depends on who is looking: the page is sent without waiting to
- * learn who that is, and this arrives after it. Nothing is drawn in the
- * meantime, so a visitor who may not edit never sees the controls.
+ * The only part of the header that depends on who is looking, so the page
+ * draws it in the browser through `ShownTo` and stays the same for everybody.
+ * The actions behind both ask `editableGame` before they write.
  */
-async function OwnerControls({ shortname }: { shortname: string }) {
-  if (!(await editableGameForPage(shortname))) return null;
-
+function OwnerControls({ shortname }: { shortname: string }) {
   return (
     <div className="flex flex-wrap items-center gap-3 pt-1">
       <Link href={`/games/${shortname}/edit`} className={CONTROL_BUTTON}>
@@ -240,12 +236,10 @@ async function OwnerControls({ shortname }: { shortname: string }) {
  * Claiming a game is rare, so the ask folds down to one quiet line below the
  * facts (#249) and only opens for whoever wants it. Open, the instruction lives
  * in a real label where typing cannot take it away, and the button reads as an
- * action rather than another chip. Behind a boundary for the same reason as
+ * action rather than another chip. Drawn in the browser for the same reason as
  * `OwnerControls`.
  */
-async function OwnershipAsk({ shortname }: { shortname: string }) {
-  if (!(await currentUser())) return null;
-
+function OwnershipAsk({ shortname }: { shortname: string }) {
   return (
     <details>
       <summary className="w-fit cursor-pointer list-none text-sm text-neutral-400 underline-offset-4 transition-colors hover:text-neutral-200 hover:underline active:text-neutral-200 active:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400">
@@ -364,9 +358,9 @@ async function GameContent({ params }: { params: Params }) {
             <p className="text-sm text-neutral-400">Game version {page.release}</p>
           ) : null}
           {page.downloads.length > 0 ? <Downloads downloads={page.downloads} /> : null}
-          <Suspense fallback={null}>
+          <ShownTo owner={page.owner_user_id} moderators>
             <OwnerControls shortname={shortname} />
-          </Suspense>
+          </ShownTo>
         </div>
 
         <section className="flex flex-col gap-3" aria-labelledby="game-factions">
@@ -464,9 +458,9 @@ async function GameContent({ params }: { params: Params }) {
         ) : null}
 
         {!page.owner_user_id ? (
-          <Suspense fallback={null}>
+          <ShownTo signedIn>
             <OwnershipAsk shortname={shortname} />
-          </Suspense>
+          </ShownTo>
         ) : null}
 
         <p className="text-sm text-neutral-400">

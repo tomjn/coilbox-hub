@@ -6,6 +6,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import Loading from "@/app/loading";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { ShownTo } from "@/components/ShownTo";
 import { Skeleton } from "@/components/Skeleton";
 import { StatTable } from "@/components/StatTable";
 import { UnitCard } from "@/components/UnitCard";
@@ -14,7 +15,6 @@ import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
 import { StageStats, StageStrip } from "@/components/UnitStages";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { gamePageCached, unitPageCached } from "@/lib/games/cached";
-import { editableGameForPage } from "@/lib/games/editor";
 import { gameTitle } from "@/lib/games/labels";
 import { SnippetForm } from "./SnippetForm";
 import { Button } from "@/components/Button";
@@ -105,12 +105,10 @@ export async function generateMetadata({
  * write would refuse anybody else anyway, but a form that can never succeed
  * should not be on the page.
  *
- * Its own component behind its own boundary, because it is the only part of
- * the page that depends on who is looking: the unit is sent without waiting to
- * learn who that is, and this arrives after it. Nothing is drawn in the
- * meantime, so a visitor who may not edit never sees the form.
+ * The only part of the page that depends on who is looking, so it is drawn in
+ * the browser through `ShownTo` and the page stays the same for everybody.
  */
-async function SnippetEditor({
+function SnippetEditor({
   shortname,
   unitName,
   snippet,
@@ -119,8 +117,6 @@ async function SnippetEditor({
   unitName: string;
   snippet: string;
 }) {
-  if (!(await editableGameForPage(shortname))) return null;
-
   return (
     <section className="flex flex-col gap-3" aria-labelledby="unit-snippet-edit">
       <h2 id="unit-snippet-edit" className="text-sm uppercase tracking-wide text-neutral-400">
@@ -256,9 +252,9 @@ async function UnitContent({ params, searchParams }: UnitProps) {
           </section>
         ) : null}
 
-        <Suspense fallback={null}>
+        <ShownTo owner={game?.owner_user_id} moderators>
           <SnippetEditor shortname={shortname} unitName={page.unit_name} snippet={page.snippet ?? ""} />
-        </Suspense>
+        </ShownTo>
 
         {/* Upstream before downstream: what makes this thing, then what it
             makes. A reader arriving from a build order wants the first. */}
