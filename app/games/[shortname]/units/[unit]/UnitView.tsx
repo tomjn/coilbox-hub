@@ -14,6 +14,7 @@ import { StageStats, StageStrip } from "@/components/UnitStages";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
 import { gamePageCached, unitPageCached } from "@/lib/games/cached";
 import { gameTitle } from "@/lib/games/labels";
+import { unitSegment } from "@/lib/games/unitRelease";
 import { SnippetForm } from "./SnippetForm";
 import { Button } from "@/components/Button";
 
@@ -29,7 +30,7 @@ import { Button } from "@/components/Button";
  *
  * ## Versions
  *
- * Current facts by default. `/v/<release>` reads that release's revision
+ * Current facts by default. `<unit>@<release>` reads that release's revision
  * instead, and the page says so in the same breath as the numbers, because a
  * stat table without its version is a claim nobody can check. A release with no
  * revision for this unit still renders: the page shows current facts and says
@@ -118,9 +119,9 @@ function SnippetEditor({
 }
 
 /**
- * One unit as of release `v`, or its latest facts. Shared by `page.tsx` and
- * `v/[version]/page.tsx`. The version is in the path rather than the query so
- * that neither page reads the request, and the CDN can serve both.
+ * One unit as of release `v`, or its latest facts. The release is in the path
+ * rather than the query so the page reads nothing from the request, and the CDN
+ * can serve it.
  */
 export async function UnitView({ shortname, unit, v }: { shortname: string; unit: string; v?: string }) {
   const [game, loaded] = await Promise.all([
@@ -130,9 +131,6 @@ export async function UnitView({ shortname, unit, v }: { shortname: string; unit
   if (!loaded) notFound();
   const { page, renders, buildpic, buildPictures } = loaded;
   const label = page.full_name ?? page.unit_name;
-
-  const versionPath = (version?: string) =>
-    version ? `/v/${encodeURIComponent(version)}` : "";
 
   return (
     <main id="main-content" tabIndex={-1} className="relative flex-1">
@@ -267,7 +265,7 @@ export async function UnitView({ shortname, unit, v }: { shortname: string; unit
             <ul className="flex flex-wrap gap-2">
               <li>
                 <Link
-                  href={`/games/${shortname}/units/${page.unit_name}`}
+                  href={`/games/${shortname}/units/${unitSegment(page.unit_name)}`}
                   className={
                     page.shown_version
                       ? buttonClass("ghost", { size: "md" })
@@ -280,7 +278,7 @@ export async function UnitView({ shortname, unit, v }: { shortname: string; unit
               {page.versions.map((version) => (
                 <li key={version}>
                   <Link
-                    href={`/games/${shortname}/units/${page.unit_name}${versionPath(version)}`}
+                    href={`/games/${shortname}/units/${unitSegment(page.unit_name, version)}`}
                     className={
                       page.shown_version === version
                         ? "rounded-md border border-neutral-600 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100"

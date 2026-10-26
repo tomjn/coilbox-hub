@@ -44,7 +44,7 @@ test("the proxy skips every page the CDN can serve, and routes that never read a
     "/games/bar",
     "/games/bar/units",
     "/games/bar/units/armcom",
-    "/games/bar/units/armcom/v/1.2",
+    "/games/bar/units/armcom@1.2",
     "/profile/abc",
     "/developers",
     "/accounts",

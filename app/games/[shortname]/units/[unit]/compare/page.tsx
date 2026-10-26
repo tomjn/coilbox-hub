@@ -18,6 +18,7 @@ import {
 import { pickCompareRelease, resolveWithUnit, type PairUnit } from "@/lib/games/compareUnits";
 import { gameTitle } from "@/lib/games/labels";
 import { compareStatRows } from "@/lib/games/stats";
+import { unitSegment } from "@/lib/games/unitRelease";
 import { CompareTable } from "./CompareTable";
 
 /**
@@ -210,7 +211,7 @@ function UnitHead({
 }) {
   return (
     <Link
-      href={`/games/${shortname}/units/${encodeURIComponent(unit)}/v/${encodeURIComponent(release)}`}
+      href={`/games/${shortname}/units/${unitSegment(unit, release)}`}
       className="flex w-24 flex-col items-start gap-2 text-sm normal-case tracking-normal text-neutral-100 sm:w-36"
     >
       <span className="flex h-16 w-16 items-center justify-center">

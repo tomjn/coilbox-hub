@@ -20,16 +20,18 @@ const nextConfig: NextConfig = {
   // An item, map, game or unit page is not listed at build time. With this on,
   // its first visit gets the shell and Next renders the full page in the
   // background, so later visits are served whole from the cache rather than
-  // streaming the rest from a function each time.
+  // streaming the rest from a function each time. That needs a
+  // `generateStaticParams` on the segment, even a placeholder.
   partialPrefetching: true,
   async redirects() {
     return [
-      // A unit at a past release moved from `?v=` to the path, so the unit page
-      // reads nothing from the request and the CDN can serve it.
+      // A unit at a past release moved from `?v=` to `<unit>@<release>`, so the
+      // unit page reads nothing from the request and the CDN can serve it
+      // (`lib/games/unitRelease.ts`).
       {
         source: "/games/:shortname/units/:unit",
         has: [{ type: "query", key: "v", value: "(?<v>.+)" }],
-        destination: "/games/:shortname/units/:unit/v/:v",
+        destination: "/games/:shortname/units/:unit@:v",
         permanent: true,
       },
     ];
