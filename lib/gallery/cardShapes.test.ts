@@ -10,6 +10,7 @@ interface Row {
   name: unknown;
   ordered: unknown;
   buildings: unknown;
+  terrain: unknown;
   footprints: unknown;
 }
 
@@ -18,6 +19,7 @@ const empty = {
   name: null,
   ordered: null,
   buildings: null,
+  terrain: null,
   footprints: null,
 };
 
@@ -166,6 +168,28 @@ test("a blueprint rebuilds its layout from the buildings and footprints", () => 
   if (shape?.type !== "blueprint") throw new Error("expected a layout");
   expect(shape.layout.squares).toHaveLength(2);
   expect(shape.layout.ordered).toBe(true);
+});
+
+test("a blueprint of terrain steps and no buildings still has a card shape", () => {
+  const wall = {
+    kind: "raise",
+    shape: "wall",
+    points: [
+      { x: 0, z: 0 },
+      { x: 80, z: 0 },
+    ],
+    height: 8,
+    before: 0,
+  };
+  const shape = cardShape(
+    { kind: "blueprint", mode: null },
+    { ...empty, name: "Walls", buildings: [], terrain: [wall], footprints: {} },
+  );
+
+  expect(shape?.type).toBe("blueprint");
+  if (shape?.type !== "blueprint") throw new Error("expected a layout");
+  expect(shape.layout.squares).toHaveLength(0);
+  expect(shape.layout.terrain).toHaveLength(1);
 });
 
 test("settings the generator refuses give no shape rather than an empty one", () => {

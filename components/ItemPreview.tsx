@@ -41,6 +41,8 @@ import {
   type BuildingKind,
   type BuildingRun,
   planLabel,
+  type TerrainDraw,
+  WALL_THICKNESS,
   type PlanBox,
 } from "@/lib/gallery/blueprintPreview";
 import { conquestGalaxy, type GalaxyShape } from "@/lib/gallery/conquestGalaxy";
@@ -788,6 +790,95 @@ function threadOpacity(stops: number): number {
   return stops <= 8 ? 0.5 : Math.max(0.22, 0.5 - (stops - 8) * 0.012);
 }
 
+/** The points of a path or outline as an SVG path, closed for an outline. */
+function pathOf(points: readonly { x: number; y: number }[], closed: boolean) {
+  const d = `M${points.map(({ x, y }) => `${x} ${y}`).join(" L")}`;
+  return closed ? `${d} Z` : d;
+}
+
+/**
+ * One terrain step, under the buildings. The shapes follow the issue that
+ * asked for them: an area is a filled outline, a wall is a thick line, and a
+ * ramp is a band with an arrow pointing uphill.
+ *
+ * Raised ground takes the plan's blue and dug ground its neutral grey, the two
+ * tones the sheet already has. A step that moves the ground neither way (a
+ * smooth, or a level to the layout's own height) is the grey outline alone.
+ */
+function TerrainMark({ step }: { step: TerrainDraw }) {
+  const tone =
+    step.tone === "up" ? "text-blue-500" : "text-neutral-400";
+  const filled = step.tone !== "even";
+
+  if (step.band) {
+    return (
+      <g className={tone} fill="currentColor" stroke="currentColor">
+        <path
+          d={pathOf(step.band, true)}
+          fillOpacity={filled ? FILL : 0}
+          strokeOpacity={OUTLINE}
+          strokeWidth={1.25}
+          vectorEffect="non-scaling-stroke"
+        />
+        {step.arrow ? (
+          <>
+            <path
+              d={pathOf([step.arrow[0], step.arrow[1]], false)}
+              fill="none"
+              strokeOpacity={START}
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path
+              d={pathOf([step.arrow[2], step.arrow[1], step.arrow[3]], false)}
+              fill="none"
+              strokeOpacity={START}
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </>
+        ) : null}
+      </g>
+    );
+  }
+
+  if (step.shape === "wall") {
+    // A path of one point is still a mark, so it is drawn as a zero length
+    // segment that the round caps turn into a dot.
+    const points = step.points.length === 1 ? [step.points[0], step.points[0]] : step.points;
+    return (
+      <path
+        className={tone}
+        d={pathOf(points, false)}
+        fill="none"
+        stroke="currentColor"
+        strokeOpacity={filled ? OUTLINE * 0.75 : FILL}
+        strokeWidth={WALL_THICKNESS}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray={filled ? undefined : "0.6 0.6"}
+      />
+    );
+  }
+
+  return (
+    <path
+      className={tone}
+      d={pathOf(step.points, true)}
+      fill="currentColor"
+      fillOpacity={filled ? FILL : 0}
+      stroke="currentColor"
+      strokeOpacity={OUTLINE}
+      strokeWidth={1.25}
+      strokeLinejoin="round"
+      vectorEffect="non-scaling-stroke"
+    />
+  );
+}
+
 /**
  * The same picture the plan draws this building as, at the size of a line of
  * text, or the room it would take when the hub holds no picture of this one.
@@ -1057,6 +1148,9 @@ export function BlueprintLayoutArt({
           />
         ))}
       </g>
+      {shape.terrain.map((step, i) => (
+        <TerrainMark key={`t${i}`} step={step} />
+      ))}
       {thread ? (
         // Under the buildings. Over the top it reads as a route on a three
         // building opening and as a scribble on a base with thirty stops.
@@ -1157,6 +1251,15 @@ function BlueprintLayout({
   roles: BuildingRoles;
 }) {
   const buildings = shape.squares.length;
+  const steps = shape.terrain.length;
+  const counts = [
+    ...(buildings > 0
+      ? [`${buildings} ${buildings === 1 ? "building" : "buildings"}`]
+      : []),
+    ...(steps > 0
+      ? [`${steps} terrain ${steps === 1 ? "step" : "steps"}`]
+      : []),
+  ].join(", ");
 
   return (
     <div className="flex flex-col gap-3">
@@ -1170,8 +1273,8 @@ function BlueprintLayout({
         roles={roles}
       />
       <p className="text-xs text-neutral-400">
-        {buildings} {buildings === 1 ? "building" : "buildings"}
-        {shape.ordered ? ", in build order" : ""}
+        {counts}
+        {shape.ordered && buildings > 0 ? ", in build order" : ""}
       </p>
       {designedFor ? (
         <p className="text-xs text-neutral-400">Designed for {designedFor}</p>
@@ -1180,9 +1283,9 @@ function BlueprintLayout({
           order", or just a count of buildings. */}
       {runs ? (
         <BuildOrder runs={runs} units={units} names={names} />
-      ) : (
+      ) : kinds.length > 0 ? (
         <BuildingRoster kinds={kinds} units={units} names={names} />
-      )}
+      ) : null}
     </div>
   );
 }

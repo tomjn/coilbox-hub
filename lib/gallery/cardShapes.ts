@@ -28,7 +28,7 @@ import { type RunShape, warpathRun } from "./warpathRun";
  * ## What is asked for, and what it costs
  *
  * `settings` is everything the two challenge generators read.
- * `name`, `ordered`, `buildings` and `footprints` are everything the blueprint
+ * `name`, `ordered`, `buildings`, `terrain` and `footprints` are everything the blueprint
  * layout reads. A row of the wrong kind has none of those paths and PostgREST
  * answers null for it, so one query serves both kinds and a scenario or a setup
  * pack pays a few bytes of nulls rather than its whole container. Measured over
@@ -101,6 +101,7 @@ export interface CardShapeParts {
   name: unknown;
   ordered: unknown;
   buildings: unknown;
+  terrain: unknown;
   footprints: unknown;
 }
 
@@ -112,13 +113,14 @@ export const CARD_SHAPE_COLUMNS =
   "name:container->payload->>name," +
   "ordered:container->payload->ordered," +
   "buildings:container->payload->buildings," +
+  "terrain:container->payload->terrain," +
   "footprints:container->payload->footprints";
 
 /**
  * Rebuild one row's drawing, or null when it cannot be rebuilt.
  *
  * Null is the ordinary answer, not a failure: a challenge whose settings a
- * newer coilbox has changed, a blueprint with no buildings in it, a row whose
+ * newer coilbox has changed, a blueprint with no buildings and no terrain steps in it, a row whose
  * container was not readable. The card falls back to its kind plate, the same
  * way `lib/gallery/itemCardArt.ts` already falls back for a map with no
  * picture.
@@ -176,6 +178,7 @@ export function cardShape(
       name: parts.name,
       ordered: parts.ordered,
       buildings: parts.buildings,
+      terrain: parts.terrain,
       footprints: parts.footprints,
     });
     return layout ? { type: "blueprint", layout, roles: {} } : null;

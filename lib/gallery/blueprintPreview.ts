@@ -26,6 +26,7 @@ import {
   ONE_BUILD_SQUARE,
   parseBlueprintPayload,
   type PayloadFootprint,
+  type PayloadTerrainStep,
 } from "@/lib/blueprint/payload";
 
 /**
@@ -52,23 +53,143 @@ export interface BlueprintSquare {
   sized: boolean;
 }
 
+/** How thick a wall is drawn, in build squares. A wall has no width in the
+ *  payload, only a path, so this is a mark that reads as a wall at any size. */
+export const WALL_THICKNESS = 0.6;
+
+/** The size of an uphill arrow's head, in build squares. */
+const ARROW_HEAD = 0.8;
+
+/**
+ * Which way a step moves the ground, which is all the two shades say. `up` is
+ * raised ground, `down` is dug ground, and `even` is a step that moves it
+ * neither way: a smooth, or a level to the layout's own height.
+ */
+export type TerrainTone = "up" | "down" | "even";
+
+/** A point in the box, in build squares from its top left. */
+export interface BoxPoint {
+  x: number;
+  y: number;
+}
+
+type Arrow = [BoxPoint, BoxPoint, BoxPoint, BoxPoint];
+
+/** One terrain step, as outlines in the same box as the squares. */
+export interface TerrainDraw {
+  kind: PayloadTerrainStep["kind"];
+  shape: PayloadTerrainStep["shape"];
+  tone: TerrainTone;
+  /** An area's outline, or a wall's path. A ramp's two ends. */
+  points: BoxPoint[];
+  /** A ramp's four corners, going round. Null for every other step. */
+  band: BoxPoint[] | null;
+  /** A ramp's arrow as tail, tip and the two ends of the head. Null for
+   *  every other step, and for a ramp whose ends are the same height. */
+  arrow: Arrow | null;
+}
+
 export interface BlueprintShape {
   /** The box every square fits inside, in build squares. */
   width: number;
   height: number;
   /** In the payload's own order, which is the build order when `ordered`. */
   squares: BlueprintSquare[];
+  /** The terrain steps, in the payload's order. Drawn under the squares. */
+  terrain: TerrainDraw[];
   ordered: boolean;
 }
 
+/** A terrain step in build squares from the layout's origin, before the box
+ *  is measured. */
+type PlacedStep = TerrainDraw & {
+  /** Ground the mark reaches past its points, for the bounds. */
+  reach: number;
+};
+
+function toneOf(step: PayloadTerrainStep): TerrainTone {
+  const height =
+    step.kind === "ramp" && step.heights
+      ? (step.heights[0] + step.heights[1]) / 2
+      : (step.height ?? 0);
+  return height > 0 ? "up" : height < 0 ? "down" : "even";
+}
+
+/** A step laid out in build squares from the layout's origin. */
+function placeStep(step: PayloadTerrainStep): PlacedStep {
+  const points = step.points.map((point) => ({
+    x: point.x / BUILD_SQUARE_ELMOS,
+    y: point.z / BUILD_SQUARE_ELMOS,
+  }));
+  const placed: PlacedStep = {
+    kind: step.kind,
+    shape: step.shape,
+    tone: toneOf(step),
+    points,
+    band: null,
+    arrow: null,
+    reach: step.shape === "wall" ? WALL_THICKNESS / 2 : 0,
+  };
+  if (step.kind !== "ramp" || points.length < 2 || !step.heights) return placed;
+
+  // A ramp is a path of two points with a width on the ground, so the band is
+  // the line between them pushed out half the width either side.
+  const [from, to] = points;
+  const half = (step.width ?? 0) / BUILD_SQUARE_ELMOS / 2;
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  const along = length > 0
+    ? { x: (to.x - from.x) / length, y: (to.y - from.y) / length }
+    : { x: 1, y: 0 };
+  const across = { x: -along.y, y: along.x };
+  placed.band = [
+    { x: from.x + across.x * half, y: from.y + across.y * half },
+    { x: to.x + across.x * half, y: to.y + across.y * half },
+    { x: to.x - across.x * half, y: to.y - across.y * half },
+    { x: from.x - across.x * half, y: from.y - across.y * half },
+  ];
+  placed.reach = 0;
+
+  const [low, high] = step.heights;
+  if (low !== high) {
+    // The arrow runs along the middle of the band towards the higher end,
+    // starting and stopping a fifth of the way in so it stays inside the band.
+    const uphill = high > low ? 1 : -1;
+    const start = uphill === 1 ? from : to;
+    const end = uphill === 1 ? to : from;
+    const at = (t: number) => ({
+      x: start.x + (end.x - start.x) * t,
+      y: start.y + (end.y - start.y) * t,
+    });
+    const tail = at(0.2);
+    const tip = at(0.8);
+    const head = Math.min(ARROW_HEAD, length * 0.3);
+    const back = {
+      x: tip.x - along.x * uphill * head,
+      y: tip.y - along.y * uphill * head,
+    };
+    placed.arrow = [
+      tail,
+      tip,
+      { x: back.x + across.x * head * 0.6, y: back.y + across.y * head * 0.6 },
+      { x: back.x - across.x * head * 0.6, y: back.y - across.y * head * 0.6 },
+    ];
+  }
+  return placed;
+}
+
 /**
- * The squares to draw for a blueprint payload, or null when there is nothing to
- * draw. Reads the payload with coilbox's own parser, so the preview and the app
- * agree on what a layout is without the hub restating it.
+ * The squares and terrain steps to draw for a blueprint payload, or null when
+ * there is nothing to draw. Reads the payload with coilbox's own parser, so the
+ * preview and the app agree on what a layout is without the hub restating it.
+ *
+ * A layout of terrain steps and no buildings is a layout, so it gets a shape.
  */
 export function blueprintShape(payload: unknown): BlueprintShape | null {
   const blueprint = parseBlueprintPayload(payload);
-  if (!blueprint || blueprint.buildings.length === 0) return null;
+  const steps = (blueprint?.terrain ?? []).map(placeStep);
+  if (!blueprint || (blueprint.buildings.length === 0 && steps.length === 0)) {
+    return null;
+  }
 
   const rects = blueprint.buildings.map((building) => {
     const declared = declaredFootprint(blueprint, building.def);
@@ -94,10 +215,29 @@ export function blueprintShape(payload: unknown): BlueprintShape | null {
   // Measured from the layout rather than from zero. Offsets run out from the
   // origin in both directions, so a box starting at zero would leave half the
   // base outside the picture.
-  const left = Math.min(...rects.map((rect) => rect.left));
-  const top = Math.min(...rects.map((rect) => rect.top));
-  const right = Math.max(...rects.map((rect) => rect.left + rect.width));
-  const bottom = Math.max(...rects.map((rect) => rect.top + rect.height));
+  const reaches = [
+    ...rects.map((rect) => ({
+      left: rect.left,
+      top: rect.top,
+      right: rect.left + rect.width,
+      bottom: rect.top + rect.height,
+    })),
+    // Every point a step draws, which for a ramp is its band's corners, and for
+    // a wall the ground its thickness covers either side of the path.
+    ...steps.flatMap((step) =>
+      (step.band ?? step.points).map((point) => ({
+        left: point.x - step.reach,
+        top: point.y - step.reach,
+        right: point.x + step.reach,
+        bottom: point.y + step.reach,
+      })),
+    ),
+  ];
+  const left = Math.min(...reaches.map((reach) => reach.left));
+  const top = Math.min(...reaches.map((reach) => reach.top));
+  const right = Math.max(...reaches.map((reach) => reach.right));
+  const bottom = Math.max(...reaches.map((reach) => reach.bottom));
+  const shift = (point: BoxPoint) => ({ x: point.x - left, y: point.y - top });
 
   return {
     width: right - left,
@@ -111,6 +251,14 @@ export function blueprintShape(payload: unknown): BlueprintShape | null {
       // A footprint is at least one square, so this never reaches zero.
       width: rect.width - BUILDING_GAP * 2,
       height: rect.height - BUILDING_GAP * 2,
+    })),
+    terrain: steps.map(({ reach: _reach, ...step }) => ({
+      ...step,
+      points: step.points.map(shift),
+      band: step.band ? step.band.map(shift) : null,
+      arrow: step.arrow
+        ? (step.arrow.map(shift) as Arrow)
+        : null,
     })),
   };
 }
@@ -128,8 +276,14 @@ export function blueprintShape(payload: unknown): BlueprintShape | null {
  */
 export function planLabel(shape: BlueprintShape): string {
   const buildings = shape.squares.length;
+  const steps = shape.terrain.length;
+  // A layout with no steps says exactly what it said before steps existed.
+  const parts = [
+    ...(buildings > 0 ? [`${buildings} building${buildings === 1 ? "" : "s"}`] : []),
+    ...(steps > 0 ? [`${steps} terrain step${steps === 1 ? "" : "s"}`] : []),
+  ];
   return (
-    `${buildings} building${buildings === 1 ? "" : "s"} over ` +
+    `${parts.join(" and ")} over ` +
     `${Math.round(shape.width)} by ${Math.round(shape.height)} build squares`
   );
 }

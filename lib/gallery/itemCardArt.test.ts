@@ -104,6 +104,7 @@ const BLUEPRINT_SHAPE: CardShape = {
     width: 1,
     height: 1,
     squares: [],
+    terrain: [],
     ordered: false,
   },
   roles: {},

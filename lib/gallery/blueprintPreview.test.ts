@@ -150,6 +150,7 @@ function sized(width: number, height: number): BlueprintShape {
     height,
     ordered: false,
     squares: [{ def: "armlab", sized: true, x: 0, y: 0, width, height }],
+    terrain: [],
   };
 }
 
@@ -232,6 +233,7 @@ function counted(
     width,
     height,
     ordered: false,
+    terrain: [],
     squares: Array.from({ length: buildings }, (_, i) => ({
       def: "armsolar",
       sized: true,

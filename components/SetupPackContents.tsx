@@ -140,6 +140,7 @@ export function SetupPackContents({
           <ul className="grid gap-6 sm:grid-cols-2">
             {blueprints.map((layout, i) => {
               const buildings = layout.shape.squares.length;
+              const steps = layout.shape.terrain.length;
               const ours = layout.game === null || layout.game === gameKey;
               return (
                 // A pack can carry two layouts of one name, so the name alone
@@ -156,8 +157,15 @@ export function SetupPackContents({
                     {layout.name.trim() || "Untitled layout"}
                   </p>
                   <p className="text-xs text-neutral-400">
-                    {buildings} {buildings === 1 ? "building" : "buildings"}
-                    {layout.shape.ordered ? ", in build order" : ""}
+                    {[
+                      ...(buildings > 0
+                        ? [`${buildings} ${buildings === 1 ? "building" : "buildings"}`]
+                        : []),
+                      ...(steps > 0
+                        ? [`${steps} terrain ${steps === 1 ? "step" : "steps"}`]
+                        : []),
+                    ].join(", ")}
+                    {layout.shape.ordered && buildings > 0 ? ", in build order" : ""}
                   </p>
                 </li>
               );
