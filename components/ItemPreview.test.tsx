@@ -305,3 +305,45 @@ test("a system with no name is not a focus stop, and unlabelled cards are never 
 
   expect(html).not.toContain('tabindex="0"');
 });
+
+test("a neutral wall is a solid faint line with square ends, as the widget draws it", () => {
+  const html = render(
+    payload({
+      terrain: [
+        {
+          kind: "smooth",
+          shape: "wall",
+          points: [
+            { x: 0, z: 0 },
+            { x: 160, z: 0 },
+          ],
+          before: 0,
+        },
+      ],
+    }),
+  );
+  expect(html).not.toContain("stroke-dasharray=\"0.6");
+  expect(html).toContain('stroke-linecap="square"');
+});
+
+test("a ramp's arrow is one path with square cut ends", () => {
+  const html = render(
+    payload({
+      terrain: [
+        {
+          kind: "ramp",
+          shape: "wall",
+          points: [
+            { x: 0, z: 0 },
+            { x: 80, z: 0 },
+          ],
+          heights: [0, 20],
+          width: 32,
+          before: 0,
+        },
+      ],
+    }),
+  );
+  expect(html).toContain('stroke-linecap="butt"');
+  expect(html).not.toContain('stroke-linecap="round"');
+});
