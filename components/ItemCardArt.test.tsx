@@ -151,6 +151,7 @@ const BLUEPRINT_SHAPE: CardShape = {
     width: 8,
     height: 3,
     ordered: false,
+    terrain: [],
     squares: [
       { def: "armsolar", sized: true, x: 0, y: 0, width: 1, height: 1 },
       { def: "armsolar", sized: true, x: 2, y: 0, width: 1, height: 1 },
