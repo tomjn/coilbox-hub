@@ -804,6 +804,10 @@ function pathOf(points: readonly { x: number; y: number }[], closed: boolean) {
  * Raised ground takes the plan's blue and dug ground its neutral grey, the two
  * tones the sheet already has. A step that moves the ground neither way (a
  * smooth, or a level to the layout's own height) is the grey outline alone.
+ *
+ * The in-game widget's list and grid are the reference for how a mark looks, so
+ * this follows them: square ended walls, a solid faint line for a neutral wall,
+ * and an arrow with square cut ends. Coilbox draws the same.
  */
 function TerrainMark({ step }: { step: TerrainDraw }) {
   const tone =
@@ -823,20 +827,11 @@ function TerrainMark({ step }: { step: TerrainDraw }) {
         {step.arrow ? (
           <>
             <path
-              d={pathOf([step.arrow[0], step.arrow[1]], false)}
+              d={`${pathOf([step.arrow[0], step.arrow[1]], false)} ${pathOf([step.arrow[2], step.arrow[1]], false)} ${pathOf([step.arrow[3], step.arrow[1]], false)}`}
               fill="none"
               strokeOpacity={START}
               strokeWidth={1.5}
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-            <path
-              d={pathOf([step.arrow[2], step.arrow[1], step.arrow[3]], false)}
-              fill="none"
-              strokeOpacity={START}
-              strokeWidth={1.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              strokeLinecap="butt"
               vectorEffect="non-scaling-stroke"
             />
           </>
@@ -847,7 +842,7 @@ function TerrainMark({ step }: { step: TerrainDraw }) {
 
   if (step.shape === "wall") {
     // A path of one point is still a mark, so it is drawn as a zero length
-    // segment that the round caps turn into a dot.
+    // segment that the square caps turn into a square.
     const points = step.points.length === 1 ? [step.points[0], step.points[0]] : step.points;
     return (
       <path
@@ -857,9 +852,8 @@ function TerrainMark({ step }: { step: TerrainDraw }) {
         stroke="currentColor"
         strokeOpacity={filled ? OUTLINE * 0.75 : FILL}
         strokeWidth={WALL_THICKNESS}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeDasharray={filled ? undefined : "0.6 0.6"}
+        strokeLinecap="square"
+        strokeLinejoin="miter"
       />
     );
   }
@@ -873,7 +867,7 @@ function TerrainMark({ step }: { step: TerrainDraw }) {
       stroke="currentColor"
       strokeOpacity={OUTLINE}
       strokeWidth={1.25}
-      strokeLinejoin="round"
+      strokeLinejoin="miter"
       vectorEffect="non-scaling-stroke"
     />
   );
