@@ -25,7 +25,7 @@ import type { ItemSummary } from "./query";
  *
  * A blueprint draws its layout the same way (issue #310): its `shape`, when
  * one rebuilt, is always `"blueprint"`, so unlike a challenge there is no
- * second kind of shape to exclude. A blueprint with no buildings, or one
+ * second kind of shape to exclude. A blueprint with no buildings and no terrain steps, or one
  * PostgREST could not read the container for, has no `shape` at all and
  * falls to the plate like every other empty case here.
  *
