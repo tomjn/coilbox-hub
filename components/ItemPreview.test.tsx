@@ -83,12 +83,12 @@ test("a build order line is linked the same way a roster line is", () => {
   expect(html).toContain("2 ");
 });
 
-test("the plan draws in its own fixed colour, not grey (issue #318)", () => {
+test("the plan draws in the widget's building colour (issue #318, tomjn/coilbox#4781)", () => {
   const html = render(
     payload({ buildings: [{ def: "armsolar", offset: { x: 0, z: 0 }, facing: 0 }] }),
     names(),
   );
-  expect(html).toContain("text-blue-500");
+  expect(html).toContain("color:#73a8bd");
 });
 
 /** A conquest challenge container, with the names a galaxy resolved to when

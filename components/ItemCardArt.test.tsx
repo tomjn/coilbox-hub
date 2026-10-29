@@ -176,9 +176,9 @@ test("a blueprint with a layout shape draws one rect per building, aria-hidden, 
   // passes no `units` map, so `BlueprintLayoutArt` draws every square plain.
   expect(html).not.toContain("<img");
   // The plan fixes its own colour (issue #318), so a card cannot draw it grey.
-  expect(html).toContain("text-blue-500");
+  expect(html).toContain("color:#73a8bd");
   // Each solar collector in the energy yellow, and the lab with no role in the
-  // plan's own blue.
+  // plan's own steel blue.
   expect(html.match(/fill="#f2cc40"/g)).toHaveLength(2);
   expect(html.match(/fill="currentColor"/g)).toHaveLength(1);
 });
