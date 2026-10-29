@@ -30,7 +30,11 @@ import {
 import { ProjectChanges } from "@/components/ProjectChanges";
 import type { ServedAsset } from "@/lib/assets/resolve";
 import type { PayloadFootprint } from "@/lib/blueprint/payload";
-import { type BuildingRoles, roleCss } from "@/lib/blueprint/role";
+import {
+  BUILDING_CSS,
+  type BuildingRoles,
+  roleCss,
+} from "@/lib/blueprint/role";
 import {
   blueprintBuildOrder,
   blueprintDesignedFor,
@@ -1029,18 +1033,11 @@ function BuildOrder({
  *
  * This is coilbox's `src/blueprint/LayoutPlan.tsx` drawn the same way, down to
  * the grid and the weight of every mark (tomjn/coilbox#1506). The launcher
- * takes its hue from the player's own theme accent through `text-primary`,
- * which the site has no equivalent of, so this plan draws in a single fixed
- * hue instead: `text-blue-500` (issue #318). Coilbox's own strict default
- * accent is `neutral`, which carries no hue at all (`--primary: 0 0% 95%` in
- * the dark scheme, documented as "the default, no hue, the plain grey shell"
- * in coilbox's `docs/distribution-profile.md`), so taking that default
- * literally would leave the plan exactly as grey as it is today. `blue` is
- * coilbox's first named hue, the one every accent swatch list leads with
- * (`node_modules/@picoframe/frame/dist/context/themeConfig.d.ts`), and its
- * dark-scheme `--primary` (`217.2 91.2% 59.8%` in `@picoframe/frame`'s
- * `theme.css`) is byte-for-byte Tailwind's stock `blue-500` (`#3b82f6`), so no
- * arbitrary value is needed. Fixed on the plan itself rather than per caller,
+ * and the in-game widget draw a building with no role in the widget's steel
+ * blue, so this plan does too: `BUILDING_CSS` in `lib/blueprint/role.ts`
+ * (tomjn/coilbox#4781). Coilbox once used the player's theme accent, which
+ * drew a solar red under a red accent and made it read as a turret. Fixed on
+ * the plan itself rather than per caller,
  * so a card and the item page cannot drift apart. The grid stays
  * `text-neutral-400` below, matching coilbox's own plan, which draws its grid
  * from `text-muted-foreground` rather than from the accent.
@@ -1069,7 +1066,7 @@ function BuildOrder({
  * `roles` colours a building by what it does, the way coilbox and the in-game
  * widget do: yellow for energy, red for a weapon, green for a builder
  * (`lib/blueprint/role.ts`). A def with no role, or a game the catalog holds
- * nothing for, keeps the plan's blue.
+ * nothing for, keeps the plan's steel blue.
  *
  * Exported so the card can draw the same geometry the item page does, the
  * same split issue #309 made for {@link ConquestGalaxyArt} and
@@ -1106,10 +1103,11 @@ export function BlueprintLayoutArt({
   return (
     <svg
       viewBox={`${sheet.left} ${sheet.top} ${sheet.width} ${sheet.height}`}
-      // `text-blue-500` here rather than left to the caller, so the card and
-      // the item page always draw the same plan colour: see the doc comment
-      // above.
-      className={`${className} text-blue-500`}
+      // The building colour here rather than left to the caller, so the card
+      // and the item page always draw the same plan colour: see the doc
+      // comment above.
+      className={className}
+      style={{ color: BUILDING_CSS }}
       {...(decorative
         ? { "aria-hidden": true as const }
         : { role: "img" as const, "aria-label": planLabel(shape) })}

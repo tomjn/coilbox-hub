@@ -3,9 +3,9 @@
   "ref": "main",
   "dir": "src/blueprint",
   "files": {
-    "payload.ts": "ea43c7797f2a2e303dee8d38d324c244419b1755"
+    "payload.ts": "a977e71d1de8c355243462fb1d5353990356dc0a"
   },
   "sha256": {
-    "payload.ts": "82575b5b39ca55070e890a33df474cc0d412de7e98d29e5f927326408b018997"
+    "payload.ts": "cbd69b908ea7c0287153cfdbf38a6d953214f2e677939d5e4683527b542fee33"
   }
 }
