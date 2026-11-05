@@ -505,15 +505,53 @@ test("tagging a module to the game its lifted piece came from does not let it th
   expect(result).toEqual({ ok: false, reason: LIFTED_REFUSAL });
 });
 
-test("a module holding an imported mesh with no lifted record is refused", () => {
+test("a module holding an imported mesh with no record of where it came from is refused", () => {
   const result = accept(
     moduleCode([...partPieces, { id: "p3", name: "hull", meshId: "mesh-2", parentId: "root" }]),
   );
   expect(result).toEqual({
     ok: false,
     reason:
-      "This module holds imported meshes: hull. The hub carries modules built from parts and empty pieces only.",
+      "This module holds meshes with no record of where they came from: hull. Only meshes imported from your own model file can be shared.",
   });
+});
+
+// coilbox#4360: a mesh the game maker imported from their own model file
+// records the file, and the module carries the meshes in `geometry`.
+const ownHull = {
+  id: "p3",
+  name: "hull",
+  meshId: "mesh-2",
+  parentId: "root",
+  ownMesh: { file: "hull.s3o" },
+};
+
+function ownModuleCode(pieces: unknown[], geometry?: unknown) {
+  return encodeContainerCode("module", SUPPORTED_KIND_VERSIONS.module, {
+    name: "Hull",
+    packId: "coilbox-parts",
+    rootPieceId: "root",
+    pieces,
+    game: null,
+    ...(geometry === undefined ? {} : { geometry }),
+  });
+}
+
+test("a module holding the maker's own mesh, with the meshes carried, is accepted", () => {
+  const result = accept(ownModuleCode([...partPieces, ownHull], "Q0JMRUdP"));
+  expect(result.ok).toBe(true);
+});
+
+test("a module holding the maker's own mesh without the meshes is refused", () => {
+  expect(accept(ownModuleCode([...partPieces, ownHull]))).toEqual({
+    ok: false,
+    reason: "This module names meshes it does not carry: hull.",
+  });
+});
+
+test("lifted geometry is refused even beside the maker's own meshes", () => {
+  const result = accept(ownModuleCode([...partPieces, ownHull, liftedBarrel], "Q0JMRUdP"));
+  expect(result).toEqual({ ok: false, reason: LIFTED_REFUSAL });
 });
 
 test("a module envelope whose payload has no pieces is refused as unreadable", () => {

@@ -3,7 +3,7 @@
 -- author inserts straight through PostgREST and skips accept().
 
 begin;
-select plan(12);
+select plan(18);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -51,6 +51,42 @@ select lives_ok(
     values ('module', 1, 'Module test', '{"format":"coilbox","container":1,"kind":"module","kindVersion":1,"payload":{"packId":"p","rootPieceId":"root","pieces":[{"id":"p3","meshId":5}]}}', '44444444-4444-4444-4444-444444444444')$$,
   'a meshId that is not a string is no mesh, as in the TypeScript');
 
+-- coilbox#4360: the game maker's own meshes, carried in the payload.
+select lives_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('module', 1, 'Module test', '{"format":"coilbox","container":1,"kind":"module","kindVersion":1,"payload":{"packId":"p","rootPieceId":"root","geometry":"Q0JMRUdP","pieces":[{"id":"root"},{"id":"p3","name":"hull","meshId":"m","ownMesh":{"file":"hull.s3o"}}]}}', '44444444-4444-4444-4444-444444444444')$$,
+  'a mesh recorded as the maker''s own is stored when the payload carries the meshes');
+
+select throws_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('module', 1, 'Module test', '{"format":"coilbox","container":1,"kind":"module","kindVersion":1,"payload":{"packId":"p","rootPieceId":"root","pieces":[{"id":"p3","meshId":"m","ownMesh":{"file":"hull.s3o"}}]}}', '44444444-4444-4444-4444-444444444444')$$,
+  '23514', null,
+  'the maker''s own mesh is refused when the payload does not carry the meshes');
+
+select throws_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('module', 1, 'Module test', '{"format":"coilbox","container":1,"kind":"module","kindVersion":1,"payload":{"packId":"p","rootPieceId":"root","geometry":"Q0JMRUdP","pieces":[{"id":"p3","meshId":"m","ownMesh":{"file":""}}]}}', '44444444-4444-4444-4444-444444444444')$$,
+  '23514', null,
+  'an own mesh record naming no file is no record');
+
+select throws_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('module', 1, 'Module test', '{"format":"coilbox","container":1,"kind":"module","kindVersion":1,"payload":{"packId":"p","rootPieceId":"root","geometry":"Q0JMRUdP","pieces":[{"id":"p3","meshId":"m","ownMesh":[{"file":"hull.s3o"}]}]}}', '44444444-4444-4444-4444-444444444444')$$,
+  '23514', null,
+  'an own mesh record that is an array is no record, as in the TypeScript');
+
+select throws_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('module', 1, 'Module test', '{"format":"coilbox","container":1,"kind":"module","kindVersion":1,"payload":{"packId":"p","rootPieceId":"root","geometry":"Q0JMRUdP","pieces":[{"id":"p3","meshId":"m"}]}}', '44444444-4444-4444-4444-444444444444')$$,
+  '23514', null,
+  'a mesh with no record is refused even when the payload carries meshes');
+
+select throws_ok(
+  $$insert into public.item (kind, kind_version, title, container, author_id)
+    values ('module', 1, 'Module test', '{"format":"coilbox","container":1,"kind":"module","kindVersion":1,"payload":{"packId":"p","rootPieceId":"root","geometry":"Q0JMRUdP","pieces":[{"id":"p3","meshId":"m","ownMesh":{"file":"hull.s3o"},"lifted":{"game":{"name":"Beyond All Reason"}}}]}}', '44444444-4444-4444-4444-444444444444')$$,
+  '23514', null,
+  'a lifted piece is refused whatever else it records');
+
 select throws_ok(
   $$insert into public.item (kind, kind_version, title, container, author_id)
     values ('module', 1, 'Module test', '{"format":"coilbox","container":1,"kind":"module","kindVersion":1,"payload":{"packId":"p","rootPieceId":"root"}}', '44444444-4444-4444-4444-444444444444')$$,
@@ -78,7 +114,7 @@ reset role;
 
 select is(
   (select count(*)::integer from public.item where author_id = '44444444-4444-4444-4444-444444444444' and kind = 'module'),
-  4, 'only the four allowed modules were stored');
+  5, 'only the five allowed modules were stored');
 
 select * from finish();
 rollback;
