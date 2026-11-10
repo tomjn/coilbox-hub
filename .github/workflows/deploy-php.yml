@@ -1,0 +1,75 @@
+name: Deploy the PHP hub
+
+# Builds hub-php and copies it to the droplet, then switches the site to it.
+# The droplet needs no Node or bun: CSS and JavaScript are built here.
+#
+# Secrets:
+# - DEPLOY_HOST: the droplet's address.
+# - DEPLOY_USER: the user that owns /srv/www/hub.coilbox.org.
+# - DEPLOY_SSH_KEY: a private key whose public half is in that user's
+#   authorized_keys. Used for nothing else.
+# - DEPLOY_KNOWN_HOSTS: the droplet's line from `ssh-keyscan <host>`.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "hub-php/**"
+      - ".github/workflows/deploy-php.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-php
+  cancel-in-progress: false
+
+env:
+  ROOT: /srv/www/hub.coilbox.org
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: hub-php
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: composer
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Build CSS and JavaScript
+        run: bun install --frozen-lockfile && bun run build
+
+      - name: Test
+        run: |
+          composer install --no-interaction --prefer-dist
+          cp .env.example .env
+          php artisan key:generate
+          php artisan test
+
+      - name: Drop the development dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Set up SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Copy the release
+        run: |
+          rm -f .env
+          rsync -az --delete \
+            --exclude node_modules --exclude .env --exclude storage --exclude tests \
+            -e "ssh -i ~/.ssh/deploy" \
+            ./ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$ROOT/releases/$GITHUB_SHA/"
+
+      - name: Switch to it
+        run: |
+          ssh -i ~/.ssh/deploy "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "bash $ROOT/releases/$GITHUB_SHA/deploy/release.sh $ROOT $GITHUB_SHA"
