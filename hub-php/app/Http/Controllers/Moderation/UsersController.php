@@ -26,6 +26,8 @@ class UsersController extends ModerationController
         $term = is_string($q) ? trim($q) : '';
         $page = $request->query('page');
         $current = GalleryQuery::parsePage(is_string($page) ? $page : null, Accounts::PAGE_SIZE) ?? 1;
+        // The database function takes the offset as a 32 bit integer.
+        $current = min($current, intdiv(2147483647, Accounts::PAGE_SIZE));
         $result = Accounts::fetch($supabase, $term === '' ? null : $term, ($current - 1) * Accounts::PAGE_SIZE);
 
         $href = function (int $target) use ($term): string {

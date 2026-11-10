@@ -18,6 +18,7 @@
 
 @section('content')
 <main id="main-content" tabindex="-1" class="relative flex-1">
+    <x-ui.art-backdrop drawing="games" :strength="0.09" />
     <div class="relative z-10 mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-12">
         <div class="flex flex-col gap-2">
             <h1 class="text-3xl font-semibold tracking-tight">Your account</h1>

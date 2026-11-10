@@ -12,9 +12,9 @@ The `/api/v1` responses are a contract with the Coilbox desktop app. A field ren
 
 ## Running things
 
-- The Next app runs at `http://localhost:3000` against the production database, as a read-only reference. The PHP app runs at `http://localhost:8100` with `php artisan serve`. The lead session starts and stops both. Do not start, stop or restart either server, and do not run `scripts/local-services.sh`.
+- The Next app runs at `http://localhost:3000` against the production database, as a read-only reference. The PHP app runs at `http://localhost:8100` with `php artisan serve --port=8100`. The lead session starts and stops both. Do not start, stop or restart either server, and do not run `scripts/local-services.sh`.
 - Never send a write to either server (POST to publish, submit facts, upload, moderate). Both point at production. Read requests are fine, including the POST routes that only read, such as `/api/v1/maps/lookup`, `/api/v1/maps/have`, `/api/v1/assets/have` and `/api/v1/assets/pictures`, as long as the Next code confirms they write nothing.
-- `scripts/parity.sh GET '/api/v1/items?kind=preset'` compares one request on both servers and prints a diff. Use it for every API route and every variant of its parameters.
+- `scripts/parity.sh GET '/api/v1/items?kind=preset'` compares one request on both servers and prints a diff. Use it for every read route and every variant of its parameters. Never use it on a route that writes.
 - `php artisan test` runs the tests. Tests fake Supabase with `Http::fake()` and never call the network.
 - `bun run build` rebuilds the CSS after adding Tailwind classes in new files.
 

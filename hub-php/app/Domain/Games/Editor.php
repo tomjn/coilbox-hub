@@ -18,7 +18,12 @@ final class Editor
     public static function editableGame(Client $supabase, string $userId, string $shortname): ?array
     {
         try {
-            $moderator = $supabase->rpc('is_moderator') === true;
+            // An error asking is_moderator still leaves the owner check below.
+            try {
+                $moderator = $supabase->rpc('is_moderator') === true;
+            } catch (SupabaseException) {
+                $moderator = false;
+            }
             $query = $supabase->from('game')->select('id')->eq('shortname', $shortname);
             if (! $moderator) {
                 $query->eq('owner_user_id', $userId);
