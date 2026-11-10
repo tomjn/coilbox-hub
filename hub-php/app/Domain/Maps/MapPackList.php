@@ -27,7 +27,7 @@ final class MapPackList
                 continue;
             }
             $entry = ['id' => $pack['id'], 'title' => $pack['title']];
-            if (! empty($pack['blurb'])) {
+            if (($pack['blurb'] ?? null) !== null && $pack['blurb'] !== '') {
                 $entry['blurb'] = $pack['blurb'];
             }
             $entry['featured'] = $pack['featuredAt'] !== null;
@@ -38,7 +38,7 @@ final class MapPackList
                     'title' => $map['displayName'] ?? $map['mapName'],
                     'download' => ['kind' => 'map', 'springName' => $map['mapName']],
                 ];
-                if (! empty($map['archiveFilename'])) {
+                if (($map['archiveFilename'] ?? null) !== null && $map['archiveFilename'] !== '') {
                     $item['filename'] = $map['archiveFilename'];
                 }
 

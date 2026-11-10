@@ -61,7 +61,7 @@ class Client
             return null;
         }
         if (! $response->successful()) {
-            throw SupabaseException::fromResponse($response->status(), $response->json(), 'Storage download failed');
+            throw SupabaseException::fromResponse($response->status(), is_array($response->json()) ? $response->json() : null, 'Storage download failed');
         }
 
         return $response->body();
@@ -94,7 +94,7 @@ class Client
             'json' => ['prefixes' => $paths],
         ]);
         if (! $response->successful()) {
-            throw SupabaseException::fromResponse($response->status(), $response->json(), 'Storage remove failed');
+            throw SupabaseException::fromResponse($response->status(), is_array($response->json()) ? $response->json() : null, 'Storage remove failed');
         }
     }
 

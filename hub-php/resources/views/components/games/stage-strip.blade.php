@@ -25,7 +25,7 @@
             <div class="flex min-w-0 flex-1 flex-col gap-1.5">
                 <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     <span class="text-xs text-neutral-400">Stage {{ $index + 1 }}</span>
-                    <a href="/games/{{ $game }}/units/{{ $stage['unit_name'] }}" class="text-sm text-neutral-100 {{ $link }}">{{ $stage['label'] }}</a>
+                    <a href="/games/{{ $game }}/units/{{ \App\Domain\Games\UnitRelease::unitSegment($stage['unit_name']) }}" class="text-sm text-neutral-100 {{ $link }}">{{ $stage['label'] }}</a>
                     @if ($stage['current'])
                         <span class="text-xs text-neutral-400">showing this one</span>
                     @endif
@@ -44,7 +44,7 @@
                 @endif
 
                 @if ($stage['unlocks'] !== [])
-                    <p class="text-sm text-neutral-400">Unlocks @foreach ($stage['unlocks'] as $position => $unlocked)<span>@if ($position > 0), @endif<a href="/games/{{ $game }}/units/{{ $unlocked['name'] }}" class="text-neutral-300 {{ $link }}">{{ $unlocked['label'] }}</a></span>@endforeach.</p>
+                    <p class="text-sm text-neutral-400">Unlocks @foreach ($stage['unlocks'] as $position => $unlocked)<span>@if ($position > 0), @endif<a href="/games/{{ $game }}/units/{{ \App\Domain\Games\UnitRelease::unitSegment($unlocked['name']) }}" class="text-neutral-300 {{ $link }}">{{ $unlocked['label'] }}</a></span>@endforeach.</p>
                 @endif
             </div>
         </li>

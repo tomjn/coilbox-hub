@@ -54,6 +54,12 @@ final class Catalog
             if (Js::trim($label) === '' || Js::trim($url) === '') {
                 continue;
             }
+            // The page puts this in an href. React refused `javascript:` URLs
+            // for the Next app, so only web links get through here.
+            $scheme = strtolower((string) parse_url(Js::trim($url), PHP_URL_SCHEME));
+            if ($scheme !== 'http' && $scheme !== 'https') {
+                continue;
+            }
             $links[] = ['label' => $label, 'url' => $url];
         }
 

@@ -109,7 +109,7 @@ class PicturesController extends ModerationController
             $body = $object['bytes'];
         } else {
             try {
-                $upstream = Http::get($object['url']);
+                $upstream = Http::timeout(10)->connectTimeout(5)->get($object['url']);
             } catch (Throwable) {
                 return new Response('', 502);
             }

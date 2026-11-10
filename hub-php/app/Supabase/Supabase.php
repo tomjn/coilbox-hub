@@ -57,7 +57,7 @@ class Supabase
             return null;
         }
         if (! $response->successful()) {
-            throw SupabaseException::fromResponse($response->status(), $response->json(), 'Supabase Auth request failed');
+            throw SupabaseException::fromResponse($response->status(), is_array($response->json()) ? $response->json() : null, 'Supabase Auth request failed');
         }
         $user = $response->json();
 

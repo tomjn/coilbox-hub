@@ -19,17 +19,13 @@ final class UploadIp
      */
     public static function clientIp(Request $request): ?string
     {
-        $real = trim((string) $request->headers->get('x-real-ip', ''));
-        if ($real !== '' && self::isIpAddress($real)) {
-            return $real;
-        }
+        // On Vercel the platform set x-real-ip. Here Nginx talks to PHP
+        // directly and passes the client's headers through untouched, so a
+        // header is whatever the uploader typed. The socket address is the
+        // only one they cannot choose.
+        $ip = (string) $request->server('REMOTE_ADDR', '');
 
-        $forwarded = trim(explode(',', (string) $request->headers->get('x-forwarded-for', ''))[0]);
-        if ($forwarded !== '' && self::isIpAddress($forwarded)) {
-            return $forwarded;
-        }
-
-        return null;
+        return $ip !== '' && self::isIpAddress($ip) ? $ip : null;
     }
 
     /** Loose on purpose. Postgres `inet` is the real parser, and this keeps junk away from it. */

@@ -19,7 +19,7 @@ use RuntimeException;
  */
 final class Contributions
 {
-    private const UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/';
+    private const UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D';
 
     /** A profile address's id, lower cased, or null when it is not a UUID. */
     public static function parseAccountId(string $raw): ?string

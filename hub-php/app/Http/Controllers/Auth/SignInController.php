@@ -107,8 +107,11 @@ class SignInController
                 && ($parts['host'] ?? null) === ($origin['host'] ?? null)
                 && ($parts['port'] ?? null) === ($origin['port'] ?? null)) {
                 $path = $parts['path'] ?? '/';
+                $next = isset($parts['query']) ? $path.'?'.$parts['query'] : $path;
 
-                return isset($parts['query']) ? $path.'?'.$parts['query'] : $path;
+                // A same site address can still have a path such as
+                // `//evil.example`, which a browser reads as another host.
+                return self::isPath($next) ? $next : '/';
             }
         }
 

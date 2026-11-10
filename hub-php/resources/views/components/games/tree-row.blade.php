@@ -9,7 +9,7 @@
         ? 'text-sm text-neutral-400 underline-offset-4 hover:text-white active:text-white hover:underline active:underline'
         : 'text-sm text-neutral-300 underline-offset-4 hover:text-white active:text-white hover:underline active:underline';
 @endphp
-<a href="/games/{{ $game }}/units/{{ $node['name'] }}" class="flex min-w-0 items-center gap-2 rounded-sm border px-1 py-0.5 {{ $border }} {{ $fit ? 'w-fit min-w-40' : '' }} {{ $text }}">
+<a href="/games/{{ $game }}/units/{{ \App\Domain\Games\UnitRelease::unitSegment($node['name']) }}" class="flex min-w-0 items-center gap-2 rounded-sm border px-1 py-0.5 {{ $border }} {{ $fit ? 'w-fit min-w-40' : '' }} {{ $text }}">
     @if ($picture && $picture['from'] !== 'placeholder')
         <img src="{{ $picture['url'] }}" alt="" width="{{ $picture['width'] }}" height="{{ $picture['height'] }}" loading="lazy" decoding="async" class="size-8 shrink-0 object-contain"/>
     @endif

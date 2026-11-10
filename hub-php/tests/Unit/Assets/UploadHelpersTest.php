@@ -32,10 +32,14 @@ class UploadHelpersTest extends TestCase
 
     public function test_client_ip(): void
     {
-        $this->assertSame('203.0.113.7', UploadIp::clientIp($this->request(['x-real-ip' => '203.0.113.7', 'x-forwarded-for' => '10.0.0.1, 203.0.113.7'])));
-        $this->assertSame('203.0.113.7', UploadIp::clientIp($this->request(['x-forwarded-for' => '203.0.113.7, 10.0.0.1'])));
-        $this->assertNull(UploadIp::clientIp($this->request(['x-real-ip' => 'not-an-address'])));
-        $this->assertNull(UploadIp::clientIp($this->request([])));
+        // The socket address, whatever the uploader puts in the headers.
+        $spoofed = $this->request(['x-real-ip' => '198.51.100.1', 'x-forwarded-for' => '198.51.100.2']);
+        $spoofed->server->set('REMOTE_ADDR', '203.0.113.7');
+        $this->assertSame('203.0.113.7', UploadIp::clientIp($spoofed));
+
+        $unknown = $this->request(['x-real-ip' => '203.0.113.7']);
+        $unknown->server->set('REMOTE_ADDR', '');
+        $this->assertNull(UploadIp::clientIp($unknown));
     }
 
     public function test_what_counts_as_an_address(): void

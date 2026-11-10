@@ -41,6 +41,6 @@ final class Api
         return new Response('', 204, self::CORS_HEADERS);
     }
 
-    /** `JSON.stringify` leaves slashes and non-ASCII alone, so this does too. */
-    public const JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION;
+    /** `JSON.stringify` leaves slashes and non-ASCII alone and writes 1.0 as 1, so this does too. */
+    public const JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
 }

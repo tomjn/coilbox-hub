@@ -49,7 +49,9 @@ class ReportsController extends ModerationController
      */
     public function act(Request $request): RedirectResponse
     {
-        $supabase = HubSession::client();
+        // Row level security refuses a stranger too. This refuses them before
+        // any write is sent, as every other moderation action does.
+        $supabase = \App\Domain\Moderation\Access::moderatorClient();
         $userId = HubSession::userId();
         if ($supabase === null || $userId === null) {
             return $this->back('/moderation');

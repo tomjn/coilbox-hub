@@ -21,9 +21,10 @@ final class GoTrue
     /** The OAuth providers switched on in supabase/config.toml, in the order offered. */
     public const PROVIDERS = ['discord' => 'Discord', 'github' => 'GitHub', 'twitch' => 'Twitch'];
 
-    public static function provider(?string $value): ?string
+    /** Takes request input as it comes, which can be an array from a crafted query. */
+    public static function provider(mixed $value): ?string
     {
-        return $value !== null && isset(self::PROVIDERS[$value]) ? $value : null;
+        return is_string($value) && isset(self::PROVIDERS[$value]) ? $value : null;
     }
 
     /** @return array{verifier: string, challenge: string} */
@@ -67,10 +68,10 @@ final class GoTrue
     /** @return array<string, mixed> The session: access_token, refresh_token, expires_at, user. */
     public static function exchangeCode(string $code, string $verifier): array
     {
-        $response = self::request()->post(Supabase::url().'/auth/v1/token?grant_type=pkce', [
+        $response = self::reach(fn () => self::request()->post(Supabase::url().'/auth/v1/token?grant_type=pkce', [
             'auth_code' => $code,
             'code_verifier' => $verifier,
-        ]);
+        ]));
 
         return self::session(self::json($response, 'Could not finish signing in'));
     }
@@ -78,9 +79,9 @@ final class GoTrue
     /** @return array<string, mixed> */
     public static function refresh(string $refreshToken): array
     {
-        $response = self::request()->post(Supabase::url().'/auth/v1/token?grant_type=refresh_token', [
+        $response = self::reach(fn () => self::request()->post(Supabase::url().'/auth/v1/token?grant_type=refresh_token', [
             'refresh_token' => $refreshToken,
-        ]);
+        ]));
 
         return self::session(self::json($response, 'Could not refresh the session'));
     }
@@ -93,7 +94,7 @@ final class GoTrue
      */
     public static function user(string $accessToken): ?array
     {
-        $response = self::request($accessToken)->get(Supabase::url().'/auth/v1/user');
+        $response = self::reach(fn () => self::request($accessToken)->get(Supabase::url().'/auth/v1/user'));
         if ($response->status() === 401 || $response->status() === 403) {
             return null;
         }
@@ -189,6 +190,21 @@ final class GoTrue
         $body['expires_at'] = (int) ($body['expires_at'] ?? (time() + (int) ($body['expires_in'] ?? 3600)));
 
         return $body;
+    }
+
+    /**
+     * Runs a request, turning "could not reach Supabase" into the same
+     * exception as an error answer, so callers have one failure to handle.
+     *
+     * @param  \Closure(): Response  $send
+     */
+    private static function reach(\Closure $send): Response
+    {
+        try {
+            return $send();
+        } catch (ConnectionException $e) {
+            throw new SupabaseException('Could not reach Supabase Auth: '.$e->getMessage(), 0, 'CONNECTION');
+        }
     }
 
     /** @return array<string, mixed> */

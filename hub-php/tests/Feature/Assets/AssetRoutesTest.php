@@ -126,7 +126,7 @@ class AssetRoutesTest extends TestCase
         $this->assertSame(['pending', null, 128, 128, $hash], [$insert->data()['moderation'], $insert->data()['approval_source'], $insert->data()['width'], $insert->data()['height'], $insert->data()['hash']]);
 
         $ip = collect($this->sent)->first(fn (Request $r) => str_contains($r->url(), 'asset_upload_ip'));
-        $this->assertSame(['asset_id' => 'new-row', 'ip' => '203.0.113.7'], $ip->data());
+        $this->assertSame(['asset_id' => 'new-row', 'ip' => '127.0.0.1'], $ip->data());
     }
 
     public function test_bytes_already_in_the_bucket_are_reused(): void
