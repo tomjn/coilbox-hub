@@ -1,0 +1,90 @@
+# Running the hub on the droplet
+
+The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release, copies it to `releases/<commit>`, then `deploy/release.sh` switches `current` to it. The droplet needs PHP but not Node or bun.
+
+```
+/srv/www/hub.coilbox.org/
+  current -> releases/<commit>
+  releases/
+  shared/.env
+  shared/storage/
+```
+
+## One time setup
+
+1. Point `hub.coilbox.org` at the droplet with an A record, and an AAAA record if it has IPv6.
+2. Install PHP and the extensions the hub uses:
+
+   ```
+   sudo apt install php8.4-fpm php8.4-cli php8.4-curl php8.4-mbstring php8.4-xml php8.4-intl php8.4-zip php8.4-memcached
+   ```
+
+3. Create the folders, owned by the user deploys run as:
+
+   ```
+   sudo mkdir -p /srv/www/hub.coilbox.org/releases /srv/www/hub.coilbox.org/shared/storage
+   sudo chown -R "$USER": /srv/www/hub.coilbox.org
+   ```
+
+   PHP-FPM must be able to write to `shared/storage`. If the pool runs as `www-data`, add the deploy user and `www-data` to a shared group and give the group write access.
+
+4. Write `shared/.env`. Start from `.env.example` in this folder and set:
+
+   ```
+   APP_ENV=production
+   APP_DEBUG=false
+   APP_URL=https://hub.coilbox.org
+   APP_KEY=            # php artisan key:generate --show, on any machine
+   CACHE_STORE=memcached
+   SESSION_DRIVER=memcached
+   SESSION_SECURE_COOKIE=true
+   SUPABASE_URL=https://twptlkjgdvjhpywdoajf.supabase.co
+   SUPABASE_PUBLISHABLE_KEY=
+   SUPABASE_SERVICE_ROLE_KEY=
+   ```
+
+   The two Supabase keys are in the Supabase dashboard under Project Settings, API keys. Keep the file readable only by the deploy user and PHP.
+
+5. Let the deploy user reload PHP-FPM and nothing else, so a release can clear OPcache. Run `sudo visudo -f /etc/sudoers.d/hub-deploy` and add, with your deploy user's name:
+
+   ```
+   deployuser ALL=(root) NOPASSWD: /usr/bin/systemctl reload php8.4-fpm
+   ```
+
+6. Get a certificate, then install the Nginx site. On this droplet Apache holds port 80 and serves `/var/www/html` for every host, so certbot proves the domain through that folder:
+
+   ```
+   sudo certbot certonly --webroot -w /var/www/html -d hub.coilbox.org
+   sudo cp deploy/nginx.conf /etc/nginx/sites-available/hub.coilbox.org
+   sudo ln -s /etc/nginx/sites-available/hub.coilbox.org /etc/nginx/sites-enabled/hub.coilbox.org
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+7. Send plain HTTP to HTTPS. Apache holds port 80, so the redirect is an Apache site. It leaves certbot's renewal checks alone:
+
+   ```
+   sudo cp deploy/apache-http.conf /etc/apache2/sites-available/hub.coilbox.org.conf
+   sudo a2enmod rewrite
+   sudo a2ensite hub.coilbox.org
+   sudo apache2ctl configtest && sudo systemctl reload apache2
+   ```
+
+8. Make an SSH key for GitHub Actions to deploy with, used for nothing else. Put the public half in the deploy user's `~/.ssh/authorized_keys`. Then add these secrets to the hub repository's `production` environment:
+
+   - `DEPLOY_HOST`: the droplet's address.
+   - `DEPLOY_USER`: the deploy user.
+   - `DEPLOY_SSH_KEY`: the private key.
+   - `DEPLOY_KNOWN_HOSTS`: the output of `ssh-keyscan <droplet address>`.
+
+9. In the Supabase dashboard, under Authentication, URL Configuration, add `https://hub.coilbox.org/auth/callback` to the redirect URLs, and set the Site URL to `https://hub.coilbox.org`. Without the redirect URL, signing in on the website sends people back to the old address.
+
+## Deploying
+
+A push to `main` that changes `hub-php/` deploys. The Actions tab can also run the "Deploy the PHP hub" workflow by hand.
+
+To roll back, point `current` at an older release and reload PHP-FPM:
+
+```
+ln -sfn /srv/www/hub.coilbox.org/releases/<older commit> /srv/www/hub.coilbox.org/current
+sudo systemctl reload php8.4-fpm
+```

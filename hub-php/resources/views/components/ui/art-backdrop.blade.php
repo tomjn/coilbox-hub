@@ -1,0 +1,2 @@
+@props(['drawing', 'strength'])
+<div aria-hidden="true" class="pointer-events-none fixed inset-0 z-0 overflow-hidden" style="mask-image:linear-gradient(to top, black, transparent);-webkit-mask-image:linear-gradient(to top, black, transparent)">{!! \App\Domain\Gallery\Art\CoilArt::svg($drawing, $strength, 'h-full w-full') !!}</div>
