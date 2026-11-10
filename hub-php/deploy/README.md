@@ -28,7 +28,7 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
 
    PHP-FPM must be able to write to `shared/storage`. If the pool runs as `www-data`, add the deploy user and `www-data` to a shared group and give the group write access.
 
-4. Write `shared/.env`. Start from `.env.example` in this folder and set:
+4. Write `shared/.env`. Start from `deploy/env.example` and set:
 
    ```
    APP_ENV=production
