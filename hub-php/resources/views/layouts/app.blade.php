@@ -3,8 +3,8 @@
     $nav = Nav::current();
     // On a narrow screen the label sits under the icon and the link is at least
     // 44 pixels square.
-    $navItem = 'flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1.5 transition-colors hover:text-white active:bg-neutral-900 active:text-white sm:min-h-0 sm:min-w-0 sm:flex-row sm:gap-2';
-    $navCurrent = 'bg-neutral-900 text-white';
+    $navItem = 'flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1.5 transition-colors hover:text-brand active:bg-neutral-900 active:text-brand sm:min-h-0 sm:min-w-0 sm:flex-row sm:gap-2 sm:px-3 sm:font-medium';
+    $navCurrent = 'text-brand';
     $sections = [
         ['href' => '/gallery', 'icon' => 'gallery', 'label' => 'Gallery'],
         ['href' => '/maps', 'icon' => 'maps', 'label' => 'Maps'],
@@ -36,12 +36,12 @@
 </head>
 <body class="min-h-full flex flex-col">
     <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-neutral-100 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-neutral-900">Skip to content</a>
-    <header class="flex flex-wrap items-center gap-y-2 px-6 py-4 sm:flex-nowrap sm:gap-3">
-        <a href="/" class="mr-auto flex items-center gap-2 text-sm font-medium text-neutral-300 transition-colors hover:text-white active:text-white">
-            <x-coil-logo class="w-5" />
+    <header class="flex flex-wrap items-center gap-y-2 border-b border-neutral-900 px-6 py-4 sm:flex-nowrap sm:gap-3 md:px-8">
+        <a href="/" class="mr-auto flex items-center gap-2 text-base font-semibold text-nav transition-colors hover:text-white active:text-white">
+            <x-coil-logo class="w-6" />
             Coilbox Hub
         </a>
-        <nav class="order-3 -mx-6 grid w-[calc(100%+3rem)] grid-cols-5 gap-y-1 text-[11px] text-neutral-400 has-[[data-moderator]]:grid-cols-3 min-[360px]:has-[[data-moderator]]:grid-cols-6 max-sm:*:px-0 sm:order-none sm:mx-0 sm:flex sm:w-auto sm:items-center sm:gap-3 sm:text-sm">
+        <nav class="order-3 -mx-6 grid w-[calc(100%+3rem)] grid-cols-5 gap-y-1 text-[11px] text-nav has-[[data-moderator]]:grid-cols-3 min-[360px]:has-[[data-moderator]]:grid-cols-6 max-sm:*:px-0 sm:order-none sm:mx-0 sm:flex sm:w-auto sm:items-center sm:gap-0 sm:text-sm">
             @foreach ($sections as $section)
                 @php $current = $path === $section['href'] || str_starts_with($path, $section['href'].'/'); @endphp
                 <a href="{{ $section['href'] }}" class="{{ $navItem }} {{ $current ? $navCurrent : '' }}" @if ($current) aria-current="page" @endif>
@@ -63,7 +63,7 @@
                 </a>
             @endif
         </nav>
-        <div class="order-2 -mr-2 flex items-center gap-3 text-[11px] text-neutral-400 sm:order-none sm:text-sm">
+        <div class="order-2 -mr-2 flex items-center gap-3 text-[11px] text-nav sm:order-none sm:gap-0 sm:text-sm">
             @if ($nav)
                 <a href="/account" class="{{ $navItem }}">
                     <x-icon name="account" class="w-4" />
