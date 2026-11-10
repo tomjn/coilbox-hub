@@ -2,8 +2,9 @@
 
 @php
     use App\Domain\Gallery\Labels;
-    // Shared by the two secondary buttons so a third cannot drift from them.
-    $outlineButton = App\Support\Ui::button('ghost', 'lg', 'font-medium');
+    // The hero's pill buttons, as on coilbox.org's homepage. 40 pixels tall.
+    $pill = 'rounded-full px-5 py-2.5 text-sm font-semibold transition-colors';
+    $altButton = $pill.' bg-button-alt text-nav hover:bg-button-alt-hover active:bg-button-alt-active';
     $rows = [
         // A row of its own below Newest (#399), so the heading's promise of the newest six stays true.
         ['heading' => 'Newest', 'list' => $newest],
@@ -23,17 +24,19 @@
         <x-ui.coil-art drawing="hub" :strength="0.11" class="h-full w-full" />
     </div>
 
-    <div class="relative z-10 flex flex-col items-center gap-6 text-center">
-        <x-coil-logo class="w-20" />
-        <div class="flex flex-col gap-3">
-            <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">Coilbox Hub</h1>
+    {{-- Laid out like coilbox.org's homepage hero: the mark above the words on
+         a narrow screen, beside them from the lg breakpoint. --}}
+    <div class="relative z-10 flex flex-col items-center gap-8 text-center lg:flex-row lg:justify-between lg:gap-12 lg:text-left">
+        <x-coil-logo class="w-40 shrink-0 text-foreground [stroke-width:1.6] sm:w-48 lg:order-last lg:w-70" />
+        <div class="flex max-w-xl flex-col items-center gap-2 sm:gap-3 lg:items-start">
+            <h1 class="text-[32px]/10 font-bold tracking-[-0.4px] text-nav sm:text-5xl/14 lg:text-[56px]/16">Coilbox <span class="text-brand">Hub</span></h1>
             {{-- Built from the kinds carried, so it cannot fall behind them (coilbox#1502). --}}
-            <p class="mx-auto max-w-md text-balance text-neutral-400">{{ Labels::kindsPlural() }} made by other players. Importing needs no account.</p>
-        </div>
-        <div class="flex flex-wrap justify-center gap-3">
-            <a href="/gallery" class="rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300">Browse the gallery</a>
-            <a href="/publish" class="{{ $outlineButton }}">Publish something</a>
-            <a href="{{ config('hub.coilbox_url') }}" target="_blank" rel="noreferrer" class="{{ $outlineButton }}">Get Coilbox</a>
+            <p class="text-balance text-lg/7 font-medium text-muted sm:text-xl/8 lg:text-2xl/9">{{ Labels::kindsPlural() }} made by other players. Importing needs no account.</p>
+            <div class="flex flex-wrap justify-center gap-3 pt-4 sm:pt-5 lg:justify-start">
+                <a href="/gallery" class="{{ $pill }} bg-button text-white hover:bg-button-hover active:bg-brand">Browse the gallery</a>
+                <a href="/publish" class="{{ $altButton }}">Publish something</a>
+                <a href="{{ config('hub.coilbox_url') }}" target="_blank" rel="noreferrer" class="{{ $altButton }}">Get Coilbox</a>
+            </div>
         </div>
     </div>
 
