@@ -36,7 +36,7 @@
 </head>
 <body class="min-h-full flex flex-col">
     <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-neutral-100 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-neutral-900">Skip to content</a>
-    <header class="flex flex-wrap items-center gap-y-2 border-b border-neutral-900 px-6 py-4 sm:flex-nowrap sm:gap-3 md:px-8">
+    <header class="flex flex-wrap items-center gap-y-2 px-6 py-4 sm:flex-nowrap sm:gap-3 md:px-8">
         <a href="/" class="mr-auto flex items-center gap-2 text-base font-semibold text-nav transition-colors hover:text-white active:text-white">
             <x-coil-logo class="w-6" />
             Coilbox Hub
