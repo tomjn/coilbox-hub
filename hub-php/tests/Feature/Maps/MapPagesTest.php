@@ -87,7 +87,7 @@ class MapPagesTest extends TestCase
             ->assertSee('href="/maps?tag=water%20map"', false)
             ->assertSee('Look for it on hakora')
             ->assertSee('http://hakora.xyz/comet.sd7', false)
-            ->assertSee('<dt class="text-xs uppercase tracking-wide text-neutral-400">Water</dt>', false)
+            ->assertSee('<dt class="text-sm uppercase tracking-wide text-neutral-400">Water</dt>', false)
             ->assertSee('name="map_id" value="map-1"', false)
             // No minimap held, so the drawing at the catalog's shape, and no 3D view.
             ->assertSee('viewBox="0 0', false)

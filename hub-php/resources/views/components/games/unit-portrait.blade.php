@@ -20,5 +20,5 @@
     @else
         <img src="{{ $asset['url'] }}" alt="Picture of {{ $label }}" width="{{ $asset['width'] }}" height="{{ $asset['height'] }}" decoding="async" class="h-auto w-full object-contain"/>
     @endif
-    <figcaption class="text-xs text-neutral-400">{{ $caption }}</figcaption>
+    <figcaption class="text-sm text-neutral-400">{{ $caption }}</figcaption>
 </figure>

@@ -29,7 +29,7 @@
                         <li><a href="/moderation/maps/{{ $match['slug'] }}" class="text-sm text-neutral-300 hover:underline active:underline">{{ $match['mapName'] }}</a></li>
                     @endforeach
                     @if (count($matches) === MapModeration::SEARCH_LIMIT)
-                        <li class="text-xs text-neutral-400">The first {{ MapModeration::SEARCH_LIMIT }}. Type more of the name to narrow it.</li>
+                        <li class="text-sm text-neutral-400">The first {{ MapModeration::SEARCH_LIMIT }}. Type more of the name to narrow it.</li>
                     @endif
                 </ul>
             @endif
@@ -45,11 +45,11 @@
                     <li class="flex flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5">
                         <div class="flex flex-wrap items-baseline justify-between gap-3">
                             <a href="/moderation/maps/{{ $map['slug'] }}" class="text-base font-medium hover:underline active:underline">{{ $map['mapName'] }}</a>
-                            <span class="text-xs text-neutral-400">{{ count($map['reports']) === 1 ? 'One report.' : count($map['reports']).' reports.' }}</span>
+                            <span class="text-sm text-neutral-400">{{ count($map['reports']) === 1 ? 'One report.' : count($map['reports']).' reports.' }}</span>
                         </div>
                         <ul class="flex flex-col gap-1">
                             @foreach ($map['reports'] as $report)
-                                <li class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-neutral-400">
+                                <li class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-neutral-400">
                                     <span class="text-neutral-400" title="{{ $report['sourceArchive'] }}">{{ $report['sourceArchive'] }}</span>
                                     <span title="{{ $report['heldSourceHash'] }}">held {{ substr($report['heldSourceHash'], 0, 12) }}</span>
                                     <span class="text-amber-400" title="{{ $report['reportedSourceHash'] }}">reported {{ substr($report['reportedSourceHash'], 0, 12) }}</span>
@@ -64,7 +64,7 @@
                             @endforeach
                         </ul>
                         <div class="flex flex-wrap items-center justify-between gap-3">
-                            <a href="/map/{{ $map['slug'] }}" class="text-xs text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">What the hub says about it</a>
+                            <a href="/map/{{ $map['slug'] }}" class="text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">What the hub says about it</a>
                             <form method="post" action="/moderation/maps/clear">
                                 @csrf
                                 {{-- Red, because the map leaves the catalog and nothing puts its curated tags back. --}}

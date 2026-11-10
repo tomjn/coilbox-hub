@@ -11,5 +11,5 @@
         @endif
     </span>
     <span class="break-words underline-offset-4 hover:underline active:underline">{{ $label }}</span>
-    <span class="break-all font-mono text-xs text-neutral-400">{{ $unit }}</span>
+    <span class="break-all font-mono text-sm text-neutral-400">{{ $unit }}</span>
 </a>

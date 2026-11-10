@@ -23,7 +23,7 @@
         <rect x="{{ $inset }}" y="{{ $inset }}" width="{{ Placeholder::jsNumber($box['width'] - $inset * 2) }}" height="{{ Placeholder::jsNumber($box['height'] - $inset * 2) }}" rx="4" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-opacity="0.62" stroke-width="1.25" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"></rect>
     </svg>
     @unless ($quiet)
-        <p class="flex max-w-full flex-col items-center gap-0.5 text-center text-xs">
+        <p class="flex max-w-full flex-col items-center gap-0.5 text-center text-sm">
             <span class="break-all text-neutral-300">{{ $of['name'] }}</span>
             <span class="break-all text-neutral-400">{{ $measure !== null ? $measure.', no picture yet' : 'No picture yet' }}</span>
         </p>

@@ -5,9 +5,9 @@
     use App\Domain\Gallery\GalleryQuery;
     use App\Domain\Gallery\Labels;
     $chip = fn (bool $active) => $active
-        ? 'rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-900'
-        : 'rounded-full border border-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200';
-    $rowLabel = 'w-12 shrink-0 text-xs uppercase tracking-wide text-neutral-400';
+        ? 'rounded-full bg-neutral-100 px-3 py-1 text-sm font-medium text-neutral-900'
+        : 'rounded-full border border-neutral-800 px-3 py-1 text-sm text-neutral-400 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200';
+    $rowLabel = 'w-12 shrink-0 text-sm uppercase tracking-wide text-neutral-400';
     $items = $page['items'];
 @endphp
 

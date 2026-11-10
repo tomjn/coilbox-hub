@@ -9,7 +9,7 @@
     $shareUrl = $origin.'/i/'.$item['id'];
     $project = $item['kind'] === 'mod-project';
     $link = 'hover:text-white active:text-white';
-    $dt = 'text-xs uppercase tracking-wide text-neutral-400';
+    $dt = 'text-sm uppercase tracking-wide text-neutral-400';
     $minimap = $pictures['map'] !== null;
 @endphp
 
@@ -22,7 +22,7 @@
     <x-ui.art-backdrop :drawing="$art['drawing']" :strength="$art['strength']" />
     <div class="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-12">
         <div class="flex flex-col gap-3">
-            <a href="/gallery?kind={{ $item['kind'] }}" class="flex items-center gap-1.5 self-start rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"><x-gallery.kind-icon :kind="$item['kind']" :mode="$item['mode']" class="w-3.5" />{{ Labels::item($item['kind'], $item['mode']) }}</a>
+            <a href="/gallery?kind={{ $item['kind'] }}" class="flex items-center gap-1.5 self-start rounded border border-neutral-800 px-2 py-1 text-sm text-neutral-300 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-white active:text-white"><x-gallery.kind-icon :kind="$item['kind']" :mode="$item['mode']" class="w-3.5" />{{ Labels::item($item['kind'], $item['mode']) }}</a>
             <h1 class="break-words text-3xl font-semibold tracking-tight">{{ $item['title'] }}</h1>
             @if ($item['description'])
                 <p class="whitespace-pre-wrap text-neutral-400">{{ $item['description'] }}</p>
@@ -63,8 +63,8 @@
                 @endif
                 <x-ui.import-link :share-url="$shareUrl" variant="solid" />
                 <div class="flex flex-col gap-1.5">
-                    <span class="text-xs text-neutral-400">Or share this link. It opens in Coilbox and needs no account.</span>
-                    <code class="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-xs text-neutral-400">{{ $shareUrl }}</code>
+                    <span class="text-sm text-neutral-400">Or share this link. It opens in Coilbox and needs no account.</span>
+                    <code class="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-400">{{ $shareUrl }}</code>
                 </div>
             </div>
             @if ($commands !== null)
@@ -114,7 +114,7 @@
         @if ($item['tags'] !== [])
             <ul class="flex flex-wrap gap-1.5">
                 @foreach ($item['tags'] as $tag)
-                    <li><a href="/gallery?tag={{ rawurlencode($tag) }}" class="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200">{{ $tag }}</a></li>
+                    <li><a href="/gallery?tag={{ rawurlencode($tag) }}" class="inline-block rounded bg-neutral-900 px-2 py-1 text-sm text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200">{{ $tag }}</a></li>
                 @endforeach
             </ul>
         @endif

@@ -15,7 +15,7 @@
     // The height the figure aims for, applied as a maximum width so every map gets the same share of the page.
     $figureHeight = 512;
     $marker = 'absolute size-2 rounded-full ring-1 ring-black/70 -translate-x-1/2 -translate-y-1/2';
-    $chip = 'relative cursor-pointer rounded-full border border-neutral-700 bg-black/70 px-3 py-1 text-xs text-neutral-300 backdrop-blur-sm transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white';
+    $chip = 'relative cursor-pointer rounded-full border border-neutral-700 bg-black/70 px-3 py-1 text-sm text-neutral-300 backdrop-blur-sm transition-colors hover:border-neutral-500 active:border-neutral-400 hover:text-white active:text-white';
     $dot = 'mr-1.5 inline-block size-2 rounded-full align-middle';
     $w = $map['width_elmos'];
     $h = $map['height_elmos'];
@@ -52,7 +52,7 @@
             @endif
         </div>
         @if (($points['start'] ?? []) !== [])
-            <figcaption class="text-xs text-neutral-400"><span class="{{ $dot }} bg-neutral-100"></span>Start positions, as the map declares them. How a lobby uses them is the lobby&rsquo;s choice.</figcaption>
+            <figcaption class="text-sm text-neutral-400"><span class="{{ $dot }} bg-neutral-100"></span>Start positions, as the map declares them. How a lobby uses them is the lobby&rsquo;s choice.</figcaption>
         @endif
     </figure>
 @endif

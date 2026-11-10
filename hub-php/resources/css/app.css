@@ -38,15 +38,16 @@
 
 /* Copied from the Next app's app/globals.css. */
 
-/* Matches the coilbox app icon: a white mark on near black. There is no light
+/* The page and card colours of coilbox.org's dark theme. There is no light
    theme on purpose, so the site reads as the same product as the app. */
 :root {
     color-scheme: dark;
-    --background: #0b0b0d;
+    --background: #1b1b1f;
     --foreground: #fafafa;
-    /* Half transparent, so a card over the art backdrop keeps the drawing
-       behind it. Over the page it composites to about #131314. */
-    --card: #1a1a1a80;
+    /* coilbox.org's raised surface, half transparent so a card over the art
+       backdrop keeps the drawing behind it. Over the page it composites to
+       about #1e1e23. */
+    --card: #20212780;
     /* The header text and link colours of coilbox.org, which is VitePress's
        default dark theme, so the two sites' headers match. */
     --nav: #dfdfd6;

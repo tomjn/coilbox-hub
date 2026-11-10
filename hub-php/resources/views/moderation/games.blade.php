@@ -2,7 +2,7 @@
 @use('App\Support\Ui')
 @php
     $field = 'rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400';
-    $small = 'text-xs uppercase tracking-wide text-neutral-400';
+    $small = 'text-sm uppercase tracking-wide text-neutral-400';
 @endphp
 
 @section('content')

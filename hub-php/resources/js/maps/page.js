@@ -43,7 +43,7 @@ if (report) {
         if (state.ok) {
             const done = document.createElement('p');
             done.setAttribute('role', 'status');
-            done.className = 'text-xs text-neutral-400';
+            done.className = 'text-sm text-neutral-400';
             done.textContent = state.message;
             report.replaceChildren(done);
             return;

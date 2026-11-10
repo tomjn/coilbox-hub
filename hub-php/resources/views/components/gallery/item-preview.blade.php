@@ -8,7 +8,7 @@
     $payload = $item['container']['payload'] ?? null;
     $kind = $item['kind'];
     $json = fn (array $value) => json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    $dt = 'text-xs uppercase tracking-wide text-neutral-400';
+    $dt = 'text-sm uppercase tracking-wide text-neutral-400';
 @endphp
 @if (is_array($payload))
     @if ($kind === 'preset')
@@ -22,7 +22,7 @@
                             <div class="flex flex-col gap-1.5 rounded-md border border-neutral-800 bg-black p-3">
                                 @foreach ($team['members'] as $p)
                                     @php $side = Previews::participantSideLabel($p['side'] ?? null); @endphp
-                                    <div class="flex items-center gap-2 text-xs text-neutral-300">
+                                    <div class="flex items-center gap-2 text-sm text-neutral-300">
                                         <span aria-hidden="true" class="size-2.5 shrink-0 rounded-sm" style="background:{{ Previews::participantColorCss($p['color'] ?? null) }}"></span>
                                         <span>{{ Previews::participantLabel($p) }}</span>
                                         @if ($side)<span class="text-neutral-400">{{ $side }}</span>@endif
@@ -30,12 +30,12 @@
                                 @endforeach
                             </div>
                             @if ($index < count($composition['teams']) - 1)
-                                <span class="self-center text-xs text-neutral-400">v</span>
+                                <span class="self-center text-sm text-neutral-400">v</span>
                             @endif
                         </div>
                     @endforeach
                 </div>
-                <p class="text-xs text-neutral-400">{{ $composition['playingCount'] }} playing across {{ count($composition['teams']) }} {{ count($composition['teams']) === 1 ? 'team' : 'teams' }}</p>
+                <p class="text-sm text-neutral-400">{{ $composition['playingCount'] }} playing across {{ count($composition['teams']) }} {{ count($composition['teams']) === 1 ? 'team' : 'teams' }}</p>
             </div>
         @endif
     @elseif ($kind === 'challenge')

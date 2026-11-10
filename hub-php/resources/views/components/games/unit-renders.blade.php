@@ -19,7 +19,7 @@
                 @php $caption = $angles[$render['angle']] ?? $render['angle']; @endphp
                 <figure class="flex flex-col items-center gap-2 rounded-md border border-neutral-900 bg-black p-6">
                     <img src="{{ $render['asset']['url'] }}" alt="{{ $caption }} render of {{ $label }}" width="{{ $render['asset']['width'] }}" height="{{ $render['asset']['height'] }}" decoding="async" class="my-auto h-auto max-w-full object-contain"/>
-                    <figcaption class="text-xs text-neutral-400">{{ $caption }}</figcaption>
+                    <figcaption class="text-sm text-neutral-400">{{ $caption }}</figcaption>
                 </figure>
             @endforeach
         </div>

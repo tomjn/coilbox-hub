@@ -14,15 +14,15 @@
     <a href="coilbox://import?url={{ rawurlencode($shareUrl) }}" class="{{ $class }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="{{ $solid ? 'size-4' : 'size-3.5' }}"><path d="M12 5v14M5 12h14"></path></svg>Import into Coilbox</a>
     @if ($solid)
         <div class="flex flex-col gap-2 rounded-md border border-neutral-800 bg-black p-3" data-import-help hidden>
-            <p class="text-xs text-neutral-400">Nothing happened? Coilbox is not installed, or has never been opened on this machine. Copy this and paste it into Coilbox.</p>
+            <p class="text-sm text-neutral-400">Nothing happened? Coilbox is not installed, or has never been opened on this machine. Copy this and paste it into Coilbox.</p>
             <div class="flex items-center gap-2">
-                <code class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs text-neutral-400">{{ $shareUrl }}</code>
-                <button type="button" data-import-copy data-done="Copied" class="shrink-0 text-xs {{ $fallbackAction }}">Copy</button>
+                <code class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-neutral-400">{{ $shareUrl }}</code>
+                <button type="button" data-import-copy data-done="Copied" class="shrink-0 text-sm {{ $fallbackAction }}">Copy</button>
             </div>
-            <p class="text-xs text-neutral-400">Do not have Coilbox? <a href="{{ config('hub.coilbox_url') }}" target="_blank" rel="noreferrer" class="text-neutral-300 underline underline-offset-4 transition-colors hover:text-white active:text-white">Get it for your platform</a></p>
+            <p class="text-sm text-neutral-400">Do not have Coilbox? <a href="{{ config('hub.coilbox_url') }}" target="_blank" rel="noreferrer" class="text-neutral-300 underline underline-offset-4 transition-colors hover:text-white active:text-white">Get it for your platform</a></p>
         </div>
     @else
-        <div class="flex flex-col gap-2 text-xs text-neutral-400" data-import-help hidden>
+        <div class="flex flex-col gap-2 text-sm text-neutral-400" data-import-help hidden>
             <p>Nothing happened? Coilbox is not installed here.</p>
             <div class="flex flex-wrap items-center gap-2">
                 <a href="{{ config('hub.coilbox_url') }}" target="_blank" rel="noreferrer" class="{{ $fallbackAction }}">Get Coilbox</a>

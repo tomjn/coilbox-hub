@@ -16,6 +16,6 @@
     <span class="truncate">{{ $node['label'] }}</span>
     {{-- A folded morph chain is one node, so say how many stages it stands for. --}}
     @if ($node['stages'] > 1)
-        <span class="shrink-0 rounded bg-neutral-800 px-1 py-0.5 text-xs text-neutral-400">{{ $node['stages'] }} stages</span>
+        <span class="shrink-0 rounded bg-neutral-800 px-1 py-0.5 text-sm text-neutral-400">{{ $node['stages'] }} stages</span>
     @endif
 </a>

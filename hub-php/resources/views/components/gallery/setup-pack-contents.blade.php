@@ -5,7 +5,7 @@
 @php
     use App\Domain\Gallery\Previews;
     $payload = $item['container']['payload'] ?? null;
-    $heading = 'text-xs uppercase tracking-wide text-neutral-400';
+    $heading = 'text-sm uppercase tracking-wide text-neutral-400';
 @endphp
 @if (is_array($payload))
     @php

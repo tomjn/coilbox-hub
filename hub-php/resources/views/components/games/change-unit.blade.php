@@ -20,7 +20,7 @@
 <div class="flex flex-col gap-2">
     <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <x-games.change-unit-link :game="$game" :unit="$unit" />
-        <a href="{{ $compare }}" class="text-xs text-neutral-400 {{ $link }}">Compare releases<span class="sr-only"> of {{ $unit['full_name'] ?? $unit['unit_name'] }}</span></a>
+        <a href="{{ $compare }}" class="text-sm text-neutral-400 {{ $link }}">Compare releases<span class="sr-only"> of {{ $unit['full_name'] ?? $unit['unit_name'] }}</span></a>
     </div>
     <dl class="grid grid-cols-[minmax(7rem,max-content)_1fr] gap-x-4 gap-y-1 text-sm">
         @if ($unit['renamed'])

@@ -46,7 +46,7 @@
     @if ($units !== [])
         <ul aria-hidden="true" class="mt-auto flex -space-x-2.5">
             @foreach ($units as $commander)
-                <li><x-games.commander-picture :commander="$commander" class="size-9 bg-black ring-2 ring-[#131314]" /></li>
+                <li><x-games.commander-picture :commander="$commander" class="size-9 bg-black ring-2 ring-[#1e1e23]" /></li>
             @endforeach
         </ul>
     @endif

@@ -28,7 +28,7 @@
                 <form action="/games/{{ $shortname }}/changes" class="flex flex-wrap items-end gap-3">
                     @foreach (['from' => ['changes-from', 'From', $from], 'to' => ['changes-to', 'To', $to]] as $name => [$id, $label, $chosen])
                         <div class="flex min-w-40 flex-1 flex-col gap-1.5">
-                            <label for="{{ $id }}" class="text-xs uppercase tracking-wide text-neutral-400">{{ $label }}</label>
+                            <label for="{{ $id }}" class="text-sm uppercase tracking-wide text-neutral-400">{{ $label }}</label>
                             <select id="{{ $id }}" name="{{ $name }}" class="{{ $control }}">
                                 @foreach ($releases as $release)
                                     <option value="{{ $release }}"@if ($release === $chosen) selected=""@endif>{{ $release }}</option>
