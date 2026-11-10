@@ -3,9 +3,9 @@
   "ref": "main",
   "dir": ".",
   "files": {
-    "catalog.json": "9e882121479c6cfd660d13e2f0a08dc988e8a112"
+    "catalog.json": "d6d328041879db5d6ac63f96caa49bb8d724a29a"
   },
   "sha256": {
-    "catalog.json": "6485385e84bd628e6815330b1ba205a66bd18ea3c5859496d614f8b1907e1917"
+    "catalog.json": "7d83ff1e17261d163ffdfa69284d4f93bc28c6e8f07b975b7518c195b743fb82"
   }
 }
