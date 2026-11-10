@@ -9,6 +9,7 @@ use App\Domain\Games\Labels;
 use App\Domain\Games\RichText;
 use App\Domain\Games\Query;
 use App\Http\Controllers\Controller;
+use App\Support\Nav;
 use Illuminate\View\View;
 
 /** The games listing and one game's page. */
@@ -32,11 +33,7 @@ class GamesController extends Controller
         ]);
     }
 
-    /**
-     * One game's page, `app/games/[shortname]/page.tsx`. The owner's controls
-     * and the ownership request are left for the editing work, which needs
-     * web sign in.
-     */
+    /** One game's page, `app/games/[shortname]/page.tsx`. */
     public function show(string $shortname): View
     {
         $page = Cached::gamePage($shortname);
@@ -75,6 +72,23 @@ class GamesController extends Controller
             'factionSlots' => $factionSlots,
             'describes' => $plain !== null && Labels::saysMoreThanName($page, $plain),
             'onward' => $onward,
+            // Who is looking decides two things only: the owner or a moderator
+            // gets the pen and the hide switch, and on a game nobody owns a
+            // signed in visitor gets the ownership ask. Drawing a control is
+            // all this decides. The action behind each asks the database again.
+            'ownerControls' => self::shownTo($page['owner_user_id'] ?? null),
+            'ownershipAsk' => ($page['owner_user_id'] ?? null) === null && Nav::current() !== null,
         ]);
+    }
+
+    /** `ShownTo` with `owner` and `moderators`: the named owner, or a moderator who has entered their code. */
+    public static function shownTo(?string $owner): bool
+    {
+        $nav = Nav::current();
+        if ($nav === null) {
+            return false;
+        }
+
+        return ($owner !== null && $owner === $nav['id']) || ($nav['moderation'] ?? 'none') === 'granted';
     }
 }
