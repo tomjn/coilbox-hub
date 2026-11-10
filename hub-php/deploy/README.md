@@ -13,20 +13,21 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
 ## One time setup
 
 1. Point `hub.coilbox.org` at the droplet with an A record, and an AAAA record if it has IPv6.
-2. Install PHP and the extensions the hub uses:
+2. Install PHP, the extensions the hub uses, and the memcached server that holds its cache and sessions:
 
    ```
-   sudo apt install php8.4-fpm php8.4-cli php8.4-curl php8.4-mbstring php8.4-xml php8.4-intl php8.4-zip php8.4-memcached
+   sudo apt install php8.4-fpm php8.4-cli php8.4-curl php8.4-mbstring php8.4-xml php8.4-intl php8.4-zip php8.4-gd php8.4-memcached memcached
+   sudo systemctl enable --now memcached
    ```
 
-3. Create the folders, owned by the user deploys run as:
+3. Create the folders. They belong to the deploy user and the `www-data` group PHP-FPM runs as, and the deploy user must be in that group. The setgid bit keeps new files in `www-data`, and the release script makes them group writable:
 
    ```
+   sudo usermod -aG www-data "$USER"
    sudo mkdir -p /srv/www/hub.coilbox.org/releases /srv/www/hub.coilbox.org/shared/storage
-   sudo chown -R "$USER": /srv/www/hub.coilbox.org
+   sudo chown -R "$USER":www-data /srv/www/hub.coilbox.org
+   sudo chmod 2775 /srv/www/hub.coilbox.org/shared /srv/www/hub.coilbox.org/shared/storage
    ```
-
-   PHP-FPM must be able to write to `shared/storage`. If the pool runs as `www-data`, add the deploy user and `www-data` to a shared group and give the group write access.
 
 4. Write `shared/.env`. Start from `deploy/env.example` and set:
 
@@ -58,6 +59,13 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
    sudo cp deploy/nginx.conf /etc/nginx/sites-available/hub.coilbox.org
    sudo ln -s /etc/nginx/sites-available/hub.coilbox.org /etc/nginx/sites-enabled/hub.coilbox.org
    sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+   Nginx keeps serving the certificate it loaded until it reloads, so have certbot reload it after each renewal:
+
+   ```
+   printf '#!/bin/sh\nsystemctl reload nginx\n' | sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
+   sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
    ```
 
 7. Send plain HTTP to HTTPS. Apache holds port 80, so the redirect is an Apache site. It leaves certbot's renewal checks alone:

@@ -23,9 +23,16 @@ concurrency:
 
 env:
   ROOT: /srv/www/hub.coilbox.org
+  # One folder per run, so rerunning a deploy never rewrites the live release.
+  RELEASE: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
+    # A manual run can pick any branch. Only main goes to production.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     defaults:
@@ -67,9 +74,9 @@ jobs:
           rsync -az --delete \
             --exclude node_modules --exclude .env --exclude storage --exclude tests \
             -e "ssh -i ~/.ssh/deploy" \
-            ./ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$ROOT/releases/$GITHUB_SHA/"
+            ./ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$ROOT/releases/$RELEASE/"
 
       - name: Switch to it
         run: |
           ssh -i ~/.ssh/deploy "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "bash $ROOT/releases/$GITHUB_SHA/deploy/release.sh $ROOT $GITHUB_SHA"
+            "bash $ROOT/releases/$RELEASE/deploy/release.sh $ROOT $RELEASE"

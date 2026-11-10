@@ -31,8 +31,8 @@ php artisan view:cache
 ln -sfn "$release" "$root/current.new"
 mv -Tf "$root/current.new" "$root/current"
 # The web root, named like the droplet's other sites. Points through
-# `current`, so it never needs changing.
-ln -sfn current/public "$root/htdocs"
+# `current`, so it is made once and never touched again.
+test -L "$root/htdocs" || ln -s current/public "$root/htdocs"
 
 # OPcache holds the old release's compiled files by path. Reloading PHP-FPM
 # clears it. The deploy user may run only this one command through sudo.
