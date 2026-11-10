@@ -10,8 +10,6 @@
     $select = 'rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100';
 @endphp
 
-{{-- The author snippet form and the owner and moderator controls are left out.
-     They write, and need web sign in. --}}
 @section('content')
 <main id="main-content" tabindex="-1" class="relative flex-1">
     <div class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
@@ -77,6 +75,24 @@
             <section class="flex flex-col gap-2 rounded-md border border-neutral-900 bg-card p-4" aria-labelledby="unit-snippet">
                 <h2 id="unit-snippet" class="text-xs uppercase tracking-wide text-neutral-400">From the author</h2>
                 <p class="text-sm text-neutral-200">{{ $page['snippet'] }}</p>
+            </section>
+        @endif
+
+        @if ($snippetEditor)
+            {{-- For the owner or a moderator. The policy on the write would refuse
+                 anybody else, but a form that can never succeed should not be here. --}}
+            <section class="flex flex-col gap-3" aria-labelledby="unit-snippet-edit">
+                <h2 id="unit-snippet-edit" class="{{ $heading }}">Author snippet</h2>
+                <form method="post" action="/games/{{ $shortname }}/edit/snippet" class="flex flex-col gap-2">
+                    @csrf
+                    <input type="hidden" name="_form" value="snippet">
+                    <input type="hidden" name="unit_name" value="{{ $page['unit_name'] }}">
+                    <textarea name="snippet" rows="3" maxlength="2000" placeholder="A sentence about this unit, in your own words" aria-label="Author snippet" class="rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400">{{ old('snippet', $page['snippet'] ?? '') }}</textarea>
+                    <div class="flex items-center gap-3">
+                        <button type="submit" class="{{ Ui::button('ghost', 'base', 'self-start') }}">Save snippet</button>
+                        <x-games.form-answer form="snippet" />
+                    </div>
+                </form>
             </section>
         @endif
 

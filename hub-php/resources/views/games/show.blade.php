@@ -58,6 +58,13 @@
                     @endforeach
                 </ul>
             @endif
+            @if ($ownerControls)
+                {{-- The pen and the hide switch, for the owner or a moderator. --}}
+                <div class="flex flex-wrap items-center gap-3 pt-1">
+                    <a href="/games/{{ $page['shortname'] }}/edit" class="{{ $control }}">Edit this game</a>
+                    <x-moderation.toggle-form :action="'/games/'.$page['shortname'].'/edit/visibility'" :fields="['shortname' => $page['shortname'], 'hidden' => 'true', 'onSuccess' => 'edit']" label="Hide this game" form-class="flex flex-col items-start gap-1.5" :button-class="$control" />
+                </div>
+            @endif
         </div>
 
         <section class="flex flex-col gap-3" aria-labelledby="game-factions">
@@ -129,6 +136,19 @@
                     @endforeach
                 </ul>
             </section>
+        @endif
+
+        @if ($ownershipAsk)
+            {{-- Claiming a game is rare, so the ask folds down to one quiet line. --}}
+            <details>
+                <summary class="w-fit cursor-pointer list-none text-sm text-neutral-400 underline-offset-4 transition-colors hover:text-neutral-200 hover:underline active:text-neutral-200 active:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400">Are you this game&rsquo;s author?</summary>
+                <form method="post" action="/games/{{ $page['shortname'] }}/ownership" class="mt-3 flex max-w-xl flex-col gap-2">
+                    @csrf
+                    <label for="ownership-note" class="text-xs uppercase tracking-wide text-neutral-400">Say who you are and how you&rsquo;re involved</label>
+                    <textarea id="ownership-note" name="note" rows="4" maxlength="2000" class="w-full resize-none rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"></textarea>
+                    <button type="submit" class="self-start rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300">Request ownership</button>
+                </form>
+            </details>
         @endif
 
         <p class="text-sm text-neutral-400"><a class="{{ $link }}" href="/games">Every game the hub knows about</a>.</p>

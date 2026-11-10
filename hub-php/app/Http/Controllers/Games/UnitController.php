@@ -16,7 +16,6 @@ use Illuminate\View\View;
 
 /**
  * One unit's page and its comparisons, `app/games/[shortname]/units/[unit]`.
- * The author snippet form is left out, since it needs web sign in.
  */
 class UnitController extends Controller
 {
@@ -58,6 +57,7 @@ class UnitController extends Controller
             'renders' => $loaded['renders'],
             'buildpic' => $loaded['buildpic'],
             'buildPictures' => $loaded['buildPictures'],
+            'snippetEditor' => GamesController::shownTo($game['owner_user_id'] ?? null),
         ]);
     }
 

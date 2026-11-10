@@ -3,13 +3,6 @@
 @php
     $field = 'rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-400 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400';
     $small = 'text-xs uppercase tracking-wide text-neutral-400';
-    $kindLabels = ['rapid' => 'Rapid tag', 'url' => 'Address', 'github' => 'GitHub repo'];
-    // A rapid tag and a repo path are shown as stored, not dressed as links.
-    $describe = fn (array $offer) => match ($offer['kind']) {
-        'github' => $offer['asset'] ? $offer['value'].', picking '.$offer['asset'] : $offer['value'],
-        'url' => $offer['filename'] ? $offer['value'].', saved as '.$offer['filename'] : $offer['value'],
-        default => $offer['value'],
-    };
 @endphp
 
 @section('content')
@@ -51,34 +44,7 @@
             @if ($offers === [])
                 <p class="text-sm text-neutral-400">Nothing offered right now.</p>
             @else
-                {{-- components/DownloadOffers.tsx. An offer is a stranger's suggestion, so it is named as one. --}}
-                <ul class="flex flex-col gap-3">
-                    @foreach ($offers as $offer)
-                        @php
-                            $key = substr(sha1('/moderation/games/offer|'.$offer['id']), 0, 16);
-                            $answer = session('toggle');
-                            $state = is_array($answer) && ($answer['form'] ?? null) === $key ? $answer : null;
-                        @endphp
-                        <li class="flex flex-col gap-2 rounded-md border border-neutral-900 p-4">
-                            <div class="flex flex-col gap-1">
-                                <p class="text-xs uppercase tracking-wide text-neutral-400">{{ $offer['shortname'] }} · {{ $kindLabels[$offer['kind']] ?? $offer['kind'] }}</p>
-                                <p class="break-all font-mono text-sm text-neutral-200">{{ $describe($offer) }}</p>
-                            </div>
-                            {{-- One decision with two answers, so one form. --}}
-                            <form method="post" action="/moderation/games/offer" class="flex flex-wrap items-center gap-2">
-                                @csrf
-                                <input type="hidden" name="_form" value="{{ $key }}">
-                                <input type="hidden" name="offer" value="{{ $offer['id'] }}">
-                                <input type="hidden" name="shortname" value="{{ $offer['shortname'] }}">
-                                <button type="submit" name="accept" value="true" class="{{ Ui::button('ghost', 'md') }}">Add it</button>
-                                <button type="submit" name="accept" value="false" class="{{ Ui::button('quiet', 'md') }}">Turn it down</button>
-                                @if ($state)
-                                    <p role="{{ $state['ok'] ? 'status' : 'alert' }}" class="text-sm {{ $state['ok'] ? 'text-neutral-300' : 'text-red-400' }}">{{ $state['message'] }}</p>
-                                @endif
-                            </form>
-                        </li>
-                    @endforeach
-                </ul>
+                <x-games.download-offers :offers="$offers" action="/moderation/games/offer" show-game />
             @endif
         </section>
 
