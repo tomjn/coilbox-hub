@@ -47,7 +47,7 @@
                 <h1 class="text-3xl font-semibold tracking-tight">Allowances</h1>
                 <p class="mt-2 max-w-[70ch] text-sm text-neutral-400">What the hub holds and serves, against the free plan allowances. The daily sweep fails on purpose once a counted meter passes {{ $alertPercent }}%.</p>
             </div>
-            <p class="text-xs text-neutral-400">Read {{ $stamp($report['at']) }} UTC</p>
+            <p class="text-sm text-neutral-400">Read {{ $stamp($report['at']) }} UTC</p>
         </header>
 
         <div class="grid items-start gap-6 lg:grid-cols-2">
@@ -63,7 +63,7 @@
                                 <dd class="tabular-nums {{ $alarm ? 'text-amber-300' : 'text-neutral-100' }}">{{ $row['value'] }}</dd>
                             </div>
                             @if ($row['detail'] ?? null)
-                                <p class="mt-1 text-xs {{ $alarm ? 'text-amber-300' : 'text-neutral-400' }}">{{ $row['detail'] }}</p>
+                                <p class="mt-1 text-sm {{ $alarm ? 'text-amber-300' : 'text-neutral-400' }}">{{ $row['detail'] }}</p>
                             @endif
                         </div>
                     @endforeach
@@ -100,7 +100,7 @@
                     <li class="{{ $card }}">
                         <div class="flex flex-wrap items-baseline justify-between gap-3">
                             <h3 class="text-base font-medium">{{ $meter['name'] }}</h3>
-                            <span class="text-xs text-neutral-400">{{ $basisLabel[$meter['basis']] }}</span>
+                            <span class="text-sm text-neutral-400">{{ $basisLabel[$meter['basis']] }}</span>
                         </div>
                         <p class="mt-2 text-sm text-neutral-300">
                             <span class="text-xl font-semibold tabular-nums text-neutral-100">{{ $meter['used'] === null ? 'no figure' : Meters::formatBytes($meter['used']) }}</span>
@@ -131,7 +131,7 @@
                             <span class="font-medium">{{ $meter['name'] }}</span>
                             <span class="text-neutral-400">{{ Meters::formatBytes($meter['allowance']) }}</span>
                         </p>
-                        <p class="mt-1 text-xs text-neutral-400">{{ $meter['note'] }}</p>
+                        <p class="mt-1 text-sm text-neutral-400">{{ $meter['note'] }}</p>
                     </li>
                 @endforeach
             </ul>

@@ -24,16 +24,16 @@
 
             <div class="flex min-w-0 flex-1 flex-col gap-1.5">
                 <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <span class="text-xs text-neutral-400">Stage {{ $index + 1 }}</span>
+                    <span class="text-sm text-neutral-400">Stage {{ $index + 1 }}</span>
                     <a href="/games/{{ $game }}/units/{{ \App\Domain\Games\UnitRelease::unitSegment($stage['unit_name']) }}" class="text-sm text-neutral-100 {{ $link }}">{{ $stage['label'] }}</a>
                     @if ($stage['current'])
-                        <span class="text-xs text-neutral-400">showing this one</span>
+                        <span class="text-sm text-neutral-400">showing this one</span>
                     @endif
                     @if ($stage['removed_at'])
-                        <span class="text-xs text-neutral-400">retired</span>
+                        <span class="text-sm text-neutral-400">retired</span>
                     @endif
                     @if (! $stage['found'])
-                        <span class="text-xs text-neutral-400">not in this release</span>
+                        <span class="text-sm text-neutral-400">not in this release</span>
                     @endif
                 </div>
 

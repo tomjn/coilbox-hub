@@ -48,7 +48,7 @@
                             <label class="{{ $choice }}">
                                 <input type="radio" name="into" value="{{ $author['key'] }}" @checked($author['key'] === $kept['key']) class="size-4 shrink-0 self-center">
                                 <span class="min-w-0 break-words font-mono">{{ $author['key'] }}</span>
-                                <span class="ml-auto shrink-0 text-xs text-neutral-400">{{ $mapsLabel($author['maps']) }}</span>
+                                <span class="ml-auto shrink-0 text-sm text-neutral-400">{{ $mapsLabel($author['maps']) }}</span>
                             </label>
                         @endforeach
                     </fieldset>
@@ -113,13 +113,13 @@
                                 <input type="checkbox" name="merge" value="{{ $author['key'] }}" @checked(isset($tickedSet[$author['key']])) class="mt-0.5 size-4 shrink-0">
                                 <span class="flex min-w-0 flex-col gap-0.5">
                                     <span class="break-words text-neutral-200">{{ $author['name'] }}</span>
-                                    <span class="break-words font-mono text-xs text-neutral-400">{{ $author['key'] }}</span>
+                                    <span class="break-words font-mono text-sm text-neutral-400">{{ $author['key'] }}</span>
                                     @if ($aliasesHere !== [])
-                                        <span class="break-words text-xs text-neutral-400">Merged in: <span class="font-mono">{{ implode(', ', array_column($aliasesHere, 'fromKey')) }}</span></span>
+                                        <span class="break-words text-sm text-neutral-400">Merged in: <span class="font-mono">{{ implode(', ', array_column($aliasesHere, 'fromKey')) }}</span></span>
                                     @endif
                                 </span>
                             </label>
-                            <a href="/maps?author={{ rawurlencode($author['key']) }}" class="shrink-0 text-xs text-neutral-400 hover:underline active:underline">{{ $mapsLabel($author['maps']) }}</a>
+                            <a href="/maps?author={{ rawurlencode($author['key']) }}" class="shrink-0 text-sm text-neutral-400 hover:underline active:underline">{{ $mapsLabel($author['maps']) }}</a>
                         </li>
                     @endforeach
                 </ul>
@@ -147,11 +147,11 @@
                                         </form>
                                     </div>
                                     @if ($alias['note'])
-                                        <p class="text-xs text-neutral-400">{{ $alias['note'] }}</p>
+                                        <p class="text-sm text-neutral-400">{{ $alias['note'] }}</p>
                                     @endif
                                     @if ($alias['chained'])
                                         {{-- Marked rather than hidden: the maps under it count under a key nobody sees. --}}
-                                        <p class="text-xs text-amber-400">{{ $alias['toKey'] }} is itself merged, and an alias resolves once and stops. Merge this key into the person instead.</p>
+                                        <p class="text-sm text-amber-400">{{ $alias['toKey'] }} is itself merged, and an alias resolves once and stops. Merge this key into the person instead.</p>
                                     @endif
                                 </li>
                             @endforeach

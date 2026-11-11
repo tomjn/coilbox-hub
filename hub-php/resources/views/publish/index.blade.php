@@ -40,8 +40,8 @@
                     <h2 class="text-lg font-medium">Published</h2>
                     <p class="text-sm text-neutral-400">It is in the gallery, and anyone can import it without an account.</p>
                     <div class="flex flex-col gap-2">
-                        <span class="text-xs text-neutral-400">Share this link. It opens in Coilbox.</span>
-                        <code class="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-xs text-neutral-300">{{ $state['shareUrl'] }}</code>
+                        <span class="text-sm text-neutral-400">Share this link. It opens in Coilbox.</span>
+                        <code class="break-all rounded border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-300">{{ $state['shareUrl'] }}</code>
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
                         <a href="/item/{{ $state['publishedId'] }}" class="rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300">See it in the gallery</a>
@@ -53,11 +53,11 @@
                     @csrf
                     <label class="flex flex-col gap-2">
                         <span class="text-sm font-medium">What you are sharing</span>
-                        <span class="text-xs text-neutral-400">Whatever Coilbox gave you. A share link, a bare code from a setup pack, or an exported JSON file.</span>
+                        <span class="text-sm text-neutral-400">Whatever Coilbox gave you. A share link, a bare code from a setup pack, or an exported JSON file.</span>
                         <textarea name="code" rows="4" required spellcheck="false" placeholder="coilbox://import?code=…" class="{{ Ui::FIELD }} font-mono" data-publish-code>{{ $values['code'] ?? '' }}</textarea>
                         {{-- Scenarios can only be exported as a file. Reading it
                              into the box keeps one validation path on the server. --}}
-                        <span class="flex items-center gap-3 text-xs text-neutral-400">
+                        <span class="flex items-center gap-3 text-sm text-neutral-400">
                             <label class="{{ Ui::button('ghost', 'sm', 'cursor-pointer') }}">
                                 Or choose an exported file
                                 <input type="file" accept="application/json,.json" class="hidden" data-publish-file>
@@ -73,13 +73,13 @@
 
                     <label class="flex flex-col gap-2">
                         <span class="text-sm font-medium">Description</span>
-                        <span class="text-xs text-neutral-400">What it is for, and why somebody would want it.</span>
+                        <span class="text-sm text-neutral-400">What it is for, and why somebody would want it.</span>
                         <textarea name="description" rows="4" maxlength="2000" class="{{ Ui::FIELD }}">{{ $values['description'] ?? '' }}</textarea>
                     </label>
 
                     <label class="flex flex-col gap-2">
                         <span class="text-sm font-medium">Tags</span>
-                        <span class="text-xs text-neutral-400">Comma separated, up to eight. For the things a filter cannot work out on its own.</span>
+                        <span class="text-sm text-neutral-400">Comma separated, up to eight. For the things a filter cannot work out on its own.</span>
                         <input name="tags" value="{{ $values['tags'] ?? '' }}" class="{{ Ui::FIELD }}" placeholder="eco, 8v8, beginner">
                     </label>
 

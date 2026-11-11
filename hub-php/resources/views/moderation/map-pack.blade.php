@@ -50,7 +50,7 @@
                                 <span class="min-w-0 break-words text-neutral-400">{{ $map['mapName'] }} (not in the catalog right now)</span>
                             @endif
                             @if ($map['takenDown'])
-                                <span class="shrink-0 text-xs text-neutral-400">Taken down, so Coilbox is not offered it</span>
+                                <span class="shrink-0 text-sm text-neutral-400">Taken down, so Coilbox is not offered it</span>
                             @endif
                             <x-moderation.toggle-form action="/moderation/map-packs/remove" :fields="['id' => $pack['id'], 'map' => $map['mapName']]" label="Remove" form-class="flex shrink-0 items-center gap-2" :button-class="Ui::button('quiet', 'sm')" />
                         </li>

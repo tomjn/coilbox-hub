@@ -53,9 +53,9 @@
                     <figure class="flex flex-col gap-1.5">
                         <figcaption class="flex flex-col gap-0.5">
                             <span class="text-neutral-100">{{ $chunk['title'] }}</span>
-                            <span class="text-xs text-neutral-400">{{ $chunk['reason'] }}</span>
+                            <span class="text-sm text-neutral-400">{{ $chunk['reason'] }}</span>
                         </figcaption>
-                        <pre class="max-h-96 overflow-auto rounded border border-neutral-800 bg-black p-3 text-xs text-neutral-300">{{ $chunk['lua'] }}</pre>
+                        <pre class="max-h-96 overflow-auto rounded border border-neutral-800 bg-black p-3 text-sm text-neutral-300">{{ $chunk['lua'] }}</pre>
                     </figure>
                 @endforeach
             </div>

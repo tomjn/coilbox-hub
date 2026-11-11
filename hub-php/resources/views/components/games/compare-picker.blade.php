@@ -11,7 +11,7 @@
 @endphp
 <form action="/games/{{ $game }}/units/{{ Js::encodeURIComponent($unit) }}/compare" method="get" class="flex flex-wrap items-end gap-3">
     <div class="flex min-w-48 flex-1 flex-col gap-1.5">
-        <label for="compare-with" class="text-xs uppercase tracking-wide text-neutral-400">{{ $label }}</label>
+        <label for="compare-with" class="text-sm uppercase tracking-wide text-neutral-400">{{ $label }}</label>
         <input id="compare-with" name="with" type="text" list="compare-with-units" @if ($current !== null) value="{{ $current }}" @endif autocomplete="off" placeholder="Unit name or id" class="w-full rounded-md border border-neutral-800 bg-card px-3 py-2 text-sm text-neutral-100 focus-visible:border-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"/>
         <datalist id="compare-with-units">
             @foreach ($options as $entry)

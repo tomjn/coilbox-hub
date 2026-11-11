@@ -28,7 +28,7 @@
                 @foreach ($packs as $pack)
                     <li class="flex items-baseline justify-between gap-3 text-sm">
                         <a href="/moderation/map-packs/{{ $pack['id'] }}" class="min-w-0 break-words text-neutral-300 underline-offset-4 hover:underline active:underline">{{ $pack['title'] }}</a>
-                        <span class="shrink-0 text-xs text-neutral-400">{{ count($pack['maps']) === 1 ? '1 map' : count($pack['maps']).' maps' }}{{ $pack['featuredAt'] ? ', featured' : ', not featured' }}</span>
+                        <span class="shrink-0 text-sm text-neutral-400">{{ count($pack['maps']) === 1 ? '1 map' : count($pack['maps']).' maps' }}{{ $pack['featuredAt'] ? ', featured' : ', not featured' }}</span>
                     </li>
                 @endforeach
             </ul>

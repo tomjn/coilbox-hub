@@ -19,7 +19,7 @@
             @php $key = substr(sha1($action.'|'.$offer['id']), 0, 16); @endphp
             <li class="flex flex-col gap-2 rounded-md border border-neutral-900 p-4">
                 <div class="flex flex-col gap-1">
-                    <p class="text-xs uppercase tracking-wide text-neutral-400">{{ $showGame ? $offer['shortname'].' · ' : '' }}{{ $kindLabels[$offer['kind']] ?? $offer['kind'] }}</p>
+                    <p class="text-sm uppercase tracking-wide text-neutral-400">{{ $showGame ? $offer['shortname'].' · ' : '' }}{{ $kindLabels[$offer['kind']] ?? $offer['kind'] }}</p>
                     <p class="break-all font-mono text-sm text-neutral-200">{{ $describe($offer) }}</p>
                 </div>
                 {{-- One decision with two answers, so one form. --}}

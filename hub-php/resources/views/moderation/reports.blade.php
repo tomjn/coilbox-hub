@@ -28,9 +28,9 @@
                                 @else
                                     <span class="text-base font-medium">A deleted map</span>
                                 @endif
-                                <span class="text-xs text-neutral-400"><x-ui.date-time :value="$r['created_at']" /></span>
+                                <span class="text-sm text-neutral-400"><x-ui.date-time :value="$r['created_at']" /></span>
                             </div>
-                            <p class="text-xs uppercase tracking-wide text-neutral-400">Map: {{ Report::KINDS[$r['kind']] ?? 'Unknown kind' }}</p>
+                            <p class="text-sm uppercase tracking-wide text-neutral-400">Map: {{ Report::KINDS[$r['kind']] ?? 'Unknown kind' }}</p>
                             <p class="whitespace-pre-wrap text-sm text-neutral-400">{{ $r['reason'] }}</p>
                             <form method="post" action="/moderation/reports">
                                 @csrf
@@ -42,7 +42,7 @@
                         <li class="{{ $card }}">
                             <div class="flex items-baseline justify-between gap-3">
                                 <a href="{{ $item && $item['deleted_at'] ? '/item/'.$item['id'].'/withdrawn' : '/item/'.($item['id'] ?? '') }}" class="text-base font-medium hover:underline active:underline">{{ $item['title'] ?? 'A deleted item' }}</a>
-                                <span class="text-xs text-neutral-400"><x-ui.date-time :value="$r['created_at']" /></span>
+                                <span class="text-sm text-neutral-400"><x-ui.date-time :value="$r['created_at']" /></span>
                             </div>
                             <p class="whitespace-pre-wrap text-sm text-neutral-400">{{ $r['reason'] }}</p>
                             <div class="flex gap-3">

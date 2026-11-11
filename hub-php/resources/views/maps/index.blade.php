@@ -8,7 +8,7 @@
 @php
     $control = Ui::FIELD;
     $step = 'flex min-h-9 min-w-9 items-center justify-center rounded-md border border-neutral-800 px-2 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400';
-    $label = 'text-xs uppercase tracking-wide text-neutral-400';
+    $label = 'text-sm uppercase tracking-wide text-neutral-400';
     $chevron = '<svg aria-hidden="true" viewBox="0 0 16 16" class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>';
     $sizeLabels = ['small' => 'Small, up to 12 squares', 'medium' => 'Medium, up to 20 squares', 'large' => 'Large, over 20 squares'];
     $sortLabels = ['name' => 'Name', 'size' => 'Longer edge, largest first', 'players' => 'Players, most first', 'added' => 'Recently added'];

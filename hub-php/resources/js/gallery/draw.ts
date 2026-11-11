@@ -382,7 +382,7 @@ export function conquestGalaxy(shape: GalaxyShape): {
       ? `<ul class="flex flex-wrap justify-center gap-x-4 gap-y-1.5">${named
           .map(
             (faction) =>
-              `<li class="flex items-center gap-1.5 text-xs text-neutral-400">` +
+              `<li class="flex items-center gap-1.5 text-sm text-neutral-400">` +
               `<span aria-hidden="true" class="size-2 shrink-0 rounded-full" style="background:${esc(faction.color)}"></span>` +
               `${esc(faction.name)}</li>`,
           )
@@ -461,7 +461,7 @@ export function warpathRunMap(shape: RunShape): string {
     `<ul class="flex flex-wrap justify-center gap-x-4 gap-y-1.5">${kinds
       .map(
         (kind) =>
-          `<li class="flex items-center gap-1.5 text-xs text-neutral-400">` +
+          `<li class="flex items-center gap-1.5 text-sm text-neutral-400">` +
           `<span aria-hidden="true" class="size-2 shrink-0 rounded-full" style="background:${esc(kind.color)}"></span>` +
           `${esc(kind.label)}</li>`,
       )
@@ -701,7 +701,7 @@ function buildingRoster(kinds: BuildingKind[], units: Units, names: Names): stri
     `<ul class="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">${kinds
       .map(
         (kind) =>
-          `<li class="flex items-center gap-2 text-xs">` +
+          `<li class="flex items-center gap-2 text-sm">` +
           (pictured ? unitPicture(units.get(kind.def)) : "") +
           `<span class="min-w-0 break-all text-neutral-200">${kind.count} ${unitName(kind.def, names)}</span>` +
           `<span class="shrink-0 text-neutral-400">${esc(footprintLabel(kind.footprint))}</span></li>`,
@@ -716,7 +716,7 @@ function buildOrder(runs: BuildingRun[], units: Units, names: Names): string {
     `<ol class="flex flex-col gap-1.5">${runs
       .map(
         (run) =>
-          `<li class="flex items-center gap-2 text-xs">` +
+          `<li class="flex items-center gap-2 text-sm">` +
           `<span class="w-10 shrink-0 text-right tabular-nums text-neutral-400">${
             run.from === run.to ? run.from : `${run.from}-${run.to}`
           }</span>` +
@@ -756,11 +756,11 @@ export function blueprintLayout(
       units,
       roles,
     ) +
-    `<p class="text-xs text-neutral-400">${esc(counts)}${
+    `<p class="text-sm text-neutral-400">${esc(counts)}${
       shape.ordered && buildings > 0 ? ", in build order" : ""
     }</p>` +
     (designedFor
-      ? `<p class="text-xs text-neutral-400">Designed for ${esc(designedFor)}</p>`
+      ? `<p class="text-sm text-neutral-400">Designed for ${esc(designedFor)}</p>`
       : "") +
     (runs
       ? buildOrder(runs, units, names)
@@ -813,13 +813,13 @@ export function packBlueprints(
           ours ? roles : NO_ROLES,
         ) +
         `<p class="break-words text-sm text-neutral-100">${esc(layout.name.trim() || "Untitled layout")}</p>` +
-        `<p class="text-xs text-neutral-400">${esc(caption)}</p></li>`
+        `<p class="text-sm text-neutral-400">${esc(caption)}</p></li>`
       );
     })
     .join("");
   return (
     `<section class="flex flex-col gap-3">` +
-    `<h2 class="text-xs uppercase tracking-wide text-neutral-400">${blueprints.length === 1 ? "Blueprint" : "Blueprints"}</h2>` +
+    `<h2 class="text-sm uppercase tracking-wide text-neutral-400">${blueprints.length === 1 ? "Blueprint" : "Blueprints"}</h2>` +
     `<ul class="grid gap-6 sm:grid-cols-2">${items}</ul></section>`
   );
 }

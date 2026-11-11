@@ -28,11 +28,11 @@
                     <li class="flex flex-col gap-2 rounded-md border border-neutral-800 bg-card p-4 text-sm">
                         <div class="flex flex-wrap items-baseline justify-between gap-3">
                             <span class="font-medium text-neutral-100">{{ $account['display_name'] === '' ? 'Unknown' : $account['display_name'] }}</span>
-                            <span class="text-xs text-neutral-400"><x-ui.date-time :value="$account['created_at']" /></span>
+                            <span class="text-sm text-neutral-400"><x-ui.date-time :value="$account['created_at']" /></span>
                         </div>
-                        <p class="font-mono text-xs text-neutral-400">{{ $account['id'] }}</p>
+                        <p class="font-mono text-sm text-neutral-400">{{ $account['id'] }}</p>
                         @if (($account['capabilities'] ?? []) !== [])
-                            <p class="text-xs text-neutral-400">{{ implode(', ', array_map(fn ($c) => Accounts::CAPABILITY_LABELS[$c] ?? $c, $account['capabilities'])) }}</p>
+                            <p class="text-sm text-neutral-400">{{ implode(', ', array_map(fn ($c) => Accounts::CAPABILITY_LABELS[$c] ?? $c, $account['capabilities'])) }}</p>
                         @endif
                     </li>
                 @endforeach

@@ -10,7 +10,7 @@
      converted there before it is sent. --}}
 @php
     $base = '/games/'.$shortname.'/edit';
-    $label = 'text-xs uppercase tracking-wide text-neutral-400';
+    $label = 'text-sm uppercase tracking-wide text-neutral-400';
     $heading = 'text-sm uppercase tracking-wide text-neutral-400';
     $section = 'flex flex-col gap-3 border-t border-neutral-900 pt-6';
     $links = old('label') !== null
@@ -49,7 +49,7 @@
             <div class="flex flex-col gap-1.5">
                 <label for="description" class="{{ $label }}">Description</label>
                 <textarea id="description" name="description" maxlength="4000" rows="5" class="{{ Ui::FIELD }}" aria-describedby="description-help">{{ old('description', $page['description'] ?? '') }}</textarea>
-                <p id="description-help" class="text-xs text-neutral-400">A blank line starts a new paragraph, one line break keeps text on the next line. Wrap words in **two asterisks** for bold, and *one asterisk* or _underscores_ for italic. Nothing else formats - no links, headings or HTML.</p>
+                <p id="description-help" class="text-sm text-neutral-400">A blank line starts a new paragraph, one line break keeps text on the next line. Wrap words in **two asterisks** for bold, and *one asterisk* or _underscores_ for italic. Nothing else formats - no links, headings or HTML.</p>
             </div>
             <fieldset class="flex flex-col gap-2">
                 <legend class="{{ $label }}">Links</legend>
@@ -117,7 +117,7 @@
             <div class="flex items-center gap-3">
                 <x-moderation.toggle-form :action="$base.'/visibility'" :fields="['shortname' => $shortname, 'hidden' => $page['hidden_at'] ? 'false' : 'true']" :label="$page['hidden_at'] ? 'Unhide this game' : 'Hide this game'" :button-class="Ui::button()" />
                 @if ($page['hidden_at'])
-                    <span class="text-xs text-neutral-400">This game is hidden right now.</span>
+                    <span class="text-sm text-neutral-400">This game is hidden right now.</span>
                 @endif
             </div>
             <ul class="flex flex-col gap-1.5 text-sm">

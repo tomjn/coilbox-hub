@@ -7,8 +7,8 @@
     // about to be approved reads across the whole sheet at a glance.
     $tile = 'flex cursor-pointer flex-col gap-2 rounded-md border border-neutral-800 bg-card p-2 opacity-40 grayscale transition-all hover:border-neutral-600 active:border-neutral-500 has-checked:border-neutral-400 has-checked:opacity-100 has-checked:grayscale-0 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-neutral-300';
     // Quiet for the everyday rejection, red for the one that cannot be undone.
-    $reject = 'rounded-sm bg-black/70 px-2 py-1.5 text-xs text-neutral-400 transition-colors hover:bg-black active:bg-black hover:text-neutral-100 active:text-neutral-100 focus-visible:text-neutral-100';
-    $rejectUnsafe = 'rounded-sm bg-black/70 px-2 py-1.5 text-xs text-red-500 transition-colors hover:bg-black active:bg-black hover:text-red-300 active:text-red-300 focus-visible:text-red-300';
+    $reject = 'rounded-sm bg-black/70 px-2 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-black active:bg-black hover:text-neutral-100 active:text-neutral-100 focus-visible:text-neutral-100';
+    $rejectUnsafe = 'rounded-sm bg-black/70 px-2 py-1.5 text-sm text-red-500 transition-colors hover:bg-black active:bg-black hover:text-red-300 active:text-red-300 focus-visible:text-red-300';
     // Outside the label, so a greyed unticked tile does not grey the warning too.
     $flagged = 'relative flex flex-col gap-1 rounded-md p-0.5 ring-2 ring-amber-500/80';
     $flag = 'rounded-sm bg-amber-950/80 px-1.5 py-1 text-[0.65rem] leading-tight font-medium text-amber-300';
@@ -63,7 +63,7 @@
                                 <input type="checkbox" name="asset[]" value="{{ $picture['id'] }}" @checked(! $picture['sourceConflict']) class="sr-only">
                                 {{-- Lazy, so a sheet scrolled halfway fetches half the bytes. --}}
                                 <img src="/moderation/assets/{{ $picture['id'] }}" alt="{{ $picture['name'] }}, {{ $picture['detail'] }}" width="{{ $picture['width'] }}" height="{{ $picture['height'] }}" loading="lazy" decoding="async" class="aspect-square w-full rounded-sm bg-black object-contain">
-                                <span class="flex flex-col gap-0.5 text-xs leading-tight">
+                                <span class="flex flex-col gap-0.5 text-sm leading-tight">
                                     <span class="truncate text-neutral-300" title="{{ $picture['name'] }}">{{ $picture['name'] }}</span>
                                     <span class="truncate text-neutral-400">{{ $picture['detail'] }}</span>
                                     <span class="truncate text-neutral-400" title="{{ $picture['sourceArchive'] }}">{{ $picture['origin'] }}, {{ round($picture['bytes'] / 1024) }} kB</span>
@@ -105,9 +105,9 @@
                             <li class="flex flex-col gap-3 rounded-md border border-neutral-800 bg-card p-4 text-sm">
                                 <div class="flex flex-wrap items-baseline justify-between gap-3">
                                     <a href="/moderation/assets/{{ $conflict['assetId'] }}" class="font-medium text-neutral-200 hover:underline active:underline">{{ $conflict['name'] }}@if ($conflict['detail'])<span class="text-neutral-400"> {{ $conflict['detail'] }}</span>@endif</a>
-                                    <span class="text-xs text-neutral-400">{{ substr(str_replace('T', ' ', $conflict['at']), 0, 16) }}</span>
+                                    <span class="text-sm text-neutral-400">{{ substr(str_replace('T', ' ', $conflict['at']), 0, 16) }}</span>
                                 </div>
-                                <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+                                <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
                                     <dt class="text-neutral-400">Archive</dt>
                                     <dd class="break-all text-neutral-300">{{ $conflict['sourceArchive'] }}</dd>
                                     <dt class="text-neutral-400">Held</dt>

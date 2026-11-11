@@ -51,7 +51,7 @@
           @endif
 
           @if ($detail && $detail['fields'] !== [])
-            <dl class="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1 font-mono text-xs">
+            <dl class="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1 font-mono text-sm">
               @foreach ($detail['fields'] as [$path, $value])
                 <div class="contents">
                   <dt class="break-all text-neutral-400">{{ $path }}</dt>

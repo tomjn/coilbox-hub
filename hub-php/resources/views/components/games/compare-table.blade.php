@@ -5,7 +5,7 @@
 <div class="overflow-x-auto">
     <table class="w-full border-collapse text-sm">
         <thead>
-            <tr class="border-b border-neutral-800 text-left text-xs uppercase tracking-wide text-neutral-400">
+            <tr class="border-b border-neutral-800 text-left text-sm uppercase tracking-wide text-neutral-400">
                 <th scope="col" class="py-2 pr-4 align-bottom">Stat</th>
                 <th scope="col" class="py-2 pr-4 align-bottom">{{ $left }}</th>
                 <th scope="col" class="py-2 pr-4 align-bottom">{{ $right }}</th>

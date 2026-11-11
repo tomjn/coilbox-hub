@@ -73,7 +73,7 @@
 
         @if ($page['snippet'] && ! $page['shown_version'])
             <section class="flex flex-col gap-2 rounded-md border border-neutral-900 bg-card p-4" aria-labelledby="unit-snippet">
-                <h2 id="unit-snippet" class="text-xs uppercase tracking-wide text-neutral-400">From the author</h2>
+                <h2 id="unit-snippet" class="text-sm uppercase tracking-wide text-neutral-400">From the author</h2>
                 <p class="text-sm text-neutral-200">{{ $page['snippet'] }}</p>
             </section>
         @endif
@@ -133,7 +133,7 @@
                 @if (count($page['versions']) >= 2)
                     <form action="/games/{{ $shortname }}/units/{{ $page['unit_name'] }}/compare" method="get" class="flex flex-wrap items-end gap-3 pt-2">
                         <div class="flex flex-col gap-1.5">
-                            <label for="compare-left" class="text-xs uppercase tracking-wide text-neutral-400">Compare</label>
+                            <label for="compare-left" class="text-sm uppercase tracking-wide text-neutral-400">Compare</label>
                             <select id="compare-left" name="left" class="{{ $select }}">
                                 @foreach ($page['versions'] as $version)
                                     <option value="{{ $version }}" @selected($version === $page['versions'][1])>{{ $version }}</option>
@@ -141,7 +141,7 @@
                             </select>
                         </div>
                         <div class="flex flex-col gap-1.5">
-                            <label for="compare-right" class="text-xs uppercase tracking-wide text-neutral-400">With</label>
+                            <label for="compare-right" class="text-sm uppercase tracking-wide text-neutral-400">With</label>
                             <select id="compare-right" name="right" class="{{ $select }}">
                                 @foreach ($page['versions'] as $version)
                                     <option value="{{ $version }}" @selected($version === $page['versions'][0])>{{ $version }}</option>

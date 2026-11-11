@@ -7,7 +7,7 @@
     $column = 'mx-auto w-full max-w-3xl px-6';
     $players = Labels::players(count($facts['points']['start'] ?? []));
     $wind = Labels::wind($facts['min_wind'] ?? null, $facts['max_wind'] ?? null);
-    $term = 'text-xs uppercase tracking-wide text-neutral-400';
+    $term = 'text-sm uppercase tracking-wide text-neutral-400';
     $value = 'text-sm text-neutral-100';
 @endphp
 
@@ -66,7 +66,7 @@
             @if (($facts['tags'] ?? []) !== [])
                 <ul class="flex flex-wrap gap-1.5">
                     @foreach ($facts['tags'] as $tag)
-                        <li><a class="inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200" href="/maps?tag={{ MapPage::encodeURIComponent($tag) }}">{{ $tag }}</a></li>
+                        <li><a class="inline-block rounded bg-neutral-900 px-2 py-1 text-sm text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200" href="/maps?tag={{ MapPage::encodeURIComponent($tag) }}">{{ $tag }}</a></li>
                     @endforeach
                 </ul>
             @endif

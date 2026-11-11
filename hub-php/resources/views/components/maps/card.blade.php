@@ -13,7 +13,7 @@
     $title = Labels::title($map['display_name'], $map['map_name']);
     $players = Labels::players((int) $map['start_positions']);
     $maxWidth = Js::number((200 * $map['width_elmos']) / $map['height_elmos']);
-    $chip = 'inline-block rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200';
+    $chip = 'inline-block rounded bg-neutral-900 px-2 py-1 text-sm text-neutral-400 transition-colors hover:text-neutral-200 active:text-neutral-200';
 @endphp
 <article class="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-card p-4">
     <a class="relative block" href="/map/{{ $map['slug'] }}">
@@ -25,7 +25,7 @@
             </div>
         @endif
         @if ($map['featured_at'])
-            <span class="absolute left-2 top-2 rounded border border-neutral-700 bg-black/80 px-2 py-1 text-xs text-neutral-100">Featured</span>
+            <span class="absolute left-2 top-2 rounded border border-neutral-700 bg-black/80 px-2 py-1 text-sm text-neutral-100">Featured</span>
         @endif
     </a>
 
@@ -35,11 +35,11 @@
         </h2>
         {{-- The canonical name, which is what a lobby shows. Only when the archive gave a friendlier one. --}}
         @if ($title !== $map['map_name'])
-            <p class="break-words text-xs text-neutral-400">{{ $map['map_name'] }}</p>
+            <p class="break-words text-sm text-neutral-400">{{ $map['map_name'] }}</p>
         @endif
     </div>
 
-    <dl class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400">
+    <dl class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-neutral-400">
         <div class="flex gap-1">
             <dt class="sr-only">Size</dt>
             <dd>{{ Labels::size($map['width_elmos'], $map['height_elmos']) }}</dd>

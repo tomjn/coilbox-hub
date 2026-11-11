@@ -8,8 +8,8 @@ final class Ui
     private const BASE = 'rounded-md transition-colors disabled:opacity-60 group-aria-busy:cursor-progress group-aria-busy:opacity-60';
 
     private const SIZES = [
-        'xs' => 'px-2 py-1 text-xs',
-        'sm' => 'px-3 py-1 text-xs',
+        'xs' => 'px-2 py-1 text-sm',
+        'sm' => 'px-3 py-1 text-sm',
         'md' => 'px-3 py-1.5 text-sm',
         'base' => 'px-4 py-2 text-sm',
         'lg' => 'px-5 py-2.5 text-sm',

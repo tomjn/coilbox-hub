@@ -19,7 +19,7 @@
         <x-assets.placeholder :of="$picture" />
         @if ($slug)</a>@endif
         @if ($facts || $note)
-            <figcaption class="mt-auto flex flex-col gap-0.5 text-xs text-neutral-400">
+            <figcaption class="mt-auto flex flex-col gap-0.5 text-sm text-neutral-400">
                 @if ($facts)<span>{{ $facts }}</span>@endif
                 @if ($note)<span>{{ $note }}</span>@endif
             </figcaption>
@@ -32,7 +32,7 @@
             <img src="{{ $picture['url'] }}" alt="Minimap of {{ $name }}" class="absolute inset-0 size-full object-cover">
         </div>
         @if ($slug)</a>@endif
-        <figcaption class="mt-auto flex flex-col gap-0.5 text-xs text-neutral-400">
+        <figcaption class="mt-auto flex flex-col gap-0.5 text-sm text-neutral-400">
             <span class="text-neutral-300">@if ($slug)<a href="/map/{{ $slug }}" class="hover:underline active:underline">{{ $name }}</a>@else{{ $name }}@endif</span>
             @if ($facts)<span>{{ $facts }}</span>@endif
             @if ($note)<span>{{ $note }}</span>@endif

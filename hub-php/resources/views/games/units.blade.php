@@ -22,7 +22,7 @@
             @endif
             <form action="/games/{{ $shortname }}/units" class="flex flex-wrap items-end gap-3">
                 <div class="flex min-w-48 flex-1 flex-col gap-1.5">
-                    <label for="units-q" class="text-xs uppercase tracking-wide text-neutral-400">Search</label>
+                    <label for="units-q" class="text-sm uppercase tracking-wide text-neutral-400">Search</label>
                     <input id="units-q" type="search" name="q" value="{{ $filters['q'] ?? '' }}" class="{{ Ui::FIELD }}"/>
                 </div>
                 @if ($retiredHeld)

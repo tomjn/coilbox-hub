@@ -46,14 +46,14 @@
                         <li class="{{ $row }}">
                             <div class="flex flex-wrap items-baseline justify-between gap-3">
                                 {!! $pictureLink($asset['id'], $asset['name'], $asset['detail']) !!}
-                                <span class="text-xs text-neutral-400">{{ $asset['origin'] }}, {{ $when($asset['createdAt']) }}</span>
+                                <span class="text-sm text-neutral-400">{{ $asset['origin'] }}, {{ $when($asset['createdAt']) }}</span>
                             </div>
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <p class="{{ $safety ? 'text-red-400' : 'text-neutral-400' }}">{{ $assetState($asset) }}</p>
                                 @if ($asset['moderation'] === 'rejected')
                                     @if ($safety)
                                         {{-- No button. A safety rejection is not a call to revisit, and the database refuses one anyway. --}}
-                                        <span class="text-xs text-red-400">Final</span>
+                                        <span class="text-sm text-red-400">Final</span>
                                     @else
                                         <form method="post" action="/moderation/trail/return">
                                             @csrf
@@ -81,10 +81,10 @@
                     <li class="{{ $row }}">
                         <div class="flex flex-wrap items-baseline justify-between gap-3">
                             {!! $pictureLink($event['assetId'], $event['name'], $event['detail']) !!}
-                            <span class="text-xs text-neutral-400">{{ $when($event['at']) }}</span>
+                            <span class="text-sm text-neutral-400">{{ $when($event['at']) }}</span>
                         </div>
                         <p class="{{ $event['rejectionKind'] === 'safety' ? 'text-red-400' : 'text-neutral-400' }}">{{ Trail::eventLine($event) }}</p>
-                        <p class="flex flex-wrap gap-x-4 text-xs">
+                        <p class="flex flex-wrap gap-x-4 text-sm">
                             @if ($event['actor'])
                                 {!! $accountLink($event['actor'], 'by') !!}
                             @else
@@ -95,7 +95,7 @@
                             @endif
                         </p>
                         @if ($uploaderName)
-                            <p class="text-xs text-neutral-300">{{ $uploaderName }}</p>
+                            <p class="text-sm text-neutral-300">{{ $uploaderName }}</p>
                         @endif
                     </li>
                 @endforeach

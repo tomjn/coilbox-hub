@@ -88,7 +88,7 @@
         </div>
     </header>
     @yield('content')
-    <footer class="flex flex-wrap gap-x-6 px-6 py-6 text-xs text-neutral-400">
+    <footer class="flex flex-wrap gap-x-6 px-6 py-6 text-sm text-neutral-400">
         <a href="/developers" class="py-2 transition-colors hover:text-white active:text-white">API</a>
         <a href="/feed.xml" class="py-2 transition-colors hover:text-white active:text-white">Atom feed</a>
     </footer>

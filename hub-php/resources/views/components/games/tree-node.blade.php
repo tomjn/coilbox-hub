@@ -22,7 +22,7 @@
     <x-games.tree-row :game="$game" :node="$node" :picture="$pictures[$node['name']] ?? null" fit />
     @if (count($children) > 0)
         <details open="" class="group">
-            <summary class="ml-1 inline cursor-pointer list-none text-xs text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">
+            <summary class="ml-1 inline cursor-pointer list-none text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">
                 <span aria-hidden="true" class="mr-1 inline-block text-center transition-transform group-open:rotate-45">+</span>
                 builds {{ count($children) }}
             </summary>

@@ -65,7 +65,7 @@
                     <p>More than one unit has that name. Choose one.</p>
                     <ul class="flex flex-col gap-1">
                         @foreach ($resolved['choices'] as $choice)
-                            <li><a href="{{ $compareHref($choice['name'], $unit, $askedRelease) }}" class="{{ $link }}">{{ $choice['label'] }}</a> <span class="font-mono text-xs text-neutral-400">{{ $choice['name'] }}</span></li>
+                            <li><a href="{{ $compareHref($choice['name'], $unit, $askedRelease) }}" class="{{ $link }}">{{ $choice['label'] }}</a> <span class="font-mono text-sm text-neutral-400">{{ $choice['name'] }}</span></li>
                         @endforeach
                     </ul>
                 @endif

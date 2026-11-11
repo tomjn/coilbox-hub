@@ -12,6 +12,6 @@
                 <img src="{{ $picture['url'] }}" alt="Buildpic of {{ $label }}" width="64" height="64" @unless ($eager) loading="lazy" @endunless decoding="async" class="max-h-16 w-auto object-contain"/>
             @endif
         </span>
-        <span class="line-clamp-2 text-center text-xs text-neutral-300 transition-colors group-hover:text-white group-active:text-white">{{ $label }}</span>
+        <span class="line-clamp-2 text-center text-sm text-neutral-300 transition-colors group-hover:text-white group-active:text-white">{{ $label }}</span>
     </a>
 </li>
