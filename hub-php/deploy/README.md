@@ -52,7 +52,7 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
    deployuser ALL=(root) NOPASSWD: /usr/bin/systemctl reload php8.4-fpm
    ```
 
-6. Get a certificate, then install the Nginx site. On this droplet Apache holds port 80 and serves `/var/www/html` for every host, so certbot proves the domain through that folder:
+6. Get a certificate, then install the Nginx site. On this droplet one Nginx site, `/etc/nginx/sites-available/http`, answers port 80 for every host. It sends each request to the same address on HTTPS, except certbot's checks, which it answers from `/var/www/html`. So certbot proves the domain through that folder, and the hub needs no port 80 setup of its own:
 
    ```
    sudo certbot certonly --webroot -w /var/www/html -d hub.coilbox.org
@@ -68,23 +68,14 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
    sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
    ```
 
-7. Send plain HTTP to HTTPS. Apache holds port 80, so the redirect is an Apache site. It leaves certbot's renewal checks alone:
-
-   ```
-   sudo cp deploy/apache-http.conf /etc/apache2/sites-available/hub.coilbox.org.conf
-   sudo a2enmod rewrite
-   sudo a2ensite hub.coilbox.org
-   sudo apache2ctl configtest && sudo systemctl reload apache2
-   ```
-
-8. Make an SSH key for GitHub Actions to deploy with, used for nothing else. Put the public half in the deploy user's `~/.ssh/authorized_keys`. Then add these secrets to the hub repository's `production` environment:
+7. Make an SSH key for GitHub Actions to deploy with, used for nothing else. Put the public half in the deploy user's `~/.ssh/authorized_keys`. Then add these secrets to the hub repository's `production` environment:
 
    - `DEPLOY_HOST`: the droplet's address.
    - `DEPLOY_USER`: the deploy user.
    - `DEPLOY_SSH_KEY`: the private key.
    - `DEPLOY_KNOWN_HOSTS`: the output of `ssh-keyscan <droplet address>`.
 
-9. In the Supabase dashboard, under Authentication, URL Configuration, add `https://hub.coilbox.org/auth/callback` to the redirect URLs, and set the Site URL to `https://hub.coilbox.org`. Without the redirect URL, signing in on the website sends people back to the old address.
+8. In the Supabase dashboard, under Authentication, URL Configuration, add `https://hub.coilbox.org/auth/callback` to the redirect URLs, and set the Site URL to `https://hub.coilbox.org`. Without the redirect URL, signing in on the website sends people back to the old address.
 
 ## Deploying
 
