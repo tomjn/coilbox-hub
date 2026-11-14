@@ -140,11 +140,15 @@ const GROUPS: VendorGroup[] = [
     // there are or how they join up.
     dir: "src/runlite",
     vendor: "lib/runlite",
-    files: ["generate.ts"],
+    files: ["generate.ts", "starterKit.ts"],
     externals: {
       "lib/runlite/model.ts": "a hand written subset of upstream's model.ts",
       "lib/campaign/model.ts":
         "one type the generator only passes through, from a file that reaches the plugin bindings",
+      // starterKit.ts reads unit facts through this type. Already declared
+      // external in the content group, for the same file and the same reason.
+      "lib/content/bindings.ts":
+        "one type, from a file that is the Tauri plugin binding layer",
     },
     // No constants check. Everything that decides the shape of a run, the
     // column count per length included, lives inside the vendored generate.ts,

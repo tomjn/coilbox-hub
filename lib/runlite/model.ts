@@ -69,6 +69,9 @@ export type RewardOption =
 export interface RewardSpec {
   title: string;
   options: RewardOption[];
+  /** Salvage banked on reaching the cache, whatever the player takes. Absent
+   * on a run generated before caches paid any. */
+  salvage?: number;
 }
 
 export interface EventChoice {
