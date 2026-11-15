@@ -9,7 +9,7 @@
     <div class="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12">
         <div class="flex flex-col gap-2">
             <h1 class="text-3xl font-semibold tracking-tight">Games</h1>
-            <p class="text-neutral-400">The games people play, what they are called, and every unit in them.</p>
+            <p class="text-neutral-400">The games people play, what they are called, and every unit in them. <a class="text-neutral-300 underline-offset-4 hover:underline active:underline" href="/add">Want to add your own game?</a></p>
         </div>
 
         @if ($error)

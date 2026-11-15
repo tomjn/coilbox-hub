@@ -37,6 +37,7 @@ final class Sitemap
             ['url' => $origin.'/maps'],
             ['url' => $origin.'/games'],
             ['url' => $origin.'/developers'],
+            ['url' => $origin.'/add'],
         ];
         foreach ($source['items'] as $item) {
             $entries[] = ['url' => $origin.'/item/'.self::part($item['id']), 'lastModified' => Feed::rfc3339($item['updated_at'])];

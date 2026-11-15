@@ -16,6 +16,7 @@
         <div class="flex flex-col gap-2">
             <h1 class="text-3xl font-semibold tracking-tight">Publish</h1>
             <p class="text-neutral-400">Share something you have made in Coilbox. Anyone can browse and import it without an account.</p>
+            <p class="text-neutral-400">Adding a game or map works differently. <a class="text-neutral-300 underline-offset-4 hover:underline active:underline" href="/add">How to add a game or map</a>.</p>
         </div>
 
         @if (! $signedIn)

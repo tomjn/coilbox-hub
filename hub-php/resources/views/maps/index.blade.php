@@ -25,7 +25,7 @@
         <div class="flex max-w-5xl flex-col gap-8">
             <div class="flex flex-col gap-2">
                 <h1 class="text-3xl font-semibold tracking-tight">Maps</h1>
-                <p class="text-neutral-400">What the hub knows about the maps people play on, from the archives themselves.</p>
+                <p class="text-neutral-400">What the hub knows about the maps people play on, from the archives themselves. <a class="text-neutral-300 underline-offset-4 hover:underline active:underline" href="/add">Want to add your own map?</a></p>
             </div>
 
             {{-- A GET to this same route, so it works with scripting off. The page is not in the form: a filter change starts at page one. --}}
