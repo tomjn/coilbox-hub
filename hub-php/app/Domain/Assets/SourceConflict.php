@@ -13,6 +13,11 @@ use App\Supabase\SupabaseException;
  * archive is odd: a modified client or a corrupted install. It is a signal for
  * the moderation grid and never a gate. A different archive is an ordinary
  * version rollover.
+ *
+ * Only a second account counts. The uploader sending new bytes for their own
+ * picture is a re-upload, which a client update can cause for a whole game at
+ * once. Renders never reach here, because the client draws them and their
+ * bytes change with the client, not the archive.
  */
 final class SourceConflict
 {
@@ -20,13 +25,14 @@ final class SourceConflict
      * The disagreement, or null. A rejected row is out of the queue, so a mark
      * on it would be one nobody sees.
      *
-     * @param  array{id: string, source_hash: string, source_archive: string, moderation: string}  $held
+     * @param  array{id: string, source_hash: string, source_archive: string, uploaded_by: ?string, moderation: string}  $held
      * @param  array{sourceHash: string, sourceArchive: string}  $declared
      * @return array{assetId: string, sourceArchive: string, heldSourceHash: string, reportedSourceHash: string, reportedBy: string}|null
      */
     public static function detect(array $held, array $declared, string $reportedBy): ?array
     {
         if ($held['moderation'] === 'rejected'
+            || $held['uploaded_by'] === $reportedBy
             || $held['source_archive'] !== $declared['sourceArchive']
             || $held['source_hash'] === $declared['sourceHash']) {
             return null;

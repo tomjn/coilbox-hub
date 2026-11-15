@@ -100,7 +100,8 @@ final class Upload
 
         // The Next app issues these four together and reads them in this order.
         $existing = self::fetchExisting($admin, $identity);
-        $unitRenders = $identity['keyedOn'] === 'unit' && str_starts_with($identity['variant'], Asset::unitRenderVariantPrefix())
+        $isRender = $identity['keyedOn'] === 'unit' && str_starts_with($identity['variant'], Asset::unitRenderVariantPrefix());
+        $unitRenders = $isRender
             ? self::count(fn () => $admin->from('asset')
                 ->select('id', 'exact')
                 ->eq('game', $identity['game'])
@@ -120,7 +121,7 @@ final class Upload
         $replacing = $existing;
 
         // Rides along on a refusal for another account's row and on acceptance, and on nothing in between.
-        $conflict = $replacing !== null ? SourceConflict::detect($replacing, $declaration, $userId) : null;
+        $conflict = $replacing !== null && ! $isRender ? SourceConflict::detect($replacing, $declaration, $userId) : null;
 
         $takingOver = $replacing !== null && $replacing['uploaded_by'] !== $userId;
 
