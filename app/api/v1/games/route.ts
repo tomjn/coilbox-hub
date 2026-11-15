@@ -1,7 +1,7 @@
 import { corsPreflight } from "@/lib/api/cors";
 import { buildGameListBody } from "@/lib/api/gameList";
 import { apiError, apiJson } from "@/lib/api/response";
-import { fetchGames } from "@/lib/games/query";
+import { fetchGames, fetchReleases } from "@/lib/games/query";
 import { createAnonClient } from "@/lib/supabase/anon";
 
 /**
@@ -28,5 +28,9 @@ export async function GET() {
     console.error("GET /api/v1/games: the catalog could not be read", error);
     return apiError("The catalog could not be read just now.", 503);
   }
-  return apiJson(buildGameListBody(games));
+  const releases = await fetchReleases(createAnonClient());
+  if (!releases) {
+    console.warn("GET /api/v1/games: the releases could not be read");
+  }
+  return apiJson(buildGameListBody(games, releases));
 }

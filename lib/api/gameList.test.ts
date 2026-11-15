@@ -126,3 +126,18 @@ test("the order the listing was given is the order published", () => {
   ]);
   expect(body.games.map((row) => row.shortname)).toEqual(["Pinned", "Ordinary"]);
 });
+
+test("each game lists the releases the hub holds, matched on its shortname ignoring case", () => {
+  const releases = new Map([["bar", ["1.9.0", "1.8.0"]]]);
+  const [bar, other] = buildGameListBody(
+    [game({ shortname: "BAR" }), game({ shortname: "ZK" })],
+    releases,
+  ).games;
+  expect(bar.releases).toEqual(["1.9.0", "1.8.0"]);
+  expect(other.releases).toEqual([]);
+});
+
+test("releases that could not be read are left off rather than claimed empty", () => {
+  const [row] = buildGameListBody([game({ shortname: "BAR" })], null).games;
+  expect("releases" in row).toBe(false);
+});

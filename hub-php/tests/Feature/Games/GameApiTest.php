@@ -42,7 +42,9 @@ class GameApiTest extends TestCase
         Http::fake(['https://sb.test/rest/v1/game_browse*' => Http::response([
             ['shortname' => 'ZZ', 'display_name' => null, 'description' => null, 'featured_at' => null, 'downloads' => [], 'faction_count' => 1, 'unit_count' => 2, 'item_count' => 0, 'base_game' => null],
             ['shortname' => 'AA', 'display_name' => 'Zed', 'description' => 'd', 'featured_at' => '2026-01-01T00:00:00Z', 'downloads' => [['kind' => 'rapid', 'value' => 'a:b']], 'faction_count' => 0, 'unit_count' => 0, 'item_count' => 3, 'base_game' => null, 'logo_path' => 'games/AA/logo.png', 'logo_hash' => 'h', 'logo_staged_tier' => 'bucket'],
-        ])]);
+        ]),
+            'https://sb.test/rest/v1/game_version*' => Http::response([]),
+        ]);
 
         $response = $this->getJson('/api/v1/games');
 
@@ -55,6 +57,41 @@ class GameApiTest extends TestCase
             ->assertJsonPath('games.0.downloads', [['kind' => 'rapid', 'value' => 'a:b']])
             ->assertJsonPath('games.1.title', 'ZZ');
         $this->assertStringContainsString('max-age=60', $response->headers->get('Cache-Control'));
+    }
+
+    public function test_each_game_lists_the_releases_the_hub_holds_newest_first(): void
+    {
+        Http::fake([
+            'https://sb.test/rest/v1/game_browse*' => Http::response([
+                ['shortname' => 'BA', 'display_name' => null, 'description' => null, 'featured_at' => null, 'downloads' => [], 'faction_count' => 0, 'unit_count' => 0, 'item_count' => 0, 'base_game' => null],
+                ['shortname' => 'SF', 'display_name' => null, 'description' => null, 'featured_at' => null, 'downloads' => [], 'faction_count' => 0, 'unit_count' => 0, 'item_count' => 0, 'base_game' => null],
+            ]),
+            'https://sb.test/rest/v1/game_version*' => Http::sequence()
+                ->push([
+                    ['version' => '1.9.0', 'last_seen_at' => '2026-11-02T00:00:00Z', 'game' => ['shortname' => 'BA']],
+                    ['version' => '1.8.0', 'last_seen_at' => '2026-10-01T00:00:00Z', 'game' => ['shortname' => 'BA']],
+                ])
+                ->push([]),
+        ]);
+
+        $this->getJson('/api/v1/games')
+            ->assertOk()
+            ->assertJsonPath('games.0.shortname', 'BA')
+            ->assertJsonPath('games.0.releases', ['1.9.0', '1.8.0'])
+            ->assertJsonPath('games.1.releases', []);
+    }
+
+    public function test_a_failed_release_read_leaves_the_field_off_rather_than_claiming_none(): void
+    {
+        Http::fake([
+            'https://sb.test/rest/v1/game_browse*' => Http::response([
+                ['shortname' => 'BA', 'display_name' => null, 'description' => null, 'featured_at' => null, 'downloads' => [], 'faction_count' => 0, 'unit_count' => 0, 'item_count' => 0, 'base_game' => null],
+            ]),
+            'https://sb.test/rest/v1/game_version*' => Http::response(['message' => 'down'], 500),
+        ]);
+
+        $response = $this->getJson('/api/v1/games')->assertOk();
+        $this->assertArrayNotHasKey('releases', $response->json('games.0'));
     }
 
     public function test_a_failed_read_is_a_503_not_an_empty_list(): void

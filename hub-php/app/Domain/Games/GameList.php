@@ -20,8 +20,15 @@ final class GameList
 
     public const VERSION = 1;
 
-    /** In the order given, which is the page's: featured first, then alphabetical. @param list<array> $games */
-    public static function body(array $games): array
+    /**
+     * In the order given, which is the page's: featured first, then alphabetical.
+     * `releases` is left off every game when it could not be read, which a
+     * client reads as not knowing rather than as a game with none.
+     *
+     * @param  list<array>  $games
+     * @param  array<string, list<string>>|null  $releases  from `Query::fetchReleases`
+     */
+    public static function body(array $games, ?array $releases = null): array
     {
         return [
             'format' => self::FORMAT,
@@ -39,7 +46,9 @@ final class GameList
                 'unit_count' => $game['unit_count'] ?? 0,
                 'item_count' => $game['item_count'] ?? 0,
                 'base_game' => $game['base_game'] ?? null,
-            ], $games),
+            ] + ($releases === null ? [] : [
+                'releases' => $releases[strtolower($game['shortname'])] ?? [],
+            ]), $games),
         ];
     }
 }

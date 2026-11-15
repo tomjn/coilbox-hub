@@ -47,7 +47,12 @@ class GameApiController extends Controller
             return Api::error('The catalog could not be read just now.', 503);
         }
 
-        return Api::json(GameList::body($listing['games']));
+        $releases = Query::fetchReleases(Supabase::anon());
+        if ($releases === null) {
+            Log::warning('GET /api/v1/games: the releases could not be read');
+        }
+
+        return Api::json(GameList::body($listing['games'], $releases));
     }
 
     /**

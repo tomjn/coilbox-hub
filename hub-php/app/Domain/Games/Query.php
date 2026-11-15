@@ -57,4 +57,30 @@ final class Query
 
         return ['games' => $rows, 'error' => null];
     }
+
+    /**
+     * Every release each game has facts for, newest report first, keyed on the
+     * lowercased shortname. Coilbox reads it to tell whether the hub holds the
+     * release a player has installed. Null on a failed read, so the caller can
+     * leave the field off rather than claim a game has no releases.
+     *
+     * @return array<string, list<string>>|null
+     */
+    public static function fetchReleases(Client $supabase): ?array
+    {
+        $rows = ReadAll::rows(fn () => $supabase
+            ->from('game_version')
+            ->select('version,last_seen_at,game!inner(shortname)')
+            ->order('last_seen_at', ascending: false)
+            ->order('version'));
+        if ($rows === null) {
+            return null;
+        }
+        $releases = [];
+        foreach ($rows as $row) {
+            $releases[strtolower($row['game']['shortname'])][] = $row['version'];
+        }
+
+        return $releases;
+    }
 }
