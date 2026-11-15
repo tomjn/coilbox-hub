@@ -16,6 +16,7 @@ prev="${VERCEL_GIT_PREVIOUS_SHA:-}"
 
 git diff --quiet "$prev" "${VERCEL_GIT_COMMIT_SHA:-HEAD}" -- . \
   ':(exclude)docs' \
+  ':(exclude)hub-php' \
   ':(exclude)scripts' \
   ':(exclude)supabase' \
   ':(exclude).github' \

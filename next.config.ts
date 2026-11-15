@@ -15,6 +15,12 @@ if (process.env.VERCEL && !getSupabaseConfig().ok) {
   throw new Error(SUPABASE_CONFIG_ERROR);
 }
 
+// The hub now runs from `hub-php/` at this address. On Vercel this app only
+// sends people there. Locally it still serves every page, as the reference the
+// PHP port is checked against.
+const PHP_HUB = "https://hub.coilbox.org";
+const ON_VERCEL = Boolean(process.env.VERCEL);
+
 // The hub serves its own pictures at the size it shows them, so nothing here
 // goes through next/image and no remote host has to be allowed.
 const nextConfig: NextConfig = {
@@ -31,6 +37,17 @@ const nextConfig: NextConfig = {
   // `generateStaticParams` on the segment, even a placeholder.
   partialPrefetching: true,
   async redirects() {
+    if (ON_VERCEL) {
+      return [
+        // Every page, with its query string. The API and the container links
+        // are left to the rewrites below.
+        {
+          source: "/:path((?!api/v1/|i/).*)",
+          destination: `${PHP_HUB}/:path`,
+          permanent: true,
+        },
+      ];
+    }
     return [
       // A unit at a past release moved from `?v=` to `<unit>@<release>`, so the
       // unit page reads nothing from the request and the CDN can serve it
@@ -44,6 +61,17 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
+    if (ON_VERCEL) {
+      return {
+        // Proxied, not redirected. Installed copies of Coilbox call this host,
+        // and their HTTP client drops the Authorization header when a redirect
+        // changes host, which would sign every upload out.
+        beforeFiles: [
+          { source: "/api/v1/:path*", destination: `${PHP_HUB}/api/v1/:path*` },
+          { source: "/i/:path*", destination: `${PHP_HUB}/i/:path*` },
+        ],
+      };
+    }
     return {
       // Before the pages are matched, or the listing's own page would answer.
       beforeFiles: [

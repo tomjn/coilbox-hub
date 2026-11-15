@@ -1,6 +1,6 @@
 # Coilbox Hub in PHP
 
-This folder is the hub rebuilt as a Laravel app. It replaces the Next.js app in the repository root, which Vercel stopped serving in November 2026. It runs on a DigitalOcean droplet at `https://hub.coilbox.org`.
+This folder is the hub rebuilt as a Laravel app. It replaces the Next.js app in the repository root. Since November 2026 that app only forwards `coilbox-hub.vercel.app` traffic here: pages redirect, and `/api/v1/*` and `/i/*` are proxied so installed copies of Coilbox keep working. It runs on a DigitalOcean droplet at `https://hub.coilbox.org`.
 
 For now it keeps Supabase for the database, sign in and the staging picture bucket. It talks to Supabase over HTTP, the same PostgREST and Auth endpoints supabase-js uses, so row level security and the database functions behave exactly as they do for the Next app. A later phase moves the rules out of Postgres and into this app, then moves the data to MariaDB. Do not start that work here.
 
