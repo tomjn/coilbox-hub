@@ -69,6 +69,7 @@ interface ExistingRow {
   source_archive: string;
   uploaded_by: string | null;
   moderation: string;
+  tier: string;
   bytes: number;
   bytes_missing_at: string | null;
 }
@@ -84,6 +85,7 @@ function held(overrides: Partial<ExistingRow> = {}): ExistingRow {
     source_archive: "byar_1.1.sdz",
     uploaded_by: USER,
     moderation: "approved",
+    tier: "bucket",
     bytes: 4096,
     bytes_missing_at: null,
     ...overrides,
@@ -629,6 +631,14 @@ test("a replacement is charged the difference rather than the whole object", asy
 
   expect((await check(world(full), { bytes: 4096 })).ok).toBe(true);
   expect((await check(world(full), { bytes: 4097 })).ok).toBe(false);
+});
+
+/** A promoted row has left the bucket and is not in the total, so nothing
+ * comes off it. */
+test("replacing a promoted row is charged the whole object", async () => {
+  const full = { existing: held({ tier: "static" }), accountBytes: ACCOUNT_STORAGE_QUOTA_BYTES };
+
+  expect((await check(world(full), { bytes: 4096 })).ok).toBe(false);
 });
 
 /**

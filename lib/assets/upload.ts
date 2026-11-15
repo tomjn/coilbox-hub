@@ -85,8 +85,8 @@ export const ASSET_MAX_OBJECT_BYTES = vocabulary.maxObjectBytes;
 /**
  * How much of the store one account may hold.
  *
- * The staging bucket is 1 GB, so this is a sixteenth of it. It sums every row
- * the account ever uploaded, promoted ones included. It is a ceiling on one
+ * The staging bucket is 1 GB, so this is a sixteenth of it. It sums the rows
+ * the account still has in the bucket. Promoted rows have left it. It is a ceiling on one
  * account taking the store away from everybody else rather than a budget
  * anybody is expected to reach: the entire buildpic corpus is about 20 MB.
  */
@@ -203,7 +203,7 @@ export type AssetUploadCheck =
  * that may be replaced at all, how much of the account's quota the superseded
  * row is holding, and whether the hub has lost its bytes (#336). */
 const EXISTING_COLUMNS =
-  "id, source_hash, source_archive, uploaded_by, moderation, bytes, bytes_missing_at";
+  "id, source_hash, source_archive, uploaded_by, moderation, tier, bytes, bytes_missing_at";
 
 interface ExistingAsset {
   id: string;
@@ -211,6 +211,7 @@ interface ExistingAsset {
   source_archive: string;
   uploaded_by: string | null;
   moderation: string;
+  tier: string;
   bytes: number;
   bytes_missing_at: string | null;
 }
@@ -509,8 +510,9 @@ export async function checkAssetUpload(
   // orphan for #113 to clear rather than storage this account still holds.
   //
   // Not on a takeover. The superseded row was in another account's total and
-  // never in this one, so the whole object is new to this account.
-  const superseded = replacing && !takingOver ? replacing.bytes : 0;
+  // never in this one, so the whole object is new to this account. Nor for a
+  // promoted row, which has left the bucket and the total with it.
+  const superseded = replacing && !takingOver && replacing.tier === "bucket" ? replacing.bytes : 0;
   if (accountBytes.data - superseded + bytes > ACCOUNT_STORAGE_QUOTA_BYTES) {
     return {
       ok: false,

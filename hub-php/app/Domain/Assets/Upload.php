@@ -25,7 +25,7 @@ final class Upload
         return Asset::vocabulary()['maxObjectBytes'];
     }
 
-    /** A sixteenth of the 1 GB staging bucket, per account, promoted rows included. */
+    /** A sixteenth of the 1 GB staging bucket, per account. Promoted rows have left the bucket and do not count. */
     public const ACCOUNT_STORAGE_QUOTA_BYTES = 64 * 1024 * 1024;
 
     /** Renders are the one class that grows without bound (units times angles), so they are capped per unit. */
@@ -38,7 +38,7 @@ final class Upload
      */
     public const SUBJECT_UPLOADS_PER_HOUR = 500;
 
-    private const EXISTING_COLUMNS = 'id, source_hash, source_archive, uploaded_by, moderation, bytes, bytes_missing_at';
+    private const EXISTING_COLUMNS = 'id, source_hash, source_archive, uploaded_by, moderation, tier, bytes, bytes_missing_at';
 
     private const FACTIONS_UNAVAILABLE = ['ok' => false, 'error' => "The game's factions could not be read just now. Try again shortly.", 'status' => 503];
 
@@ -154,8 +154,9 @@ final class Upload
         if (! is_int($accountBytes) && ! is_float($accountBytes)) {
             return self::QUOTA_UNAVAILABLE;
         }
-        // The superseded row's bytes come off the total, except on a takeover, where they were never this account's.
-        $superseded = $replacing !== null && ! $takingOver ? $replacing['bytes'] : 0;
+        // The superseded row's bytes come off the total, except on a takeover, where they were never this
+        // account's, and for a promoted row, which the total no longer counts.
+        $superseded = $replacing !== null && ! $takingOver && $replacing['tier'] === 'bucket' ? $replacing['bytes'] : 0;
         if ($accountBytes - $superseded + $bytes > self::ACCOUNT_STORAGE_QUOTA_BYTES) {
             return ['ok' => false, 'error' => 'That upload would put this account over its '.self::ACCOUNT_STORAGE_QUOTA_BYTES.' byte storage quota.', 'status' => 413];
         }

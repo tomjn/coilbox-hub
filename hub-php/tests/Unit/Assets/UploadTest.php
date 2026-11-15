@@ -47,7 +47,7 @@ class UploadTest extends TestCase
 
     private function held(array $over = []): array
     {
-        return [...['id' => 'held', 'source_hash' => 'raw-old', 'source_archive' => 'byar_1.1.sdz', 'uploaded_by' => self::USER, 'moderation' => 'approved', 'bytes' => 4096, 'bytes_missing_at' => null], ...$over];
+        return [...['id' => 'held', 'source_hash' => 'raw-old', 'source_archive' => 'byar_1.1.sdz', 'uploaded_by' => self::USER, 'moderation' => 'approved', 'tier' => 'bucket', 'bytes' => 4096, 'bytes_missing_at' => null], ...$over];
     }
 
     /** @param array{existing?: array|null, unitRenders?: int, accountBytes?: int, recent?: int, factionExists?: bool, broken?: string, capabilities?: list<string>} $world */
@@ -181,6 +181,8 @@ class UploadTest extends TestCase
         $this->assertSame('413 That upload would put this account over its 67108864 byte storage quota.', $this->refusal($this->check(['accountBytes' => $quota - 4095])));
         // A replacement is charged the difference.
         $this->assertTrue($this->check(['accountBytes' => $quota, 'existing' => $this->held()])['ok']);
+        // A promoted row is not in the total, so replacing one is charged the whole object.
+        $this->assertSame(413, $this->check(['accountBytes' => $quota, 'existing' => $this->held(['tier' => 'static'])])['status']);
         // A takeover is charged the whole object.
         $this->assertSame(413, $this->check(['accountBytes' => $quota, 'existing' => $this->held(['uploaded_by' => 'other'])], [], fn () => true)['status']);
     }
