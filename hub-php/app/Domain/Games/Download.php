@@ -94,23 +94,28 @@ final class Download
     /**
      * The whole list as the edit form sends it, one JSON array in the order to
      * try. Empty rows drop out. Anything else wrong refuses the save naming the row.
+     * A map passes its own kinds and name, because a map has no rapid tag.
      *
+     * @param  list<string>  $kinds
      * @return array{ok: true, downloads: list<array>}|array{ok: false, message: string}
      */
-    public static function parseDownloads(string $payload): array
+    public static function parseDownloads(string $payload, array $kinds = self::KINDS, string $thing = 'game'): array
     {
         $rows = json_decode($payload === '' ? '[]' : $payload, true);
         if (json_last_error() !== JSON_ERROR_NONE || ! is_array($rows) || ! array_is_list($rows)) {
             return ['ok' => false, 'message' => 'The download list did not arrive. Try saving again.'];
         }
         if (count($rows) > self::MAX_DOWNLOADS) {
-            return ['ok' => false, 'message' => 'A game holds at most '.self::MAX_DOWNLOADS.' download sources.'];
+            return ['ok' => false, 'message' => 'A '.$thing.' holds at most '.self::MAX_DOWNLOADS.' download sources.'];
         }
 
         $downloads = [];
         foreach ($rows as $index => $row) {
             if (! is_array($row)) {
                 continue;
+            }
+            if (Js::trim(self::text($row['value'] ?? null)) !== '' && ! in_array(self::text($row['kind'] ?? null), $kinds, true)) {
+                return ['ok' => false, 'message' => 'Source '.($index + 1).': Pick how the '.$thing.' is downloaded.'];
             }
             $parsed = self::parseDownload(self::text($row['kind'] ?? null), self::text($row['value'] ?? null), self::text($row['asset'] ?? null), self::text($row['filename'] ?? null));
             if (! $parsed['ok']) {

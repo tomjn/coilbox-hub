@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\Maps;
 
+use App\Auth\HubSession;
 use App\Domain\Gallery\SearchParams;
 use App\Domain\Maps\Labels;
 use App\Domain\Maps\Listing;
+use App\Domain\Maps\MapEdits;
 use App\Domain\Maps\MapPage;
 use App\Http\Controllers\Controller;
+use App\Support\Nav;
 use App\Support\Site;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -48,7 +51,15 @@ class MapsController extends Controller
         ]));
         $description = implode(' - ', array_filter([$measures, $facts['description'] ?? null]));
 
+        // Decided per visitor, outside the cached page. A signed out visitor
+        // costs no database call. Someone who can already edit is not asked
+        // whether they want to own it.
+        $canEdit = Nav::current() !== null && MapEdits::canEdit(HubSession::client(), (string) $page['mapId']);
+        $ownershipTargets = Nav::current() !== null && ! $canEdit ? MapEdits::ownershipTargets($page) : [];
+
         return view('maps.show', $page + [
+            'canEdit' => $canEdit,
+            'ownershipTargets' => $ownershipTargets,
             'title' => $title,
             'description' => $description,
             'ogTitle' => $title,

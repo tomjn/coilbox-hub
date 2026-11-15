@@ -42,8 +42,7 @@ const PROMPTS: Record<string, { value: string; detail: string | null }> = {
   github: { value: "owner/repo", detail: "Release file, e.g. TAP_v4" },
 };
 
-const LISTS: Record<string, ListKind> = {
-  downloads: {
+const GAME_DOWNLOADS: ListKind = {
     max: 12,
     noun: "source",
     empty: "No download sources yet.",
@@ -103,7 +102,36 @@ const LISTS: Record<string, ListKind> = {
       }
       return columns;
     },
+};
+
+/** A map's sources: the same rows with no rapid tag, since a map has none. */
+const MAP_DOWNLOADS: ListKind = {
+  ...GAME_DOWNLOADS,
+  blank: () => ({ kind: "url", value: "", asset: "", filename: "" }),
+  fromStored: (stored) => ({ ...GAME_DOWNLOADS.fromStored(stored), kind: text(stored.kind) || "url" }),
+  select: {
+    ...GAME_DOWNLOADS.select!,
+    options: [
+      ["url", "Address"],
+      ["github", "GitHub repo"],
+    ],
   },
+  columns: (row) =>
+    GAME_DOWNLOADS.columns(row).map((column) => {
+      if (column.key === "value") {
+        return {
+          ...column,
+          placeholder: row.kind === "url" ? "https://example.com/map.sd7" : column.placeholder,
+          label: (index) => `Source ${index + 1} address or repo`,
+        };
+      }
+      return column.key === "filename" ? { ...column, placeholder: "Save as, e.g. map.sd7" } : column;
+    }),
+};
+
+const LISTS: Record<string, ListKind> = {
+  downloads: GAME_DOWNLOADS,
+  "map-downloads": MAP_DOWNLOADS,
   factions: {
     max: 12,
     noun: "faction",
