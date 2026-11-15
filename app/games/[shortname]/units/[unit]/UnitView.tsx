@@ -12,7 +12,7 @@ import { UnitComparePicker } from "@/components/UnitComparePicker";
 import { UnitPortrait, UnitRenders } from "@/components/UnitPictures";
 import { StageStats, StageStrip } from "@/components/UnitStages";
 import type { ResolvedAsset } from "@/lib/assets/resolve";
-import { gamePageCached, unitPageCached } from "@/lib/games/cached";
+import { gamePageCached, unitNameLabelsCached, unitPageCached } from "@/lib/games/cached";
 import { gameTitle } from "@/lib/games/labels";
 import { unitSegment } from "@/lib/games/unitRelease";
 import { SnippetForm } from "./SnippetForm";
@@ -88,6 +88,8 @@ export async function unitMetadata(shortname: string, unit: string, v?: string):
   return {
     title: `${label} - ${name}`,
     description: `Stats, builders, build options and renders for ${label}, as ${name} ships it.`,
+    // Every release of a unit is one page to a search engine: the latest.
+    alternates: { canonical: `/games/${shortname}/units/${unitSegment(loaded.page.unit_name)}` },
   };
 }
 
@@ -124,6 +126,11 @@ function SnippetEditor({
  * can serve it.
  */
 export async function UnitView({ shortname, unit, v }: { shortname: string; unit: string; v?: string }) {
+  // The compare picker's read, started with the others. Left until the picker
+  // renders, it could begin after Next had finished warming the caches for the
+  // static copy of the page, and then no static copy was kept and every visit
+  // ran a function. The picker's own call joins this one.
+  void unitNameLabelsCached(shortname).catch(() => {});
   const [game, loaded] = await Promise.all([
     gamePageCached(shortname),
     unitPageCached(shortname, unit, v),
