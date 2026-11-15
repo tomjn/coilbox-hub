@@ -1,4 +1,7 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { ImageResponse } from "next/og";
+import { cardBytes, cardResponse } from "@/lib/cache/card";
+import { TAGS } from "@/lib/cache/tags";
 import { fetchGameArt, gameArtUrl } from "@/lib/games/art";
 import { gameCountLabel, gameTitle } from "@/lib/games/labels";
 import { gamePageCached } from "@/lib/games/cached";
@@ -89,6 +92,16 @@ export default async function Image({
   params: Promise<{ shortname: string }>;
 }) {
   const { shortname } = await params;
+  return cardResponse(await gameCard(shortname));
+}
+
+/** The card, drawn once and held. A new logo or a renamed game clears it
+ *  through the games tag (`lib/games/art.ts`). */
+async function gameCard(shortname: string): Promise<Uint8Array<ArrayBuffer>> {
+  "use cache";
+  cacheLife("weeks");
+  cacheTag(TAGS.games, TAGS.assets);
+
   const page = await gamePageCached(shortname);
 
   const title = page ? gameTitle(page) : "Coilbox Hub";
@@ -98,7 +111,7 @@ export default async function Image({
   const TITLE_LIMIT = 80;
   const shown = title.length > TITLE_LIMIT ? `${title.slice(0, TITLE_LIMIT)}…` : title;
 
-  return new ImageResponse(
+  return cardBytes(new ImageResponse(
     (
       <div
         style={{
@@ -150,5 +163,5 @@ export default async function Image({
       </div>
     ),
     size,
-  );
+  ));
 }

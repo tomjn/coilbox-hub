@@ -21,6 +21,10 @@ const PRIVATE_PATHS = [
   "/item/*/edit",
   "/games/*/edit",
   "/games/*/units/*/compare?with=",
+  // A unit at a past release (`lib/games/unitRelease.ts`). One per unit per
+  // release, each rendered by a function on its first visit, and each names
+  // the latest unit page as its canonical.
+  "/games/*/units/*@",
 ];
 
 /** Crawlers that gather pages to train AI models rather than for search. Each

@@ -52,6 +52,11 @@ const anonCreated = mock(() => ({}));
 mock.module("@/lib/supabase/admin", () => ({ createAdminClient: adminCreated }));
 mock.module("@/lib/supabase/anon", () => ({ createAnonClient: anonCreated }));
 
+// The card is drawn inside a cached function, and the cache profile calls only
+// work inside Next.
+const realCache = await import("next/cache");
+mock.module("next/cache", () => ({ ...realCache, cacheLife: () => {}, cacheTag: () => {} }));
+
 const Image = (await import("./opengraph-image")).default;
 
 afterEach(() => {
