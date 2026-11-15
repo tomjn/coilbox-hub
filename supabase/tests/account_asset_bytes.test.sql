@@ -23,6 +23,11 @@ values
   ('BYAR', 'armcom', 'buildpic', 'src-2', 'enc-2', 'webp-lossless-256', 'units/BYAR/buildpic/enc-2.webp', 'extracted', 'image/webp', 6000, 128, 128, 'byar.sdz', '22222222-2222-2222-2222-222222222222'),
   ('BYAR', 'armllt', 'buildpic', 'src-3', 'enc-3', 'webp-lossless-256', 'units/BYAR/buildpic/enc-3.webp', 'extracted', 'image/webp', 9000, 128, 128, 'byar.sdz', '33333333-3333-3333-3333-333333333333');
 
+-- A promoted row has left the bucket, so it must not hold any of the quota.
+insert into public.asset (game, unit_name, variant, source_hash, hash, encode_profile, path, tier, origin, mime, bytes, width, height, source_archive, moderation, approval_source, uploaded_by)
+values
+  ('BYAR', 'armpw', 'buildpic', 'src-5', 'enc-5', 'webp-lossless-256', 'units/BYAR/buildpic/enc-5.webp', 'static', 'extracted', 'image/webp', 7000, 128, 128, 'byar.sdz', 'approved', 'moderator', '22222222-2222-2222-2222-222222222222');
+
 -- A seeded row belongs to nobody, so it must not land on anybody's quota.
 insert into public.asset (map_name, variant, source_hash, hash, encode_profile, path, origin, mime, bytes, width, height, map_width, map_height, source_archive, moderation, approval_source)
 values
@@ -33,7 +38,7 @@ set local role service_role;
 
 select is(
   public.account_asset_bytes('22222222-2222-2222-2222-222222222222'), 10096::bigint,
-  'the total is the sum of that account uploads and nothing else'
+  'the total is the sum of that account uploads still in the bucket and nothing else'
 );
 
 select is(
