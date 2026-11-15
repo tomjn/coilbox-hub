@@ -1,5 +1,16 @@
 @AGENTS.md
 
+## Which app is the hub
+
+The live hub is the Laravel app in `hub-php/`, served from `https://hub.coilbox.org`. Read `hub-php/AGENTS.md` before working there. Page, style and copy changes go in `hub-php/`.
+
+The Next.js app in the repository root no longer serves visitors. On Vercel it only forwards traffic to `hub.coilbox.org`, set up in `next.config.ts`:
+
+- Pages get a permanent redirect, keeping the path and query string.
+- `/api/v1/*` and `/i/*` are proxied, not redirected. Installed copies of Coilbox call `coilbox-hub.vercel.app`, and their HTTP client drops the `Authorization` header on a redirect to another host.
+
+Locally, without `VERCEL` set, the Next app still serves every page. It is the reference the PHP port is checked against. Do not add features or restyle pages there. A Next.js "N" badge in the corner of a screenshot means you are looking at this app, not the live hub.
+
 ## Local services
 
 Local Supabase and the dev server stay running after a session ends unless you stop them. Left running, they use memory other projects on this machine need.

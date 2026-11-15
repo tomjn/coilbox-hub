@@ -44,10 +44,11 @@
     color-scheme: dark;
     --background: #1b1b1f;
     --foreground: #fafafa;
-    /* coilbox.org's raised surface, half transparent so a card over the art
-       backdrop keeps the drawing behind it. Over the page it composites to
-       about #1e1e23. */
-    --card: #20212780;
+    /* Half transparent so a card over the art backdrop keeps the drawing
+       behind it. Darker than the page, not lighter. The backdrop lifts the
+       page around each card, and coilbox.org's raised surface, #202127, sat
+       so close to that the cards disappeared. */
+    --card: hsl(231deg 10% 10% / 50%);
     /* The header text and link colours of coilbox.org, which is VitePress's
        default dark theme, so the two sites' headers match. */
     --nav: #dfdfd6;

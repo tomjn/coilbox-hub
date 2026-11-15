@@ -27,6 +27,7 @@ class SitemapTest extends TestCase
             'https://hub.example/maps',
             'https://hub.example/games',
             'https://hub.example/developers',
+            'https://hub.example/add',
         ], $this->urls(self::EMPTY));
     }
 
@@ -74,13 +75,13 @@ class SitemapTest extends TestCase
 
     public function test_a_sitemap_at_the_protocol_limit_is_accepted(): void
     {
-        $items = array_map(fn ($i) => ['id' => (string) $i, 'updated_at' => '2026-10-03T00:00:00Z'], range(1, Sitemap::LIMIT - 5));
+        $items = array_map(fn ($i) => ['id' => (string) $i, 'updated_at' => '2026-10-03T00:00:00Z'], range(1, Sitemap::LIMIT - 6));
         $this->assertCount(Sitemap::LIMIT, Sitemap::entries(self::ORIGIN, [...self::EMPTY, 'items' => $items]));
     }
 
     public function test_a_sitemap_past_the_protocol_limit_fails_rather_than_being_cut_short(): void
     {
-        $items = array_map(fn ($i) => ['id' => (string) $i, 'updated_at' => '2026-10-03T00:00:00Z'], range(1, Sitemap::LIMIT - 4));
+        $items = array_map(fn ($i) => ['id' => (string) $i, 'updated_at' => '2026-10-03T00:00:00Z'], range(1, Sitemap::LIMIT - 5));
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('50000');
         Sitemap::entries(self::ORIGIN, [...self::EMPTY, 'items' => $items]);
