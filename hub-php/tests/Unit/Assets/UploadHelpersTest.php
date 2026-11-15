@@ -65,7 +65,7 @@ class UploadHelpersTest extends TestCase
 
     private function held(array $over = []): array
     {
-        return [...['id' => 'held', 'source_hash' => 'raw-old', 'source_archive' => 'byar_1.1.sdz', 'moderation' => 'approved'], ...$over];
+        return [...['id' => 'held', 'source_hash' => 'raw-old', 'source_archive' => 'byar_1.1.sdz', 'uploaded_by' => 'u', 'moderation' => 'approved'], ...$over];
     }
 
     private function declared(): array
@@ -80,8 +80,10 @@ class UploadHelpersTest extends TestCase
         $this->assertSame([
             'assetId' => 'held', 'sourceArchive' => 'byar_1.2.sdz', 'heldSourceHash' => 'raw-old', 'reportedSourceHash' => 'raw-new', 'reportedBy' => 'stranger',
         ], SourceConflict::detect($this->held(['source_archive' => 'byar_1.2.sdz']), $this->declared(), 'stranger'));
-        $this->assertNotNull(SourceConflict::detect($this->held(['source_archive' => 'byar_1.2.sdz', 'moderation' => 'pending']), $this->declared(), 'u'));
-        $this->assertNull(SourceConflict::detect($this->held(['source_archive' => 'byar_1.2.sdz', 'moderation' => 'rejected']), $this->declared(), 'u'));
+        $this->assertNotNull(SourceConflict::detect($this->held(['source_archive' => 'byar_1.2.sdz', 'moderation' => 'pending']), $this->declared(), 'stranger'));
+        $this->assertNull(SourceConflict::detect($this->held(['source_archive' => 'byar_1.2.sdz', 'moderation' => 'rejected']), $this->declared(), 'stranger'));
+        // The uploader sending new bytes for their own picture is a re-upload, not a second opinion.
+        $this->assertNull(SourceConflict::detect($this->held(['source_archive' => 'byar_1.2.sdz']), $this->declared(), 'u'));
     }
 
     public function test_a_disagreement_is_written_once_per_set_of_reported_bytes(): void

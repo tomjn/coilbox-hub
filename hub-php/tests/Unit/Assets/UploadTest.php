@@ -152,13 +152,30 @@ class UploadTest extends TestCase
     {
         $this->assertNull($this->check(['existing' => $this->held()])['conflict']);
 
-        $accepted = $this->check(['existing' => $this->held(['source_archive' => 'byar_1.2.sdz'])]);
-        $this->assertTrue($accepted['ok']);
-        $this->assertSame(['assetId' => 'held', 'sourceArchive' => 'byar_1.2.sdz', 'heldSourceHash' => 'raw-old', 'reportedSourceHash' => 'raw-abc', 'reportedBy' => self::USER], $accepted['conflict']);
+        // The uploader replacing their own picture.
+        $own = $this->check(['existing' => $this->held(['source_archive' => 'byar_1.2.sdz'])]);
+        $this->assertTrue($own['ok']);
+        $this->assertNull($own['conflict']);
+
+        $takeover = $this->check(['existing' => $this->held(['source_archive' => 'byar_1.2.sdz', 'uploaded_by' => 'stranger'])], [], fn () => true);
+        $this->assertTrue($takeover['ok']);
+        $this->assertSame(['assetId' => 'held', 'sourceArchive' => 'byar_1.2.sdz', 'heldSourceHash' => 'raw-old', 'reportedSourceHash' => 'raw-abc', 'reportedBy' => self::USER], $takeover['conflict']);
 
         $refused = $this->check(['existing' => $this->held(['source_archive' => 'byar_1.2.sdz', 'uploaded_by' => 'stranger'])]);
         $this->assertSame(409, $refused['status']);
         $this->assertSame('held', $refused['conflict']['assetId']);
+    }
+
+    /** A render is drawn by the client, so its bytes change with the client and say nothing about the archive. */
+    public function test_a_render_never_carries_a_source_conflict(): void
+    {
+        $render = ['identity' => AssetResolver::unit('BYAR', 'armsolar', 'render:top')];
+        $world = ['existing' => $this->held(['source_archive' => 'byar_1.2.sdz', 'uploaded_by' => 'stranger'])];
+
+        $this->assertNull($this->check($world, $render, fn () => true)['conflict']);
+        $refused = $this->check($world, $render);
+        $this->assertSame(409, $refused['status']);
+        $this->assertNull($refused['conflict']);
     }
 
     public function test_the_render_ceiling(): void
