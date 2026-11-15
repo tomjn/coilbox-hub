@@ -20,6 +20,7 @@ use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use App\Support\Api;
 use App\Support\Bearer;
+use App\Support\HubCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -191,6 +192,12 @@ class AssetApiController extends Controller
         // Not on an upload that skipped the queue: the purge trigger only fires on the way into approved.
         if (! $skipQueue) {
             UploadIp::record($admin, $assetId, UploadIp::clientIp($request));
+        }
+
+        // An approved picture changes every cached page that draws it, and a
+        // replacement takes an approved row back to pending, which does too.
+        if ($skipQueue || $check['replacing'] !== null) {
+            HubCache::invalidate([HubCache::ASSETS]);
         }
 
         return Api::json(

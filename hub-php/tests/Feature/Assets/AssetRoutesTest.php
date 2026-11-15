@@ -3,6 +3,7 @@
 namespace Tests\Feature\Assets;
 
 use App\Domain\Assets\Upload;
+use App\Support\HubCache;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
@@ -156,6 +157,41 @@ class AssetRoutesTest extends TestCase
         $insert = collect($this->sent)->first(fn (Request $r) => $r->method() === 'POST' && str_contains($r->url(), '/rest/v1/asset?'));
         $this->assertSame(['approved', 'bypass'], [$insert->data()['moderation'], $insert->data()['approval_source']]);
         $this->assertEmpty(collect($this->sent)->filter(fn (Request $r) => str_contains($r->url(), 'asset_upload_ip')));
+    }
+
+    /** How many times a page cached under the `assets` tag is read, over an upload. */
+    private function readsAroundAnUpload(callable $upload): int
+    {
+        $reads = 0;
+        $page = function () use (&$reads) {
+            return HubCache::remember('test:page', [HubCache::ASSETS], HubCache::WEEKS, function () use (&$reads) {
+                return ++$reads;
+            });
+        };
+        $page();
+        $upload();
+        $page();
+
+        return $reads;
+    }
+
+    public function test_an_upload_that_skips_the_queue_refreshes_the_pages_that_draw_pictures(): void
+    {
+        $this->supabase($this->world(['capabilities' => ['can_moderate']]));
+        $this->assertSame(2, $this->readsAroundAnUpload(fn () => $this->upload()->assertStatus(201)));
+    }
+
+    public function test_a_pending_upload_leaves_the_cached_pages_alone(): void
+    {
+        $this->supabase($this->world());
+        $this->assertSame(1, $this->readsAroundAnUpload(fn () => $this->upload()->assertStatus(201)));
+    }
+
+    public function test_a_replacement_refreshes_the_pages_that_drew_the_picture_it_replaced(): void
+    {
+        $existing = ['id' => 'held', 'source_hash' => 'raw-old', 'source_archive' => 'byar_1.1.sdz', 'uploaded_by' => 'someone', 'moderation' => 'approved', 'bytes' => 40, 'bytes_missing_at' => null];
+        $this->supabase($this->world(['existing' => $existing, 'capabilities' => ['can_replace_any_asset']]));
+        $this->assertSame(2, $this->readsAroundAnUpload(fn () => $this->upload()->assertStatus(200)));
     }
 
     public function test_a_holder_replaces_another_accounts_picture_and_it_goes_back_to_the_queue_as_theirs(): void
