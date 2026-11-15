@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { readAll } from "@/lib/supabase/readAll";
 import { gameTitle } from "./labels";
 
 /**
@@ -98,4 +99,33 @@ export async function fetchGames(
 
   if (error) return { games: [], error: error.message };
   return { games: (data ?? []).sort(compareGames), error: null };
+}
+
+/**
+ * Every release each game has facts for, newest report first, keyed on the
+ * lowercased shortname. Coilbox reads it to tell whether the hub holds the
+ * release a player has installed. Null on a failed read, so the caller can
+ * leave the field off rather than claim a game has no releases.
+ */
+export async function fetchReleases(
+  supabase: SupabaseClient,
+): Promise<Map<string, string[]> | null> {
+  const rows = await readAll<{ version: string; game: { shortname: string } }>(
+    (from, to) =>
+      supabase
+        .from("game_version")
+        .select("version,last_seen_at,game!inner(shortname)")
+        .order("last_seen_at", { ascending: false })
+        .order("version")
+        .range(from, to),
+  );
+  if (!rows) return null;
+  const releases = new Map<string, string[]>();
+  for (const row of rows) {
+    const key = row.game.shortname.toLowerCase();
+    const held = releases.get(key);
+    if (held) held.push(row.version);
+    else releases.set(key, [row.version]);
+  }
+  return releases;
 }

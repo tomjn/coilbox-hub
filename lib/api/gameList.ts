@@ -72,6 +72,10 @@ export interface GameListEntry {
   /** The shortname of the game this one is built on, or null when it is not a
    *  mutator (#546). The hub may not hold that game. */
   base_game: string | null;
+  /** Every release the hub holds facts for, newest first. Left off every game
+   *  when the releases could not be read, which a client reads as not knowing
+   *  rather than as a game with none. */
+  releases?: string[];
 }
 
 export interface GameListResponseBody {
@@ -82,7 +86,10 @@ export interface GameListResponseBody {
 
 /** The listing as JSON, in the order it was given, which is the order the page
  *  draws: featured first, then alphabetical. */
-export function buildGameListBody(games: GameSummary[]): GameListResponseBody {
+export function buildGameListBody(
+  games: GameSummary[],
+  releases: Map<string, string[]> | null = null,
+): GameListResponseBody {
   return {
     format: GAME_LIST_FORMAT,
     version: GAME_LIST_VERSION,
@@ -111,6 +118,9 @@ export function buildGameListBody(games: GameSummary[]): GameListResponseBody {
       unit_count: game.unit_count,
       item_count: game.item_count,
       base_game: game.base_game,
+      ...(releases
+        ? { releases: releases.get(game.shortname.toLowerCase()) ?? [] }
+        : {}),
     })),
   };
 }
