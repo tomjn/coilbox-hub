@@ -241,11 +241,26 @@ const ports: PromotionPorts = {
     if (paths.length > 0) await git("add", "--", ...paths);
 
     // Nothing staged means every object in the batch was already committed by
-    // a run that died before moving the rows. There is nothing to push and
-    // nothing to deploy, and the objects are already being served.
+    // an earlier run. There is nothing to push, but that run's deploy may have
+    // failed, and no later push will ask for another. So if any of them is not
+    // being served, ask for the deploy here and wait for it like a fresh push.
+    // Promotion runs once a day with one batch, so this costs at most one site
+    // rebuild a day, unlike the seed (see seedBatch.ts).
     const staged = await git("diff", "--cached", "--name-status");
     if (staged === "") {
-      console.log("Already committed by an earlier run, so nothing to push.");
+      const missing: string[] = [];
+      for (const path of paths) {
+        if (!(await servedNow(path))) missing.push(path);
+      }
+      if (missing.length === 0) {
+        console.log("Already committed and served, so nothing to push.");
+        return;
+      }
+      console.log(
+        `Already committed, but ${missing.length} of ${paths.length} are not served. Asking Pages to deploy again.`,
+      );
+      for (const path of missing) committed.add(path);
+      await dispatchPages();
       return;
     }
 

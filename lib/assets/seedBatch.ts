@@ -58,8 +58,8 @@
  * re-runs the Pages workflow, and the next run walks past that batch and
  * carries on.
  *
- * Promotion (#111) fails in the same place for the same reason, which is worth
- * knowing before treating either as a bug.
+ * Promotion (#111) handles one batch a day, so it can afford the rebuild and
+ * asks for a deploy when a batch it finds committed is not served.
  */
 
 /** One file of the seed export, and the two places it lives. */
