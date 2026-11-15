@@ -1,8 +1,9 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { ImageResponse } from "next/og";
+import { cardBytes, cardResponse } from "@/lib/cache/card";
+import { TAGS } from "@/lib/cache/tags";
+import { mapPageCached } from "@/lib/maps/cached";
 import { mapSizeLabel, mapTitle, playerCountLabel } from "@/lib/maps/labels";
-import { loadMapPage } from "@/lib/maps/page";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 /**
  * The preview a map link gets when it is pasted into Discord, which is where
@@ -30,7 +31,17 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   // Awaited, not read straight off. `params` is a promise here, and taking
   // `.slug` from the promise gives every map the same generic card.
   const { slug } = await params;
-  const page = await loadMapPage(await createClient(), createAdminClient(), slug);
+  return cardResponse(await mapCard(slug));
+}
+
+/** The card, drawn once and held. It reads what the page reads, through the
+ *  same licence gate, and an edit or a takedown clears both together. */
+async function mapCard(slug: string): Promise<Uint8Array<ArrayBuffer>> {
+  "use cache";
+  cacheLife("weeks");
+  cacheTag(TAGS.maps, TAGS.map(slug));
+
+  const page = await mapPageCached(slug);
 
   const title = page ? mapTitle(page.facts.display_name, page.mapName) : "Coilbox Hub";
   const measures = page
@@ -46,7 +57,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const TITLE_LIMIT = 80;
   const shown = title.length > TITLE_LIMIT ? `${title.slice(0, TITLE_LIMIT)}…` : title;
 
-  return new ImageResponse(
+  return cardBytes(new ImageResponse(
     (
       <div
         style={{
@@ -95,5 +106,5 @@ export default async function Image({ params }: { params: Promise<{ slug: string
       </div>
     ),
     size,
-  );
+  ));
 }

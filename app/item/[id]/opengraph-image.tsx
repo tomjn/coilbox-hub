@@ -1,6 +1,9 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { ImageResponse } from "next/og";
+import { cardBytes, cardResponse } from "@/lib/cache/card";
+import { TAGS } from "@/lib/cache/tags";
+import { itemPublic } from "@/lib/gallery/itemCached";
 import { itemLabel } from "@/lib/gallery/label";
-import { createClient } from "@/lib/supabase/server";
 
 /**
  * The preview a link gets when it is pasted into Discord, which is how most
@@ -27,12 +30,17 @@ export default async function Image({
   // Awaited, not read straight off. `params` is a promise here, and taking
   // `.id` from the promise gave every item the same generic card.
   const { id } = await params;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("item")
-    .select("kind,mode,title,game_name,map_name,author_name")
-    .eq("id", id)
-    .maybeSingle();
+  return cardResponse(await itemCard(id));
+}
+
+/** The card, drawn once and held. It reads the public row the page reads, so
+ *  a withdrawn item gets the generic card, and an edit clears both together. */
+async function itemCard(id: string): Promise<Uint8Array<ArrayBuffer>> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(TAGS.items, TAGS.item(id));
+
+  const data = (await itemPublic(id))?.item;
 
   const label = data ? itemLabel(data.kind, data.mode) : "";
   const facts = [data?.game_name, data?.map_name].filter(Boolean).join("  ·  ");
@@ -44,7 +52,7 @@ export default async function Image({
   const title =
     raw.length > TITLE_LIMIT ? `${raw.slice(0, TITLE_LIMIT)}…` : raw;
 
-  return new ImageResponse(
+  return cardBytes(new ImageResponse(
     (
       <div
         style={{
@@ -97,5 +105,5 @@ export default async function Image({
       </div>
     ),
     size,
-  );
+  ));
 }
