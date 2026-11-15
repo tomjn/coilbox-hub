@@ -115,7 +115,7 @@ $$;
 -- the expected side as well, because a value stored as real and one written as
 -- a decimal literal are not the same number.
 select is(
-  pg_temp.facts('Comet Catcher Remake 1.8') - 'authors' - 'tags' - 'points' - 'appearance',
+  pg_temp.facts('Comet Catcher Remake 1.8') - 'authors' - 'tags' - 'points' - 'appearance' - 'downloads',
   jsonb_build_object(
     'slug', 'comet-catcher-remake-1-8',
     'display_name', 'Comet Catcher Remake',
