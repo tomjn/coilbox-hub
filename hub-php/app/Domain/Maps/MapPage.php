@@ -49,7 +49,7 @@ final class MapPage
     public static function load(Client $supabase, Client $admin, string $slug): ?array
     {
         try {
-            $row = $supabase->from('map')->select('id, map_name, archive_filename')->eq('slug', $slug)->maybeSingle();
+            $row = $supabase->from('map')->select('id, map_name, archive_filename, owner_user_id')->eq('slug', $slug)->maybeSingle();
         } catch (SupabaseException) {
             $row = null;
         }
@@ -69,6 +69,7 @@ final class MapPage
         $held = AssetResolver::fetchHeldAssets($supabase, [$identity, $overlay]);
         $played = self::playedHere($supabase, $mapName);
         $hosts = self::mirrorHosts($supabase);
+        $ownedAuthorKeys = self::ownedAuthorKeys($admin, array_column($facts['authors'] ?? [], 'key'));
 
         // The catalog's own size, so a 12 x 20 with no picture is drawn as a 12 x 20.
         $picture = AssetResolver::resolveAsset($identity, $held, Labels::footprint($facts['width_elmos'], $facts['height_elmos']));
@@ -81,6 +82,9 @@ final class MapPage
             'preview' => self::preview($mapName, $facts, $held, $picture),
             'played' => $played,
             'mirrors' => self::mirrorLinks($hosts, $mapName, $row['archive_filename'] ?? null),
+            // Who may be asked about, never who may edit: can_edit_map decides that per visitor.
+            'ownerUserId' => $row['owner_user_id'] ?? null,
+            'ownedAuthorKeys' => $ownedAuthorKeys,
         ];
     }
 
@@ -102,6 +106,25 @@ final class MapPage
         try {
             return $supabase->from('item')->select(GalleryQuery::ITEM_SUMMARY_COLUMNS)->eq('map_name', $mapName)
                 ->order('created_at', false)->limit(GalleryQuery::PAGE_SIZE)->get();
+        } catch (SupabaseException) {
+            return [];
+        }
+    }
+
+    /**
+     * Which of these credited authors somebody already owns. Read with the
+     * secret key, since a browser cannot read author_owner. An error is none.
+     *
+     * @param  list<string>  $keys
+     * @return list<string>
+     */
+    private static function ownedAuthorKeys(Client $admin, array $keys): array
+    {
+        if ($keys === []) {
+            return [];
+        }
+        try {
+            return array_column($admin->from('author_owner')->select('key')->in('key', $keys)->get(), 'key');
         } catch (SupabaseException) {
             return [];
         }

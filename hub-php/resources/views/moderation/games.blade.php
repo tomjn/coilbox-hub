@@ -38,6 +38,38 @@
             </ul>
         @endif
 
+        <section class="flex flex-col gap-3 border-t border-neutral-900 pt-6" aria-labelledby="mod-map-owners">
+            <h2 id="mod-map-owners" class="text-sm uppercase tracking-wide text-neutral-400">Maps and map authors</h2>
+            <p class="text-sm text-neutral-400">People asking to say where a map can be downloaded. Approving an author covers every map credited to that author, now and later, and replaces any owner the author had.</p>
+            @if ($mapQueue === [])
+                <p class="text-sm text-neutral-400">Nobody is asking right now.</p>
+            @else
+                <ul class="flex flex-col gap-4">
+                    @foreach ($mapQueue as $request)
+                        <li class="flex flex-col gap-3 rounded-md border border-neutral-900 p-4">
+                            <div class="flex flex-col gap-1">
+                                @if ($request['map'])
+                                    <a href="/map/{{ $request['map']['slug'] }}" class="font-medium text-neutral-100 underline-offset-4 hover:underline active:underline">{{ $request['map']['map_name'] }}</a>
+                                @else
+                                    <a href="/maps?author={{ rawurlencode($request['author_key']) }}" class="font-medium text-neutral-100 underline-offset-4 hover:underline active:underline">Every map by {{ $request['author_key'] }}</a>
+                                @endif
+                                <p class="text-sm text-neutral-400">{{ $request['requested_by_name'] }}, <x-ui.date-time :value="$request['created_at']" /></p>
+                                @if ($request['note'])
+                                    <p class="text-sm text-neutral-300">{{ $request['note'] }}</p>
+                                @endif
+                            </div>
+                            <form method="post" action="/moderation/games/decide-map" class="flex gap-2">
+                                @csrf
+                                <input type="hidden" name="request_id" value="{{ $request['id'] }}">
+                                <button type="submit" name="approve" value="true" class="{{ Ui::button('ghost', 'md') }}">Approve</button>
+                                <button type="submit" name="approve" value="false" class="{{ Ui::button('quiet', 'md') }}">Decline</button>
+                            </form>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </section>
+
         <section class="flex flex-col gap-3 border-t border-neutral-900 pt-6" aria-labelledby="mod-downloads">
             <h2 id="mod-downloads" class="text-sm uppercase tracking-wide text-neutral-400">Offered downloads</h2>
             <p class="text-sm text-neutral-400">Where a coilbox client says a game can be fetched from. A reader sees none of these until somebody adds one, and adding puts it at the end of that game&rsquo;s list rather than over anything already there.</p>

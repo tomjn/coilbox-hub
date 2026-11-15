@@ -49,6 +49,7 @@ Route::get('/moderation/users', [UsersController::class, 'index']);
 
 Route::get('/moderation/games', [GamesController::class, 'index']);
 Route::post('/moderation/games/decide', [GamesController::class, 'decide']);
+Route::post('/moderation/games/decide-map', [GamesController::class, 'decideMap']);
 Route::post('/moderation/games/visibility', [GamesController::class, 'visibility']);
 Route::post('/moderation/games/version-visibility', [GamesController::class, 'versionVisibility']);
 Route::post('/moderation/games/feature', [GamesController::class, 'feature']);

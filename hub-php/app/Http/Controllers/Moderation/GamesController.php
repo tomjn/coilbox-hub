@@ -6,6 +6,7 @@ use App\Auth\HubSession;
 use App\Domain\Games\Offers;
 use App\Domain\Moderation\Access;
 use App\Domain\Moderation\GameDecisions;
+use App\Domain\Moderation\MapOwnership;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Http\RedirectResponse;
@@ -13,7 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
- * `/moderation/games`: ownership requests, offered downloads, hidden games and
+ * `/moderation/games`: game, map and author ownership requests, offered downloads, hidden games and
  * releases, and featured games, from `app/moderation/games/page.tsx`. The
  * writes are the ones `app/games/actions.ts` makes, see {@see GameDecisions}.
  */
@@ -46,6 +47,9 @@ class GamesController extends ModerationController
             'queue' => $read(fn () => $supabase->from('game_ownership_request')
                 ->select('id,note,created_at,requested_by_name,game(shortname)')
                 ->eq('state', 'open')->order('created_at')->get()),
+            'mapQueue' => $read(fn () => $supabase->from('map_ownership_request')
+                ->select('id,note,created_at,requested_by_name,author_key,map(slug,map_name)')
+                ->eq('state', 'open')->order('created_at')->get()),
             'hiddenGames' => $read(fn () => $supabase->from('game')->select('shortname,hidden_at')->not('hidden_at', 'is', 'null')->get()),
             'hiddenVersions' => $read(fn () => $supabase->from('game_version')->select('version,hidden_at,game(shortname)')
                 ->not('hidden_at', 'is', 'null')->order('hidden_at', ascending: false)->get()),
@@ -65,6 +69,22 @@ class GamesController extends ModerationController
                 return $this->back(self::PAGE);
             }
             GameDecisions::decideRequest($session, $admin, $userId, (string) $request->input('request_id', ''), $request->input('approve') === 'true');
+        }
+
+        return redirect(self::PAGE);
+    }
+
+    public function decideMap(Request $request): RedirectResponse
+    {
+        $session = HubSession::client();
+        $userId = HubSession::userId();
+        if ($session !== null && $userId !== null) {
+            try {
+                $admin = Supabase::admin();
+            } catch (SupabaseException) {
+                return $this->back(self::PAGE);
+            }
+            MapOwnership::decideRequest($session, $admin, $userId, (string) $request->input('request_id', ''), $request->input('approve') === 'true');
         }
 
         return redirect(self::PAGE);

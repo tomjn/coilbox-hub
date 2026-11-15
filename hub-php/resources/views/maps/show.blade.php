@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@use('App\Domain\Games\Download')
 @use('App\Domain\Maps\Js')
 @use('App\Domain\Maps\Labels')
 @use('App\Domain\Maps\MapPage')
@@ -24,6 +25,9 @@
             @endif
             @if ($facts['description'] ?? null)
                 <p class="whitespace-pre-wrap text-neutral-400">{{ $facts['description'] }}</p>
+            @endif
+            @if ($canEdit)
+                <a href="/map/{{ $facts['slug'] ?? request()->route('slug') }}/edit" class="w-fit text-sm text-neutral-400 underline-offset-4 transition-colors hover:text-neutral-200 hover:underline active:text-neutral-200">Edit this map</a>
             @endif
         </div>
 
@@ -71,9 +75,13 @@
                 </ul>
             @endif
 
+            <x-maps.downloads :downloads="Download::readDownloads($facts['downloads'] ?? [])" />
+
             <x-maps.mirrors :links="$mirrors" />
 
             <x-maps.played-on :map-name="$mapName" :items="$played" :picture="$picture" :origin="$origin" />
+
+            <x-maps.ownership-ask :slug="$facts['slug'] ?? request()->route('slug')" :targets="$ownershipTargets" />
 
             <x-maps.report-button :map-id="$mapId" :slug="$facts['slug'] ?? request()->route('slug')" :state="session('mapReport')" />
         </div>

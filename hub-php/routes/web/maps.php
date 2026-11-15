@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Maps\MapEditController;
 use App\Http\Controllers\Maps\MapsController;
 use App\Http\Controllers\Maps\MapReportController;
 use Illuminate\Support\Facades\Route;
@@ -10,3 +11,9 @@ Route::get('/maps', [MapsController::class, 'index']);
 Route::get('/maps/filtered', [MapsController::class, 'index']);
 Route::get('/map/{slug}', [MapsController::class, 'show']);
 Route::post('/map/{slug}/report', [MapReportController::class, 'store']);
+
+// A map's owner, an owner of one of its authors, or a moderator. Each write
+// asks can_edit_map before it writes.
+Route::get('/map/{slug}/edit', [MapEditController::class, 'edit']);
+Route::post('/map/{slug}/edit/downloads', [MapEditController::class, 'downloads']);
+Route::post('/map/{slug}/ownership', [MapEditController::class, 'requestOwnership']);
