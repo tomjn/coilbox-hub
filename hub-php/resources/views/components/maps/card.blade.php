@@ -62,7 +62,7 @@
     @if (($map['tags'] ?? []) !== [])
         <ul class="mt-auto flex flex-wrap gap-1.5 pt-1">
             @foreach ($map['tags'] as $tag)
-                <li><a class="{{ $chip }}" href="{{ Listing::filterHref($filters, Listing::isSize($tag) ? ['size' => $tag] : ['tag' => $tag]) }}">{{ $tag }}</a></li>
+                <li><a class="{{ $chip }}" href="{{ Listing::filterHref($filters, Listing::isSize($tag) ? ['size' => $tag] : Listing::withTag($filters, $tag)) }}">{{ $tag }}</a></li>
             @endforeach
         </ul>
     @endif

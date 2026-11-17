@@ -11,7 +11,7 @@
     $label = 'text-sm uppercase tracking-wide text-neutral-400';
     $chevron = '<svg aria-hidden="true" viewBox="0 0 16 16" class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>';
     $sizeLabels = ['small' => 'Small, up to 12 squares', 'medium' => 'Medium, up to 20 squares', 'large' => 'Large, over 20 squares'];
-    $sortLabels = ['name' => 'Name', 'size' => 'Longer edge, largest first', 'players' => 'Players, most first', 'added' => 'Recently added'];
+    $sortLabels = ['name' => 'Name', 'size' => 'Longer edge, largest first', 'players' => 'Players, most first', 'added' => 'Recently added', 'uploaded' => 'Recently uploaded'];
     $filtered = Listing::isFiltered($filters);
     $empty = 'mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline';
 @endphp
@@ -41,7 +41,7 @@
                 {{-- A text box rather than a list: the chips on the cards are how a reader finds a tag. --}}
                 <div class="flex flex-col gap-1.5">
                     <label for="maps-tag" class="{{ $label }}">Tag</label>
-                    <input id="maps-tag" type="text" class="{{ $control }}" name="tag" value="{{ $filters['tag'] ?? '' }}">
+                    <input id="maps-tag" type="text" class="{{ $control }}" name="tag" value="{{ $filters['tag'][0] ?? '' }}">
                 </div>
                 <div class="flex flex-col gap-1.5">
                     <label for="maps-size" class="{{ $label }}">Size</label>

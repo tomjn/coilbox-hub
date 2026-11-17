@@ -41,7 +41,7 @@ class PageLogicTest extends TestCase
     public function test_filters_come_out_of_the_query_string(): void
     {
         $this->assertSame([
-            'q' => 'comet', 'tag' => 'water map', 'author' => '[BAR]Beherith', 'size' => 'medium', 'players' => 8, 'sort' => 'players', 'page' => 3,
+            'q' => 'comet', 'tag' => ['water map'], 'author' => '[BAR]Beherith', 'size' => 'medium', 'players' => 8, 'play' => [], 'featured' => false, 'sort' => 'players', 'page' => 3,
         ], Listing::parseFilters(['q' => 'comet', 'tag' => 'Water Map', 'author' => '[BAR]Beherith', 'size' => 'medium', 'players' => '8', 'sort' => 'players', 'page' => '3']));
     }
 
@@ -50,20 +50,27 @@ class PageLogicTest extends TestCase
         $this->assertNull(Listing::parseFilters(['size' => 'enormous'])['size']);
         $this->assertNull(Listing::parseFilters(['size' => "'; drop table map; --"])['size']);
         $small = Listing::parseFilters(['tag' => 'Small']);
-        $this->assertSame([null, 'small'], [$small['tag'], $small['size']]);
+        $this->assertSame([[], 'small'], [$small['tag'], $small['size']]);
         $both = Listing::parseFilters(['tag' => 'small', 'size' => 'large']);
-        $this->assertSame(['small', 'large'], [$both['tag'], $both['size']]);
+        $this->assertSame([['small'], 'large'], [$both['tag'], $both['size']]);
+        $this->assertSame(['1v1'], Listing::parseFilters(['play' => ['1v1', 'ffa', '1v1']])['play']);
+        $this->assertFalse(Listing::parseFilters(['featured' => '0'])['featured']);
+        $this->assertTrue(Listing::parseFilters(['featured' => '1'])['featured']);
+        $several = Listing::parseFilters(['tag' => ['Water Map', 'water map', 'small']]);
+        $this->assertSame([['water map'], 'small'], [$several['tag'], $several['size']]);
+        $this->assertSame([], Listing::parseFilters(['tag' => ' '])['tag']);
+        $this->assertSame('uploaded', Listing::parseFilters(['sort' => 'uploaded'])['sort']);
         $this->assertSame('name', Listing::parseFilters(['sort' => 'cheapest'])['sort']);
         $this->assertSame('name', Listing::parseFilters([])['sort']);
-        foreach (['0', 'banana', '99999999999999999999', (string) (GalleryQuery::maxPage(50) + 1)] as $page) {
+        foreach (['0', 'banana', '99999999999999999999', (string) (GalleryQuery::maxPage(Listing::PAGE_SIZE) + 1)] as $page) {
             $this->assertSame(1, Listing::parseFilters(['page' => $page])['page'], $page);
         }
-        $this->assertSame(GalleryQuery::maxPage(50), Listing::parseFilters(['page' => (string) GalleryQuery::maxPage(50)])['page']);
+        $this->assertSame(GalleryQuery::maxPage(Listing::PAGE_SIZE), Listing::parseFilters(['page' => (string) GalleryQuery::maxPage(Listing::PAGE_SIZE)])['page']);
         foreach (['0', '-4', 'lots'] as $players) {
             $this->assertNull(Listing::parseFilters(['players' => $players])['players']);
         }
         $blank = Listing::parseFilters(['q' => '   ', 'tag' => '', 'author' => '  ']);
-        $this->assertSame([null, null, null], [$blank['q'], $blank['tag'], $blank['author']]);
+        $this->assertSame([null, [], null], [$blank['q'], $blank['tag'], $blank['author']]);
         $this->assertSame('One', Listing::parseFilters(['author' => ['One', 'Two']])['author']);
     }
 
@@ -78,9 +85,47 @@ class PageLogicTest extends TestCase
         $this->assertTrue(Listing::isFiltered(Listing::parseFilters(['players' => '2'])));
         $this->assertTrue(Listing::isFiltered(Listing::parseFilters(['q' => 'comet'])));
 
-        $href = Listing::filterHref(['q' => 'dsd', 'tag' => 'water', 'author' => 'beherith', 'size' => 'small', 'players' => 8, 'sort' => 'added', 'page' => 3], ['page' => 3]);
+        $href = Listing::filterHref(['q' => 'dsd', 'tag' => ['water'], 'author' => 'beherith', 'size' => 'small', 'players' => 8, 'play' => ['team'], 'featured' => true, 'sort' => 'added', 'page' => 3], ['page' => 3]);
         parse_str(parse_url($href, PHP_URL_QUERY), $keys);
         $this->assertSame(Listing::FILTER_KEYS, array_keys($keys));
+
+        $this->assertSame('/maps?tag=tidal&tag=windy', Listing::filterHref(Listing::parseFilters(['tag' => ['tidal', 'windy']]), []));
+        $this->assertSame('/maps?tag=metal&size=small&sort=added&page=2', Listing::filterHref(Listing::parseFilters(['tag' => 'metal', 'size' => 'small', 'sort' => 'added', 'page' => '2']), ['page' => 2]));
+        $this->assertTrue(Listing::isFiltered(Listing::parseFilters(['featured' => '1'])));
+        $this->assertTrue(Listing::isFiltered(Listing::parseFilters(['play' => '1v1'])));
+        $this->assertTrue(Listing::isFiltered(Listing::parseFilters(['sort' => 'uploaded'])));
+        $this->assertTrue(Listing::isLanding(Listing::parseFilters([])));
+        $this->assertFalse(Listing::isLanding(Listing::parseFilters(['page' => '2'])));
+        $this->assertFalse(Listing::isLanding(Listing::parseFilters(['sort' => 'size'])));
+        $this->assertFalse(Listing::isLanding(Listing::parseFilters(['featured' => '1'])));
+    }
+
+    public function test_chips(): void
+    {
+        $filters = Listing::parseFilters(['play' => '1v1', 'tag' => 'tidal', 'page' => '3']);
+        $chips = Listing::chips($filters);
+        $this->assertSame(['Featured', 'New uploads', '1v1', 'Team', 'Water', 'Tidal', 'Windy'], array_column($chips, 'label'));
+        $this->assertSame([false, false, true, false, false, true, false], array_column($chips, 'active'));
+        $hrefs = array_column($chips, 'href', 'label');
+        $this->assertSame('/maps?tag=tidal', $hrefs['1v1']);
+        $this->assertSame('/maps?tag=tidal&play=1v1&play=team', $hrefs['Team']);
+        $this->assertSame('/maps?tag=tidal&tag=water+map&play=1v1', $hrefs['Water']);
+        $this->assertSame('/maps?tag=tidal&play=1v1&sort=uploaded', $hrefs['New uploads']);
+        $this->assertSame('/maps?tag=tidal&play=1v1&featured=1', $hrefs['Featured']);
+        foreach ($hrefs as $href) {
+            $this->assertStringNotContainsString('page=', $href);
+        }
+
+        $uploaded = array_column(Listing::chips(Listing::parseFilters(['sort' => 'uploaded'])), 'href', 'label');
+        $this->assertSame('/maps', $uploaded['New uploads']);
+        $this->assertSame('/maps?featured=1&sort=uploaded', $uploaded['Featured']);
+    }
+
+    public function test_with_tag_adds_a_tag_once(): void
+    {
+        $filters = Listing::parseFilters(['tag' => 'tidal']);
+        $this->assertSame(['tag' => ['tidal', 'windy']], Listing::withTag($filters, 'windy'));
+        $this->assertSame(['tag' => ['tidal']], Listing::withTag($filters, 'tidal'));
     }
 
     /** What each filter and sort asks PostgREST for, read off the request the query sends. */
@@ -96,10 +141,14 @@ class PageLogicTest extends TestCase
 
         $filters = Listing::parseFilters(['q' => 'comet "remake"', 'tag' => 'Water Map', 'size' => 'small', 'players' => '8', 'sort' => 'size']);
         Listing::applyOrder(Listing::applyFilters(Supabase::anon()->from('map_browse')->select('slug'), $filters, 'beherith'), $filters['sort'])->get();
-        $this->assertSame('select=slug&tags=cs.{"water map"}&tags=cs.{small}&author_keys=cs.{beherith}&start_positions=gte.8&search=wfts.comet "remake"&order=featured_at.desc.nullslast,longer_edge_elmos.desc,map_name.asc', $sent[0]);
+        $this->assertSame('select=slug&tags=cs.{"water map"}&tags=cs.{small}&author_keys=cs.{beherith}&start_positions=gte.8&search=wfts.comet "remake"&order=longer_edge_elmos.desc,map_name.asc', $sent[0]);
 
         Listing::applyOrder(Supabase::anon()->from('map_browse')->select('slug'), 'name')->get();
-        $this->assertSame('select=slug&order=featured_at.desc.nullslast,map_name.asc', $sent[1]);
+        $this->assertSame('select=slug&order=map_name.asc', $sent[1]);
+
+        $uploaded = Listing::parseFilters(['featured' => '1', 'play' => ['1v1', 'team'], 'sort' => 'uploaded']);
+        Listing::applyOrder(Listing::applyFilters(Supabase::anon()->from('map_browse')->select('slug'), $uploaded, null), $uploaded['sort'])->get();
+        $this->assertSame('select=slug&featured_at=not.is.null&play_types=ov.{1v1,team}&uploaded_at=not.is.null&order=uploaded_at.desc,map_name.asc', $sent[2]);
     }
 
     public function test_an_author_key_is_the_databases_answer(): void
