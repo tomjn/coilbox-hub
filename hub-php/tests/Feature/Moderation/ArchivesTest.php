@@ -105,11 +105,13 @@ class ArchivesTest extends ModerationTestCase
     {
         $this->supabase(['POST /rpc/moderation_archives' => self::reply([
             'reported' => [self::archive() + ['reports' => [['found' => ['internal_name' => 'Not Comet'], 'created_at' => '2026-11-17T13:00:00+00:00']]]],
-            'recent' => [self::archive(['id' => '22222222-0000-4000-8000-000000000009', 'filename' => 'Newer.sd7', 'copies' => []])],
+            'recent' => [self::archive(['id' => '22222222-0000-4000-8000-000000000009', 'filename' => 'Newer.sd7', 'internal_name' => 'Newer', 'copies' => [], 'page' => '/map/newer'])],
         ])]);
 
         $this->signedIn()->get('/moderation/archives?q=comet')
             ->assertOk()
+            ->assertSee('Map: Comet Catcher, version 1.0', false)
+            ->assertSee('<a href="/map/newer" class="text-neutral-300 underline underline-offset-4 hover:text-neutral-100 active:text-neutral-100">Newer</a>, version 1.0', false)
             ->assertSee('Not Comet')
             ->assertSee('Download from jj.darkstars.co.uk')
             ->assertSee('Dismiss the reports')
