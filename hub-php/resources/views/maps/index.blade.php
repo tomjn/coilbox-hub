@@ -22,7 +22,7 @@
         </div>
 
         @foreach ([['featured', 'Featured', 'View all featured', '/maps?featured=1'], ['uploaded', 'Newest uploads', 'View all new uploads', '/maps?sort=uploaded']] as [$key, $heading, $linkText, $href])
-            <x-maps.section :title="$heading" :more-href="$href" :more-label="$linkText" :maps="$sections[$key]['maps'] ?? []" :pictures="$sections[$key]['pictures'] ?? []" :filters="$filters" />
+            <x-maps.section :title="$heading" :more-href="$href" :more-label="$linkText" :maps="$sections[$key]['maps'] ?? []" :pictures="$sections[$key]['pictures'] ?? []" />
         @endforeach
 
         <x-maps.filter-bar :filters="$filters" />
@@ -47,7 +47,7 @@
                 @foreach ($maps as $index => $map)
                     @if (isset($pictures[$map['map_name']]))
                         {{-- The first twelve fill the first screen on most displays, so those load with the page. --}}
-                        <li><x-maps.card :map="$map" :picture="$pictures[$map['map_name']]" :filters="$filters" :eager="$index < 12" /></li>
+                        <li><x-maps.card :map="$map" :picture="$pictures[$map['map_name']]" :eager="$index < 12" /></li>
                     @endif
                 @endforeach
             </ul>

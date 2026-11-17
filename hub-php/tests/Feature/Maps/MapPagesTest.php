@@ -131,7 +131,11 @@ class MapPagesTest extends TestCase
             ->assertSee('href="/map/comet"', false)
             ->assertSee('8 players')
             ->assertSee('Featured')
-            ->assertSee('href="/maps?author=beherith&amp;size=medium&amp;sort=players"', false)
+            // The card is the title and one line of size and starts. Authors and tags are on the map page.
+            ->assertSee('title="Comet Catcher Remake 1.8"', false)
+            ->assertSee('12 x 20 &middot; 8 players</p>', false)
+            ->assertDontSee('href="/maps?author=beherith', false)
+            ->assertDontSee('>medium</a>', false)
             ->assertSee('Page 1 of 1, 1 map')
             ->assertSee('>Clear</a>', false);
     }

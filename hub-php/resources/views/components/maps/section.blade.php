@@ -7,7 +7,7 @@
     two cards load their minimap with the page. Lazy images in hidden cards are
     never fetched.
 --}}
-@props(['title', 'moreHref', 'moreLabel', 'maps', 'pictures', 'filters'])
+@props(['title', 'moreHref', 'moreLabel', 'maps', 'pictures'])
 @if ($maps !== [])
     @php $id = 'maps-section-'.\Illuminate\Support\Str::slug($title); @endphp
     <section class="flex flex-col gap-3" aria-labelledby="{{ $id }}">
@@ -19,7 +19,7 @@
             <ul class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(200px,calc(50%_-_8px)),1fr))]">
                 @foreach ($maps as $index => $map)
                     @if (isset($pictures[$map['map_name']]))
-                        <li><x-maps.card :map="$map" :picture="$pictures[$map['map_name']]" :filters="$filters" :eager="$index < 2" :heading-level="3" /></li>
+                        <li><x-maps.card :map="$map" :picture="$pictures[$map['map_name']]" :eager="$index < 2" :heading-level="3" /></li>
                     @endif
                 @endforeach
             </ul>
