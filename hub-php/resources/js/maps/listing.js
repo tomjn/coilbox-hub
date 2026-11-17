@@ -27,6 +27,22 @@ for (const select of document.querySelectorAll('select[data-submit-on-change]'))
     select.addEventListener('change', () => select.form?.requestSubmit());
 }
 
+// A card's download button fetches from a random mirror, so no one mirror
+// carries every download. Without this script it uses the first mirror.
+for (const link of document.querySelectorAll('a[data-mirror-urls]')) {
+    let urls;
+    try {
+        urls = JSON.parse(link.dataset.mirrorUrls);
+    } catch {
+        continue;
+    }
+    if (!Array.isArray(urls) || urls.length < 2) continue;
+    // Before the browser follows the link, for a left click, a middle click and Enter alike.
+    const choose = () => { link.href = urls[Math.floor(Math.random() * urls.length)]; };
+    link.addEventListener('click', choose);
+    link.addEventListener('auxclick', choose);
+}
+
 // A submitted form dims its button until the next page arrives, as
 // components/BusyForm.tsx did. Restored when the page comes back from the
 // back and forward cache.

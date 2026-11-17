@@ -137,7 +137,23 @@ class MapPagesTest extends TestCase
             ->assertDontSee('href="/maps?author=beherith', false)
             ->assertDontSee('>medium</a>', false)
             ->assertSee('Page 1 of 1, 1 map')
-            ->assertSee('>Clear</a>', false);
+            ->assertSee('>Clear</a>', false)
+            ->assertDontSee('data-mirror-urls', false);
+    }
+
+    public function test_a_map_a_mirror_holds_gets_a_download_button(): void
+    {
+        $this->answers['map_browse'] = [[
+            'id' => 'map-1', 'map_name' => self::COMET, 'slug' => 'comet', 'display_name' => null,
+            'width_elmos' => 6144, 'height_elmos' => 10240, 'tags' => [], 'start_positions' => 8,
+            'author_keys' => [], 'author_names' => [], 'featured_at' => null,
+            'mirror_urls' => ['https://one.example/maps/comet.sd7', 'https://two.example/maps/comet.sd7'],
+        ]];
+
+        $this->get('/maps?size=medium')->assertOk()
+            // The first mirror without a script. listing.js picks one at random on click.
+            ->assertSee('href="https://one.example/maps/comet.sd7" rel="noreferrer" data-mirror-urls="[&quot;https:\/\/one.example\/maps\/comet.sd7&quot;,&quot;https:\/\/two.example\/maps\/comet.sd7&quot;]"', false)
+            ->assertSee('Download<span class="sr-only"> Comet Catcher Remake 1.8</span>', false);
     }
 
     public function test_the_filter_bar(): void

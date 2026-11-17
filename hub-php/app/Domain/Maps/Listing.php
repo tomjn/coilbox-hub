@@ -30,7 +30,7 @@ final class Listing
     /** Cards in each row above the first page, the Featured and Newest uploads sections. */
     public const SECTION_SIZE = 12;
 
-    public const SUMMARY_COLUMNS = 'id,map_name,slug,display_name,width_elmos,height_elmos,tags,start_positions,author_keys,author_names,featured_at';
+    public const SUMMARY_COLUMNS = 'id,map_name,slug,display_name,width_elmos,height_elmos,tags,start_positions,author_keys,author_names,featured_at,mirror_urls';
 
     /** The three size bands, which are derived tags rather than a column. */
     public const SIZES = ['small', 'medium', 'large'];
