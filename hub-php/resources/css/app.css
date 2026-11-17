@@ -115,3 +115,60 @@ summary {
         animation: none !important;
     }
 }
+
+/* A row of width W fits floor((W + 16) / 216) cards. Rule k hides card k+1 onward below (k+1) * 216 - 16 - 0.02 pixels. */
+@container (max-width: 415.98px) {
+    .map-row > ul > li:nth-child(n+2) {
+        display: none;
+    }
+}
+@container (max-width: 631.98px) {
+    .map-row > ul > li:nth-child(n+3) {
+        display: none;
+    }
+}
+@container (max-width: 847.98px) {
+    .map-row > ul > li:nth-child(n+4) {
+        display: none;
+    }
+}
+@container (max-width: 1063.98px) {
+    .map-row > ul > li:nth-child(n+5) {
+        display: none;
+    }
+}
+@container (max-width: 1279.98px) {
+    .map-row > ul > li:nth-child(n+6) {
+        display: none;
+    }
+}
+@container (max-width: 1495.98px) {
+    .map-row > ul > li:nth-child(n+7) {
+        display: none;
+    }
+}
+@container (max-width: 1711.98px) {
+    .map-row > ul > li:nth-child(n+8) {
+        display: none;
+    }
+}
+@container (max-width: 1927.98px) {
+    .map-row > ul > li:nth-child(n+9) {
+        display: none;
+    }
+}
+@container (max-width: 2143.98px) {
+    .map-row > ul > li:nth-child(n+10) {
+        display: none;
+    }
+}
+@container (max-width: 2359.98px) {
+    .map-row > ul > li:nth-child(n+11) {
+        display: none;
+    }
+}
+@container (max-width: 2575.98px) {
+    .map-row > ul > li:nth-child(n+12) {
+        display: none;
+    }
+}

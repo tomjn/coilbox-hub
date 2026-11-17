@@ -1,4 +1,4 @@
-// The map listing's two small enhancements. The listing works without them.
+// The map listing's small enhancements. The listing works without them.
 
 // "/" focuses the search box, as components/SearchShortcut.tsx did, unless
 // the reader is typing somewhere or holding a modifier.
@@ -21,6 +21,11 @@ document.addEventListener('keydown', (event) => {
     input.focus();
     input.select();
 });
+
+// Picking a sort order applies it at once, so the bar needs no Filter button.
+for (const select of document.querySelectorAll('select[data-submit-on-change]')) {
+    select.addEventListener('change', () => select.form?.requestSubmit());
+}
 
 // A submitted form dims its button until the next page arrives, as
 // components/BusyForm.tsx did. Restored when the page comes back from the

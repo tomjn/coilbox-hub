@@ -125,13 +125,45 @@ class MapPagesTest extends TestCase
         ]];
 
         $this->get('/maps?sort=players&size=medium')->assertOk()
-            ->assertSee('<option value="players" selected>Players, most first</option>', false)
+            ->assertSee('<option value="players" selected>Players most first</option>', false)
             ->assertSee('href="/map/comet"', false)
             ->assertSee('8 players')
             ->assertSee('Featured')
             ->assertSee('href="/maps?author=beherith&amp;size=medium&amp;sort=players"', false)
             ->assertSee('Page 1 of 1, 1 map')
             ->assertSee('>Clear</a>', false);
+    }
+
+    public function test_the_filter_bar(): void
+    {
+        $html = $this->get('/maps?play=1v1&tag=tidal')->assertOk()
+            ->assertSee('<input type="hidden" name="play" value="1v1">', false)
+            ->assertSee('<input type="hidden" name="tag" value="tidal">', false)
+            ->assertSee('data-submit-on-change', false)
+            ->assertSee('<details', false)
+            ->assertDontSee('<details open', false)
+            ->getContent();
+
+        // The pager also uses aria-current, so each chip anchor is matched whole.
+        foreach (['1v1', 'Tidal'] as $label) {
+            $this->assertMatchesRegularExpression('#<a href="[^"]*"[^>]*aria-current="true"[^>]*>'.$label.'</a>#', $html);
+        }
+        $this->assertDoesNotMatchRegularExpression('#<a [^>]*aria-current="true"[^>]*>Team</a>#', $html);
+        $this->assertMatchesRegularExpression('#<a [^>]*>Team</a>#', $html);
+
+        $this->get('/maps?author=x')->assertOk()->assertSee('<details open', false);
+    }
+
+    public function test_section_rows_hide_overflow_with_css(): void
+    {
+        $this->holdSections([self::row('fresh', 'Fresh Map')]);
+
+        $this->get('/maps')->assertOk()->assertSee('class="map-row', false);
+    }
+
+    public function test_uploaded_sort_with_nothing_uploaded_says_no_match(): void
+    {
+        $this->get('/maps?sort=uploaded')->assertOk()->assertSee('No map matches that.');
     }
 
     /** @return array<string, mixed> */
