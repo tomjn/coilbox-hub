@@ -5,7 +5,7 @@
 -- function sees it, so these tests pass well formed payloads.
 
 begin;
-select plan(23);
+select plan(42);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -140,6 +140,92 @@ set local role authenticated;
 select throws_ok(
   $$select public.set_mirror_health('m-a', true)$$,
   '42501', null, 'authenticated cannot call set_mirror_health');
+reset role;
+
+-- ## Catalogue source
+
+insert into public.archive (id, sha256, filename, kind, internal_name, version, size, state, removed_at, removal_reason)
+values
+  ('11111111-0000-4000-8000-00000000000c', repeat('c', 64), 'c.sd7', 'map', 'C 1.0', '1.0', 333, 'uploading', null, null),
+  ('11111111-0000-4000-8000-00000000000d', repeat('d', 64), 'd.sd7', 'map', 'D 1.0', '1.0', 444, 'removed', '2026-01-01 00:00:00+00', null);
+
+create temporary table src (label text primary key, j jsonb);
+grant all on src to public;
+
+insert into src select 'first', public.catalogue_source();
+insert into src select 'second', public.catalogue_source();
+
+select is((select (j->>'seq')::bigint from src where label = 'first'), 1::bigint, 'the first catalogue_source call returns seq 1');
+select is((select (j->>'seq')::bigint from src where label = 'second'), 2::bigint, 'the second call returns seq 2');
+select is(
+  (select next_seq from public.catalogue_state), 3::bigint,
+  'each call moves next_seq on by one');
+
+select is(
+  (select count(*) from jsonb_array_elements((select j from src where label = 'first')->'mirrors') as e where e->>'id' = 'm-off'),
+  0::bigint, 'a disabled mirror is not listed');
+select is(
+  (select count(*) from jsonb_array_elements((select j from src where label = 'first')->'mirrors') as e where e->>'id' = 'm-a'),
+  1::bigint, 'an enabled mirror is listed whatever its health');
+select is(
+  (select array_agg(e->>'id' order by ord) from jsonb_array_elements((select j from src where label = 'first')->'mirrors') with ordinality as t(e, ord)),
+  (select array_agg(id order by id) from public.mirror where enabled),
+  'mirrors are ordered by id');
+
+select is(
+  (select array_agg(e->>'filename' order by ord) from jsonb_array_elements((select j from src where label = 'first')->'archives') with ordinality as t(e, ord)),
+  array['a.sd7', 'b.sd7'],
+  'only listed archives are listed');
+select is(
+  (select jsonb_typeof(e->'size') from jsonb_array_elements((select j from src where label = 'first')->'archives') as e limit 1),
+  'number', 'size is a JSON number');
+
+select is(
+  (select (j->'removed') from src where label = 'first'),
+  '[{"sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","filename":"d.sd7","reason":"removed","removed_at":1767225600}]'::jsonb,
+  'a removed archive is listed with a default reason and epoch seconds');
+
+-- ## Storing a catalogue
+
+select is(
+  public.store_catalogue(5, 10, 1000, '{"a":1}', 'sig5', null),
+  true, 'store_catalogue writes the first catalogue');
+select is(
+  public.store_catalogue(4, 12, 1001, '{"a":0}', 'sig4', null),
+  false, 'a lower seq is not written');
+select is(
+  (select body from public.catalogue_state), '{"a":1}',
+  'the higher seq keeps its body');
+select is(
+  (select sig from public.catalogue_state), 'sig5',
+  'the higher seq keeps its signature');
+select is(
+  (select built_changes from public.catalogue_state), 12::bigint,
+  'built_changes still moves forward on a refused write');
+
+select public.store_catalogue(6, 12, 1002, '{"a":2}', 'sig6', 'NEXTKEY');
+select is(
+  (select next_key_since_seq from public.catalogue_state), 6::bigint,
+  'the first catalogue carrying a next key records its seq');
+select public.store_catalogue(7, 12, 1003, '{"a":3}', 'sig7', 'NEXTKEY');
+select is(
+  (select next_key_since_seq from public.catalogue_state), 6::bigint,
+  'the same next key keeps the first seq');
+select public.store_catalogue(8, 12, 1004, '{"a":4}', 'sig8', null);
+select ok(
+  (select next_key_public is null and next_key_since_seq is null from public.catalogue_state),
+  'a null next key clears both columns');
+
+set local role anon;
+select throws_ok(
+  $$select public.catalogue_source()$$,
+  '42501', null, 'anon cannot call catalogue_source');
+reset role;
+
+set local role authenticated;
+select throws_ok(
+  $$select public.store_catalogue(1, 1, 1, 'x', 'y', null)$$,
+  '42501', null, 'authenticated cannot call store_catalogue');
 reset role;
 
 select * from finish();

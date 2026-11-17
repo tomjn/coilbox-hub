@@ -94,9 +94,106 @@ as $$
   where id = p_mirror;
 $$;
 
+-- ## Catalogue
+
+-- Takes the next sequence number and reads the lists under one row lock. The
+-- update comes first and holds the lock until the caller's transaction ends.
+-- Each read after it sees every change committed before the lock was granted,
+-- and a later change cannot bump the counter until this call has finished. So
+-- the stored change count never runs ahead of the data it was built from.
+create function public.catalogue_source() returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_seq bigint;
+  v_changes bigint;
+  v_mirrors jsonb;
+  v_archives jsonb;
+  v_removed jsonb;
+begin
+  update public.catalogue_state
+  set next_seq = next_seq + 1
+  where id
+  returning next_seq - 1, changes into v_seq, v_changes;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', m.id, 'base_url', m.base_url, 'public_key', m.public_key
+  ) order by m.id), '[]'::jsonb)
+  into v_mirrors
+  from public.mirror as m
+  where m.enabled;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'filename', a.filename, 'kind', a.kind, 'sha256', a.sha256, 'size', a.size,
+    'internal_name', a.internal_name, 'version', a.version, 'shortname', a.shortname,
+    'author', a.author, 'description', a.description
+  ) order by a.listed_at, a.id), '[]'::jsonb)
+  into v_archives
+  from public.archive as a
+  where a.state = 'listed';
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'sha256', a.sha256, 'filename', a.filename,
+    'reason', coalesce(a.removal_reason, 'removed'),
+    'removed_at', floor(extract(epoch from a.removed_at))::bigint
+  ) order by a.removed_at, a.id), '[]'::jsonb)
+  into v_removed
+  from public.archive as a
+  where a.state = 'removed';
+
+  return jsonb_build_object(
+    'seq', v_seq, 'changes', v_changes,
+    'mirrors', v_mirrors, 'archives', v_archives, 'removed', v_removed
+  );
+end;
+$$;
+
+-- A lower sequence never replaces a higher one, so two overlapping rebuilds
+-- leave the one that read the most recent data. The change count only moves
+-- forward either way.
+create function public.store_catalogue(
+  p_seq bigint, p_changes bigint, p_generated_at bigint, p_body text, p_sig text, p_next_key text
+) returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_state public.catalogue_state;
+  v_written boolean;
+begin
+  select * into v_state from public.catalogue_state where id for update;
+
+  v_written := v_state.seq is null or p_seq > v_state.seq;
+
+  update public.catalogue_state
+  set built_changes = greatest(built_changes, p_changes),
+      seq = case when v_written then p_seq else seq end,
+      generated_at = case when v_written then p_generated_at else generated_at end,
+      body = case when v_written then p_body else body end,
+      sig = case when v_written then p_sig else sig end
+  where id;
+
+  if p_next_key is distinct from v_state.next_key_public then
+    update public.catalogue_state
+    set next_key_public = p_next_key,
+        next_key_since_seq = case when p_next_key is null then null else p_seq end
+    where id;
+  end if;
+
+  return v_written;
+end;
+$$;
+
 -- ## Access
 
 revoke execute on function public.record_mirror_report(text, jsonb) from public, anon, authenticated;
 revoke execute on function public.set_mirror_health(text, boolean) from public, anon, authenticated;
 grant execute on function public.record_mirror_report(text, jsonb) to service_role;
 grant execute on function public.set_mirror_health(text, boolean) to service_role;
+revoke execute on function public.catalogue_source() from public, anon, authenticated;
+revoke execute on function public.store_catalogue(bigint, bigint, bigint, text, text, text) from public, anon, authenticated;
+grant execute on function public.catalogue_source() to service_role;
+grant execute on function public.store_catalogue(bigint, bigint, bigint, text, text, text) to service_role;
