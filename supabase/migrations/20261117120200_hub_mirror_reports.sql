@@ -176,7 +176,9 @@ begin
       sig = case when v_written then p_sig else sig end
   where id;
 
-  if p_next_key is distinct from v_state.next_key_public then
+  -- Only a catalogue that is now served may say which next key mirrors have
+  -- seen. Otherwise a refused older build could mark a key as published.
+  if v_written and p_next_key is distinct from v_state.next_key_public then
     update public.catalogue_state
     set next_key_public = p_next_key,
         next_key_since_seq = case when p_next_key is null then null else p_seq end

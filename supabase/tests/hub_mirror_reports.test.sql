@@ -5,7 +5,7 @@
 -- function sees it, so these tests pass well formed payloads.
 
 begin;
-select plan(42);
+select plan(43);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -149,6 +149,13 @@ values
   ('11111111-0000-4000-8000-00000000000c', repeat('c', 64), 'c.sd7', 'map', 'C 1.0', '1.0', 333, 'uploading', null, null),
   ('11111111-0000-4000-8000-00000000000d', repeat('d', 64), 'd.sd7', 'map', 'D 1.0', '1.0', 444, 'removed', '2026-01-01 00:00:00+00', null);
 
+-- Start from a fresh catalogue state, so the sequence numbers below do not
+-- depend on catalogues an earlier run built in this database.
+update public.catalogue_state
+set next_seq = 1, seq = null, generated_at = null, body = null, sig = null,
+    built_changes = -1, next_key_public = null, next_key_since_seq = null
+where id;
+
 create temporary table src (label text primary key, j jsonb);
 grant all on src to public;
 
@@ -215,6 +222,10 @@ select public.store_catalogue(8, 12, 1004, '{"a":4}', 'sig8', null);
 select ok(
   (select next_key_public is null and next_key_since_seq is null from public.catalogue_state),
   'a null next key clears both columns');
+select public.store_catalogue(3, 12, 1005, '{"a":5}', 'sig3', 'OTHERKEY');
+select ok(
+  (select next_key_public is null and next_key_since_seq is null from public.catalogue_state),
+  'a refused write does not record a next key');
 
 set local role anon;
 select throws_ok(
