@@ -175,6 +175,38 @@ class MapEditTest extends TestCase
             ->assertSee('Edit Comet Catcher Remake')
             ->assertSee('data-list-editor="map-downloads"', false)
             ->assertSee('https:\/\/old.example.test\/comet.sd7', false)
+            ->assertSee('Save downloads')
+            ->assertSee('Nobody has uploaded this map to the hub mirrors.')
+            ->assertDontSee('data-empty=', false);
+    }
+
+    public function test_the_edit_page_shows_each_hub_mirror_upload(): void
+    {
+        $this->canEdit = true;
+        $this->answers['map_mirror_status'] = [
+            ['filename' => 'comet_new.sd7', 'state' => 'listed', 'created_at' => '2026-11-12T10:00:00Z', 'listed_at' => '2026-11-12T10:05:00Z', 'removed_at' => null, 'removal_reason' => null, 'mine' => true,
+                'mirrors' => [['name' => 'One', 'linked' => true, 'last_seen_at' => '2026-11-17T10:00:00Z'], ['name' => 'Sick', 'linked' => false, 'last_seen_at' => '2026-11-17T10:00:00Z']]],
+            ['filename' => 'comet_sent.sd7', 'state' => 'uploading', 'created_at' => '2026-11-11T10:00:00Z', 'listed_at' => null, 'removed_at' => null, 'removal_reason' => null, 'mine' => false, 'mirrors' => []],
+            ['filename' => 'comet_old.sd7', 'state' => 'removed', 'created_at' => '2026-11-10T10:00:00Z', 'listed_at' => '2026-11-10T10:05:00Z', 'removed_at' => '2026-11-11T09:00:00Z', 'removal_reason' => 'withdrawn', 'mine' => false, 'mirrors' => []],
+        ];
+
+        $this->signedIn()->get('/map/comet/edit')->assertOk()
+            ->assertSeeInOrder(['Hub mirrors', 'comet_new.sd7', 'Listed', '12 Nov 2026', 'One: holds it, linked', 'Sick: holds it, not linked until the mirror passes its health check', 'href="/account/uploads"',
+                'comet_sent.sd7', 'Uploading', 'It is listed once a mirror reports holding it.',
+                'comet_old.sd7', 'Removed', 'Withdrawn by its uploader or the game&#039;s owner', 'Downloads'], false)
+            // The hand-added list says the mirror copy is the download rather than claiming there is none.
+            ->assertSee('data-empty="No other sources. The hub mirror copy above is the download."', false);
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/rpc/map_mirror_status') && $r['p_map_id'] === 'map-1');
+    }
+
+    public function test_an_unreadable_upload_list_says_so(): void
+    {
+        $this->canEdit = true;
+        // The fake reads null as no answer, so a reply that is not a list stands in for a failed read.
+        $this->answers['map_mirror_status'] = ['message' => 'broken'];
+
+        $this->signedIn()->get('/map/comet/edit')->assertOk()
+            ->assertSee('The hub mirror uploads could not be read.')
             ->assertSee('Save downloads');
     }
 

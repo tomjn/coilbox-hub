@@ -37,6 +37,7 @@ class MapEditController extends ModerationController
             'slug' => $slug,
             'mapTitle' => $mapTitle,
             'downloads' => MapEdits::downloads($session, (string) $map['id']),
+            'uploads' => MapEdits::mirrorStatus($session, (string) $map['id']),
         ]);
     }
 
