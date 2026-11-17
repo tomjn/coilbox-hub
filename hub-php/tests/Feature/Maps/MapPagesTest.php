@@ -156,7 +156,15 @@ class MapPagesTest extends TestCase
 
     public function test_the_search_box_takes_its_own_row_on_phones(): void
     {
-        $this->get('/maps')->assertOk()->assertSee('w-full min-w-0 sm:w-auto sm:max-w-sm sm:flex-1', false);
+        $this->get('/maps')->assertOk()->assertSee('w-full min-w-0 sm:w-auto sm:min-w-48 sm:max-w-sm sm:flex-1', false);
+    }
+
+    public function test_the_form_wraps_below_the_chips_when_the_search_would_be_too_narrow(): void
+    {
+        $this->get('/maps?author=x')->assertOk()
+            ->assertSee('flex flex-wrap items-baseline gap-2', false)
+            ->assertSee('w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:min-w-auto sm:flex-auto', false)
+            ->assertSee('[contain:inline-size]', false);
     }
 
     public function test_the_listing_grid_has_two_columns_on_phones(): void

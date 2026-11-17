@@ -25,13 +25,13 @@
     $freeTag = $freeTags[0] ?? null;
     $more = $filters['author'] !== null || $filters['size'] !== null || $filters['players'] !== null || $freeTag !== null;
 @endphp
-<div class="flex flex-wrap items-center gap-2">
+<div class="flex flex-wrap items-baseline gap-2">
     @foreach (Listing::chips($filters) as $chip)
         <a href="{{ $chip['href'] }}" @if ($chip['active']) aria-current="true" @endif class="inline-flex min-h-9 items-center rounded-md border bg-card px-3 text-sm font-medium transition-colors {{ $focus }} {{ $chip['active'] ? $chipOn : $chipOff }}">{{ $chip['label'] }}</a>
     @endforeach
 
     {{-- A GET to this same route, so it works with scripting off. --}}
-    <form class="group flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1" action="/maps" data-busy-form>
+    <form class="group flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:min-w-auto sm:flex-auto" action="/maps" data-busy-form>
         @foreach ($filters['play'] as $type)
             <input type="hidden" name="play" value="{{ $type }}">
         @endforeach
@@ -46,7 +46,7 @@
             <input type="hidden" name="featured" value="1">
         @endif
 
-        <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search maps..." aria-label="Search maps" aria-keyshortcuts="/" class="{{ $control }} min-h-9 w-full min-w-0 sm:w-auto sm:max-w-sm sm:flex-1" data-search-shortcut>
+        <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search maps..." aria-label="Search maps" aria-keyshortcuts="/" class="{{ $control }} min-h-9 w-full min-w-0 sm:w-auto sm:min-w-48 sm:max-w-sm sm:flex-1" data-search-shortcut>
 
         <div class="relative">
             <select name="sort" aria-label="Sort by" class="{{ $control }} min-h-9 w-auto appearance-none pr-9" data-submit-on-change>
@@ -64,7 +64,8 @@
 
         <details{{ $more ? ' open' : '' }} class="open:w-full">
             <summary class="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm text-neutral-300 hover:text-neutral-100 active:text-neutral-100 {{ $focus }}">More filters</summary>
-            <div class="mt-2 grid gap-4 border-b border-neutral-900 pb-4 sm:grid-cols-2 lg:grid-cols-4">
+            {{-- Contained so the open panel does not push the form below the chips. --}}
+            <div class="mt-2 grid gap-4 [contain:inline-size] border-b border-neutral-900 pb-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div class="flex flex-col gap-1.5">
                     <label for="maps-author" class="{{ $label }}">Made by</label>
                     <input id="maps-author" type="text" class="{{ $control }} min-h-9" name="author" value="{{ $filters['author'] ?? '' }}">
