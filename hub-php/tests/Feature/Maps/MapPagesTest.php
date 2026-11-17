@@ -187,6 +187,15 @@ class MapPagesTest extends TestCase
         $this->get('/maps')->assertOk()->assertDontSee('Newest uploads')->assertSee('href="/map/plain"', false);
     }
 
+    public function test_a_failed_section_read_is_not_cached(): void
+    {
+        $this->holdSections(null);
+        $this->get('/maps')->assertOk()->assertDontSee('Newest uploads');
+
+        $this->holdSections([self::row('fresh', 'Fresh Map')]);
+        $this->get('/maps')->assertOk()->assertSee('Newest uploads')->assertSee('href="/map/fresh"', false);
+    }
+
     public function test_the_listing_says_why_it_is_empty(): void
     {
         $this->get('/maps')->assertOk()->assertSee('The hub holds facts about no maps yet.');

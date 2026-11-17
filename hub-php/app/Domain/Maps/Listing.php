@@ -308,31 +308,31 @@ final class Listing
     /**
      * One of the rows shown above the first page, `featured` or `uploaded`,
      * with the same licence gate as the grid. A failed read leaves the row
-     * empty, so the page still renders everything else. That matters while the
-     * `uploaded_at` column is not yet in production.
+     * empty and is not cached, so the page still renders everything else and the
+     * row comes back once the read works. That matters while the `uploaded_at`
+     * column is not yet in production.
      *
      * @return array{maps: list<array<string, mixed>>, pictures: array<string, array<string, mixed>>}
      */
     public static function section(string $which): array
     {
-        return HubCache::remember('maps:section:'.$which, [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($which) {
-            $empty = ['maps' => [], 'pictures' => []];
-            $supabase = Supabase::anon();
-
-            try {
+        try {
+            // A failed read throws out of the loader, so the empty answer below is never cached.
+            return HubCache::remember('maps:section:'.$which, [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($which) {
+                $supabase = Supabase::anon();
                 $rule = Lookup::listingRule(Supabase::admin());
                 if ($rule === null) {
-                    return $empty;
+                    throw new SupabaseException('The licence gate could not be read.');
                 }
                 $column = $which === 'featured' ? 'featured_at' : 'uploaded_at';
                 $query = $supabase->from('map_browse')->select(self::SUMMARY_COLUMNS)->not($column, 'is', 'null');
                 $maps = Lookup::applyListingRule($query, $rule)->order($column, false)->order('map_name', true)->limit(self::SECTION_SIZE)->get();
 
                 return ['maps' => $maps, 'pictures' => self::pictures($supabase, $maps)];
-            } catch (SupabaseException) {
-                return $empty;
-            }
-        });
+            });
+        } catch (SupabaseException) {
+            return ['maps' => [], 'pictures' => []];
+        }
     }
 
     /**
