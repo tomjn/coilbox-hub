@@ -43,7 +43,7 @@
                 @endif
             </div>
         @else
-            <ul class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
+            <ul class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(200px,calc(50%_-_8px)),1fr))]">
                 @foreach ($maps as $index => $map)
                     @if (isset($pictures[$map['map_name']]))
                         {{-- The first twelve fill the first screen on most displays, so those load with the page. --}}

@@ -14,7 +14,7 @@
             <a class="inline-flex min-h-9 items-center text-sm text-neutral-300 underline-offset-4 hover:underline active:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400" href="{{ $moreHref }}">{{ $moreLabel }}</a>
         </div>
         <div class="map-row @container">
-            <ul class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
+            <ul class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(200px,calc(50%_-_8px)),1fr))]">
                 @foreach ($maps as $map)
                     @if (isset($pictures[$map['map_name']]))
                         <li><x-maps.card :map="$map" :picture="$pictures[$map['map_name']]" :filters="$filters" :eager="true" :heading-level="3" /></li>

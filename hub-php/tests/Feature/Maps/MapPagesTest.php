@@ -154,6 +154,14 @@ class MapPagesTest extends TestCase
         $this->get('/maps?author=x')->assertOk()->assertSee('<details open', false);
     }
 
+    public function test_the_listing_grid_has_two_columns_on_phones(): void
+    {
+        $this->answers['map_browse'] = [self::row('plain', 'Plain Map')];
+
+        $this->get('/maps?sort=size')->assertOk()
+            ->assertSee('grid-cols-[repeat(auto-fill,minmax(min(200px,calc(50%_-_8px)),1fr))]', false);
+    }
+
     public function test_extra_non_chip_tags_survive_a_search(): void
     {
         $this->get('/maps?tag=foo&tag=bar')->assertOk()
@@ -173,6 +181,7 @@ class MapPagesTest extends TestCase
         $this->holdSections([self::row('fresh', 'Fresh Map')]);
 
         $this->get('/maps')->assertOk()->assertSee('class="map-row', false);
+        $this->get('/maps')->assertSee('grid-cols-[repeat(auto-fill,minmax(min(200px,calc(50%_-_8px)),1fr))]', false);
         $this->assertMatchesRegularExpression('#<div class="map-row[^"]*">\s*<ul[ >]#', $this->get('/maps')->getContent());
     }
 

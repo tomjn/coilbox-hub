@@ -31,7 +31,7 @@
     @endforeach
 
     {{-- A GET to this same route, so it works with scripting off. --}}
-    <form class="group flex min-w-0 flex-1 flex-wrap items-center gap-2" action="/maps" data-busy-form>
+    <form class="group flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1" action="/maps" data-busy-form>
         @foreach ($filters['play'] as $type)
             <input type="hidden" name="play" value="{{ $type }}">
         @endforeach
@@ -46,7 +46,7 @@
             <input type="hidden" name="featured" value="1">
         @endif
 
-        <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search maps..." aria-label="Search maps" aria-keyshortcuts="/" class="{{ $control }} min-h-9 min-w-48 flex-1 sm:max-w-sm" data-search-shortcut>
+        <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search maps..." aria-label="Search maps" aria-keyshortcuts="/" class="{{ $control }} min-h-9 min-w-0 flex-1 sm:max-w-sm" data-search-shortcut>
 
         <div class="relative">
             <select name="sort" aria-label="Sort by" class="{{ $control }} min-h-9 w-auto appearance-none pr-9" data-submit-on-change>

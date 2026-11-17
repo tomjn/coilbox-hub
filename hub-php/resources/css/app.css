@@ -116,12 +116,7 @@ summary {
     }
 }
 
-/* A row of width W fits floor((W + 16) / 216) cards. Rule k hides card k+1 onward when the width is below (k+1) * 216 - 16 pixels. */
-@container (width < 416px) {
-    .map-row > ul > li:nth-child(n+2) {
-        display: none;
-    }
-}
+/* A row of width W fits floor((W + 16) / 216) cards, and widths under 632px show two columns, so rules start at k = 2. Rule k hides card k+1 onward when the width is below (k+1) * 216 - 16 pixels. */
 @container (width < 632px) {
     .map-row > ul > li:nth-child(n+3) {
         display: none;
