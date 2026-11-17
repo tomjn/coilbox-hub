@@ -255,7 +255,7 @@ function listEditor(root: HTMLElement): void {
     });
     if (rows.length === 0) {
       const empty = element("p", "text-sm text-neutral-400");
-      empty.textContent = kind.empty;
+      empty.textContent = root.dataset.empty ?? kind.empty;
       container.append(empty);
     }
     // Keep the keyboard where it was after a row moves or changes kind.

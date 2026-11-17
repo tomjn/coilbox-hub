@@ -88,6 +88,24 @@ final class MapEdits
     }
 
     /**
+     * The map's uploads to the hub mirrors, newest first, each with the mirrors
+     * holding it. Null when they could not be read, so the page can say so
+     * rather than claim there are none.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    public static function mirrorStatus(Client $session, string $mapId): ?array
+    {
+        try {
+            $uploads = $session->rpc('map_mirror_status', ['p_map_id' => $mapId]);
+        } catch (SupabaseException) {
+            return null;
+        }
+
+        return is_array($uploads) && array_is_list($uploads) ? $uploads : null;
+    }
+
+    /**
      * The ordered sources, replaced whole on every save. The new list goes in
      * before the old one comes out, the order game sources are saved in, so a
      * failed insert leaves the list the editor had.
