@@ -5,6 +5,7 @@
     @endif
 </div>
 <p class="text-sm text-neutral-400">{{ $a['kind'] === 'game' ? 'Game: ' : 'Map: ' }}@if ($a['page'] ?? null)<a href="{{ $a['page'] }}" class="text-neutral-300 underline underline-offset-4 hover:text-neutral-100 active:text-neutral-100">{{ $a['internal_name'] }}</a>@else{{ $a['internal_name'] }}@endif{{ ($a['version'] !== '' ? ', version '.$a['version'] : '').($a['shortname'] ? ', shortname '.$a['shortname'] : '').($a['author'] ? ', by '.$a['author'] : '') }}</p>
+<p class="text-sm text-neutral-400">@if ($a['uploader'])Uploaded by <a href="/profile/{{ $a['uploader'] }}" class="text-neutral-300 underline underline-offset-4 hover:text-neutral-100 active:text-neutral-100">{{ $a['uploader_name'] ?? 'an account with no name' }}</a>@else Uploaded by an account that has since been deleted @endif</p>
 <p class="break-all font-mono text-sm text-neutral-400">{{ $a['sha256'] }}</p>
 @if ($a['copies'] !== [])
     <ul class="flex flex-wrap gap-x-4 gap-y-1 text-sm">

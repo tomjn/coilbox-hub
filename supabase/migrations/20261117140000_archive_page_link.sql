@@ -1,5 +1,8 @@
--- Adds `page`, the hub page of the map or game an upload is, to the rows the
--- uploads and moderation pages show. Null when the hub has no such page yet.
+-- Adds to the rows the moderation page shows:
+-- `page`, the hub page of the map or game an upload is, null when the hub has
+-- no such page yet.
+-- `uploader` and `uploader_name`, who uploaded it, null once their account is
+-- deleted.
 create or replace function public.archive_moderation_row(p_archive public.archive) returns jsonb
 language sql
 stable
@@ -29,6 +32,8 @@ as $$
         where g.id = p_archive.game_id
       )
     end,
+    'uploader', p_archive.uploader,
+    'uploader_name', (select pr.display_name from public.profile as pr where pr.user_id = p_archive.uploader),
     'copies', coalesce((
       select jsonb_agg(
         m.base_url || '/' || p_archive.kind || 's/' || public.url_path_segment(p_archive.filename)

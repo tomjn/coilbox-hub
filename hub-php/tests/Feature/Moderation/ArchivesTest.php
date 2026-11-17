@@ -25,6 +25,8 @@ class ArchivesTest extends ModerationTestCase
             'author' => 'Someone',
             'size' => 10,
             'listed_at' => '2026-11-17T12:00:00+00:00',
+            'uploader' => 'a1111111-0000-4000-8000-000000000001',
+            'uploader_name' => 'Uploader One',
             'copies' => ['https://jj.darkstars.co.uk/maps/Comet%20Catcher.sd7'],
         ];
     }
@@ -105,12 +107,14 @@ class ArchivesTest extends ModerationTestCase
     {
         $this->supabase(['POST /rpc/moderation_archives' => self::reply([
             'reported' => [self::archive() + ['reports' => [['found' => ['internal_name' => 'Not Comet'], 'created_at' => '2026-11-17T13:00:00+00:00']]]],
-            'recent' => [self::archive(['id' => '22222222-0000-4000-8000-000000000009', 'filename' => 'Newer.sd7', 'internal_name' => 'Newer', 'copies' => [], 'page' => '/map/newer'])],
+            'recent' => [self::archive(['id' => '22222222-0000-4000-8000-000000000009', 'filename' => 'Newer.sd7', 'internal_name' => 'Newer', 'copies' => [], 'page' => '/map/newer', 'uploader' => null, 'uploader_name' => null])],
         ])]);
 
         $this->signedIn()->get('/moderation/archives?q=comet')
             ->assertOk()
             ->assertSee('Map: Comet Catcher, version 1.0', false)
+            ->assertSee('Uploaded by <a href="/profile/a1111111-0000-4000-8000-000000000001" class="text-neutral-300 underline underline-offset-4 hover:text-neutral-100 active:text-neutral-100">Uploader One</a>', false)
+            ->assertSee('Uploaded by an account that has since been deleted')
             ->assertSee('<a href="/map/newer" class="text-neutral-300 underline underline-offset-4 hover:text-neutral-100 active:text-neutral-100">Newer</a>, version 1.0', false)
             ->assertSee('Not Comet')
             ->assertSee('Download from jj.darkstars.co.uk')
