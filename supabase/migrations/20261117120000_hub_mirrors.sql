@@ -123,7 +123,9 @@ security definer
 set search_path = ''
 as $$
 begin
-  update public.catalogue_state set changes = changes + 1;
+  -- The where clause is needed. PostgREST sessions load safeupdate, which
+  -- refuses an update with none, and that would fail the caller's request.
+  update public.catalogue_state set changes = changes + 1 where id;
   return null;
 end;
 $$;
