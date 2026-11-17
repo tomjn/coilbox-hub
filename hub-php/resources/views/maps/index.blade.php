@@ -21,11 +21,11 @@
             <p class="text-neutral-400">What the hub knows about the maps people play on, from the archives themselves. <a class="text-neutral-300 underline-offset-4 hover:underline active:underline" href="/add">Want to add your own map?</a></p>
         </div>
 
-        <x-maps.filter-bar :filters="$filters" />
-
         @foreach ([['featured', 'Featured', 'View all featured', '/maps?featured=1'], ['uploaded', 'Newest uploads', 'View all new uploads', '/maps?sort=uploaded']] as [$key, $heading, $linkText, $href])
             <x-maps.section :title="$heading" :more-href="$href" :more-label="$linkText" :maps="$sections[$key]['maps'] ?? []" :pictures="$sections[$key]['pictures'] ?? []" :filters="$filters" />
         @endforeach
+
+        <x-maps.filter-bar :filters="$filters" />
 
         @if ($error)
             <p class="text-sm text-red-400">The catalog could not be read just now. Try again in a moment.</p>

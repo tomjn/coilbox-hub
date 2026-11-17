@@ -3,7 +3,9 @@
     row of cards at any width and renders nothing when there are no maps.
 
     The row is a size container, and the rules in app.css hide the cards that
-    do not fit in it, which also keeps them out of the tab order.
+    do not fit in it, which also keeps them out of the tab order. Only the first
+    two cards load their minimap with the page. Lazy images in hidden cards are
+    never fetched.
 --}}
 @props(['title', 'moreHref', 'moreLabel', 'maps', 'pictures', 'filters'])
 @if ($maps !== [])
@@ -15,9 +17,9 @@
         </div>
         <div class="map-row @container">
             <ul class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(200px,calc(50%_-_8px)),1fr))]">
-                @foreach ($maps as $map)
+                @foreach ($maps as $index => $map)
                     @if (isset($pictures[$map['map_name']]))
-                        <li><x-maps.card :map="$map" :picture="$pictures[$map['map_name']]" :filters="$filters" :eager="true" :heading-level="3" /></li>
+                        <li><x-maps.card :map="$map" :picture="$pictures[$map['map_name']]" :filters="$filters" :eager="$index < 2" :heading-level="3" /></li>
                     @endif
                 @endforeach
             </ul>

@@ -89,6 +89,7 @@ class PageLogicTest extends TestCase
         parse_str(parse_url($href, PHP_URL_QUERY), $keys);
         $this->assertSame(Listing::FILTER_KEYS, array_keys($keys));
 
+        $this->assertSame('/maps?tag=0', Listing::filterHref(Listing::parseFilters(['tag' => '0']), []));
         $this->assertSame('/maps?tag=tidal&tag=windy', Listing::filterHref(Listing::parseFilters(['tag' => ['tidal', 'windy']]), []));
         $this->assertSame('/maps?tag=metal&size=small&sort=added&page=2', Listing::filterHref(Listing::parseFilters(['tag' => 'metal', 'size' => 'small', 'sort' => 'added', 'page' => '2']), ['page' => 2]));
         $this->assertTrue(Listing::isFiltered(Listing::parseFilters(['featured' => '1'])));

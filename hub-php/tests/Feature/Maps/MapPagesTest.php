@@ -3,6 +3,8 @@
 namespace Tests\Feature\Maps;
 
 use Illuminate\Http\Client\Request;
+use App\Domain\Maps\Listing;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -263,6 +265,40 @@ class MapPagesTest extends TestCase
 
         $this->holdSections([self::row('fresh', 'Fresh Map')]);
         $this->get('/maps')->assertOk()->assertSee('Newest uploads')->assertSee('href="/map/fresh"', false);
+    }
+
+    public function test_the_sections_sit_above_the_filter_bar(): void
+    {
+        $this->holdSections([self::row('fresh', 'Fresh Map')]);
+
+        $html = $this->get('/maps')->assertOk()->getContent();
+        $this->assertLessThan(strpos($html, 'type="search"'), strpos($html, 'View all featured'));
+    }
+
+    public function test_only_the_first_two_section_cards_load_eagerly(): void
+    {
+        $maps = [];
+        $pictures = [];
+        foreach (range(1, 5) as $n) {
+            $maps[] = self::row('m'.$n, 'Map '.$n);
+            $pictures['Map '.$n] = ['from' => 'held', 'url' => 'https://img.test/'.$n.'.png'];
+        }
+        $filters = Listing::parseFilters([]);
+
+        $html = Blade::render('<x-maps.section title="Featured" more-href="/maps?featured=1" more-label="View all" :maps="$maps" :pictures="$pictures" :filters="$filters" />', compact('maps', 'pictures', 'filters'));
+
+        $this->assertSame(5, substr_count($html, '<img'));
+        $this->assertSame(3, substr_count($html, 'loading="lazy"'));
+        $this->assertDoesNotMatchRegularExpression('#img\.test/[12]\.png"[^>]*loading="lazy"#', $html);
+    }
+
+    public function test_a_failed_listing_read_is_not_cached(): void
+    {
+        $this->answers['map_browse'] = null;
+        $this->get('/maps?play=1v1')->assertOk()->assertSee('The catalog could not be read just now.');
+
+        $this->answers['map_browse'] = [self::row('duel', 'Duel Map')];
+        $this->get('/maps?play=1v1')->assertOk()->assertSee('href="/map/duel"', false);
     }
 
     public function test_the_listing_says_why_it_is_empty(): void

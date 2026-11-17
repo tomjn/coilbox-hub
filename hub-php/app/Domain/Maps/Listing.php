@@ -190,7 +190,7 @@ final class Listing
             $value = $next[$key];
             if ($key === 'tag' || $key === 'play') {
                 // A change may give one value or null for the list, as a link to a single tag does.
-                foreach (is_array($value) ? $value : array_filter([$value]) as $item) {
+                foreach (is_array($value) ? $value : array_filter([$value], fn ($item) => $item !== null && $item !== '') as $item) {
                     $pairs[] = [$key, $item];
                 }
             } elseif ($key === 'featured') {
@@ -275,34 +275,42 @@ final class Listing
      */
     public static function page(array $filters): array
     {
-        return HubCache::remember('maps:page:'.json_encode($filters), [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($filters) {
-            $supabase = Supabase::anon();
-            $authorKey = self::resolveAuthorKey($supabase, $filters['author']);
+        try {
+            // A failed read throws out of the loader, so an error answer is never cached.
+            return HubCache::remember('maps:page:'.json_encode($filters), [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($filters) {
+                $supabase = Supabase::anon();
+                $authorKey = self::resolveAuthorKey($supabase, $filters['author']);
 
-            try {
-                $rule = Lookup::listingRule(Supabase::admin());
-            } catch (SupabaseException) {
-                $rule = null;
-            }
-            if ($rule === null) {
-                return ['maps' => [], 'count' => 0, 'error' => 'The licence gate could not be read.', 'pictures' => []];
-            }
+                try {
+                    $rule = Lookup::listingRule(Supabase::admin());
+                } catch (SupabaseException) {
+                    $rule = null;
+                }
+                if ($rule === null) {
+                    throw new SupabaseException('The licence gate could not be read.');
+                }
 
-            $listing = fn () => self::applyOrder(
-                Lookup::applyListingRule(
-                    self::applyFilters($supabase->from('map_browse')->select(self::SUMMARY_COLUMNS, 'exact'), $filters, $authorKey),
-                    $rule,
-                ),
-                $filters['sort'],
-            );
+                $listing = fn () => self::applyOrder(
+                    Lookup::applyListingRule(
+                        self::applyFilters($supabase->from('map_browse')->select(self::SUMMARY_COLUMNS, 'exact'), $filters, $authorKey),
+                        $rule,
+                    ),
+                    $filters['sort'],
+                );
 
-            $page = GalleryQuery::fetchPage(
-                fn () => $listing()->range(($filters['page'] - 1) * self::PAGE_SIZE, $filters['page'] * self::PAGE_SIZE - 1)->getWithCount(),
-                fn () => $listing()->range(0, 0)->getWithCount(),
-            );
+                $page = GalleryQuery::fetchPage(
+                    fn () => $listing()->range(($filters['page'] - 1) * self::PAGE_SIZE, $filters['page'] * self::PAGE_SIZE - 1)->getWithCount(),
+                    fn () => $listing()->range(0, 0)->getWithCount(),
+                );
+                if ($page['error'] !== null) {
+                    throw new SupabaseException($page['error']);
+                }
 
-            return ['maps' => $page['data'], 'count' => $page['count'], 'error' => $page['error'], 'pictures' => self::pictures($supabase, $page['data'])];
-        });
+                return ['maps' => $page['data'], 'count' => $page['count'], 'error' => null, 'pictures' => self::pictures($supabase, $page['data'])];
+            });
+        } catch (SupabaseException $e) {
+            return ['maps' => [], 'count' => 0, 'error' => $e->getMessage(), 'pictures' => []];
+        }
     }
 
     /**
