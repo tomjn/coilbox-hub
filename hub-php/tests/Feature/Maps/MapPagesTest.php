@@ -154,11 +154,26 @@ class MapPagesTest extends TestCase
         $this->get('/maps?author=x')->assertOk()->assertSee('<details open', false);
     }
 
+    public function test_extra_non_chip_tags_survive_a_search(): void
+    {
+        $this->get('/maps?tag=foo&tag=bar')->assertOk()
+            ->assertSee('<input type="hidden" name="tag" value="bar">', false)
+            ->assertDontSee('<input type="hidden" name="tag" value="foo">', false)
+            ->assertSee('id="maps-tag" type="text" class="', false)
+            ->assertSee('name="tag" value="foo"', false);
+    }
+
+    public function test_the_sort_has_an_apply_button_without_scripting(): void
+    {
+        $this->get('/maps')->assertOk()->assertSeeHtml('<noscript><button type="submit"');
+    }
+
     public function test_section_rows_hide_overflow_with_css(): void
     {
         $this->holdSections([self::row('fresh', 'Fresh Map')]);
 
         $this->get('/maps')->assertOk()->assertSee('class="map-row', false);
+        $this->assertMatchesRegularExpression('#<div class="map-row[^"]*">\s*<ul[ >]#', $this->get('/maps')->getContent());
     }
 
     public function test_uploaded_sort_with_nothing_uploaded_says_no_match(): void

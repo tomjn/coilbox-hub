@@ -21,7 +21,8 @@
     $sortLabels = ['name' => 'Name', 'size' => 'Longer edge largest first', 'players' => 'Players most first', 'added' => 'Recently added', 'uploaded' => 'Upload date'];
     $chipTags = ['water map', 'tidal', 'windy'];
     $keptTags = array_values(array_intersect($filters['tag'], $chipTags));
-    $freeTag = array_values(array_diff($filters['tag'], $chipTags))[0] ?? null;
+    $freeTags = array_values(array_diff($filters['tag'], $chipTags));
+    $freeTag = $freeTags[0] ?? null;
     $more = $filters['author'] !== null || $filters['size'] !== null || $filters['players'] !== null || $freeTag !== null;
 @endphp
 <div class="flex flex-wrap items-center gap-2">
@@ -37,6 +38,10 @@
         @foreach ($keptTags as $tag)
             <input type="hidden" name="tag" value="{{ $tag }}">
         @endforeach
+        {{-- The Tag box holds the first of these, so the rest ride along and a search does not drop them. --}}
+        @foreach (array_slice($freeTags, 1) as $tag)
+            <input type="hidden" name="tag" value="{{ $tag }}">
+        @endforeach
         @if ($filters['featured'])
             <input type="hidden" name="featured" value="1">
         @endif
@@ -50,6 +55,8 @@
                 @endforeach
             </select>{!! $chevron !!}
         </div>
+        {{-- Without scripting a new sort order needs a button, and the one in More filters may be closed. --}}
+        <noscript><button type="submit" class="{{ Ui::button() }}">Apply</button></noscript>
 
         @if (Listing::isFiltered($filters))
             <a class="inline-flex min-h-9 items-center rounded-md px-2 text-sm text-neutral-400 hover:text-neutral-200 active:text-neutral-200 {{ $focus }}" href="/maps">Clear</a>
