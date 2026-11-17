@@ -28,6 +28,7 @@
         <div class="flex flex-col gap-3">
             <a href="/profile/{{ $userId }}" class="{{ $link }}">Your public profile</a>
             <a href="/gallery?account={{ $userId }}" class="{{ $link }}">Everything you have published</a>
+            <a href="/account/uploads" class="{{ $link }}">Maps and games you uploaded from Coilbox</a>
             <form action="/auth/signout" method="post">
                 @csrf
                 <button type="submit" class="text-sm text-neutral-400 transition-colors hover:text-white active:text-white">Sign out</button>
