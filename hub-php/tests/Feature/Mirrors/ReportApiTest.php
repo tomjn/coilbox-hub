@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Mirrors;
 
+use App\Support\HubCache;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 use Tests\Unit\Mirrors\MirrorFixtures;
 
@@ -43,7 +45,7 @@ class ReportApiTest extends TestCase
         ])];
     }
 
-    private function send(string $fixture = 'report-upload.json'): \Illuminate\Testing\TestResponse
+    private function send(string $fixture = 'report-upload.json'): TestResponse
     {
         return $this->call('POST', '/api/v1/mirrors/report', [], [], [], ['CONTENT_TYPE' => 'application/json'], self::fixture($fixture));
     }
@@ -77,6 +79,42 @@ class ReportApiTest extends TestCase
             && is_array($r['p_payload']['held']));
         Http::assertSent(fn (Request $r) => str_contains($r->url(), 'rpc/set_mirror_health')
             && $r['p_mirror'] === 'jj-darkstars' && $r['p_healthy'] === true);
+    }
+
+    /** Whether a value cached under the maps and games tags before the report is still served after it. */
+    private function cachedPagesSurvive(array $recorded, mixed $healthChanged): bool
+    {
+        Http::fake($this->currentCatalogue() + [
+            'https://sb.test/rest/v1/mirror*' => Http::response([$this->mirrorRow()]),
+            'https://sb.test/rest/v1/rpc/record_mirror_report' => Http::response(['outcome' => 'recorded', 'listed' => 0, 'check' => null] + $recorded),
+            'https://mirror.test/listing.json' => Http::response('{}', 200),
+            'https://sb.test/rest/v1/rpc/set_mirror_health' => Http::response(json_encode($healthChanged), 200),
+        ]);
+        HubCache::remember('maps:test', [HubCache::MAPS], 60, fn () => 'before');
+        HubCache::remember('games:test', [HubCache::GAMES], 60, fn () => 'before');
+
+        $this->send('report-sync.json')->assertOk();
+
+        $maps = HubCache::remember('maps:test', [HubCache::MAPS], 60, fn () => 'after');
+        $games = HubCache::remember('games:test', [HubCache::GAMES], 60, fn () => 'after');
+        $this->assertSame($maps, $games);
+
+        return $maps === 'before';
+    }
+
+    public function test_a_report_that_changed_a_download_list_drops_cached_map_and_game_pages(): void
+    {
+        $this->assertFalse($this->cachedPagesSurvive(['changed' => true], false));
+    }
+
+    public function test_a_health_change_drops_cached_map_and_game_pages(): void
+    {
+        $this->assertFalse($this->cachedPagesSurvive(['changed' => false], true));
+    }
+
+    public function test_a_report_that_changed_nothing_keeps_cached_pages(): void
+    {
+        $this->assertTrue($this->cachedPagesSurvive(['changed' => false], false));
     }
 
     public function test_a_failed_catalogue_refresh_does_not_fail_the_report(): void

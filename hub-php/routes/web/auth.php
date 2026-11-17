@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AccountController;
 use App\Http\Controllers\Auth\SignInController;
+use App\Http\Controllers\Auth\UploadsController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/sign-in', [SignInController::class, 'page']);
@@ -17,5 +18,7 @@ Route::post('/account/unlink', [AccountController::class, 'unlink']);
 Route::post('/account/factor/start', [AccountController::class, 'startEnrolment']);
 Route::post('/account/factor/confirm', [AccountController::class, 'confirmEnrolment']);
 Route::post('/account/factor/remove', [AccountController::class, 'removeFactor']);
+Route::get('/account/uploads', [UploadsController::class, 'show']);
+Route::post('/account/uploads/withdraw', [UploadsController::class, 'withdraw']);
 Route::get('/account/verify', [AccountController::class, 'verifyPage']);
 Route::post('/account/verify', [AccountController::class, 'verify']);

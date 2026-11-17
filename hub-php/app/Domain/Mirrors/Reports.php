@@ -4,6 +4,7 @@ namespace App\Domain\Mirrors;
 
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
+use App\Support\HubCache;
 use Illuminate\Support\Facades\Log;
 
 /** Handles one signed mirror report from open to recorded (PROTOCOL.md section 7). */
@@ -48,7 +49,14 @@ final class Reports
 
             $check = is_array($result['check'] ?? null) ? $result['check'] : null;
             $healthy = HealthCheck::check((string) $mirror['base_url'], $check);
-            $admin->rpc('set_mirror_health', ['p_mirror' => $opened['mirror'], 'p_healthy' => $healthy]);
+            $healthChanged = $admin->rpc('set_mirror_health', ['p_mirror' => $opened['mirror'], 'p_healthy' => $healthy]) === true;
+
+            // Map and game pages are cached for a week. Their download lists
+            // name the healthy mirrors holding each archive, so drop them when
+            // that changed, and only then.
+            if (($result['changed'] ?? false) === true || $healthChanged) {
+                HubCache::invalidate([HubCache::MAPS, HubCache::GAMES]);
+            }
 
             // The report is already recorded, so a catalogue that cannot be rebuilt must not fail it.
             try {

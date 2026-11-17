@@ -3,7 +3,8 @@
 #
 # It starts two copies of the mirror from ~/dev/coilbox-mirror and the hub in hub-php/,
 # registers the mirrors in the local database, uploads a test map as a signed-in user,
-# syncs both mirrors and checks the file and the signed catalogue.
+# syncs both mirrors and checks the file and the signed catalogue. Then it sends a
+# mismatch report, withdraws the upload, and checks both mirrors delete the file.
 #
 # Usage: scripts/mirrors-e2e.sh [--keep]
 #
@@ -279,6 +280,8 @@ echo "test user signed in"
 
 mkdir -p "$TMP/client"
 upload_out="$(php "$REPO/scripts/mirrors-e2e-upload.php" "$HUB_URL" "$TMP/client")" || die "the upload client failed"
+# Kept for withdrawing the upload in step 8, but no longer in the environment.
+USER_TOKEN="$E2E_ACCESS_TOKEN"
 unset E2E_ACCESS_TOKEN
 upload_json="$(tail -n 1 <<<"$upload_out")"
 FILENAME="$(json_get filename <<<"$upload_json")"
@@ -353,5 +356,57 @@ PHP
 holders="$(echo "select count(*) from public.archive_mirror where archive_id = '$ARCHIVE_ID' and mirror_id in ('e2e-a', 'e2e-b');" | sql)"
 [[ "$holders" == "2" ]] || die "the hub records $holders mirrors holding the archive, expected 2"
 echo "hub records both mirrors as holding the archive"
+
+# --- 7. A player reports that the archive is not what the hub says ---
+
+mismatch_code="$(curl -sS --max-time 30 -o "$TMP/mismatch.json" -w '%{http_code}' -X POST \
+  -H 'Content-Type: application/json' \
+  -d "{\"sha256\":\"$SHA256\",\"found\":{\"internal_name\":\"Something Else\"}}" \
+  "$HUB_URL/api/v1/archives/mismatch")"
+[[ "$mismatch_code" == "202" ]] || die "POST /api/v1/archives/mismatch answered $mismatch_code: $(<"$TMP/mismatch.json")"
+echo "hub took a mismatch report"
+
+# --- 8. The uploader withdraws it, and both mirrors delete it ---
+
+# Through PostgREST as the test user, the way the uploads page calls it.
+removed="$(printf 'header = "apikey: %s"\nheader = "Authorization: Bearer %s"\n' "$PUBLISHABLE_KEY" "$USER_TOKEN" |
+  curl -sS -K - -X POST -H 'Content-Type: application/json' \
+    -d "{\"p_id\":\"$ARCHIVE_ID\",\"p_reason\":\"withdrawn\",\"p_note\":null}" \
+    "$API_URL/rest/v1/rpc/remove_archive")"
+unset USER_TOKEN
+[[ "$removed" == '"removed"' ]] || die "remove_archive answered $removed"
+echo "uploader withdrew the archive"
+
+open_reports="$(echo "select count(*) from public.archive_mismatch where archive_id = '$ARCHIVE_ID' and (handled_how is distinct from 'removed' or ip is not null);" | sql)"
+[[ "$open_reports" == "0" ]] || die "$open_reports mismatch reports are still open or keep an address after removal"
+
+for id in a b
+do
+  echo "sync mirror $id"
+  (cd "$TMP/mirror-$id" && php84 sync.php --verbose) || die "sync.php failed on mirror $id"
+  [[ ! -e "$TMP/mirror-$id/maps/$FILENAME" ]] || die "mirror $id still holds maps/$FILENAME after removal"
+  echo "mirror $id deleted the file"
+done
+
+curl -sS --max-time 30 -o "$TMP/catalogue" "$HUB_URL/api/v1/catalogue" || die "GET /api/v1/catalogue failed"
+php -- "$TMP/catalogue" "$SHA256" <<'PHP' || die "the catalogue does not list the archive as removed"
+<?php
+[, $bodyFile, $sha256] = $argv;
+$catalogue = json_decode(file_get_contents($bodyFile), true);
+foreach ($catalogue['archives'] ?? [] as $archive) {
+    if (($archive['sha256'] ?? null) === $sha256) {
+        fwrite(STDERR, "the catalogue still lists the archive\n");
+        exit(1);
+    }
+}
+foreach ($catalogue['removed'] ?? [] as $removed) {
+    if (($removed['sha256'] ?? null) === $sha256 && ($removed['reason'] ?? null) === 'withdrawn') {
+        echo "catalogue seq {$catalogue['seq']} lists the archive as removed\n";
+        exit(0);
+    }
+}
+fwrite(STDERR, "the removed list does not hold the archive\n");
+exit(1);
+PHP
 
 echo "e2e ok"

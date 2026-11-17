@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Moderation\ArchivesController;
 use App\Http\Controllers\Moderation\AuthorsController;
 use App\Http\Controllers\Moderation\GamesController;
 use App\Http\Controllers\Moderation\MapPacksController;
@@ -54,5 +55,9 @@ Route::post('/moderation/games/visibility', [GamesController::class, 'visibility
 Route::post('/moderation/games/version-visibility', [GamesController::class, 'versionVisibility']);
 Route::post('/moderation/games/feature', [GamesController::class, 'feature']);
 Route::post('/moderation/games/offer', [GamesController::class, 'offer']);
+
+Route::get('/moderation/archives', [ArchivesController::class, 'index']);
+Route::post('/moderation/archives/remove', [ArchivesController::class, 'remove']);
+Route::post('/moderation/archives/dismiss', [ArchivesController::class, 'dismiss']);
 
 Route::get('/ops', [OpsController::class, 'show']);
