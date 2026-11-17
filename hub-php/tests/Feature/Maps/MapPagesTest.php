@@ -154,6 +154,11 @@ class MapPagesTest extends TestCase
         $this->get('/maps?author=x')->assertOk()->assertSee('<details open', false);
     }
 
+    public function test_the_search_box_takes_its_own_row_on_phones(): void
+    {
+        $this->get('/maps')->assertOk()->assertSee('w-full min-w-0 sm:w-auto sm:max-w-sm sm:flex-1', false);
+    }
+
     public function test_the_listing_grid_has_two_columns_on_phones(): void
     {
         $this->answers['map_browse'] = [self::row('plain', 'Plain Map')];

@@ -46,7 +46,7 @@
             <input type="hidden" name="featured" value="1">
         @endif
 
-        <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search maps..." aria-label="Search maps" aria-keyshortcuts="/" class="{{ $control }} min-h-9 min-w-0 flex-1 sm:max-w-sm" data-search-shortcut>
+        <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search maps..." aria-label="Search maps" aria-keyshortcuts="/" class="{{ $control }} min-h-9 w-full min-w-0 sm:w-auto sm:max-w-sm sm:flex-1" data-search-shortcut>
 
         <div class="relative">
             <select name="sort" aria-label="Sort by" class="{{ $control }} min-h-9 w-auto appearance-none pr-9" data-submit-on-change>
