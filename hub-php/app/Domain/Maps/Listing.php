@@ -27,6 +27,9 @@ final class Listing
     /** Cards per page. */
     public const PAGE_SIZE = 60;
 
+    /** Cards in each row above the first page, the Featured and Newest uploads sections. */
+    public const SECTION_SIZE = 12;
+
     public const SUMMARY_COLUMNS = 'id,map_name,slug,display_name,width_elmos,height_elmos,tags,start_positions,author_keys,author_names,featured_at';
 
     /** The three size bands, which are derived tags rather than a column. */
@@ -299,6 +302,36 @@ final class Listing
             );
 
             return ['maps' => $page['data'], 'count' => $page['count'], 'error' => $page['error'], 'pictures' => self::pictures($supabase, $page['data'])];
+        });
+    }
+
+    /**
+     * One of the rows shown above the first page, `featured` or `uploaded`,
+     * with the same licence gate as the grid. A failed read leaves the row
+     * empty, so the page still renders everything else. That matters while the
+     * `uploaded_at` column is not yet in production.
+     *
+     * @return array{maps: list<array<string, mixed>>, pictures: array<string, array<string, mixed>>}
+     */
+    public static function section(string $which): array
+    {
+        return HubCache::remember('maps:section:'.$which, [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($which) {
+            $empty = ['maps' => [], 'pictures' => []];
+            $supabase = Supabase::anon();
+
+            try {
+                $rule = Lookup::listingRule(Supabase::admin());
+                if ($rule === null) {
+                    return $empty;
+                }
+                $column = $which === 'featured' ? 'featured_at' : 'uploaded_at';
+                $query = $supabase->from('map_browse')->select(self::SUMMARY_COLUMNS)->not($column, 'is', 'null');
+                $maps = Lookup::applyListingRule($query, $rule)->order($column, false)->order('map_name', true)->limit(self::SECTION_SIZE)->get();
+
+                return ['maps' => $maps, 'pictures' => self::pictures($supabase, $maps)];
+            } catch (SupabaseException) {
+                return $empty;
+            }
         });
     }
 

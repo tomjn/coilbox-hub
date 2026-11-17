@@ -77,6 +77,22 @@
             </form>
         </div>
 
+        @foreach ([['featured', 'Featured', 'View all featured', '/maps?featured=1'], ['uploaded', 'Newest uploads', 'View all new uploads', '/maps?sort=uploaded']] as [$key, $heading, $linkText, $href])
+            @if (! empty($sections[$key]['maps']))
+                <section class="flex flex-col gap-4">
+                    <h2 class="text-xl font-semibold">{{ $heading }}</h2>
+                    <ul class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                        @foreach ($sections[$key]['maps'] as $index => $map)
+                            @if (isset($sections[$key]['pictures'][$map['map_name']]))
+                                <li><x-maps.card :map="$map" :picture="$sections[$key]['pictures'][$map['map_name']]" :filters="$filters" :eager="$index < 5" /></li>
+                            @endif
+                        @endforeach
+                    </ul>
+                    <a class="text-sm text-neutral-300 underline-offset-4 hover:underline active:underline" href="{{ $href }}">{{ $linkText }}</a>
+                </section>
+            @endif
+        @endforeach
+
         @if ($error)
             <p class="text-sm text-red-400">The catalog could not be read just now. Try again in a moment.</p>
         @elseif ($maps === [])

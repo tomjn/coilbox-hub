@@ -22,6 +22,10 @@ class MapPagesTest extends TestCase
         Http::fake(function (Request $request) {
             $name = preg_replace('#^/rest/v1/(rpc/)?#', '', (string) parse_url($request->url(), PHP_URL_PATH));
             $rows = array_key_exists($name, $this->answers) ? $this->answers[$name] : [];
+            // A closure answers by query string, for tests that need two answers from one table.
+            if ($rows instanceof \Closure) {
+                $rows = $rows(urldecode((string) parse_url($request->url(), PHP_URL_QUERY)));
+            }
             if ($rows === null) {
                 return Http::response(['message' => 'down'], 503);
             }
@@ -128,6 +132,59 @@ class MapPagesTest extends TestCase
             ->assertSee('href="/maps?author=beherith&amp;size=medium&amp;sort=players"', false)
             ->assertSee('Page 1 of 1, 1 map')
             ->assertSee('>Clear</a>', false);
+    }
+
+    /** @return array<string, mixed> */
+    private static function row(string $slug, string $name, ?string $featured = null): array
+    {
+        return [
+            'id' => 'id-'.$slug, 'map_name' => $name, 'slug' => $slug, 'display_name' => null,
+            'width_elmos' => 6144, 'height_elmos' => 10240, 'tags' => ['medium'], 'start_positions' => 8,
+            'author_keys' => [], 'author_names' => [], 'featured_at' => $featured,
+        ];
+    }
+
+    /** @param list<array<string, mixed>>|null $uploaded */
+    private function holdSections(?array $uploaded): void
+    {
+        $this->answers['map_browse'] = fn (string $query) => match (true) {
+            str_contains($query, 'featured_at=not.is.null') => [self::row('star', 'Star Map', '2026-01-01T00:00:00Z')],
+            str_contains($query, 'uploaded_at=not.is.null') => $uploaded,
+            default => [self::row('plain', 'Plain Map')],
+        };
+    }
+
+    public function test_the_first_page_shows_the_sections(): void
+    {
+        $this->holdSections([self::row('fresh', 'Fresh Map')]);
+
+        $this->get('/maps')->assertOk()
+            ->assertSee('Featured')
+            ->assertSee('View all featured')
+            ->assertSee('href="/maps?featured=1"', false)
+            ->assertSee('Newest uploads')
+            ->assertSee('View all new uploads')
+            ->assertSee('href="/maps?sort=uploaded"', false)
+            ->assertSee('href="/map/fresh"', false);
+    }
+
+    public function test_sections_only_show_on_the_unfiltered_first_page(): void
+    {
+        $this->holdSections([self::row('fresh', 'Fresh Map')]);
+
+        foreach (['/maps?page=2', '/maps?sort=size', '/maps?featured=1'] as $url) {
+            $this->get($url)->assertOk()->assertDontSee('View all featured');
+        }
+    }
+
+    public function test_an_empty_or_failed_section_is_left_out(): void
+    {
+        $this->holdSections([]);
+        $this->get('/maps')->assertOk()->assertDontSee('Newest uploads')->assertSee('View all featured');
+
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->holdSections(null);
+        $this->get('/maps')->assertOk()->assertDontSee('Newest uploads')->assertSee('href="/map/plain"', false);
     }
 
     public function test_the_listing_says_why_it_is_empty(): void
