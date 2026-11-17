@@ -265,4 +265,11 @@ class PageLogicTest extends TestCase
         Http::assertSent(fn (Request $request) => $request['map_id'] === 'm' && $request['kind'] === 'wrong_map' && strlen($request['reason']) === 1000 && $request['reporter_id'] === 'user-1');
         $this->assertSame(['ok' => false, 'message' => Report::MESSAGES['notSaved']], Report::file($anon, null, 'm', 'other', 'x'));
     }
+
+    public function test_listing_cache_keys_change_with_the_columns_read(): void
+    {
+        // Pages cached before a deploy added mirror_urls kept serving cards without it.
+        $this->assertSame('maps:'.substr(md5(Listing::SUMMARY_COLUMNS), 0, 8).':page:x', Listing::cacheKey('page:x'));
+        $this->assertStringNotContainsString(substr(md5(str_replace(',mirror_urls', '', Listing::SUMMARY_COLUMNS)), 0, 8), Listing::cacheKey('page:x'));
+    }
 }
