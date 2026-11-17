@@ -50,6 +50,23 @@ class MapPagesTest extends TestCase
         $this->answers['map_mirror_host'] = [['name' => 'hakora', 'url_template' => 'http://hakora.xyz/{filename}', 'enabled' => true]];
     }
 
+    public function test_a_mirror_source_is_labelled_with_its_host(): void
+    {
+        $this->holdComet();
+        $facts = self::facts() + ['downloads' => [
+            ['kind' => 'url', 'value' => 'https://owner.test/comet.sd7', 'filename' => 'comet.sd7'],
+            ['kind' => 'url', 'value' => 'https://mirror-a.test/maps/comet.sd7', 'filename' => 'comet.sd7', 'sha256' => str_repeat('ab', 32)],
+            ['kind' => 'url', 'value' => 'https://mirror-b.test/maps/comet.sd7', 'filename' => 'comet.sd7', 'sha256' => str_repeat('ab', 32)],
+        ]];
+        $this->answers['map_facts'] = [['map_name' => self::COMET, 'facts' => $facts]];
+
+        $this->get('/map/comet')
+            ->assertOk()
+            ->assertSee('Download comet.sd7 from mirror-a.test', false)
+            ->assertSee('Download comet.sd7 from mirror-b.test', false)
+            ->assertDontSee('Download comet.sd7 from owner.test', false);
+    }
+
     public function test_a_slug_nothing_is_stored_under_is_not_found(): void
     {
         $this->get('/map/nothing')->assertNotFound();

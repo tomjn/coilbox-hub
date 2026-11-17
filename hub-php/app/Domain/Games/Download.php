@@ -8,7 +8,7 @@ namespace App\Domain\Games;
  * an optional part of the release file's name. A game holds an ordered list,
  * best source first, because the sources are not interchangeable.
  *
- * A download is an array `['kind' => ..., 'value' => ..., 'asset'?, 'filename'?]`
+ * A download is an array `['kind' => ..., 'value' => ..., 'asset'?, 'filename'?, 'sha256'?]`
  * with the optional keys absent rather than null, matching the JSON contract.
  */
 final class Download
@@ -159,6 +159,11 @@ final class Download
             $filename = Js::trim(self::text($row['filename'] ?? null));
             if ($filename !== '') {
                 $download['filename'] = $filename;
+            }
+            // Only a hub mirror source carries a hash, and only a url can be one.
+            $sha256 = $row['sha256'] ?? null;
+            if ($kind === 'url' && is_string($sha256) && preg_match('/^[0-9a-f]{64}\z/', $sha256) === 1) {
+                $download['sha256'] = $sha256;
             }
             $downloads[] = $download;
         }

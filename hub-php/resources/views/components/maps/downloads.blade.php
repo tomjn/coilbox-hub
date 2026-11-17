@@ -10,7 +10,7 @@
         <h2 class="text-xl font-semibold tracking-tight">Download</h2>
         <ul class="flex flex-wrap gap-3">
             @foreach ($downloads as $download)
-                <li><a href="{{ Download::downloadHref($download) }}" rel="noreferrer" class="inline-block rounded bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300">{{ $download['kind'] === 'github' ? 'Releases on GitHub' : 'Download '.$download['filename'] }}</a></li>
+                <li><a href="{{ Download::downloadHref($download) }}" rel="noreferrer" class="inline-block rounded bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-white active:bg-neutral-300">{{ $download['kind'] === 'github' ? 'Releases on GitHub' : 'Download '.$download['filename'].(isset($download['sha256']) ? ' from '.parse_url($download['value'], PHP_URL_HOST) : '') }}</a></li>
             @endforeach
         </ul>
     </section>
