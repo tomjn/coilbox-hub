@@ -266,6 +266,16 @@ final class Listing
     }
 
     /**
+     * A listing cache key that carries the columns read. A deploy that changes
+     * them reads afresh rather than serving cards cached without the new ones,
+     * because the cache outlives a release.
+     */
+    public static function cacheKey(string $what): string
+    {
+        return 'maps:'.substr(md5(self::SUMMARY_COLUMNS), 0, 8).':'.$what;
+    }
+
+    /**
      * One page of the catalog with a minimap per card, held between requests.
      * The licence gate the map page applies is applied here too, so no card
      * links to a page that says not found. An unreadable gate lists nothing.
@@ -277,7 +287,7 @@ final class Listing
     {
         try {
             // A failed read throws out of the loader, so an error answer is never cached.
-            return HubCache::remember('maps:page:'.json_encode($filters), [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($filters) {
+            return HubCache::remember(self::cacheKey('page:'.json_encode($filters)), [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($filters) {
                 $supabase = Supabase::anon();
                 $authorKey = self::resolveAuthorKey($supabase, $filters['author']);
 
@@ -326,7 +336,7 @@ final class Listing
     {
         try {
             // A failed read throws out of the loader, so the empty answer below is never cached.
-            return HubCache::remember('maps:section:'.$which, [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($which) {
+            return HubCache::remember(self::cacheKey('section:'.$which), [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($which) {
                 $supabase = Supabase::anon();
                 $rule = Lookup::listingRule(Supabase::admin());
                 if ($rule === null) {
