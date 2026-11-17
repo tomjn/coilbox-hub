@@ -99,6 +99,19 @@ class DownloadTest extends TestCase
         $this->assertSame([], Download::readDownloads(null));
     }
 
+    public function test_sha256_is_kept_on_url_sources_and_dropped_when_malformed(): void
+    {
+        $hash = str_repeat('ab', 32);
+        $this->assertSame(
+            [['kind' => 'url', 'value' => 'https://m.test/maps/a.sd7', 'filename' => 'a.sd7', 'sha256' => $hash]],
+            Download::readDownloads([['kind' => 'url', 'value' => 'https://m.test/maps/a.sd7', 'filename' => 'a.sd7', 'sha256' => $hash]]),
+        );
+        foreach ([strtoupper($hash), 'abc', $hash."\n", 5, null] as $bad) {
+            $this->assertSame([['kind' => 'url', 'value' => 'https://m.test/a']], Download::readDownloads([['kind' => 'url', 'value' => 'https://m.test/a', 'sha256' => $bad]]));
+        }
+        $this->assertSame([['kind' => 'rapid', 'value' => 'a:b']], Download::readDownloads([['kind' => 'rapid', 'value' => 'a:b', 'sha256' => $hash]]));
+    }
+
     public function test_only_two_of_the_three_kinds_have_somewhere_to_click(): void
     {
         $this->assertSame('https://example.test/g.sdz', Download::downloadHref(['kind' => 'url', 'value' => 'https://example.test/g.sdz']));

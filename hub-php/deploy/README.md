@@ -87,3 +87,33 @@ To roll back, point `current` at an older release and reload PHP-FPM:
 ln -sfn /srv/www/hub.coilbox.org/releases/<older commit> /srv/www/hub.coilbox.org/current
 sudo systemctl reload php8.4-fpm
 ```
+
+## Mirror signing key
+
+The hub signs upload tokens and the mirror catalogue with one Ed25519 key. The secret half is `HUB_MIRROR_SECRET_KEY` in `shared/.env`. It never goes in the repository, a log or a chat.
+
+### Make the key
+
+1. Check out `github.com/tomjn/coilbox-mirror` on your own machine.
+2. Run `php bin/keygen.php`. It prints a `secret_key` line and a public key. It writes no files.
+3. Add the secret to `/srv/www/hub.coilbox.org/shared/.env` as `HUB_MIRROR_SECRET_KEY=<secret_key value>`.
+4. Load it. `release.sh` caches config, so editing `.env` alone changes nothing. In `/srv/www/hub.coilbox.org/current` run `php artisan config:cache`, then `sudo systemctl reload php8.4-fpm`.
+5. Run `php artisan mirrors:catalogue`. It prints `catalogue seq N` when the key works.
+6. Give the public key to each mirror operator. They add it to `hub_keys` in their mirror's config.
+
+### Keep a sealed copy
+
+Give the secret key, sealed, to a second trusted person. If the key is lost, nothing can sign for the hub and every mirror operator must add a new public key by hand. Record who holds the copy and the date in your own notes, not in a repository.
+
+### Rotate the key
+
+A mirror trusts every key it has ever seen the hub endorse, and it never forgets one. Treat an old key as live. Keep it secret even after you stop using it.
+
+1. Make a new key with `php bin/keygen.php`.
+2. Add the secret to `shared/.env` as `HUB_MIRROR_NEXT_SECRET_KEY=<secret_key value>`.
+3. Run `php artisan config:cache` in `current`, then `sudo systemctl reload php8.4-fpm`.
+4. From now on each catalogue carries the new public key, endorsed by the current key. Mirrors learn it when they sync.
+5. Run `php artisan mirrors:status`. If it says `waiting for`, the listed mirrors have not yet synced a catalogue that carries the new key. Run it again later. A mirror that stays listed for good may be switched off in the database, because only enabled mirrors count.
+6. When it says `safe to switch keys`, edit `shared/.env`. Put the new secret in `HUB_MIRROR_SECRET_KEY` and delete the `HUB_MIRROR_NEXT_SECRET_KEY` line.
+7. Run `php artisan config:cache` in `current`, then `sudo systemctl reload php8.4-fpm`, then `php artisan mirrors:catalogue`.
+8. Give the new secret to the second trusted person in place of the old copy.
