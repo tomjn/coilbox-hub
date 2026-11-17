@@ -4,14 +4,8 @@
 ])
 @use('App\Domain\Gallery\GalleryQuery')
 @use('App\Domain\Maps\Listing')
-@use('App\Support\Ui')
 @php
-    $control = Ui::FIELD;
     $step = 'flex min-h-9 min-w-9 items-center justify-center rounded-md border border-neutral-800 px-2 transition-colors hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-200 active:text-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400';
-    $label = 'text-sm uppercase tracking-wide text-neutral-400';
-    $chevron = '<svg aria-hidden="true" viewBox="0 0 16 16" class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>';
-    $sizeLabels = ['small' => 'Small, up to 12 squares', 'medium' => 'Medium, up to 20 squares', 'large' => 'Large, over 20 squares'];
-    $sortLabels = ['name' => 'Name', 'size' => 'Longer edge, largest first', 'players' => 'Players, most first', 'added' => 'Recently added'];
     $filtered = Listing::isFiltered($filters);
     $empty = 'mt-3 inline-block text-sm text-neutral-300 underline-offset-4 hover:underline active:underline';
 @endphp
@@ -20,62 +14,18 @@
 <main id="main-content" tabindex="-1" class="relative flex-1">
     {{-- Faint, because a page of minimaps is a page of terrain. --}}
     <x-ui.art-backdrop drawing="skirmish" :strength="0.05" />
-    {{-- Edge to edge, so a wide screen gets more maps to a row. The heading and filters keep the readable width. --}}
+    {{-- Edge to edge, so a wide screen gets more maps to a row. The heading keeps the readable width. --}}
     <div class="relative z-10 flex w-full flex-col gap-8 px-6 py-12">
-        <div class="flex max-w-5xl flex-col gap-8">
-            <div class="flex flex-col gap-2">
-                <h1 class="text-3xl font-semibold tracking-tight">Maps</h1>
-                <p class="text-neutral-400">What the hub knows about the maps people play on, from the archives themselves. <a class="text-neutral-300 underline-offset-4 hover:underline active:underline" href="/add">Want to add your own map?</a></p>
-            </div>
-
-            {{-- A GET to this same route, so it works with scripting off. The page is not in the form: a filter change starts at page one. --}}
-            <form class="group grid gap-4 border-b border-neutral-900 pb-6 sm:grid-cols-2 lg:grid-cols-3" action="/maps" data-busy-form>
-                <div class="flex flex-col gap-1.5">
-                    <label for="maps-q" class="{{ $label }}">Search</label>
-                    <input id="maps-q" type="search" aria-keyshortcuts="/" class="{{ $control }}" name="q" value="{{ $filters['q'] ?? '' }}" data-search-shortcut>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label for="maps-author" class="{{ $label }}">Made by</label>
-                    <input id="maps-author" type="text" class="{{ $control }}" name="author" value="{{ $filters['author'] ?? '' }}">
-                </div>
-                {{-- A text box rather than a list: the chips on the cards are how a reader finds a tag. --}}
-                <div class="flex flex-col gap-1.5">
-                    <label for="maps-tag" class="{{ $label }}">Tag</label>
-                    <input id="maps-tag" type="text" class="{{ $control }}" name="tag" value="{{ $filters['tag'] ?? '' }}">
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label for="maps-size" class="{{ $label }}">Size</label>
-                    <div class="relative">
-                        <select id="maps-size" name="size" class="{{ $control }} appearance-none pr-9">
-                            <option value="" @selected($filters['size'] === null)>Any size</option>
-                            @foreach (Listing::SIZES as $size)
-                                <option value="{{ $size }}" @selected($filters['size'] === $size)>{{ $sizeLabels[$size] }}</option>
-                            @endforeach
-                        </select>{!! $chevron !!}
-                    </div>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label for="maps-players" class="{{ $label }}">Players, at least</label>
-                    <input id="maps-players" type="number" min="1" class="{{ $control }}" name="players" value="{{ $filters['players'] ?? '' }}">
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label for="maps-sort" class="{{ $label }}">Sort by</label>
-                    <div class="relative">
-                        <select id="maps-sort" name="sort" class="{{ $control }} appearance-none pr-9">
-                            @foreach (Listing::SORTS as $sort)
-                                <option value="{{ $sort }}" @selected($filters['sort'] === $sort)>{{ $sortLabels[$sort] }}</option>
-                            @endforeach
-                        </select>{!! $chevron !!}
-                    </div>
-                </div>
-                <div class="flex items-center gap-3 self-end">
-                    <button type="submit" class="{{ Ui::button() }}">Filter</button>
-                    @if ($filtered)
-                        <a class="text-sm text-neutral-400 hover:text-neutral-200 active:text-neutral-200" href="/maps">Clear</a>
-                    @endif
-                </div>
-            </form>
+        <div class="flex max-w-5xl flex-col gap-2">
+            <h1 class="text-3xl font-semibold tracking-tight">Maps</h1>
+            <p class="text-neutral-400">What the hub knows about the maps people play on, from the archives themselves. <a class="text-neutral-300 underline-offset-4 hover:underline active:underline" href="/add">Want to add your own map?</a></p>
         </div>
+
+        @foreach ([['featured', 'Featured', 'View all featured', '/maps?featured=1'], ['uploaded', 'Newest uploads', 'View all new uploads', '/maps?sort=uploaded']] as [$key, $heading, $linkText, $href])
+            <x-maps.section :title="$heading" :more-href="$href" :more-label="$linkText" :maps="$sections[$key]['maps'] ?? []" :pictures="$sections[$key]['pictures'] ?? []" :filters="$filters" />
+        @endforeach
+
+        <x-maps.filter-bar :filters="$filters" />
 
         @if ($error)
             <p class="text-sm text-red-400">The catalog could not be read just now. Try again in a moment.</p>
@@ -93,11 +43,11 @@
                 @endif
             </div>
         @else
-            <ul class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <ul class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(200px,calc(50%_-_8px)),1fr))]">
                 @foreach ($maps as $index => $map)
                     @if (isset($pictures[$map['map_name']]))
-                        {{-- Two rows of five fill the first screen, so those load with the page. --}}
-                        <li><x-maps.card :map="$map" :picture="$pictures[$map['map_name']]" :filters="$filters" :eager="$index < 10" /></li>
+                        {{-- The first twelve fill the first screen on most displays, so those load with the page. --}}
+                        <li><x-maps.card :map="$map" :picture="$pictures[$map['map_name']]" :filters="$filters" :eager="$index < 12" /></li>
                     @endif
                 @endforeach
             </ul>

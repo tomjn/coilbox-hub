@@ -19,22 +19,29 @@ use App\Support\HubCache;
  * is a column on that view, so nothing here computes. An unknown parameter is
  * dropped rather than refused, so a stale bookmark still works.
  *
- * Filters are an array with `q`, `tag`, `author`, `size`, `players`, `sort` and `page`.
+ * Filters are an array with `q`, `tag` (a list), `author`, `size`, `players`,
+ * `play` (a list of play types), `featured`, `sort` and `page`.
  */
 final class Listing
 {
-    /** Ten rows of five. A map card is scanned five to a row, so the page size follows the columns. */
-    public const PAGE_SIZE = 50;
+    /** Cards per page. */
+    public const PAGE_SIZE = 60;
+
+    /** Cards in each row above the first page, the Featured and Newest uploads sections. */
+    public const SECTION_SIZE = 12;
 
     public const SUMMARY_COLUMNS = 'id,map_name,slug,display_name,width_elmos,height_elmos,tags,start_positions,author_keys,author_names,featured_at';
 
     /** The three size bands, which are derived tags rather than a column. */
     public const SIZES = ['small', 'medium', 'large'];
 
-    public const SORTS = ['name', 'size', 'players', 'added'];
+    public const SORTS = ['name', 'size', 'players', 'added', 'uploaded'];
+
+    /** The play types a map can be marked with, the values of `play_types` on the view. */
+    public const PLAY_TYPES = ['1v1', 'team'];
 
     /** The query keys that make a listing filtered, `MAP_FILTER_KEYS` in `lib/filterKeys.ts`. */
-    public const FILTER_KEYS = ['q', 'tag', 'author', 'size', 'players', 'sort', 'page'];
+    public const FILTER_KEYS = ['q', 'tag', 'author', 'size', 'players', 'play', 'featured', 'sort', 'page'];
 
     /** Alphabetical: the catalog is a reference list, mostly seeded in one pass. */
     private const DEFAULT_SORT = 'name';
@@ -45,6 +52,7 @@ final class Listing
         'size' => ['longer_edge_elmos', false],
         'players' => ['start_positions', false],
         'added' => ['created_at', false],
+        'uploaded' => ['uploaded_at', false],
     ];
 
     public static function isSize(?string $value): bool
@@ -57,28 +65,34 @@ final class Listing
      * becomes null and is not applied, so a shared link never breaks.
      *
      * @param  array<string, string|list<string>>  $params
-     * @return array{q: string|null, tag: string|null, author: string|null, size: string|null, players: int|null, sort: string, page: int}
+     * @return array{q: string|null, tag: list<string>, author: string|null, size: string|null, players: int|null, play: list<string>, featured: bool, sort: string, page: int}
      */
     public static function parseFilters(array $params): array
     {
         $sort = self::one($params['sort'] ?? null);
         // Lower cased, because the derived tags are and a chip carries whatever case it was written in.
-        $tag = self::one($params['tag'] ?? null);
-        $tag = $tag === null ? null : mb_strtolower($tag);
+        $tags = array_values(array_unique(array_map(mb_strtolower(...), self::many($params['tag'] ?? null))));
         $sizeParam = self::one($params['size'] ?? null);
         $size = self::isSize($sizeParam) ? $sizeParam : null;
         // `tag=small` from a card's chip is the size filter, so the form shows it in the Size box.
-        if ($size === null && self::isSize($tag)) {
-            $size = $tag;
-            $tag = null;
+        if ($size === null) {
+            foreach ($tags as $index => $tag) {
+                if (self::isSize($tag)) {
+                    $size = $tag;
+                    array_splice($tags, $index, 1);
+                    break;
+                }
+            }
         }
 
         return [
             'q' => self::one($params['q'] ?? null),
-            'tag' => $tag,
+            'tag' => $tags,
             'author' => self::one($params['author'] ?? null),
             'size' => $size,
             'players' => self::counted(self::one($params['players'] ?? null)),
+            'play' => array_values(array_unique(array_filter(self::many($params['play'] ?? null), fn (string $type) => in_array($type, self::PLAY_TYPES, true)))),
+            'featured' => self::one($params['featured'] ?? null) === '1',
             'sort' => $sort !== null && in_array($sort, self::SORTS, true) ? $sort : self::DEFAULT_SORT,
             'page' => GalleryQuery::parsePage(self::one($params['page'] ?? null), self::PAGE_SIZE) ?? 1,
         ];
@@ -115,7 +129,7 @@ final class Listing
     {
         // A size band is a derived tag, so `size=small` and `tag=small` are one question.
         if ($filters['tag']) {
-            $query->contains('tags', [$filters['tag']]);
+            $query->contains('tags', $filters['tag']);
         }
         if ($filters['size']) {
             $query->contains('tags', [$filters['size']]);
@@ -127,6 +141,17 @@ final class Listing
         if ($filters['players'] !== null) {
             $query->gte('start_positions', $filters['players']);
         }
+        if ($filters['featured']) {
+            $query->not('featured_at', 'is', 'null');
+        }
+        // A map that plays either type matches, so ticking both widens the list.
+        if ($filters['play']) {
+            $query->overlaps('play_types', $filters['play']);
+        }
+        // Newest upload first only makes sense for maps that have an upload date.
+        if ($filters['sort'] === 'uploaded') {
+            $query->not('uploaded_at', 'is', 'null');
+        }
         // websearch_to_tsquery takes what a person types and never throws on punctuation.
         if ($filters['q']) {
             $query->textSearch('search', $filters['q'], null, 'websearch');
@@ -136,12 +161,11 @@ final class Listing
     }
 
     /**
-     * Featured first, then the reader's order, then the name. The name makes
-     * every order total, so paging never shows one map twice or skips one.
+     * The reader's order, then the name. The name makes every order total, so
+     * paging never shows one map twice or skips one.
      */
     public static function applyOrder(Query $query, string $sort): Query
     {
-        $query->order('featured_at', false, false);
         [$column, $ascending] = self::SORT_COLUMNS[$sort];
         $query->order($column, $ascending);
         if ($column !== 'map_name') {
@@ -162,29 +186,83 @@ final class Listing
     {
         $next = array_merge($current, $change);
         $pairs = [];
-        foreach (['q', 'tag', 'author', 'size'] as $key) {
-            if ($next[$key] !== null && $next[$key] !== '') {
-                $pairs[] = [$key, (string) $next[$key]];
+        foreach (self::FILTER_KEYS as $key) {
+            $value = $next[$key];
+            if ($key === 'tag' || $key === 'play') {
+                // A change may give one value or null for the list, as a link to a single tag does.
+                foreach (is_array($value) ? $value : array_filter([$value], fn ($item) => $item !== null && $item !== '') as $item) {
+                    $pairs[] = [$key, $item];
+                }
+            } elseif ($key === 'featured') {
+                if ($value) {
+                    $pairs[] = [$key, '1'];
+                }
+            } elseif ($key === 'sort') {
+                if ($value !== self::DEFAULT_SORT) {
+                    $pairs[] = [$key, $value];
+                }
+            } elseif ($key === 'page') {
+                if ($value > 1 && array_key_exists('page', $change)) {
+                    $pairs[] = [$key, (string) $value];
+                }
+            } elseif ($value !== null && $value !== '') {
+                $pairs[] = [$key, (string) $value];
             }
-        }
-        if ($next['players'] !== null) {
-            $pairs[] = ['players', (string) $next['players']];
-        }
-        if ($next['sort'] !== self::DEFAULT_SORT) {
-            $pairs[] = ['sort', $next['sort']];
-        }
-        if ($next['page'] > 1 && array_key_exists('page', $change)) {
-            $pairs[] = ['page', (string) $next['page']];
         }
         $query = GalleryQuery::queryString($pairs);
 
         return $query !== '' ? '/maps?'.$query : '/maps';
     }
 
-    /** Whether the reader has narrowed the catalog. Sort and page are not narrowing. @param array<string, mixed> $filters */
+    /** Whether the reader has narrowed the catalog. The uploaded sort counts, because it hides maps never uploaded. Other sorts and the page do not. @param array<string, mixed> $filters */
     public static function isFiltered(array $filters): bool
     {
-        return (bool) ($filters['q'] || $filters['tag'] || $filters['author'] || $filters['size'] || $filters['players'] !== null);
+        return (bool) ($filters['q'] || $filters['tag'] || $filters['author'] || $filters['size'] || $filters['players'] !== null
+            || $filters['play'] || $filters['featured'] || $filters['sort'] === 'uploaded');
+    }
+
+    /** Whether this is the unfiltered first page in the default order, the page that shows the sections. @param array<string, mixed> $filters */
+    public static function isLanding(array $filters): bool
+    {
+        return ! self::isFiltered($filters) && $filters['page'] === 1 && $filters['sort'] === self::DEFAULT_SORT;
+    }
+
+    /**
+     * The change that adds a tag to the current filters, for `filterHref`. A
+     * tag already there is not added twice.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array{tag: list<string>}
+     */
+    public static function withTag(array $filters, string $tag): array
+    {
+        return ['tag' => array_values(array_unique([...$filters['tag'], $tag]))];
+    }
+
+    /**
+     * The quick filter chips. Each link turns its filter on, or off when it is
+     * already on, and goes back to the first page.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return list<array{label: string, href: string, active: bool}>
+     */
+    public static function chips(array $filters): array
+    {
+        $chips = [
+            ['Featured', $filters['featured'], ['featured' => ! $filters['featured']]],
+            ['New uploads', $filters['sort'] === 'uploaded', ['sort' => $filters['sort'] === 'uploaded' ? self::DEFAULT_SORT : 'uploaded']],
+        ];
+        foreach (self::PLAY_TYPES as $type) {
+            $on = in_array($type, $filters['play'], true);
+            $play = $on ? array_values(array_diff($filters['play'], [$type])) : [...$filters['play'], $type];
+            $chips[] = [$type === 'team' ? 'Team' : $type, $on, ['play' => $play]];
+        }
+        foreach (['Water' => 'water map', 'Tidal' => 'tidal', 'Windy' => 'windy'] as $label => $tag) {
+            $on = in_array($tag, $filters['tag'], true);
+            $chips[] = [$label, $on, $on ? ['tag' => array_values(array_diff($filters['tag'], [$tag]))] : self::withTag($filters, $tag)];
+        }
+
+        return array_map(fn (array $chip) => ['label' => $chip[0], 'href' => self::filterHref($filters, $chip[2]), 'active' => $chip[1]], $chips);
     }
 
     /**
@@ -197,34 +275,72 @@ final class Listing
      */
     public static function page(array $filters): array
     {
-        return HubCache::remember('maps:page:'.json_encode($filters), [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($filters) {
-            $supabase = Supabase::anon();
-            $authorKey = self::resolveAuthorKey($supabase, $filters['author']);
+        try {
+            // A failed read throws out of the loader, so an error answer is never cached.
+            return HubCache::remember('maps:page:'.json_encode($filters), [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($filters) {
+                $supabase = Supabase::anon();
+                $authorKey = self::resolveAuthorKey($supabase, $filters['author']);
 
-            try {
+                try {
+                    $rule = Lookup::listingRule(Supabase::admin());
+                } catch (SupabaseException) {
+                    $rule = null;
+                }
+                if ($rule === null) {
+                    throw new SupabaseException('The licence gate could not be read.');
+                }
+
+                $listing = fn () => self::applyOrder(
+                    Lookup::applyListingRule(
+                        self::applyFilters($supabase->from('map_browse')->select(self::SUMMARY_COLUMNS, 'exact'), $filters, $authorKey),
+                        $rule,
+                    ),
+                    $filters['sort'],
+                );
+
+                $page = GalleryQuery::fetchPage(
+                    fn () => $listing()->range(($filters['page'] - 1) * self::PAGE_SIZE, $filters['page'] * self::PAGE_SIZE - 1)->getWithCount(),
+                    fn () => $listing()->range(0, 0)->getWithCount(),
+                );
+                if ($page['error'] !== null) {
+                    throw new SupabaseException($page['error']);
+                }
+
+                return ['maps' => $page['data'], 'count' => $page['count'], 'error' => null, 'pictures' => self::pictures($supabase, $page['data'])];
+            });
+        } catch (SupabaseException $e) {
+            return ['maps' => [], 'count' => 0, 'error' => $e->getMessage(), 'pictures' => []];
+        }
+    }
+
+    /**
+     * One of the rows shown above the first page, `featured` or `uploaded`,
+     * with the same licence gate as the grid. A failed read leaves the row
+     * empty and is not cached, so the page still renders everything else and the
+     * row comes back once the read works. That matters while the `uploaded_at`
+     * column is not yet in production.
+     *
+     * @return array{maps: list<array<string, mixed>>, pictures: array<string, array<string, mixed>>}
+     */
+    public static function section(string $which): array
+    {
+        try {
+            // A failed read throws out of the loader, so the empty answer below is never cached.
+            return HubCache::remember('maps:section:'.$which, [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($which) {
+                $supabase = Supabase::anon();
                 $rule = Lookup::listingRule(Supabase::admin());
-            } catch (SupabaseException) {
-                $rule = null;
-            }
-            if ($rule === null) {
-                return ['maps' => [], 'count' => 0, 'error' => 'The licence gate could not be read.', 'pictures' => []];
-            }
+                if ($rule === null) {
+                    throw new SupabaseException('The licence gate could not be read.');
+                }
+                $column = $which === 'featured' ? 'featured_at' : 'uploaded_at';
+                $query = $supabase->from('map_browse')->select(self::SUMMARY_COLUMNS)->not($column, 'is', 'null');
+                $maps = Lookup::applyListingRule($query, $rule)->order($column, false)->order('map_name', true)->limit(self::SECTION_SIZE)->get();
 
-            $listing = fn () => self::applyOrder(
-                Lookup::applyListingRule(
-                    self::applyFilters($supabase->from('map_browse')->select(self::SUMMARY_COLUMNS, 'exact'), $filters, $authorKey),
-                    $rule,
-                ),
-                $filters['sort'],
-            );
-
-            $page = GalleryQuery::fetchPage(
-                fn () => $listing()->range(($filters['page'] - 1) * self::PAGE_SIZE, $filters['page'] * self::PAGE_SIZE - 1)->getWithCount(),
-                fn () => $listing()->range(0, 0)->getWithCount(),
-            );
-
-            return ['maps' => $page['data'], 'count' => $page['count'], 'error' => $page['error'], 'pictures' => self::pictures($supabase, $page['data'])];
-        });
+                return ['maps' => $maps, 'pictures' => self::pictures($supabase, $maps)];
+            });
+        } catch (SupabaseException) {
+            return ['maps' => [], 'pictures' => []];
+        }
     }
 
     /**
@@ -256,6 +372,21 @@ final class Listing
         $trimmed = Js::trim($first);
 
         return $trimmed !== '' ? $trimmed : null;
+    }
+
+    /** Every value, trimmed, with blanks dropped and repeats removed. @param string|list<string>|null $value @return list<string> */
+    private static function many(string|array|null $value): array
+    {
+        $values = is_array($value) ? $value : [$value];
+        $kept = [];
+        foreach ($values as $item) {
+            $trimmed = $item === null ? '' : Js::trim($item);
+            if ($trimmed !== '') {
+                $kept[] = $trimmed;
+            }
+        }
+
+        return array_values(array_unique($kept));
     }
 
     /** `Number.parseInt` of at least one, or null. */

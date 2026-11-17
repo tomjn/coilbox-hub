@@ -32,6 +32,7 @@ class MapsController extends Controller
             'count' => $page['count'],
             'error' => $page['error'],
             'pictures' => $page['pictures'],
+            'sections' => Listing::isLanding($filters) ? ['featured' => Listing::section('featured'), 'uploaded' => Listing::section('uploaded')] : [],
             'lastPage' => max(1, (int) ceil($page['count'] / Listing::PAGE_SIZE)),
         ]);
     }
