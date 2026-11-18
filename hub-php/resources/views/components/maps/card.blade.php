@@ -9,7 +9,7 @@
 @use('App\Domain\Maps\Js')
 @use('App\Domain\Maps\Labels')
 @php
-    $title = Labels::title($map['display_name'], $map['map_name']);
+    $title = Labels::title($map['display_name'], $map['map_name'], $map['map_version'] ?? null);
     $players = Labels::players((int) $map['start_positions']);
     $heading = 'h'.$headingLevel;
     // Every healthy hub mirror holding the archive. The link goes to the first, and listing.js picks one at random on click.

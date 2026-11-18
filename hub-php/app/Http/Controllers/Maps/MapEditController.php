@@ -30,7 +30,7 @@ class MapEditController extends ModerationController
         $page = $map === null ? null : MapPage::cached($slug);
         abort_if($page === null, 404);
 
-        $mapTitle = Labels::title($page['facts']['display_name'] ?? null, $page['mapName']);
+        $mapTitle = Labels::title($page['facts']['display_name'] ?? null, $page['mapName'], $page['mapVersion'] ?? null);
 
         return view('maps.edit', [
             'title' => 'Edit '.$mapTitle,

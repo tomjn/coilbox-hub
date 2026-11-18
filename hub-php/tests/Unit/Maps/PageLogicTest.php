@@ -38,6 +38,20 @@ class PageLogicTest extends TestCase
         $this->assertSame(self::COMET, Labels::title('  ', self::COMET));
     }
 
+    public function test_the_title_ends_with_the_maps_version_unless_the_name_already_does(): void
+    {
+        $this->assertSame('Persepolis v1.5', Labels::title('Persepolis', 'Persepolis v1.5', 'v1.5'));
+        $this->assertSame('Aethermoor Creek 1.0', Labels::title('Aethermoor Creek', 'Aethermoor Creek 1.0', '1.0'));
+        $this->assertSame('All That Glitters v2.2.3', Labels::title('All That Glitters v2.2.3', 'All That Glitters v2.2.3', '2.2.3'));
+        $this->assertSame('Asteroid_Mines_V3', Labels::title('Asteroid_Mines_V3', 'Asteroid_Mines_V3', '3'));
+        $this->assertSame('Angel Crossing 1.5.1', Labels::title('Angel Crossing 1.5.1', 'Angel Crossing 1.5.1', '1.5.1'));
+        $this->assertSame('Comet Catcher Remake 1.8', Labels::title(null, 'Comet Catcher Remake 1.8', '1.8'));
+        // A version that only matches the end of a longer number is still added.
+        $this->assertSame('Grid 11 1', Labels::title('Grid 11', 'Grid 11', '1'));
+        $this->assertSame('Persepolis', Labels::title('Persepolis', 'Persepolis', null));
+        $this->assertSame('Persepolis', Labels::title('Persepolis', 'Persepolis', '  '));
+    }
+
     public function test_filters_come_out_of_the_query_string(): void
     {
         $this->assertSame([

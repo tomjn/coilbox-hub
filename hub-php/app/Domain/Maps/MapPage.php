@@ -34,7 +34,7 @@ final class MapPage
      */
     public static function cached(string $slug): ?array
     {
-        return HubCache::remember('maps:map:'.$slug, [HubCache::MAPS, HubCache::map($slug), HubCache::ASSETS, HubCache::ITEMS], HubCache::WEEKS, function () use ($slug) {
+        return HubCache::remember('maps:page:'.$slug, [HubCache::MAPS, HubCache::map($slug), HubCache::ASSETS, HubCache::ITEMS], HubCache::WEEKS, function () use ($slug) {
             try {
                 $admin = Supabase::admin();
             } catch (SupabaseException) {
@@ -49,7 +49,7 @@ final class MapPage
     public static function load(Client $supabase, Client $admin, string $slug): ?array
     {
         try {
-            $row = $supabase->from('map')->select('id, map_name, archive_filename, owner_user_id')->eq('slug', $slug)->maybeSingle();
+            $row = $supabase->from('map')->select('id, map_name, map_version, archive_filename, owner_user_id')->eq('slug', $slug)->maybeSingle();
         } catch (SupabaseException) {
             $row = null;
         }
@@ -77,6 +77,7 @@ final class MapPage
         return [
             'mapId' => $row['id'],
             'mapName' => $mapName,
+            'mapVersion' => $row['map_version'] ?? null,
             'facts' => $facts,
             'picture' => $picture,
             'preview' => self::preview($mapName, $facts, $held, $picture),

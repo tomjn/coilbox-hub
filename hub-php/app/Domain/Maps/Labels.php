@@ -50,11 +50,24 @@ final class Labels
         return $minWind == $maxWind ? Js::number($minWind) : Js::number($minWind).' to '.Js::number($maxWind);
     }
 
-    /** The archive's display name where it has one, the canonical name otherwise. */
-    public static function title(?string $displayName, string $mapName): string
+    /**
+     * The archive's display name where it has one, the canonical name
+     * otherwise, followed by the map's version. Two maps can share a display
+     * name, and the version is what tells them apart. Many names already end
+     * with their version, as "Asteroid_Mines_V3" does for version 3, and those
+     * are left as they are.
+     */
+    public static function title(?string $displayName, string $mapName, ?string $version = null): string
     {
         $trimmed = $displayName === null ? '' : Js::trim($displayName);
+        $title = $trimmed !== '' ? $trimmed : $mapName;
 
-        return $trimmed !== '' ? $trimmed : $mapName;
+        $version = $version === null ? '' : Js::trim($version);
+        $number = preg_replace('/^v/i', '', $version);
+        if ($number === '' || preg_match('/(^|[^0-9a-z])v?'.preg_quote($number, '/').'$/i', $title)) {
+            return $title;
+        }
+
+        return $title.' '.$version;
     }
 }
