@@ -49,16 +49,25 @@ final class Card
     /**
      * The card the item, map and game pages share: a label beside the coil,
      * the title with a line of facts under it, and a credit at the foot. A
-     * logo, when given, sits left of the title block.
+     * logo, when given, sits left of the title block. A minimap, when given,
+     * fills the right of the card and the text takes what is left.
      *
      * @param  string|null  $logo  image bytes GD can decode
+     * @param  array{bytes: string, ratio: float}|null  $minimap  image bytes and the map's width over its height
      */
-    public static function standard(string $label, string $title, string $facts, string $credit, ?string $logo = null): string
+    public static function standard(string $label, string $title, string $facts, string $credit, ?string $logo = null, ?array $minimap = null): string
     {
         $image = self::canvas();
         $left = self::PAD;
         $top = self::PAD;
         $bottom = self::HEIGHT - self::PAD;
+        $right = self::WIDTH - self::PAD;
+
+        $map = $minimap !== null ? self::decode($minimap['bytes']) : null;
+        $mapBox = $map !== null ? self::minimapBox($minimap['ratio']) : null;
+        if ($mapBox !== null) {
+            $right = $mapBox[0] - 48;
+        }
 
         // The top row: a 48 pixel coil and the label centred against it.
         self::coil($image, $left, $top, 48);
@@ -72,8 +81,10 @@ final class Card
         // The middle block, spaced evenly between the two.
         $picture = $logo !== null ? self::decode($logo) : null;
         $textLeft = $picture !== null ? $left + 128 + 32 : $left;
-        $lines = self::wrap(self::shorten($title), 68, self::WIDTH - self::PAD - $textLeft);
-        $titleLine = 68 * 1.1;
+        // Smaller beside a minimap, so a long title in the narrower column still fits.
+        $titleSize = $map !== null ? 56 : 68;
+        $lines = self::wrap(self::shorten($title), $titleSize, $right - $textLeft);
+        $titleLine = $titleSize * 1.1;
         $column = count($lines) * $titleLine + ($facts !== '' ? 20 + 30 * self::NORMAL_LINE : 0);
         $block = $picture !== null ? max(128, $column) : $column;
         $space = $bottom - $top - 48 - 26 * self::NORMAL_LINE;
@@ -85,14 +96,39 @@ final class Card
         $y = $blockTop + ($block - $column) / 2;
         foreach ($lines as $line) {
             // A line box shorter than the font's own, so the half leading is negative.
-            self::text($image, $line, 68, '#fafafa', $textLeft, $y + ($titleLine - 68 * self::NORMAL_LINE) / 2 + 68 * self::ASCENT);
+            self::text($image, $line, $titleSize, '#fafafa', $textLeft, $y + ($titleLine - $titleSize * self::NORMAL_LINE) / 2 + $titleSize * self::ASCENT);
             $y += $titleLine;
         }
         if ($facts !== '') {
             self::text($image, $facts, 30, '#a3a3a3', $textLeft, $y + 20 + 30 * self::ASCENT);
         }
+        // Last, so a long credit or facts line runs under the picture rather than across it.
+        if ($map !== null && $mapBox !== null) {
+            [$mapX, $mapY, $mapW, $mapH] = $mapBox;
+            imagecopyresampled($image, $map, $mapX, $mapY, 0, 0, $mapW, $mapH, imagesx($map), imagesy($map));
+        }
 
         return self::png($image);
+    }
+
+    /**
+     * Where a minimap goes: against the right padding, centred down the card,
+     * at the map's own proportions inside 480 by 486. The picture is stretched
+     * to that shape, as the map page's figure stretches it.
+     *
+     * @return array{0: int, 1: int, 2: int, 3: int} left, top, width and height
+     */
+    private static function minimapBox(float $ratio): array
+    {
+        $maxWidth = 480;
+        $maxHeight = self::HEIGHT - 2 * self::PAD;
+        $ratio = $ratio > 0 ? $ratio : 1;
+        $w = min($maxWidth, $maxHeight * $ratio);
+        $h = $w / $ratio;
+        $w = (int) round($w);
+        $h = (int) round($h);
+
+        return [self::WIDTH - self::PAD - $w, (int) round((self::HEIGHT - $h) / 2), $w, $h];
     }
 
     /** The cut every card applies to a long title. */

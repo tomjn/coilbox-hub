@@ -31,7 +31,7 @@
 
     <figcaption class="flex flex-col gap-1 text-sm text-neutral-400 {{ $column }}">
         @if ($preview['points']['start'] !== [])
-            <span><span class="{{ $dot }} bg-neutral-100"></span>Start positions, as the map declares them. How a lobby uses them is the lobby&rsquo;s choice.</span>
+            <span><span class="mr-1.5 inline-block size-2.5 border border-green-400 bg-black align-middle"></span>Start positions, numbered, as the map declares them. How a lobby uses them is the lobby&rsquo;s choice.</span>
         @endif
         <span class="text-neutral-400">{{ $name }} as the archive measures it. Drag to turn it, scroll to zoom. Heights are eight bits deep, which is what a browser can read.</span>
     </figcaption>

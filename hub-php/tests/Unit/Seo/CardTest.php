@@ -42,6 +42,41 @@ class CardTest extends TestCase
         $this->assertSame(0xFF0000, imagecolorat($image, 72 + 64, 315));
     }
 
+    private function red(int $w, int $h): string
+    {
+        $red = imagecreatetruecolor($w, $h);
+        imagefill($red, 0, 0, imagecolorallocate($red, 255, 0, 0));
+        ob_start();
+        imagepng($red);
+
+        return (string) ob_get_clean();
+    }
+
+    public function test_a_wide_minimap_fills_the_right_of_the_card_at_the_maps_proportions(): void
+    {
+        // A square picture of a 2 by 1 map is stretched to 480 by 240, against the right padding.
+        $image = imagecreatefromstring(Card::standard('Map', 'Title', '', 'Coilbox Hub', null, ['bytes' => $this->red(64, 64), 'ratio' => 2.0]));
+        $this->assertSame(0xFF0000, imagecolorat($image, 1200 - 72 - 240, 315));
+        $this->assertSame(0xFF0000, imagecolorat($image, 1200 - 72 - 470, 315 + 110));
+        $this->assertSame(0x0B0B0D, imagecolorat($image, 1200 - 72 - 240, 315 + 130));
+        $this->assertSame(0x0B0B0D, imagecolorat($image, 1200 - 72 - 490, 315));
+    }
+
+    public function test_a_tall_minimap_is_held_to_the_card_height(): void
+    {
+        $image = imagecreatefromstring(Card::standard('Map', 'Title', '', 'Coilbox Hub', null, ['bytes' => $this->red(32, 64), 'ratio' => 0.5]));
+        // 243 by 486, top padding to bottom padding.
+        $this->assertSame(0xFF0000, imagecolorat($image, 1200 - 72 - 120, 72 + 5));
+        $this->assertSame(0xFF0000, imagecolorat($image, 1200 - 72 - 120, 630 - 72 - 5));
+        $this->assertSame(0x0B0B0D, imagecolorat($image, 1200 - 72 - 260, 315));
+    }
+
+    public function test_unreadable_minimap_bytes_draw_the_card_without_one(): void
+    {
+        $image = imagecreatefromstring(Card::standard('Map', 'Title', '', 'Coilbox Hub', null, ['bytes' => 'not an image', 'ratio' => 1.0]));
+        $this->assertSame(0x0B0B0D, imagecolorat($image, 1200 - 72 - 240, 315));
+    }
+
     public function test_unreadable_logo_bytes_draw_the_card_without_one(): void
     {
         $this->assertSame([1200, 630], $this->dimensions(Card::standard('Game', 'Title', '', 'Coilbox Hub', 'not an image')));

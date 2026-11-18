@@ -35,8 +35,9 @@ import type { MapPreview, PreviewAppearance, PreviewPoint } from "./types";
  * figure once it has drawn, so anything only the figure showed would be a fact
  * the reader loses by having a better browser.
  *
- * Two of the three are pucks and the third is not. A vent is what a player scans
- * the map for, and `ventLayer` says why that makes it a plume.
+ * Metal spots are pucks. Start positions are numbered tags, `startLayer`, and a
+ * vent is what a player scans the map for, which `ventLayer` says makes it a
+ * plume.
  *
  * The heights come off the relief rather than off the points. `map_point.y` is
  * null on almost every start position, and this module has the ground in front
@@ -92,12 +93,20 @@ const DEFAULT_SUN: [number, number, number] = [-0.6, 0.9, 0.4];
 const DEFAULT_WATER = 0x2f6f9f;
 const DEFAULT_WATER_ALPHA = 0.55;
 
-/** The two puck layers. A start position keeps the flat figure's white. A metal
- *  spot does not keep its amber: the vents beside it are yellow here and amber
- *  and yellow are the same colour at this size, where the flat figure draws its
- *  vents in rose and has no such problem. */
-const START_COLOUR = 0xf5f5f5;
+/** A metal spot does not keep the flat figure's amber: the vents beside it are
+ *  yellow here and amber and yellow are the same colour at this size, where the
+ *  flat figure draws its vents in rose and has no such problem. */
 const METAL_COLOUR = 0xa3e635;
+
+/** A start position is a numbered tag that always faces the camera: a black
+ *  square with a green border and the position's number in green. The size is
+ *  in screen terms rather than scene terms, so a tag stays the same size on
+ *  screen at any zoom. The texture is drawn at 128 pixels a side so it stays
+ *  sharp on a high density screen. */
+const START_INK = "#4ade80";
+const START_FILL = "#000000";
+const START_SIZE = 0.05;
+const START_TEXTURE = 128;
 
 /** How see-through a metal spot is. Enough ground shows through to read what
  *  the spot is standing on, which on a map with a hundred of them is the
@@ -378,6 +387,83 @@ function markerLayer(
   };
 }
 
+/** One start position's tag: the square and its number, drawn once into a texture. */
+function startTexture(label: string): THREE.CanvasTexture {
+  const size = START_TEXTURE;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("this browser has no 2D canvas to draw the start positions with");
+
+  const border = size * 0.08;
+  context.fillStyle = START_FILL;
+  context.fillRect(0, 0, size, size);
+  context.strokeStyle = START_INK;
+  context.lineWidth = border;
+  context.strokeRect(border / 2, border / 2, size - border, size - border);
+
+  context.fillStyle = START_INK;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  // Two digit numbers are set smaller so they fit inside the border.
+  context.font = `bold ${size * (label.length > 1 ? 0.5 : 0.62)}px system-ui, sans-serif`;
+  context.fillText(label, size / 2, size / 2 + size * 0.04);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  return texture;
+}
+
+/**
+ * The start positions, as numbered tags that always face the camera.
+ *
+ * Numbered from one in the order the map declares them, which is the order
+ * the catalog stores them in, so the number is the one a lobby shows.
+ *
+ * Drawn over everything, terrain included. A start position behind a ridge is
+ * still a start position, and the count is the fact the reader most needs.
+ */
+function startLayer(
+  points: PreviewPoint[],
+  grid: { width: number; height: number; elmos: Float32Array },
+  preview: MapPreview,
+  scale: number,
+): Layer | null {
+  if (points.length === 0) return null;
+
+  const group = new THREE.Group();
+  const owned: { texture: THREE.Texture; material: THREE.SpriteMaterial }[] = [];
+
+  points.forEach((point, index) => {
+    const texture = startTexture(String(index + 1));
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      sizeAttenuation: false,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    const at = scenePosition(point, grid, preview, scale);
+    sprite.position.set(at.x, at.y + MARKER_LIFT, at.z);
+    sprite.scale.set(START_SIZE, START_SIZE, 1);
+    sprite.renderOrder = 1;
+    group.add(sprite);
+    owned.push({ texture, material });
+  });
+
+  return {
+    mesh: group,
+    dispose: () => {
+      for (const { texture, material } of owned) {
+        texture.dispose();
+        material.dispose();
+      }
+    },
+  };
+}
+
 /**
  * The geothermal vents, as plumes rather than as dots.
  *
@@ -567,13 +653,15 @@ export async function drawTerrain(
   // A void water map has no sea at all: the engine shows the void through it,
   // and drawing a translucent sheet over an asteroid would be the hub inventing
   // an ocean the archive says is not there. The ground under it is gone too, in
-  // `terrainMesh`.
-  const sea = preview.voidWater ? null : waterMesh(preview, scale, appearance);
+  // `terrainMesh`. A map with no ground below sea level has no water to show,
+  // so it gets no sea either.
+  const belowSea = grid.elmos.some((elmos) => elmos < 0);
+  const sea = preview.voidWater || !belowSea ? null : waterMesh(preview, scale, appearance);
   if (sea) scene.add(sea.mesh);
 
   // The same three layers the flat figure draws, from the same stored points.
   const layers = {
-    start: markerLayer(preview.points.start, START_COLOUR, MARKER_RADIUS, 1, grid, preview, scale),
+    start: startLayer(preview.points.start, grid, preview, scale),
     metal: markerLayer(
       preview.points.metal,
       METAL_COLOUR,
