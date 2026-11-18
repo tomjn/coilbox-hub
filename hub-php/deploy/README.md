@@ -101,6 +101,10 @@ The hub signs upload tokens and the mirror catalogue with one Ed25519 key. The s
 5. Run `php artisan mirrors:catalogue`. It prints `catalogue seq N` when the key works.
 6. Give the public key to each mirror operator. They add it to `hub_keys` in their mirror's config.
 
+### Add or remove a mirror
+
+A moderator adds, removes or switches on a mirror at `/moderation/mirrors`. The operator sends their mirror's ID, address and public key. The page also shows each mirror's health.
+
 ### Keep a sealed copy
 
 Give the secret key, sealed, to a second trusted person. If the key is lost, nothing can sign for the hub and every mirror operator must add a new public key by hand. Record who holds the copy and the date in your own notes, not in a repository.

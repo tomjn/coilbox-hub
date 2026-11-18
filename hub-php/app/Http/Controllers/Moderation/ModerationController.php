@@ -25,6 +25,7 @@ abstract class ModerationController extends Controller
         'mapPacks' => ['label' => 'Map packs', 'href' => '/moderation/map-packs'],
         'games' => ['label' => 'Games', 'href' => '/moderation/games'],
         'archives' => ['label' => 'Uploads', 'href' => '/moderation/archives'],
+        'mirrors' => ['label' => 'Mirrors', 'href' => '/moderation/mirrors'],
         'authors' => ['label' => 'Authors', 'href' => '/moderation/authors'],
         'users' => ['label' => 'Users', 'href' => '/moderation/users'],
         'allowances' => ['label' => 'Allowances', 'href' => '/ops'],
