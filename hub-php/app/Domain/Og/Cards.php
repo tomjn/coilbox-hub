@@ -2,6 +2,7 @@
 
 namespace App\Domain\Og;
 
+use App\Domain\Assets\Bucket;
 use App\Domain\Assets\StagedGameArt;
 use App\Domain\Gallery\ItemPage;
 use App\Domain\Gallery\Labels as GalleryLabels;
@@ -66,7 +67,7 @@ final class Cards
 
     public static function map(string $slug): string
     {
-        return HubCache::remember('og:map:'.$slug, [HubCache::MAPS, HubCache::map($slug)], HubCache::WEEKS, function () use ($slug) {
+        return HubCache::remember('og:map-minimap:'.$slug, [HubCache::MAPS, HubCache::map($slug), HubCache::ASSETS], HubCache::WEEKS, function () use ($slug) {
             $page = MapPage::cached($slug);
             if ($page === null) {
                 return Card::standard('Map', 'Coilbox Hub', '', 'Coilbox Hub');
@@ -78,8 +79,46 @@ final class Cards
             ]));
             $credit = implode(', ', array_map(fn ($author) => $author['name'], $facts['authors'] ?? []));
 
-            return Card::standard('Map', MapLabels::title($facts['display_name'] ?? null, $page['mapName']), $measures, $credit !== '' ? 'by '.$credit : 'Coilbox Hub');
+            $picture = self::minimap($page['picture'] ?? null);
+            $minimap = $picture !== null && $facts['height_elmos'] > 0
+                ? ['bytes' => $picture, 'ratio' => $facts['width_elmos'] / $facts['height_elmos']]
+                : null;
+
+            return Card::standard('Map', MapLabels::title($facts['display_name'] ?? null, $page['mapName']), $measures, $credit !== '' ? 'by '.$credit : 'Coilbox Hub', null, $minimap);
         });
+    }
+
+    /**
+     * The map page's minimap bytes, or null to draw the card without one. The
+     * drawn placeholder is not a picture of the map, so it is left off. A
+     * minimap still in the staging bucket is read from there, as a logo is.
+     *
+     * @param  array<string, mixed>|null  $picture
+     */
+    private static function minimap(?array $picture): ?string
+    {
+        if ($picture === null || ($picture['from'] ?? null) === 'placeholder' || ! is_string($picture['url'] ?? null)) {
+            return null;
+        }
+        $url = $picture['url'];
+        try {
+            $staged = Bucket::tierUrl('');
+            if ($picture['from'] === 'bucket' && str_starts_with($url, $staged)) {
+                $art = Bucket::fetchApprovedStagedPicture(Supabase::anon(), Supabase::admin(), substr($url, strlen($staged)));
+                if (isset($art['bytes'])) {
+                    return $art['bytes'];
+                }
+                if (! isset($art['promoted'])) {
+                    return null;
+                }
+                $url = $art['promoted'];
+            }
+            $response = Http::timeout(10)->get($url);
+
+            return $response->ok() ? $response->body() : null;
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     public static function game(string $shortname): string
