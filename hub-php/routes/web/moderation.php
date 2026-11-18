@@ -5,6 +5,7 @@ use App\Http\Controllers\Moderation\AuthorsController;
 use App\Http\Controllers\Moderation\GamesController;
 use App\Http\Controllers\Moderation\MapPacksController;
 use App\Http\Controllers\Moderation\MapsController;
+use App\Http\Controllers\Moderation\MirrorsController;
 use App\Http\Controllers\Moderation\OpsController;
 use App\Http\Controllers\Moderation\PicturesController;
 use App\Http\Controllers\Moderation\ReportsController;
@@ -59,5 +60,10 @@ Route::post('/moderation/games/offer', [GamesController::class, 'offer']);
 Route::get('/moderation/archives', [ArchivesController::class, 'index']);
 Route::post('/moderation/archives/remove', [ArchivesController::class, 'remove']);
 Route::post('/moderation/archives/dismiss', [ArchivesController::class, 'dismiss']);
+
+Route::get('/moderation/mirrors', [MirrorsController::class, 'index']);
+Route::post('/moderation/mirrors/add', [MirrorsController::class, 'add']);
+Route::post('/moderation/mirrors/remove', [MirrorsController::class, 'remove']);
+Route::post('/moderation/mirrors/enable', [MirrorsController::class, 'enable']);
 
 Route::get('/ops', [OpsController::class, 'show']);
