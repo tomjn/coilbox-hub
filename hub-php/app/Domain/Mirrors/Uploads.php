@@ -141,6 +141,9 @@ final class Uploads
         if ($reason === 'unknown_game') {
             return self::fail(422, 'The hub does not know a game called "'.$facts['shortname'].'".', 'unknown_game');
         }
+        if ($reason === 'unknown_map') {
+            return self::fail(422, 'The hub has no facts for the map "'.$facts['internal_name'].'". Send the map to the hub first.', 'unknown_map');
+        }
         if ($reason === 'not_owner') {
             return self::fail(403, 'You do not own the game "'.$facts['shortname'].'".', 'not_owner');
         }
