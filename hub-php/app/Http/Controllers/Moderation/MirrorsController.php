@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Moderation;
 
+use App\Domain\Mirrors\B64;
+use App\Domain\Mirrors\HubKeys;
 use App\Domain\Mirrors\Registry;
 use App\Domain\Moderation\Access;
 use Illuminate\Http\RedirectResponse;
@@ -18,11 +20,15 @@ class MirrorsController extends ModerationController
             return Access::refuse('/moderation/mirrors');
         }
         $data = Registry::list($supabase);
+        $keys = HubKeys::fromConfig();
 
         return view('moderation.mirrors', [
             'error' => $data === null,
             'mirrors' => $data['mirrors'] ?? [],
             'seq' => $data['seq'] ?? null,
+            // What an operator puts in hub_keys. The next key too while one is being rotated in.
+            'hubKey' => $keys === null ? null : B64::encode($keys->publicKey()),
+            'nextHubKey' => $keys?->nextKey()['public_key'] ?? null,
         ]);
     }
 

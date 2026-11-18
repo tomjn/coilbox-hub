@@ -102,6 +102,23 @@
             <section class="flex flex-col gap-4 border-t border-neutral-900 pt-6" aria-labelledby="mirrors-add">
                 <h2 id="mirrors-add" class="text-sm uppercase tracking-wide text-neutral-400">Add a mirror</h2>
                 <p class="text-sm text-neutral-400">Ask the operator for their mirror's ID, address and public key. They make the key with <code>php bin/keygen.php</code> in the mirror repository, and the ID must match the one in their mirror's config. A new mirror gets no downloads until its first report passes the hub's check.</p>
+                <div class="flex flex-col gap-1.5 text-sm">
+                    <p class="text-neutral-400">Send the operator the hub's public key. They add it to <code>hub_keys</code> in their mirror's config.</p>
+                    @if ($hubKey === null)
+                        <p role="alert" class="text-red-400">The hub has no valid signing key set, so no mirror can sync. See the mirror signing key steps in the deploy README.</p>
+                    @else
+                        <label class="flex flex-col gap-1.5">
+                            <span class="text-neutral-400">The hub's public key</span>
+                            <input readonly value="{{ $hubKey }}" spellcheck="false" class="{{ Ui::FIELD }} font-mono">
+                        </label>
+                        @if ($nextHubKey !== null)
+                            <label class="flex flex-col gap-1.5">
+                                <span class="text-neutral-400">The hub's next public key, being rotated in. Send this one too.</span>
+                                <input readonly value="{{ $nextHubKey }}" spellcheck="false" class="{{ Ui::FIELD }} font-mono">
+                            </label>
+                        @endif
+                    @endif
+                </div>
                 <form method="post" action="/moderation/mirrors/add" class="flex flex-col gap-4">
                     @csrf
                     <label class="flex flex-col gap-1.5 text-sm">

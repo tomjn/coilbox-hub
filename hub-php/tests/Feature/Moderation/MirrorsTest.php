@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Moderation;
 
+use App\Domain\Mirrors\B64;
 use App\Support\HubCache;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -74,6 +75,26 @@ class MirrorsTest extends ModerationTestCase
             ->assertSee('Switch off Took Uploads')
             ->assertDontSee('Remove Off')
             ->assertSee('Add the mirror');
+    }
+
+    public function test_the_page_shows_the_hub_public_key_and_the_next_one_while_rotating(): void
+    {
+        $current = sodium_crypto_sign_keypair();
+        $next = sodium_crypto_sign_keypair();
+        $this->supabase(['POST /rpc/moderation_mirrors' => self::reply(['seq' => 1, 'mirrors' => []])]);
+
+        config(['hub.mirrors.secret_key' => '', 'hub.mirrors.next_secret_key' => '']);
+        $this->signedIn()->get('/moderation/mirrors')->assertSee('The hub has no valid signing key set');
+
+        config(['hub.mirrors.secret_key' => B64::encode(sodium_crypto_sign_secretkey($current))]);
+        $this->signedIn()->get('/moderation/mirrors')
+            ->assertSee('value="'.B64::encode(sodium_crypto_sign_publickey($current)).'"', false)
+            ->assertDontSee('next public key');
+
+        config(['hub.mirrors.next_secret_key' => B64::encode(sodium_crypto_sign_secretkey($next))]);
+        $this->signedIn()->get('/moderation/mirrors')
+            ->assertSee('value="'.B64::encode(sodium_crypto_sign_publickey($current)).'"', false)
+            ->assertSee('value="'.B64::encode(sodium_crypto_sign_publickey($next)).'"', false);
     }
 
     public function test_an_unreadable_list_says_so(): void
