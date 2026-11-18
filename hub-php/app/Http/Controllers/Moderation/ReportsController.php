@@ -26,7 +26,7 @@ class ReportsController extends ModerationController
 
         try {
             $reports = $supabase->from('report')
-                ->select('id,item_id,map_id,kind,reason,created_at,item(id,title,kind,deleted_at),map(slug,map_name,display_name)')
+                ->select('id,item_id,map_id,kind,reason,created_at,item(id,title,kind,deleted_at),map(slug,map_name,display_name,map_version)')
                 ->is('handled_at', null)->order('created_at', ascending: false)->limit(100)->get();
         } catch (SupabaseException) {
             $reports = [];

@@ -44,7 +44,7 @@ class MapsController extends Controller
         abort_if($page === null, 404);
 
         $facts = $page['facts'];
-        $title = Labels::title($facts['display_name'] ?? null, $page['mapName']);
+        $title = Labels::title($facts['display_name'] ?? null, $page['mapName'], $page['mapVersion'] ?? null);
         // How big it is and how many it takes, then the archive's own words.
         $measures = implode(', ', array_filter([
             Labels::size($facts['width_elmos'], $facts['height_elmos']),

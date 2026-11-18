@@ -67,7 +67,7 @@ final class Cards
 
     public static function map(string $slug): string
     {
-        return HubCache::remember('og:map-minimap:'.$slug, [HubCache::MAPS, HubCache::map($slug), HubCache::ASSETS], HubCache::WEEKS, function () use ($slug) {
+        return HubCache::remember('og:map-card:'.$slug, [HubCache::MAPS, HubCache::map($slug), HubCache::ASSETS], HubCache::WEEKS, function () use ($slug) {
             $page = MapPage::cached($slug);
             if ($page === null) {
                 return Card::standard('Map', 'Coilbox Hub', '', 'Coilbox Hub');
@@ -84,7 +84,7 @@ final class Cards
                 ? ['bytes' => $picture, 'ratio' => $facts['width_elmos'] / $facts['height_elmos']]
                 : null;
 
-            return Card::standard('Map', MapLabels::title($facts['display_name'] ?? null, $page['mapName']), $measures, $credit !== '' ? 'by '.$credit : 'Coilbox Hub', null, $minimap);
+            return Card::standard('Map', MapLabels::title($facts['display_name'] ?? null, $page['mapName'], $page['mapVersion'] ?? null), $measures, $credit !== '' ? 'by '.$credit : 'Coilbox Hub', null, $minimap);
         });
     }
 

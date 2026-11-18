@@ -24,7 +24,7 @@
                         <li class="{{ $card }}">
                             <div class="flex items-baseline justify-between gap-3">
                                 @if ($map)
-                                    <a href="/map/{{ $map['slug'] }}" class="break-words text-base font-medium hover:underline active:underline">{{ Labels::title($map['display_name'], $map['map_name']) }}</a>
+                                    <a href="/map/{{ $map['slug'] }}" class="break-words text-base font-medium hover:underline active:underline">{{ Labels::title($map['display_name'], $map['map_name'], $map['map_version'] ?? null) }}</a>
                                 @else
                                     <span class="text-base font-medium">A deleted map</span>
                                 @endif
