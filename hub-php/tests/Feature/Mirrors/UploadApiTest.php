@@ -208,6 +208,17 @@ class UploadApiTest extends TestCase
         $this->send($this->facts())->assertStatus(503)->assertJsonPath('reason', 'no_mirror');
     }
 
+    public function test_unknown_map_is_422(): void
+    {
+        $this->fakeSignedIn([
+            'https://sb.test/rest/v1/rpc/begin_archive_upload' => Http::response(['outcome' => 'refused', 'reason' => 'unknown_map']),
+        ]);
+        $facts = $this->facts();
+
+        $this->send($facts)->assertStatus(422)->assertJsonPath('reason', 'unknown_map')
+            ->assertJsonPath('error', 'The hub has no facts for the map "'.$facts['internal_name'].'". Send the map to the hub first.');
+    }
+
     public function test_invalid_facts_are_400_and_nothing_is_reserved(): void
     {
         $this->fakeSignedIn();

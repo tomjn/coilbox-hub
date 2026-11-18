@@ -5,7 +5,7 @@
 -- checks capabilities itself, so these tests pass the flag directly.
 
 begin;
-select plan(32);
+select plan(34);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -16,6 +16,15 @@ values
 
 insert into public.game (id, shortname, owner_user_id)
 values ('0f8fad5b-0008-4000-8000-000000000001', 'TG', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+
+-- A map file is only taken for a map the hub has facts for.
+insert into public.map (
+  map_name, slug, width_elmos, height_elmos, world_height_min, world_height_max,
+  source_hash, source_archive, catalog_version, facts_digest
+)
+select name, 'map-' || ord, 4096, 4096, 0, 100, 'src', 'src.sd7', 1, 'digest'
+from unnest(array['Map One 1.0', 'Map Two 1.0', 'Other 1.0', 'Fresh 1.0', 'Race 1.0'])
+  with ordinality as names(name, ord);
 
 -- jj-darkstars is seeded unhealthy. One healthy mirror and one that is healthy
 -- but disabled.
@@ -52,6 +61,15 @@ select is(
   (select upload_mirror_id from public.archive where id = (select (j->>'id')::uuid from r where label = 'map1')),
   'm-ok', 'the healthy enabled mirror is the one recorded');
 select is((select j->>'base_url' from r where label = 'map1'), 'https://ok.example.test', 'the answer carries the mirror base URL');
+
+select is(
+  (public.begin_archive_upload(
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', true,
+    pg_temp.facts(repeat('7', 64), 'unknown.sd7', 'Unknown 1.0', '1.0'), 86400))->>'reason',
+  'unknown_map', 'a map the hub has no facts for is refused, even for a moderator');
+select is(
+  (select count(*) from public.archive where sha256 = repeat('7', 64)),
+  0::bigint, 'no row is left behind for an unknown map');
 
 -- ## Mirror choice
 
