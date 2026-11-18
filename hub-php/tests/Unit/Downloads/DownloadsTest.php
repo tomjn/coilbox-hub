@@ -98,7 +98,7 @@ class DownloadsTest extends TestCase
         $this->assertSame(2, $calls);
     }
 
-    public function test_a_counted_map_and_game_invalidate_their_tags(): void
+    public function test_a_counted_map_or_game_leaves_the_cache_alone(): void
     {
         foreach (['map' => HubCache::MAPS, 'game' => HubCache::GAMES] as $kind => $tag) {
             Cache::flush();
@@ -109,10 +109,10 @@ class DownloadsTest extends TestCase
             };
             HubCache::remember('k', [$tag], 60, $load);
 
-            Downloads::record($kind, 'x', $this->request());
+            $this->assertTrue(Downloads::record($kind, 'x', $this->request()));
 
             HubCache::remember('k', [$tag], 60, $load);
-            $this->assertSame(2, $calls, $kind);
+            $this->assertSame(1, $calls, $kind);
         }
     }
 

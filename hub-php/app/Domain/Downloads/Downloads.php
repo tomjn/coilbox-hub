@@ -38,13 +38,11 @@ final class Downloads
             return false;
         }
 
-        // The map page tags are keyed by slug and only the name is known here,
-        // so the whole maps tag goes. Games have no per page tag.
-        HubCache::invalidate([match ($kind) {
-            'item' => HubCache::item($target),
-            'map' => HubCache::MAPS,
-            default => HubCache::GAMES,
-        }]);
+        // Only the item page prints its count and is refreshed. Map and game
+        // pages are left cached, their counts are rough and read separately.
+        if ($kind === 'item') {
+            HubCache::invalidate([HubCache::item($target)]);
+        }
 
         return true;
     }
