@@ -1,9 +1,11 @@
 <?php
 
+use App\Domain\Assets\PictureCopy;
 use App\Domain\Games\CatalogueCopy;
 use App\Domain\Mirrors\CatalogueStore;
 use App\Domain\Mirrors\HubKeys;
 use App\Supabase\Local\GameStore;
+use App\Supabase\Local\PictureStore;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Foundation\Inspiring;
@@ -151,3 +153,58 @@ Artisan::command('games:store {state? : supabase, to go back}', function () {
 
     return 0;
 })->purpose('Show which database the game catalogue is read from, or go back to Supabase');
+
+Artisan::command('pictures:copy {--dry-run : Show the row and object counts, and the free space, and write nothing}', function () {
+    $copy = new PictureCopy(
+        Supabase::admin()->remote(),
+        fn (string $line) => $this->line($line),
+        fn (int $seconds) => sleep($seconds),
+        fn (string $folder) => disk_free_space($folder),
+    );
+    $this->line('The hub reads pictures from '.PictureStore::fresh().'.');
+
+    try {
+        if ($this->option('dry-run')) {
+            foreach ($copy->counts() as $table => $count) {
+                $this->line(sprintf('%s: Supabase %d, MariaDB %d', $table, $count['supabase'], $count['mariadb']));
+            }
+            $objects = $copy->objectCounts();
+            $this->line(sprintf('staged-pictures: Supabase %d objects, %d bytes. Disk %d objects, %d bytes.',
+                $objects['supabase_objects'], $objects['supabase_bytes'], $objects['local_objects'], $objects['local_bytes']));
+            $this->line(sprintf('To copy: %d objects, %d bytes. Free: %s bytes.', $objects['to_copy'], $objects['to_copy_bytes'],
+                $objects['free_bytes'] === false ? 'unknown' : (string) (int) $objects['free_bytes']));
+            $this->line('Dry run: nothing was written.');
+
+            return 0;
+        }
+        $copy->run();
+    } catch (Throwable $e) {
+        $this->error('The copy stopped: '.$e->getMessage());
+        $this->line('Running it again keeps the objects already copied and copies the rest.');
+
+        return 1;
+    }
+
+    return 0;
+})->purpose('Copy picture records into MariaDB and staged pictures onto this disk, and switch the hub to them');
+
+Artisan::command('pictures:store {state? : supabase, to go back}', function () {
+    $state = $this->argument('state');
+    if ($state === null) {
+        $this->line('The hub reads pictures from '.PictureStore::fresh().'.');
+
+        return 0;
+    }
+    if ($state !== PictureStore::SUPABASE) {
+        $this->error('Only supabase can be set here. pictures:copy switches to mariadb once the rows and objects are copied.');
+
+        return 1;
+    }
+    if (PictureStore::fresh() === PictureStore::MARIADB) {
+        $this->warn('Pictures uploaded or moderated since the switch are only in MariaDB and on this disk, not in Supabase.');
+    }
+    PictureStore::set(PictureStore::SUPABASE);
+    $this->line('The hub reads pictures from supabase.');
+
+    return 0;
+})->purpose('Show which database pictures are read from, or go back to Supabase');

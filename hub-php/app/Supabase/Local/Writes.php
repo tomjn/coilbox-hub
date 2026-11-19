@@ -8,7 +8,8 @@ use Illuminate\Support\Facades\DB;
  * Inserts and updates on the local tables with what Postgres adds around
  * them: defaults, the `updated_at` triggers, check constraints, unique keys
  * (the two partial ones included), foreign keys, the `with check` policies,
- * and Supabase's copy of `game` kept in step for the areas that still read it.
+ * the triggers on `asset` ({@see AssetTriggers}), and Supabase's copy of
+ * `game` kept in step for the areas that still read it.
  *
  * Callers run these inside a transaction.
  */
@@ -28,7 +29,7 @@ final class Writes
                 $row[$column] = $default === 'now' ? $now : $default;
             }
         }
-        if ($table === Tables::GAME && ! isset($row['id'])) {
+        if (in_array($table, Tables::UUID_IDS, true) && ! isset($row['id'])) {
             $row['id'] = Rest::uuid();
         }
         if ($table === 'game_ownership_request' && ! array_key_exists('requested_by_name', $row)) {
@@ -59,9 +60,16 @@ final class Writes
             throw self::duplicate('game_download_offer_held_idx', $table);
         }
 
+        if ($table === 'asset') {
+            AssetTriggers::before(null, $stored, array_keys($stored));
+        }
+
         if (array_key_exists('id', $stored) && $stored['id'] !== null) {
             DB::table($table)->insert($stored);
             $id = $stored['id'];
+            if ($table === 'asset') {
+                AssetTriggers::after($caller, null, $stored);
+            }
         } else {
             unset($stored['id']);
             $id = DB::table($table)->insertGetId($stored);
@@ -87,7 +95,7 @@ final class Writes
             return [];
         }
         $columns = Tables::columns($table);
-        $changes = self::stored($table, $values);
+        $changes = self::stored($table, $values, false);
         if (in_array($table, Tables::TOUCHED, true)) {
             $changes['updated_at'] = $now;
         }
@@ -104,9 +112,17 @@ final class Writes
             }
             self::refuse($table, $after, $target['id']);
             Policies::check($caller, $table, $after);
+            if ($table === 'asset') {
+                AssetTriggers::before($target, $after, array_keys($values));
+            }
         }
         $ids = array_column($targets, 'id');
         DB::table($table)->whereIn('id', $ids)->update($changes);
+        if ($table === 'asset') {
+            foreach ($targets as $target) {
+                AssetTriggers::after($caller, $target, array_merge($target, $changes));
+            }
+        }
         if ($table === Tables::GAME) {
             Shadow::push(array_map('strval', $ids));
         }
@@ -121,7 +137,7 @@ final class Writes
      * @param  array<string, mixed>  $row
      * @return array<string, mixed>
      */
-    private static function stored(string $table, array $row): array
+    private static function stored(string $table, array $row, bool $whole = true): array
     {
         $columns = Tables::columns($table);
         $decoded = [];
@@ -132,7 +148,7 @@ final class Writes
                 default => $value,
             };
         }
-        if (($violation = Tables::violation($table, $decoded)) !== null) {
+        if (($violation = Tables::violation($table, $decoded, $whole)) !== null) {
             throw $violation;
         }
         $stored = [];

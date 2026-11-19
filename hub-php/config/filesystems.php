@@ -38,6 +38,15 @@ return [
             'report' => false,
         ],
 
+        // Staged pictures once they have moved off Supabase Storage (#598).
+        // Under `storage/`, which each release links to `shared/storage`.
+        'staged' => [
+            'driver' => 'local',
+            'root' => storage_path('app/staged-pictures'),
+            'throw' => true,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

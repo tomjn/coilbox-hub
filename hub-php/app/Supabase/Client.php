@@ -2,9 +2,13 @@
 
 namespace App\Supabase;
 
+use App\Supabase\Local\DataMove;
 use App\Supabase\Local\GameFunctions;
 use App\Supabase\Local\GameStore;
+use App\Supabase\Local\PictureFunctions;
+use App\Supabase\Local\PictureStore;
 use App\Supabase\Local\Rest;
+use App\Supabase\Local\StagedObjects;
 use App\Supabase\Local\Tables;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -25,9 +29,12 @@ use Illuminate\Support\Facades\Http;
  *
  * Once the game catalogue has moved (#597), requests for its tables and
  * functions are answered from MariaDB by {@see Rest} and {@see GameFunctions},
- * which apply the same row level security for the same caller. `remote()`
- * gives a client that always asks Supabase, for the copy and for keeping
- * Supabase's `game` rows in step.
+ * which apply the same row level security for the same caller. Pictures
+ * (#598) move the same way on their own switch: their tables and functions go
+ * to {@see Rest} and {@see PictureFunctions}, and the `staged-pictures` bucket
+ * to {@see StagedObjects} on the droplet's disk. `remote()` gives a client
+ * that always asks Supabase, for the copies and for keeping Supabase's `game`
+ * rows in step.
  */
 class Client
 {
@@ -44,6 +51,12 @@ class Client
     public function remote(): self
     {
         return new self($this->url, $this->apiKey, $this->accessToken, $this->timeout, $this->userId, true);
+    }
+
+    /** This client with another request timeout in seconds, 0 for none. */
+    public function withTimeout(int $seconds): self
+    {
+        return new self($this->url, $this->apiKey, $this->accessToken, $seconds, $this->userId, $this->remoteOnly);
     }
 
     /** `service_role`, `authenticated` or `anon`, as row level security sees the caller. */
@@ -79,6 +92,12 @@ class Client
             $target = GameFunctions::writes($function) ? GameStore::writeTarget() : GameStore::state();
             if ($target === GameStore::MARIADB) {
                 return GameFunctions::call($this, $function, $args);
+            }
+        }
+        if (! $this->remoteOnly && PictureFunctions::handles($function)) {
+            $target = PictureFunctions::writes($function) ? PictureStore::writeTarget() : PictureStore::state();
+            if ($target === PictureStore::MARIADB) {
+                return PictureFunctions::call($this, $function, $args);
             }
         }
         $response = $this->send('POST', '/rest/v1/rpc/'.rawurlencode($function), [], $args === [] ? (object) [] : $args);
@@ -136,6 +155,9 @@ class Client
      */
     public function downloadObject(string $bucket, string $path): ?string
     {
+        if ($this->localBucket($bucket, false)) {
+            return StagedObjects::download($path);
+        }
         $response = $this->request()->get($this->url.'/storage/v1/object/'.rawurlencode($bucket).'/'.self::encodePath($path));
         if ($response->status() === 404 || $response->status() === 400) {
             return null;
@@ -153,6 +175,11 @@ class Client
      */
     public function uploadObject(string $bucket, string $path, string $bytes, string $contentType, bool $upsert = false): void
     {
+        if ($this->localBucket($bucket, true)) {
+            StagedObjects::upload($path, $bytes, $contentType, $upsert);
+
+            return;
+        }
         $response = $this->request()
             ->withHeaders(['x-upsert' => $upsert ? 'true' : 'false', 'cache-control' => 'max-age=3600'])
             ->withBody($bytes, $contentType)
@@ -168,6 +195,11 @@ class Client
     public function removeObjects(string $bucket, array $paths): void
     {
         if ($paths === []) {
+            return;
+        }
+        if ($this->localBucket($bucket, true)) {
+            StagedObjects::remove($paths);
+
             return;
         }
         $response = $this->request()->send('DELETE', $this->url.'/storage/v1/object/'.rawurlencode($bucket), [
@@ -188,7 +220,8 @@ class Client
     {
         if (! $this->remoteOnly && Tables::handles($table)) {
             $reads = $method === 'GET' || $method === 'HEAD';
-            if (($reads ? GameStore::state() : GameStore::writeTarget()) === GameStore::MARIADB) {
+            $store = Tables::isPicture($table) ? PictureStore::class : GameStore::class;
+            if (($reads ? $store::state() : $store::writeTarget()) === DataMove::MARIADB) {
                 return Rest::handle($this, $method, $table, $query, $body, $headers);
             }
         }
@@ -219,6 +252,40 @@ class Client
         $rows = json_decode($response['body'], false, 512, JSON_THROW_ON_ERROR);
 
         return array_map(fn ($row) => get_object_vars($row), is_array($rows) ? $rows : []);
+    }
+
+    /**
+     * One page of a bucket folder from Supabase Storage: files with their
+     * metadata, and folders with a null id. Always asks Supabase. For copying
+     * the bucket out.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listObjects(string $bucket, string $prefix, int $limit, int $offset): array
+    {
+        try {
+            $response = $this->request()->post($this->url.'/storage/v1/object/list/'.rawurlencode($bucket), [
+                'prefix' => $prefix, 'limit' => $limit, 'offset' => $offset, 'sortBy' => ['column' => 'name', 'order' => 'asc'],
+            ]);
+        } catch (ConnectionException $e) {
+            throw new SupabaseException('Could not reach Supabase: '.$e->getMessage(), 0, 'CONNECTION');
+        }
+        if (! $response->successful()) {
+            throw SupabaseException::fromResponse($response->status(), is_array($response->json()) ? $response->json() : null, 'Storage list failed');
+        }
+        $items = $response->json();
+
+        return is_array($items) ? array_values($items) : [];
+    }
+
+    /** Whether this bucket request is answered from the droplet's disk. */
+    private function localBucket(string $bucket, bool $writes): bool
+    {
+        if ($this->remoteOnly || $bucket !== StagedObjects::BUCKET) {
+            return false;
+        }
+
+        return ($writes ? PictureStore::writeTarget() : PictureStore::state()) === PictureStore::MARIADB;
     }
 
     /**

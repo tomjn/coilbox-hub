@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * PostgREST for the game catalogue, answered from MariaDB. It takes the
+ * PostgREST for the game catalogue and the pictures, answered from MariaDB. It takes the
  * request {@see Query} would have sent and answers as PostgREST
  * would, so the code that reads and writes games did not change when they
  * moved (#597).
@@ -186,6 +186,7 @@ final class Rest
      */
     private function narrow(Builder $query, string $table, string $alias, Select $select, Request $request, array $path): void
     {
+        Policies::readGrant($this->caller, $table);
         Policies::read($this->caller, $query, $table, $alias);
         foreach ($request->filters($path) as $filter) {
             Filter::apply($query, $table, $alias, $filter);
@@ -226,7 +227,7 @@ final class Rest
         if ($order === []) {
             // Postgres answers an unordered read in storage order, which is
             // close to the order rows arrived.
-            if ($table === Tables::GAME) {
+            if ($table === Tables::GAME || $table === 'asset') {
                 $query->orderBy($alias.'.created_at');
             }
             $query->orderBy($alias.'.id');
@@ -269,8 +270,8 @@ final class Rest
     /** @return array{rows: list<array<string, mixed>>, count: int|null} */
     private function insert(string $table, Request $request, mixed $body): array
     {
-        if ($request->upsert) {
-            throw new LocalException('Upsert is not supported by the local store', 400, 'PGRST100');
+        if ($request->upsert && ! ($request->ignoreDuplicates && $request->onConflict !== [])) {
+            throw new LocalException('Only an upsert that ignores duplicates on named columns is supported by the local store', 400, 'PGRST100');
         }
         $rows = is_array($body) && array_is_list($body) ? $body : [$body];
         $columns = Tables::columns($table);
@@ -281,7 +282,7 @@ final class Rest
         Policies::grant($this->caller, $table, 'insert', $named);
 
         $now = Values::now();
-        $ids = DB::transaction(function () use ($table, $rows, $columns, $now) {
+        $ids = DB::transaction(function () use ($table, $rows, $columns, $now, $request) {
             $ids = [];
             foreach ($rows as $row) {
                 $row = (array) $row;
@@ -289,6 +290,9 @@ final class Rest
                     if (! isset($columns[$column])) {
                         throw new LocalException("Could not find the '{$column}' column of '{$table}' in the schema cache", 400, 'PGRST204');
                     }
+                }
+                if ($request->upsert && $this->duplicate($table, $row, $request->onConflict)) {
+                    continue;
                 }
                 $record = Writes::complete($this->caller, $table, $row, $now);
                 $ids[] = Writes::insert($this->caller, $table, $record);
@@ -327,6 +331,32 @@ final class Rest
         });
 
         return ['rows' => $request->returns ? $this->byIds($table, $request, $ids) : [], 'count' => null];
+    }
+
+    /**
+     * Whether a row already holds these values in the `on_conflict` columns,
+     * for `on conflict do nothing`.
+     *
+     * @param  array<string, mixed>  $row
+     * @param  list<string>  $columns
+     */
+    private function duplicate(string $table, array $row, array $columns): bool
+    {
+        $types = Tables::columns($table);
+        $query = DB::table($table);
+        foreach ($columns as $column) {
+            if (! isset($types[$column])) {
+                throw new LocalException('column "'.$column.'" does not exist', 400, '42703');
+            }
+            $value = $row[$column] ?? null;
+            if ($value === null) {
+                // A null never conflicts.
+                return false;
+            }
+            $query->where($column, Values::write($types[$column], $value));
+        }
+
+        return $query->lockForUpdate()->exists();
     }
 
     /** @return array{rows: list<array<string, mixed>>, count: int|null} */

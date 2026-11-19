@@ -27,6 +27,7 @@ abstract class TestCase extends BaseTestCase
             'session.driver' => 'array',
             // Tests that read the catalogue from MariaDB say so.
             'hub.games_store' => 'supabase',
+            'hub.pictures_store' => 'supabase',
         ]);
         // url() and Site::url() must agree on the made up origin above.
         URL::forceRootUrl('http://localhost');

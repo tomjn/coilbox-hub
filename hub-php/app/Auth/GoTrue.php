@@ -5,6 +5,7 @@ namespace App\Auth;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
@@ -154,6 +155,22 @@ final class GoTrue
         self::json($response, 'Could not delete the account');
     }
 
+    /** The `user_metadata` Supabase holds for a user, with the service role key. Null when there is no such user. */
+    public static function adminUserMetadata(string $userId): ?array
+    {
+        $key = (string) config('hub.supabase.service_role_key');
+        $response = Http::withHeaders(['apikey' => $key, 'Authorization' => 'Bearer '.$key])
+            ->acceptJson()->timeout(10)
+            ->get(Supabase::url().'/auth/v1/admin/users/'.rawurlencode($userId));
+        if ($response->status() === 404) {
+            return null;
+        }
+        $user = self::json($response, 'Could not read the account');
+        $metadata = $user['user_metadata'] ?? [];
+
+        return is_array($metadata) ? $metadata : [];
+    }
+
     /**
      * Ends a browser's session at Supabase. Supabase refuses an expired access
      * token, so one near its end is refreshed first. Failure is ignored: the
@@ -263,7 +280,7 @@ final class GoTrue
         return is_array($body) ? $body : [];
     }
 
-    private static function request(?string $accessToken = null): \Illuminate\Http\Client\PendingRequest
+    private static function request(?string $accessToken = null): PendingRequest
     {
         $headers = ['apikey' => (string) config('hub.supabase.publishable_key')];
         if ($accessToken !== null) {

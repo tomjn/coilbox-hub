@@ -3,17 +3,23 @@
 namespace App\Supabase\Local;
 
 /**
- * The game catalogue tables as Postgres declares them: columns in table order
+ * The game catalogue and picture tables as Postgres declares them: columns in table order
  * with their types, defaults, foreign keys and check constraints. The local
  * store reads this to answer in PostgREST's shapes and to refuse what Postgres
  * would refuse.
  *
- * Types: `uuid`, `text`, `int`, `bool`, `json` (jsonb and text[]) and `ts`
- * (timestamptz).
+ * Types: `uuid`, `text`, `int`, `bool`, `float` (real), `json` (jsonb and
+ * text[]) and `ts` (timestamptz).
  */
 final class Tables
 {
     public const GAME = 'game';
+
+    /** The picture tables (#598). The rest belong to the game catalogue. */
+    public const PICTURES = [
+        'asset', 'asset_event', 'asset_licence', 'asset_source_conflict', 'asset_upload_ip', 'asset_withdrawal',
+        'staged_object_deletion',
+    ];
 
     /** @var array<string, array<string, string>> */
     public const COLUMNS = [
@@ -66,6 +72,34 @@ final class Tables
             'card_hash' => 'text', 'card_staged_tier' => 'text', 'banner_path' => 'text', 'banner_hash' => 'text',
             'banner_staged_tier' => 'text', 'base_game' => 'text',
         ],
+        'asset' => [
+            'id' => 'uuid', 'game' => 'text', 'unit_name' => 'text', 'map_name' => 'text', 'variant' => 'text',
+            'source_hash' => 'text', 'hash' => 'text', 'encode_profile' => 'text', 'path' => 'text', 'origin' => 'text',
+            'tier' => 'text', 'mime' => 'text', 'bytes' => 'int', 'width' => 'int', 'height' => 'int',
+            'map_width' => 'int', 'map_height' => 'int', 'source_archive' => 'text', 'seen_at' => 'ts',
+            'promoted_at' => 'ts', 'uploaded_by' => 'uuid', 'moderation' => 'text', 'approval_source' => 'text',
+            'created_at' => 'ts', 'updated_at' => 'ts', 'world_height_min' => 'float', 'world_height_max' => 'float',
+            'rejection_kind' => 'text', 'blob_path' => 'text', 'blob_path_tier' => 'text', 'bytes_missing_at' => 'ts',
+            'faction_key' => 'text',
+        ],
+        'asset_event' => [
+            'id' => 'int', 'asset_id' => 'uuid', 'action' => 'text', 'rejection_kind' => 'text', 'actor' => 'uuid',
+            'uploader' => 'uuid', 'at' => 'ts', 'uploader_display_name' => 'text', 'uploader_provider_name' => 'text',
+        ],
+        'asset_licence' => [
+            'id' => 'uuid', 'game' => 'text', 'map_name' => 'text', 'licence' => 'text', 'licence_url' => 'text',
+            'notes' => 'text', 'checked_at' => 'ts', 'checked_by' => 'text', 'redistribute_extracted' => 'text',
+            'redistribute_rendered' => 'text', 'created_at' => 'ts', 'updated_at' => 'ts', 'decision' => 'text',
+            'decided_at' => 'ts', 'all_maps' => 'bool',
+        ],
+        'asset_source_conflict' => [
+            'id' => 'int', 'asset_id' => 'uuid', 'source_archive' => 'text', 'held_source_hash' => 'text',
+            'reported_source_hash' => 'text', 'reported_by' => 'uuid', 'at' => 'ts', 'acknowledged_at' => 'ts',
+            'acknowledged_by' => 'uuid',
+        ],
+        'asset_upload_ip' => ['id' => 'int', 'asset_id' => 'uuid', 'ip' => 'text', 'at' => 'ts'],
+        'asset_withdrawal' => ['id' => 'int', 'asset_id' => 'uuid', 'path' => 'text', 'at' => 'ts', 'withdrawn_at' => 'ts'],
+        'staged_object_deletion' => ['path' => 'text', 'reserved_at' => 'ts'],
     ];
 
     /**
@@ -83,6 +117,10 @@ final class Tables
         'game_download_source' => ['game_id', 'game', 'id'],
         'game_download_offer' => ['game_id', 'game', 'id'],
         'game_ownership_request' => ['game_id', 'game', 'id'],
+        'asset_event' => ['asset_id', 'asset', 'id'],
+        'asset_source_conflict' => ['asset_id', 'asset', 'id'],
+        'asset_upload_ip' => ['asset_id', 'asset', 'id'],
+        'asset_withdrawal' => ['asset_id', 'asset', 'id'],
     ];
 
     /**
@@ -103,10 +141,23 @@ final class Tables
         'game_download_source' => ['sort_order' => 0],
         'game_download_offer' => ['state' => 'held', 'created_at' => 'now'],
         'game_ownership_request' => ['state' => 'open', 'created_at' => 'now'],
+        'asset' => ['tier' => 'bucket', 'seen_at' => 'now', 'moderation' => 'pending', 'created_at' => 'now', 'updated_at' => 'now'],
+        'asset_event' => ['at' => 'now'],
+        'asset_licence' => [
+            'checked_at' => 'now', 'redistribute_extracted' => 'unknown', 'redistribute_rendered' => 'unknown',
+            'created_at' => 'now', 'updated_at' => 'now',
+        ],
+        'asset_source_conflict' => ['at' => 'now'],
+        'asset_upload_ip' => ['at' => 'now'],
+        'asset_withdrawal' => ['at' => 'now'],
+        'staged_object_deletion' => ['reserved_at' => 'now'],
     ];
 
+    /** Tables whose `id` is a uuid Postgres makes with `gen_random_uuid()`. */
+    public const UUID_IDS = ['game', 'asset', 'asset_licence'];
+
     /** Tables whose `updated_at` a trigger moves on every update. */
-    public const TOUCHED = ['game', 'game_unit'];
+    public const TOUCHED = ['game', 'game_unit', 'asset', 'asset_licence'];
 
     /** @var array<string, list<string>> */
     public const NOT_NULL = [
@@ -118,6 +169,16 @@ final class Tables
         'game_download_source' => ['game_id', 'kind', 'value', 'sort_order'],
         'game_download_offer' => ['game_id', 'kind', 'value', 'offered_by', 'state', 'created_at'],
         'game_ownership_request' => ['game_id', 'requested_by', 'requested_by_name', 'state', 'created_at'],
+        'asset' => [
+            'id', 'variant', 'source_hash', 'hash', 'encode_profile', 'path', 'origin', 'tier', 'mime', 'bytes', 'width',
+            'height', 'source_archive', 'seen_at', 'moderation', 'created_at', 'updated_at',
+        ],
+        'asset_event' => ['asset_id', 'action', 'at'],
+        'asset_licence' => ['id', 'checked_at', 'checked_by', 'redistribute_extracted', 'redistribute_rendered', 'created_at', 'updated_at'],
+        'asset_source_conflict' => ['asset_id', 'source_archive', 'held_source_hash', 'reported_source_hash', 'at'],
+        'asset_upload_ip' => ['asset_id', 'ip', 'at'],
+        'asset_withdrawal' => ['asset_id', 'path', 'at'],
+        'staged_object_deletion' => ['path', 'reserved_at'],
     ];
 
     /**
@@ -142,6 +203,18 @@ final class Tables
         'game_download_source' => ['value' => [1, 512], 'asset' => [1, 256], 'filename' => [1, 256]],
         'game_download_offer' => ['value' => [1, 512], 'asset' => [1, 256], 'filename' => [1, 256]],
         'game_ownership_request' => ['requested_by_name' => [1, 256]],
+        'asset' => [
+            'blob_path' => [1, 512], 'encode_profile' => [1, 64], 'faction_key' => [1, 128], 'game' => [1, 64],
+            'hash' => [1, 128], 'map_name' => [1, 256], 'mime' => [1, 128], 'path' => [1, 512], 'source_archive' => [1, 256],
+            'source_hash' => [1, 128], 'unit_name' => [1, 128], 'variant' => [1, 64],
+        ],
+        'asset_licence' => [
+            'checked_by' => [1, 128], 'decision' => [1, 4096], 'game' => [1, 64], 'licence' => [1, 128],
+            'licence_url' => [1, 512], 'map_name' => [1, 256], 'notes' => [1, 4096],
+        ],
+        'asset_source_conflict' => ['held_source_hash' => [1, 128], 'reported_source_hash' => [1, 128], 'source_archive' => [1, 256]],
+        'asset_withdrawal' => ['path' => [1, 512]],
+        'staged_object_deletion' => ['path' => [1, 512]],
     ];
 
     /** Untrimmed length limits, column => max. @var array<string, array<string, int>> */
@@ -157,6 +230,16 @@ final class Tables
         'game_download_source' => ['kind' => ['rapid', 'url', 'github']],
         'game_download_offer' => ['kind' => ['rapid', 'url', 'github'], 'state' => ['held', 'accepted', 'declined']],
         'game_ownership_request' => ['state' => ['open', 'approved', 'declined']],
+        'asset' => [
+            'approval_source' => ['seed', 'bypass', 'moderator'], 'blob_path_tier' => ['bucket'],
+            'moderation' => ['pending', 'approved', 'rejected'], 'origin' => ['extracted', 'rendered', 'uploaded'],
+            'rejection_kind' => ['safety', 'editorial', 'unrecorded'], 'tier' => ['bucket', 'static'],
+        ],
+        'asset_event' => [
+            'action' => ['seeded', 'bypassed', 'approved', 'rejected', 'returned', 'conflict_acknowledged', 'replaced'],
+            'rejection_kind' => ['safety', 'editorial', 'unrecorded'],
+        ],
+        'asset_licence' => ['redistribute_extracted' => ['unknown', 'allowed', 'denied'], 'redistribute_rendered' => ['unknown', 'allowed', 'denied']],
     ];
 
     /** Unique keys, name => columns. @var array<string, array<string, list<string>>> */
@@ -166,12 +249,27 @@ final class Tables
         'game_faction' => ['game_faction_identity_idx' => ['game_id', 'key']],
         'game_unit' => ['game_unit_identity_idx' => ['game_id', 'unit_name']],
         'game_unit_revision' => ['game_unit_revision_identity_idx' => ['unit_id', 'version']],
+        // Partial in Postgres, each for rows whose own identity column is set.
+        // A null in any column skips the check, which matches.
+        'asset' => [
+            'asset_pkey' => ['id'], 'asset_unit_identity_idx' => ['game', 'unit_name', 'variant'],
+            'asset_faction_identity_idx' => ['game', 'faction_key', 'variant'], 'asset_map_identity_idx' => ['map_name', 'variant'],
+        ],
+        'asset_source_conflict' => ['asset_source_conflict_report_idx' => ['asset_id', 'reported_source_hash']],
+        'asset_withdrawal' => ['asset_withdrawal_asset_idx' => ['asset_id']],
+        'asset_licence' => ['asset_licence_game_idx' => ['game'], 'asset_licence_map_idx' => ['map_name'], 'asset_licence_all_maps_idx' => ['all_maps']],
     ];
 
     /** The tables the local store answers for. */
     public static function handles(string $table): bool
     {
         return isset(self::COLUMNS[$table]);
+    }
+
+    /** Whether a table belongs to the pictures, which move on their own switch. */
+    public static function isPicture(string $table): bool
+    {
+        return in_array($table, self::PICTURES, true);
     }
 
     /** @return array<string, string> */
@@ -183,11 +281,13 @@ final class Tables
     /**
      * The constraint a row breaks, as Postgres words it, or null when it
      * keeps them all. Not null, trimmed lengths, plain lengths, value sets and
-     * the cross column rules the tables declare.
+     * the cross column rules the tables declare. `$whole` is false for the
+     * changes alone, before they meet the row: the picture tables' cross
+     * column rules wait for the whole row.
      *
      * @param  array<string, mixed>  $row
      */
-    public static function violation(string $table, array $row): ?LocalException
+    public static function violation(string $table, array $row, bool $whole = true): ?LocalException
     {
         foreach (self::NOT_NULL[$table] ?? [] as $column) {
             if (array_key_exists($column, $row) && $row[$column] === null) {
@@ -232,12 +332,98 @@ final class Tables
             && (($row['state'] === 'held') !== (($row['decided_at'] ?? null) === null))) {
             return $check('game_download_offer_decided_check');
         }
+        if ($whole && $table === 'asset' && ($name = self::assetViolation($row)) !== null) {
+            return $check($name);
+        }
+        if ($whole && $table === 'asset_event' && ($name = self::eventViolation($row)) !== null) {
+            return $check($name);
+        }
+        if ($whole && $table === 'asset_source_conflict') {
+            if (array_key_exists('acknowledged_at', $row) && (($row['acknowledged_at'] ?? null) === null) !== (($row['acknowledged_by'] ?? null) === null)) {
+                return $check('asset_source_conflict_acknowledged_check');
+            }
+            if (isset($row['held_source_hash'], $row['reported_source_hash']) && $row['held_source_hash'] === $row['reported_source_hash']) {
+                return $check('asset_source_conflict_differs_check');
+            }
+        }
         if ($table === 'game') {
             foreach (['links', 'conquest_factions'] as $column) {
                 if (array_key_exists($column, $row) && ! (is_array($row[$column]) && array_is_list($row[$column]))) {
                     return $check('game_'.$column.'_array_check');
                 }
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * `asset`'s cross column checks. A check whose expression is null passes,
+     * as in Postgres, so a column left out of an insert breaks none of them.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private static function assetViolation(array $row): ?string
+    {
+        $v = fn (string $column) => $row[$column] ?? null;
+        $set = fn (string ...$columns) => count(array_filter($columns, fn ($c) => $v($c) !== null));
+        $moderation = $v('moderation');
+        if (($moderation === 'approved' && $v('approval_source') === null) || ($moderation === 'pending' && $v('approval_source') !== null)) {
+            return 'asset_approval_state_check';
+        }
+        if ($v('blob_path_tier') !== null && $v('blob_path') === null) {
+            return 'asset_blob_path_tier_needs_path';
+        }
+        foreach (['bytes', 'height', 'map_height', 'map_width', 'width'] as $column) {
+            if ($v($column) !== null && (int) $v($column) <= 0) {
+                return 'asset_'.$column.'_check';
+            }
+        }
+        if ($v('bytes_missing_at') !== null && $v('tier') !== 'bucket') {
+            return 'asset_bytes_missing_needs_bucket';
+        }
+        if ($v('faction_key') !== null && $v('variant') !== 'logo') {
+            return 'asset_faction_variant_check';
+        }
+        if (($v('game') === null) !== ($v('map_name') !== null)) {
+            return 'asset_game_scope_check';
+        }
+        if ($set('world_height_min', 'world_height_max') !== ($v('variant') === 'overlay:height' ? 2 : 0)) {
+            return 'asset_height_range_check';
+        }
+        if ($v('world_height_min') !== null && $v('world_height_max') !== null && (float) $v('world_height_max') < (float) $v('world_height_min')) {
+            return 'asset_height_range_order_check';
+        }
+        if ($set('unit_name', 'map_name', 'faction_key') !== 1) {
+            return 'asset_identity_check';
+        }
+        if ($set('map_width', 'map_height') !== ($v('map_name') === null ? 0 : 2)) {
+            return 'asset_map_size_check';
+        }
+        if ($v('map_name') !== null && ! in_array($v('variant'), ['minimap', 'overlay:metal', 'overlay:type', 'overlay:height'], true)) {
+            return 'asset_map_variant_check';
+        }
+        if ($moderation !== null && (($v('rejection_kind') !== null) !== ($moderation === 'rejected'))) {
+            return 'asset_rejection_state_check';
+        }
+        $variant = (string) $v('variant');
+        if ($v('unit_name') !== null && $variant !== 'buildpic' && ! str_starts_with($variant, 'render:')) {
+            return 'asset_unit_variant_check';
+        }
+
+        return null;
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function eventViolation(array $row): ?string
+    {
+        $action = $row['action'] ?? null;
+        if ((($row['rejection_kind'] ?? null) !== null) !== ($action === 'rejected')) {
+            return 'asset_event_kind_check';
+        }
+        $named = ($row['uploader_display_name'] ?? null) !== null || ($row['uploader_provider_name'] ?? null) !== null;
+        if ($named && ! ($action === 'rejected' && ($row['rejection_kind'] ?? null) === 'safety')) {
+            return 'asset_event_uploader_name_check';
         }
 
         return null;
