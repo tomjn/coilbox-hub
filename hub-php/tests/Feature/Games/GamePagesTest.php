@@ -111,11 +111,14 @@ class GamePagesTest extends TestCase
         ]);
         \App\Domain\Games\Cached::gamePage('BA');
 
-        $held = \App\Support\HubCache::remember('games:page:v2:BA', [\App\Support\HubCache::GAMES], \App\Support\HubCache::WEEKS, fn () => 'not cached');
+        $tags = [\App\Support\HubCache::GAMES, \App\Support\HubCache::DOWNLOADS];
+        $held = \App\Support\HubCache::remember('games:page:v2:BA', $tags, \App\Support\HubCache::WEEKS, fn () => 'not cached');
         $this->assertSame('game-ba', $held['id']);
-        // The tag is unchanged, so a games write still reaches the entry.
+        // A games write still reaches the entry, and so does a mirror change to its downloads.
         \App\Support\HubCache::invalidate([\App\Support\HubCache::GAMES]);
-        $this->assertSame('reloaded', \App\Support\HubCache::remember('games:page:v2:BA', [\App\Support\HubCache::GAMES], \App\Support\HubCache::WEEKS, fn () => 'reloaded'));
+        $this->assertSame('reloaded', \App\Support\HubCache::remember('games:page:v2:BA', $tags, \App\Support\HubCache::WEEKS, fn () => 'reloaded'));
+        \App\Support\HubCache::invalidate([\App\Support\HubCache::DOWNLOADS]);
+        $this->assertSame('again', \App\Support\HubCache::remember('games:page:v2:BA', $tags, \App\Support\HubCache::WEEKS, fn () => 'again'));
     }
 
     public function test_a_game_with_no_downloads_shows_no_downloads_line(): void

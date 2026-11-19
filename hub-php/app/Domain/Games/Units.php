@@ -209,7 +209,7 @@ final class Units
      */
     public static function morphedAwayUnits(Client $supabase, string $shortname): array
     {
-        $rows = self::morphRows($supabase, $shortname, true);
+        $rows = self::morphRows($supabase, $shortname);
         if ($rows === null) {
             return [];
         }
@@ -236,14 +236,22 @@ final class Units
      * of ['name', 'label'], 'stats', 'found', 'removed_at']`. A stage stat row
      * is `['key', 'label', 'values' => list of string, 'changed']`.
      *
+     * The chain and the unlocked units' names come from `$units`, every unit
+     * of the game as {@see unitCatalog()} reads it, and from `$release`, that
+     * release's revisions as {@see releaseCatalog()} reads them. Only the
+     * stages' own facts are read here, in one request. Empty when either list
+     * is missing.
+     *
+     * @param  list<array<string, mixed>>|null  $units
+     * @param  list<array<string, mixed>>|null  $release
      * @return array{stages: list<array<string, mixed>>, stage_stats: list<array<string, mixed>>}
      */
-    public static function loadUnitStages(Client $supabase, string $shortname, string $unitName, ?string $version = null): array
+    public static function loadUnitStages(Client $supabase, string $shortname, string $unitName, ?string $version, ?array $units, ?array $release = null): array
     {
         $none = ['stages' => [], 'stage_stats' => []];
         $version = self::present($version) ? $version : null;
 
-        $rows = self::morphRows($supabase, $shortname, false, $version);
+        $rows = $units === null ? null : self::catalogMorphRows($units, $version !== null ? $release : null, $version !== null);
         if ($rows === null) {
             return $none;
         }
@@ -306,7 +314,9 @@ final class Units
             return array_map('strval', array_keys($options));
         };
 
-        // Every name any stage builds, labelled in one read. A build option
+        // Every name any stage builds, labelled as the catalog names it today.
+        // The options are lower cased, so a unit stored with capitals is not
+        // matched, as an `in` filter on them would not match it. A build option
         // nobody holds keeps its own key, as the page's Builds list does.
         $all = [];
         foreach ($group['stages'] as $stage) {
@@ -314,20 +324,10 @@ final class Units
                 $all[$option] = true;
             }
         }
-        $unlocked = Js::sortCodeUnits(array_map('strval', array_keys($all)));
         $labels = [];
-        if ($unlocked !== []) {
-            try {
-                $named = $supabase->from('game_unit')
-                    ->select('unit_name,full_name,game!inner(shortname)')
-                    ->eq('game.shortname', $shortname)
-                    ->in('unit_name', $unlocked)
-                    ->get();
-            } catch (SupabaseException) {
-                $named = [];
-            }
-            foreach ($named as $row) {
-                $labels[Js::lower($row['unit_name'])] = $row['full_name'] ?? $row['unit_name'];
+        foreach ($units as $unit) {
+            if (isset($all[$unit['unit_name']])) {
+                $labels[Js::lower($unit['unit_name'])] = $unit['full_name'] ?? $unit['unit_name'];
             }
         }
 
@@ -497,50 +497,87 @@ final class Units
     }
 
     /**
+     * Every unit of a game, retired ones included, with what it builds and
+     * turns into, ordered by name. One list serves every unit page of the game,
+     * so builders, build option labels and morph chains come from here rather
+     * than a read per page. Each row is `['unit_name', 'full_name',
+     * 'build_options', 'morph_targets', 'removed']`. Null on a failed read.
+     *
+     * @return list<array{unit_name: string, full_name: ?string, build_options: list<string>, morph_targets: mixed, removed: bool}>|null
+     */
+    public static function unitCatalog(Client $supabase, string $shortname): ?array
+    {
+        $rows = ReadAll::rows(fn () => $supabase->from('game_unit')
+            ->select('unit_name,full_name,build_options,morph_targets,removed_at,game!inner(shortname)')
+            ->eq('game.shortname', $shortname)
+            ->order('unit_name'));
+        if ($rows === null) {
+            return null;
+        }
+
+        return array_map(fn (array $row) => [
+            'unit_name' => $row['unit_name'],
+            'full_name' => $row['full_name'] ?? null,
+            'build_options' => $row['build_options'] ?? [],
+            'morph_targets' => $row['morph_targets'] ?? null,
+            'removed' => ($row['removed_at'] ?? null) !== null,
+        ], $rows);
+    }
+
+    /**
+     * What one release said about every unit it has a record of, ordered by
+     * name: `['unit_name', 'full_name', 'build_options', 'morph_targets']`
+     * from each unit's revision. Shared by every unit page at that release.
+     * Null on a failed read.
+     *
+     * @return list<array{unit_name: string, full_name: ?string, build_options: list<string>, morph_targets: mixed}>|null
+     */
+    public static function releaseCatalog(Client $supabase, string $shortname, string $version): ?array
+    {
+        $rows = ReadAll::rows(fn () => $supabase->from('game_unit')
+            ->select('unit_name,game!inner(shortname),game_unit_revision!inner(full_name,build_options,morph_targets)')
+            ->eq('game.shortname', $shortname)
+            ->eq('game_unit_revision.version', $version)
+            ->order('unit_name'));
+        if ($rows === null) {
+            return null;
+        }
+
+        return array_map(fn (array $row) => [
+            'unit_name' => $row['unit_name'],
+            'full_name' => $row['game_unit_revision'][0]['full_name'] ?? null,
+            'build_options' => $row['game_unit_revision'][0]['build_options'] ?? [],
+            'morph_targets' => $row['game_unit_revision'][0]['morph_targets'] ?? null,
+        ], $rows);
+    }
+
+    /**
      * Who builds this unit: the units holding it as a build option, as
      * `['name', 'label']` sorted by name.
      *
-     * `$version` answers for one release, so an old page's two directions agree.
-     * Without one the answer is current facts, and a retired builder does not
-     * count, since the build option a retired unit holds is not a live path.
-     * Empty on a failed read.
+     * `$rows` is one release's list from {@see releaseCatalog()}, so an old
+     * page's two directions agree, or today's from {@see unitCatalog()}. In
+     * today's a retired builder does not count, since the build option a
+     * retired unit holds is not a live path. A release's list marks nothing
+     * retired, as the release has no say in that. Empty when the list is
+     * missing.
      *
+     * @param  list<array<string, mixed>>|null  $rows
      * @return list<array{name: string, label: string}>
      */
-    public static function unitBuilders(Client $supabase, string $shortname, string $unitName, ?string $version = null): array
+    public static function unitBuilders(string $unitName, ?array $rows): array
     {
-        $version = self::present($version) ? $version : null;
-        try {
-            if ($version !== null) {
-                $rows = $supabase->from('game_unit')
-                    ->select(
-                        'unit_name,full_name,game!inner(shortname),'
-                        .'game_unit_revision!inner(full_name,build_options)'
-                    )
-                    ->eq('game.shortname', $shortname)
-                    ->eq('game_unit_revision.version', $version)
-                    ->contains('game_unit_revision.build_options', [$unitName])
-                    ->get();
-            } else {
-                $rows = $supabase->from('game_unit')
-                    ->select('unit_name,full_name,game!inner(shortname)')
-                    ->eq('game.shortname', $shortname)
-                    ->contains('build_options', [$unitName])
-                    // `is`, not `eq`: PostgREST refuses `removed_at=eq.null` (#255).
-                    ->is('removed_at', null)
-                    ->get();
+        $builders = [];
+        foreach ($rows ?? [] as $row) {
+            if ($row['removed'] ?? false) {
+                continue;
             }
-        } catch (SupabaseException) {
-            return [];
+            if (in_array($unitName, $row['build_options'] ?? [], true)) {
+                // A release that named nothing falls back to the def key, not
+                // to today's name.
+                $builders[] = ['name' => $row['unit_name'], 'label' => $row['full_name'] ?? $row['unit_name']];
+            }
         }
-
-        $builders = array_map(function (array $row) use ($version) {
-            // A release that named nothing falls back to the def key, not to
-            // today's name.
-            $named = $version !== null ? ($row['game_unit_revision'][0]['full_name'] ?? null) : ($row['full_name'] ?? null);
-
-            return ['name' => $row['unit_name'], 'label' => $named ?? $row['unit_name']];
-        }, $rows);
         usort($builders, fn (array $a, array $b) => Js::localeCompare($a['name'], $b['name']));
 
         return $builders;
@@ -557,9 +594,20 @@ final class Units
      * list of `['name', 'label']`), `stages` and `stage_stats` (as
      * {@see loadUnitStages()}).
      *
+     * What the page shares with every other unit of its game is passed in, so
+     * the caller can cache it once per game: `$units` from {@see unitCatalog()},
+     * `$release` giving {@see releaseCatalog()} for a release and only called
+     * when the page shows one, `$factions` from {@see gameFactions()} and
+     * `$versions`, every release newest first. The page itself reads the
+     * unit's row, and its stages' facts when it morphs.
+     *
+     * @param  list<array<string, mixed>>|null  $units
+     * @param  Closure(string): (list<array<string, mixed>>|null)  $release
+     * @param  list<array{key: string, name: string}>  $factions
+     * @param  list<string>  $versions
      * @return array<string, mixed>|null
      */
-    public static function loadUnitPage(Client $supabase, string $shortname, string $unitName, ?string $version = null): ?array
+    public static function loadUnitPage(Client $supabase, string $shortname, string $unitName, ?string $version, ?array $units, Closure $release, array $factions, array $versions): ?array
     {
         // The revision the reader asked for is narrowed by the server rather
         // than searched for in whatever the embed carried. It is filtered, not
@@ -578,12 +626,6 @@ final class Units
                 $query->select($columns);
             }
             $row = $query->eq('game.shortname', $shortname)->eq('unit_name', $unitName)->maybeSingle();
-
-            $versions = $supabase->from('game_version')
-                ->select('version,last_seen_at,game!inner(shortname)')
-                ->eq('game.shortname', $shortname)
-                ->order('last_seen_at', ascending: false)
-                ->get();
         } catch (SupabaseException) {
             return null;
         }
@@ -591,9 +633,9 @@ final class Units
             return null;
         }
 
-        $factions = [];
-        foreach (self::gameFactions($supabase, $shortname) as $faction) {
-            $factions[$faction['key']] = $faction['name'];
+        $factionNames = [];
+        foreach ($factions as $faction) {
+            $factionNames[$faction['key']] = $faction['name'];
         }
 
         // An older version means the revision, when one exists. When it does not
@@ -609,41 +651,30 @@ final class Units
         // What it builds, labelled by whatever the catalog calls each entry. A
         // build option nobody holds is still listed under its own key.
         $options = Js::sortCodeUnits(array_values(array_unique($buildOptions ?? [])));
-        $builds = [];
-        if ($options !== []) {
-            try {
-                $named = $supabase->from('game_unit')
-                    ->select('unit_name,full_name,game!inner(shortname)')
-                    ->eq('game.shortname', $shortname)
-                    ->in('unit_name', $options)
-                    ->get();
-            } catch (SupabaseException) {
-                $named = [];
-            }
-            $labels = [];
-            foreach ($named as $entry) {
-                $labels[$entry['unit_name']] = $entry['full_name'] ?? $entry['unit_name'];
-            }
-            $builds = array_map(fn (string $name) => ['name' => $name, 'label' => $labels[$name] ?? $name], $options);
+        $labels = [];
+        foreach ($units ?? [] as $entry) {
+            $labels[$entry['unit_name']] = $entry['full_name'] ?? $entry['unit_name'];
         }
+        $builds = array_map(fn (string $name) => ['name' => $name, 'label' => $labels[$name] ?? $name], $options);
 
         $shown = $revision !== null ? $asked : null;
-        $staged = self::loadUnitStages($supabase, $shortname, $row['unit_name'], $shown);
+        $released = $shown !== null ? $release($shown) : null;
+        $staged = self::loadUnitStages($supabase, $shortname, $row['unit_name'], $shown, $units, $released);
 
         return [
             'unit_name' => $row['unit_name'],
             'full_name' => $fullName,
             'faction_key' => $factionKey,
-            'faction_name' => $factionKey !== null && $factionKey !== '' ? ($factions[$factionKey] ?? null) : null,
+            'faction_name' => $factionKey !== null && $factionKey !== '' ? ($factionNames[$factionKey] ?? null) : null,
             'build_options' => $buildOptions ?? [],
             'stats' => $stats ?? [],
             'snippet' => $row['snippet'],
             'source_version' => $row['source_version'],
             'shown_version' => $shown,
             'removed_at' => $row['removed_at'],
-            'versions' => array_map(fn (array $entry) => $entry['version'], $versions),
+            'versions' => $versions,
             'builds' => $builds,
-            'built_by' => self::unitBuilders($supabase, $shortname, $row['unit_name'], $shown),
+            'built_by' => self::unitBuilders($row['unit_name'], $shown !== null ? $released : $units),
             'stages' => $staged['stages'],
             'stage_stats' => $staged['stage_stats'],
         ];
@@ -653,14 +684,18 @@ final class Units
      * The buildpic for every unit in a page of the grid, keyed by unit name.
      * Each value is a resolved picture from {@see AssetResolver::resolveAsset()}.
      *
+     * `$held` is what {@see AssetResolver::fetchGameUnitPictures()} holds for
+     * the game. Without it the pictures are looked up here.
+     *
      * @param  list<array{unit_name: string}>  $units
+     * @param  array<string, array<string, mixed>>|null  $held
      * @return array<string, array<string, mixed>>
      */
-    public static function unitBuildpics(Client $supabase, string $shortname, array $units): array
+    public static function unitBuildpics(Client $supabase, string $shortname, array $units, ?array $held = null): array
     {
         $identities = array_map(fn (array $unit) => AssetResolver::unit($shortname, $unit['unit_name']), $units);
 
-        $held = AssetResolver::fetchHeldAssets($supabase, $identities);
+        $held ??= AssetResolver::fetchHeldAssets($supabase, $identities);
         $pictures = [];
         foreach ($identities as $index => $identity) {
             $pictures[$units[$index]['unit_name']] = AssetResolver::resolveAsset($identity, $held, null);
@@ -677,16 +712,17 @@ final class Units
      *
      * Returns a list of `['angle' => string, 'asset' => resolved picture]`.
      *
+     * @param  array<string, array<string, mixed>>|null  $held  as {@see unitBuildpics()}
      * @return list<array{angle: string, asset: array<string, mixed>}>
      */
-    public static function unitRenders(Client $supabase, string $shortname, string $unitName): array
+    public static function unitRenders(Client $supabase, string $shortname, string $unitName, ?array $held = null): array
     {
         $angles = Asset::unitRenderAngles();
         $identities = array_map(
             fn (string $angle) => AssetResolver::unit($shortname, $unitName, Asset::unitRenderVariantPrefix().$angle),
             $angles,
         );
-        $held = AssetResolver::fetchHeldAssets($supabase, $identities);
+        $held ??= AssetResolver::fetchHeldAssets($supabase, $identities);
 
         $renders = [];
         foreach ($angles as $index => $angle) {
@@ -702,12 +738,13 @@ final class Units
      * down render is stored, and this read lets a page show both at once when
      * the hub holds both.
      *
+     * @param  array<string, array<string, mixed>>|null  $held  as {@see unitBuildpics()}
      * @return array<string, mixed>
      */
-    public static function unitBuildpic(Client $supabase, string $shortname, string $unitName): array
+    public static function unitBuildpic(Client $supabase, string $shortname, string $unitName, ?array $held = null): array
     {
         $identity = AssetResolver::unit($shortname, $unitName);
-        $held = AssetResolver::fetchHeldAssets($supabase, [$identity]);
+        $held ??= AssetResolver::fetchHeldAssets($supabase, [$identity]);
 
         return AssetResolver::resolveAsset($identity, $held, null);
     }
@@ -781,45 +818,55 @@ final class Units
     }
 
     /**
-     * Every unit of a game beside what it turns into. Grouping is the read a
-     * truncated answer makes wrong rather than short, so it goes through
-     * {@see ReadAll}.
+     * Every live unit of a game beside what it turns into. Grouping is the
+     * read a truncated answer makes wrong rather than short, so it goes
+     * through {@see ReadAll}.
      *
      * @return list<array{unit_name: string, morph_targets: mixed}>|null
      */
-    private static function morphRows(Client $supabase, string $shortname, bool $liveOnly, ?string $version = null): ?array
+    private static function morphRows(Client $supabase, string $shortname): ?array
     {
-        $version = self::present($version) ? $version : null;
-        $rows = ReadAll::rows(function () use ($supabase, $shortname, $liveOnly, $version) {
-            // Filtered rather than inner joined, so a unit the release has no
-            // record of keeps its row and reports no edges.
-            $query = $supabase->from('game_unit')->select(
-                $version !== null
-                    ? 'unit_name,morph_targets,game!inner(shortname),game_unit_revision(version,morph_targets)'
-                    : 'unit_name,morph_targets,game!inner(shortname)'
-            )->eq('game.shortname', $shortname);
+        $rows = ReadAll::rows(fn () => $supabase->from('game_unit')
+            ->select('unit_name,morph_targets,game!inner(shortname)')
+            ->eq('game.shortname', $shortname)
             // `is`, not `eq`: PostgREST refuses `removed_at=eq.null` (#255).
-            if ($liveOnly) {
-                $query->is('removed_at', null);
-            }
-            if ($version !== null) {
-                $query->eq('game_unit_revision.version', $version);
-            }
-
-            return $query->order('unit_name');
-        });
+            ->is('removed_at', null)
+            ->order('unit_name'));
         if ($rows === null) {
             return null;
         }
 
         return array_map(fn (array $row) => [
             'unit_name' => $row['unit_name'],
-            // A release that reported nothing about this unit reported no edges
-            // for it. Falling back to today's would draw a chain it never had.
-            'morph_targets' => $version !== null
-                ? ($row['game_unit_revision'][0]['morph_targets'] ?? [])
-                : ($row['morph_targets'] ?? null),
+            'morph_targets' => $row['morph_targets'] ?? null,
         ], $rows);
+    }
+
+    /**
+     * Every unit of a game beside what it turns into, today or in one release,
+     * from the cached lists. Null when the release's list is missing.
+     *
+     * @param  list<array<string, mixed>>  $units
+     * @param  list<array<string, mixed>>|null  $release
+     * @return list<array{unit_name: string, morph_targets: mixed}>|null
+     */
+    private static function catalogMorphRows(array $units, ?array $release, bool $atRelease): ?array
+    {
+        if (! $atRelease) {
+            return array_map(fn (array $unit) => ['unit_name' => $unit['unit_name'], 'morph_targets' => $unit['morph_targets'] ?? null], $units);
+        }
+        if ($release === null) {
+            return null;
+        }
+
+        $targets = [];
+        foreach ($release as $revision) {
+            $targets[$revision['unit_name']] = $revision['morph_targets'] ?? [];
+        }
+
+        // A release that reported nothing about a unit reported no edges for
+        // it. Falling back to today's would draw a chain it never had.
+        return array_map(fn (array $unit) => ['unit_name' => $unit['unit_name'], 'morph_targets' => $targets[$unit['unit_name']] ?? []], $units);
     }
 
     /** The widget's `M.category`, as `lib/blueprint/role.ts` reads it from the selected stats. */

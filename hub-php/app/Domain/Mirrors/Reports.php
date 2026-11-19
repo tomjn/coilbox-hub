@@ -53,9 +53,10 @@ final class Reports
 
             // Map and game pages are cached for a week. Their download lists
             // name the healthy mirrors holding each archive, so drop them when
-            // that changed, and only then.
+            // that changed, and only then. Only game entries with download
+            // lists, so unit pages stay cached.
             if (($result['changed'] ?? false) === true || $healthChanged) {
-                HubCache::invalidate([HubCache::MAPS, HubCache::GAMES]);
+                HubCache::invalidate([HubCache::MAPS, HubCache::DOWNLOADS]);
             }
 
             // The report is already recorded, so a catalogue that cannot be rebuilt must not fail it.
