@@ -16,14 +16,15 @@ create extension if not exists pgtap with schema extensions;
 -- authenticated may delete outright, and insert and update are per column
 -- rather than table wide (20260809151352, 20260809190500), so those are
 -- checked on specific columns rather than at the table level. service_role
--- holds nothing (issue #43).
+-- held nothing (issue #43) until it was given select to copy the rows into
+-- MariaDB (#601).
 select table_privs_are('public', 'item', 'anon', ARRAY['SELECT'],
   'anon can only select on item');
 select table_privs_are('public', 'item', 'authenticated',
   ARRAY['SELECT', 'DELETE'],
   'authenticated can select and delete on item at the table level');
-select table_privs_are('public', 'item', 'service_role', ARRAY[]::name[],
-  'service_role holds no table privilege on item');
+select table_privs_are('public', 'item', 'service_role', ARRAY['SELECT'],
+  'service_role can only select on item, for the copy into MariaDB');
 
 -- title: an author may publish and later edit it. Every column is also
 -- selectable, from the table-wide select grant above.
@@ -373,8 +374,8 @@ select table_privs_are('public', 'user_capability', 'anon', ARRAY[]::name[],
   'anon has no table privilege on user_capability');
 select table_privs_are('public', 'user_capability', 'authenticated', ARRAY[]::name[],
   'authenticated has no table privilege on user_capability');
-select table_privs_are('public', 'user_capability', 'service_role', ARRAY[]::name[],
-  'service_role has no table privilege on user_capability');
+select table_privs_are('public', 'user_capability', 'service_role', ARRAY['SELECT'],
+  'service_role can only select on user_capability, for the copy into MariaDB');
 
 -- public.profile: the display name the hub owns (issue #429). Every grant is
 -- per column. Anybody may read who an account is called, because the name is
@@ -387,8 +388,8 @@ select table_privs_are('public', 'profile', 'anon', ARRAY[]::name[],
   'anon holds no table wide privilege on profile');
 select table_privs_are('public', 'profile', 'authenticated', ARRAY[]::name[],
   'authenticated holds no table wide privilege on profile, so it cannot insert or delete one');
-select table_privs_are('public', 'profile', 'service_role', ARRAY[]::name[],
-  'service_role holds no table privilege on profile');
+select table_privs_are('public', 'profile', 'service_role', ARRAY['SELECT'],
+  'service_role can only select on profile, for the copy into MariaDB');
 select column_privs_are('public', 'profile', 'display_name', 'anon', ARRAY['SELECT'],
   'anon can read profile.display_name');
 select column_privs_are('public', 'profile', 'display_name', 'authenticated', ARRAY['SELECT', 'UPDATE'],
@@ -406,8 +407,8 @@ select table_privs_are('public', 'report', 'anon', ARRAY['INSERT'],
 select table_privs_are('public', 'report', 'authenticated',
   ARRAY['SELECT', 'INSERT', 'UPDATE'],
   'authenticated can select, insert and update on report');
-select table_privs_are('public', 'report', 'service_role', ARRAY[]::name[],
-  'service_role has no table privilege on report');
+select table_privs_are('public', 'report', 'service_role', ARRAY['SELECT'],
+  'service_role can only select on report, for the copy into MariaDB');
 
 -- The drift issue #59 describes is not about these three tables in
 -- particular, it is about whatever grants a table the moment it is
