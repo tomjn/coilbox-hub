@@ -5,6 +5,8 @@ namespace App\Supabase;
 use App\Supabase\Local\DataMove;
 use App\Supabase\Local\GameFunctions;
 use App\Supabase\Local\GameStore;
+use App\Supabase\Local\MapFunctions;
+use App\Supabase\Local\MapStore;
 use App\Supabase\Local\PictureFunctions;
 use App\Supabase\Local\PictureStore;
 use App\Supabase\Local\Rest;
@@ -32,9 +34,10 @@ use Illuminate\Support\Facades\Http;
  * which apply the same row level security for the same caller. Pictures
  * (#598) move the same way on their own switch: their tables and functions go
  * to {@see Rest} and {@see PictureFunctions}, and the `staged-pictures` bucket
- * to {@see StagedObjects} on the droplet's disk. `remote()` gives a client
- * that always asks Supabase, for the copies and for keeping Supabase's `game`
- * rows in step.
+ * to {@see StagedObjects} on the droplet's disk. Maps (#599) follow on a third
+ * switch, with {@see MapFunctions} and the map views in {@see MapViews}.
+ * `remote()` gives a client that always asks Supabase, for the copies and for
+ * keeping Supabase's `game` and `map` rows in step.
  */
 class Client
 {
@@ -98,6 +101,12 @@ class Client
             $target = PictureFunctions::writes($function) ? PictureStore::writeTarget() : PictureStore::state();
             if ($target === PictureStore::MARIADB) {
                 return PictureFunctions::call($this, $function, $args);
+            }
+        }
+        if (! $this->remoteOnly && MapFunctions::handles($function)) {
+            $target = MapFunctions::writes($function) ? MapStore::writeTarget() : MapStore::state();
+            if ($target === MapStore::MARIADB) {
+                return MapFunctions::call($this, $function, $args);
             }
         }
         $response = $this->send('POST', '/rest/v1/rpc/'.rawurlencode($function), [], $args === [] ? (object) [] : $args);
@@ -220,7 +229,7 @@ class Client
     {
         if (! $this->remoteOnly && Tables::handles($table)) {
             $reads = $method === 'GET' || $method === 'HEAD';
-            $store = Tables::isPicture($table) ? PictureStore::class : GameStore::class;
+            $store = Tables::store($table);
             if (($reads ? $store::state() : $store::writeTarget()) === DataMove::MARIADB) {
                 return Rest::handle($this, $method, $table, $query, $body, $headers);
             }

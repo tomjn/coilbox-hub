@@ -107,29 +107,27 @@ final class Listing
     }
 
     /**
-     * The key an author filter matches on, worked out by the database: the
-     * credit folded the way ingest folds it, then any merge a maintainer has
-     * recorded. One copy of that rule, in Postgres. A credit that folds to
-     * nothing gives an empty key, which matches no maps.
+     * The key an author filter matches on: the credit folded the way a
+     * submission folds it ({@see Authors}), then any merge a maintainer has
+     * recorded. A credit that folds to nothing gives an empty key, which
+     * matches no maps. An unreadable merge leaves the folded key.
      */
     public static function resolveAuthorKey(Client $supabase, ?string $author): ?string
     {
         if ($author === null) {
             return null;
         }
-        try {
-            $folded = $supabase->rpc('author_key', ['credit' => $author]);
-        } catch (SupabaseException) {
-            $folded = null;
+        $key = Authors::key($author);
+        if ($key === '') {
+            return $key;
         }
-        $key = is_string($folded) ? $folded : '';
         try {
-            $resolved = $supabase->rpc('resolved_author_key', ['credit_key' => $key]);
+            $alias = $supabase->from('author_alias')->select('to_key')->eq('from_key', $key)->maybeSingle();
         } catch (SupabaseException) {
-            $resolved = null;
+            $alias = null;
         }
 
-        return is_string($resolved) ? $resolved : $key;
+        return is_string($alias['to_key'] ?? null) ? $alias['to_key'] : $key;
     }
 
     /** @param array<string, mixed> $filters */

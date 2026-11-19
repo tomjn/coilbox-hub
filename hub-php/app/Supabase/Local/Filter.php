@@ -12,6 +12,9 @@ final class Filter
 {
     private const OPERATORS = ['eq' => '=', 'neq' => '<>', 'gt' => '>', 'gte' => '>=', 'lt' => '<', 'lte' => '<=', 'like' => 'like', 'ilike' => 'ilike', 'is' => 'is', 'in' => 'in'];
 
+    /** Array and text search operators. Only the map views, worked out in PHP, take them. */
+    public const VIEW_OPERATORS = ['cs', 'ov', 'fts', 'plfts', 'wfts'];
+
     /** @return array<string, mixed> */
     public static function parse(string $column, string $value): array
     {
@@ -25,7 +28,7 @@ final class Filter
         }
         $dot = strpos($value, '.');
         $operator = $dot === false ? $value : substr($value, 0, $dot);
-        if (! isset(self::OPERATORS[$operator])) {
+        if (! isset(self::OPERATORS[$operator]) && ! in_array($operator, self::VIEW_OPERATORS, true)) {
             throw new LocalException('The local store does not support the "'.$operator.'" operator', 400, 'PGRST100');
         }
 
@@ -114,6 +117,9 @@ final class Filter
                 $where->whereRaw('lower('.$wrapped.') like lower(?)', [str_replace('*', '%', $value)]);
                 break;
             default:
+                if (! isset(self::OPERATORS[$filter['operator']])) {
+                    throw new LocalException('The local store does not support the "'.$filter['operator'].'" operator on '.$table, 400, 'PGRST100');
+                }
                 $where->where($qualified, self::OPERATORS[$filter['operator']], self::typed($type, $value));
         }
     }
@@ -128,7 +134,7 @@ final class Filter
         };
     }
 
-    private static function unquote(string $value): string
+    public static function unquote(string $value): string
     {
         if (strlen($value) >= 2 && $value[0] === '"' && str_ends_with($value, '"')) {
             return stripcslashes(substr($value, 1, -1));

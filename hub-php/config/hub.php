@@ -45,6 +45,10 @@ return [
     // `php artisan pictures:copy`.
     'pictures_store' => env('HUB_PICTURES_STORE'),
 
+    // The same for maps, map authors and map packs (#599), switched by
+    // `php artisan maps:copy`.
+    'maps_store' => env('HUB_MAPS_STORE'),
+
     // The Coilbox desktop app's website.
     'coilbox_url' => 'https://coilbox.org/',
 ];

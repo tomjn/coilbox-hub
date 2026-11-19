@@ -2,10 +2,12 @@
 
 use App\Domain\Assets\PictureCopy;
 use App\Domain\Games\CatalogueCopy;
+use App\Domain\Maps\MapCopy;
 use App\Domain\Mirrors\CatalogueStore;
 use App\Domain\Mirrors\HubKeys;
 use App\Domain\Promotion\JobToken;
 use App\Supabase\Local\GameStore;
+use App\Supabase\Local\MapStore;
 use App\Supabase\Local\PictureStore;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
@@ -209,6 +211,54 @@ Artisan::command('pictures:store {state? : supabase, to go back}', function () {
 
     return 0;
 })->purpose('Show which database pictures are read from, or go back to Supabase');
+
+Artisan::command('maps:copy {--dry-run : Show the row counts and write nothing}', function () {
+    $copy = new MapCopy(
+        Supabase::admin()->remote(),
+        fn (string $line) => $this->line($line),
+        fn (int $seconds) => sleep($seconds),
+    );
+    $this->line('The hub reads maps from '.MapStore::fresh().'.');
+
+    try {
+        if ($this->option('dry-run')) {
+            foreach ($copy->counts() as $table => $count) {
+                $this->line(sprintf('%s: Supabase %d, MariaDB %d', $table, $count['supabase'], $count['mariadb']));
+            }
+            $this->line('Dry run: nothing was written.');
+
+            return 0;
+        }
+        $copy->run();
+    } catch (Throwable $e) {
+        $this->error('The copy stopped: '.$e->getMessage());
+
+        return 1;
+    }
+
+    return 0;
+})->purpose('Copy maps, map authors and map packs from Supabase into MariaDB and switch the hub to them');
+
+Artisan::command('maps:store {state? : supabase, to go back}', function () {
+    $state = $this->argument('state');
+    if ($state === null) {
+        $this->line('The hub reads maps from '.MapStore::fresh().'.');
+
+        return 0;
+    }
+    if ($state !== MapStore::SUPABASE) {
+        $this->error('Only supabase can be set here. maps:copy switches to mariadb once the rows are copied.');
+
+        return 1;
+    }
+    if (MapStore::fresh() === MapStore::MARIADB) {
+        $this->warn('Writes made in MariaDB since the switch are not in Supabase, apart from map rows and source conflicts.');
+    }
+    MapStore::set(MapStore::SUPABASE);
+    $this->line('The hub reads maps from supabase.');
+
+    return 0;
+})->purpose('Show which database maps are read from, or go back to Supabase');
 
 Artisan::command('promotion:token', function () {
     $made = JobToken::make();

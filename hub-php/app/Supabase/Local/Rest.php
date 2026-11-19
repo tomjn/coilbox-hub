@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * PostgREST for the game catalogue and the pictures, answered from MariaDB. It takes the
+ * PostgREST for the game catalogue, the pictures and the maps, answered from MariaDB. It takes the
  * request {@see Query} would have sent and answers as PostgREST
  * would, so the code that reads and writes games did not change when they
  * moved (#597).
@@ -70,6 +70,9 @@ final class Rest
     {
         if ($table === 'game_browse') {
             return GameBrowse::read($this->caller, $this, $request, $head);
+        }
+        if (in_array($table, Tables::MAP_VIEWS, true)) {
+            return MapViews::read($this->caller, $table, $request, $head);
         }
         $select = Select::parse($request->select);
         $alias = $this->alias();
@@ -227,10 +230,12 @@ final class Rest
         if ($order === []) {
             // Postgres answers an unordered read in storage order, which is
             // close to the order rows arrived.
-            if ($table === Tables::GAME || $table === 'asset') {
+            if ($table === Tables::GAME || $table === 'asset' || $table === 'map') {
                 $query->orderBy($alias.'.created_at');
             }
-            $query->orderBy($alias.'.id');
+            foreach (Tables::primaryKey($table) as $column) {
+                $query->orderBy($alias.'.'.$column);
+            }
         }
     }
 
@@ -270,9 +275,12 @@ final class Rest
     /** @return array{rows: list<array<string, mixed>>, count: int|null} */
     private function insert(string $table, Request $request, mixed $body): array
     {
-        if ($request->upsert && ! ($request->ignoreDuplicates && $request->onConflict !== [])) {
-            throw new LocalException('Only an upsert that ignores duplicates on named columns is supported by the local store', 400, 'PGRST100');
+        if ($request->upsert && $request->onConflict === []) {
+            throw new LocalException('Only an upsert on named columns is supported by the local store', 400, 'PGRST100');
         }
+        // `on conflict do update` needs the update privilege as well, even
+        // when every row turns out to be new.
+        $merges = $request->upsert && ! $request->ignoreDuplicates;
         $rows = is_array($body) && array_is_list($body) ? $body : [$body];
         $columns = Tables::columns($table);
         $named = [];
@@ -280,9 +288,12 @@ final class Rest
             $named = array_values(array_unique([...$named, ...array_keys((array) $row)]));
         }
         Policies::grant($this->caller, $table, 'insert', $named);
+        if ($merges) {
+            Policies::grant($this->caller, $table, 'update', $named);
+        }
 
         $now = Values::now();
-        $ids = DB::transaction(function () use ($table, $rows, $columns, $now, $request) {
+        $ids = DB::transaction(function () use ($table, $rows, $columns, $now, $request, $merges) {
             $ids = [];
             foreach ($rows as $row) {
                 $row = (array) $row;
@@ -291,7 +302,11 @@ final class Rest
                         throw new LocalException("Could not find the '{$column}' column of '{$table}' in the schema cache", 400, 'PGRST204');
                     }
                 }
-                if ($request->upsert && $this->duplicate($table, $row, $request->onConflict)) {
+                if ($request->upsert && ($held = $this->duplicate($table, $row, $request->onConflict)) !== null) {
+                    if ($merges) {
+                        array_push($ids, ...Writes::update($this->caller, $table, [$held], $row, $now));
+                    }
+
                     continue;
                 }
                 $record = Writes::complete($this->caller, $table, $row, $now);
@@ -319,6 +334,9 @@ final class Rest
         Policies::grant($this->caller, $table, 'update', array_keys($values));
 
         $ids = DB::transaction(function () use ($table, $request, $values) {
+            if ($values === []) {
+                return [];
+            }
             $alias = $this->alias();
             $query = DB::table($table.' as '.$alias);
             Policies::using($this->caller, $query, $table, 'update', $alias);
@@ -334,13 +352,14 @@ final class Rest
     }
 
     /**
-     * Whether a row already holds these values in the `on_conflict` columns,
-     * for `on conflict do nothing`.
+     * The stored row that already holds these values in the `on_conflict`
+     * columns, for `on conflict do nothing` and `do update`, or null.
      *
      * @param  array<string, mixed>  $row
      * @param  list<string>  $columns
+     * @return array<string, mixed>|null
      */
-    private function duplicate(string $table, array $row, array $columns): bool
+    private function duplicate(string $table, array $row, array $columns): ?array
     {
         $types = Tables::columns($table);
         $query = DB::table($table);
@@ -351,19 +370,21 @@ final class Rest
             $value = $row[$column] ?? null;
             if ($value === null) {
                 // A null never conflicts.
-                return false;
+                return null;
             }
             $query->where($column, Values::write($types[$column], $value));
         }
+        $held = $query->lockForUpdate()->first();
 
-        return $query->lockForUpdate()->exists();
+        return $held === null ? null : (array) $held;
     }
 
     /** @return array{rows: list<array<string, mixed>>, count: int|null} */
     private function delete(string $table, Request $request): array
     {
-        if ($this->caller->isService() && ! in_array($table, ['game_faction', 'game_download_source'], true)) {
+        if ($this->caller->isService() && ! Tables::isMap($table) && ! in_array($table, ['game_faction', 'game_download_source'], true)) {
             // The service role holds delete on these two catalogue tables only.
+            // Its grants on the map tables are in Policies.
             throw new LocalException('permission denied for table '.$table, 403, '42501');
         }
         Policies::grant($this->caller, $table, 'delete', []);
@@ -375,9 +396,9 @@ final class Rest
                 Filter::apply($query, $table, $alias, $filter);
             }
             $rows = array_map(fn ($row) => (array) $row, $query->select($alias.'.*')->lockForUpdate()->get()->all());
-            $ids = array_column($rows, 'id');
+            $ids = array_map(fn (array $row) => Writes::keyOf($table, $row), $rows);
             if ($ids !== []) {
-                DB::table($table)->whereIn('id', $ids)->delete();
+                Writes::whereKeys(DB::table($table), $table, $ids)->delete();
             }
 
             return $rows;
@@ -391,7 +412,7 @@ final class Rest
     /**
      * Written rows read back for `return=representation`.
      *
-     * @param  list<int|string>  $ids
+     * @param  list<int|string|array<string, mixed>>  $ids
      * @return list<array<string, mixed>>
      */
     private function byIds(string $table, Request $request, array $ids): array
@@ -401,11 +422,13 @@ final class Rest
         }
         $select = Select::parse($request->select);
         $alias = $this->alias();
-        $query = DB::table($table.' as '.$alias)->whereIn($alias.'.id', $ids);
+        $query = Writes::whereKeys(DB::table($table.' as '.$alias), $table, $ids, $alias.'.');
         Policies::read($this->caller, $query, $table, $alias);
-        $stored = array_map(fn ($row) => (array) $row, $query->orderBy($alias.'.id')->select($alias.'.*')->get()->all());
-        $order = array_flip(array_map('strval', $ids));
-        usort($stored, fn ($a, $b) => ($order[(string) $a['id']] ?? 0) <=> ($order[(string) $b['id']] ?? 0));
+        $stored = array_map(fn ($row) => (array) $row, $query->select($alias.'.*')->get()->all());
+        $name = fn ($id) => is_array($id) ? json_encode(array_map('strval', $id)) : (string) $id;
+        $order = array_flip(array_map($name, $ids));
+        $place = fn (array $row) => $order[$name(Writes::keyOf($table, $row))] ?? 0;
+        usort($stored, fn ($a, $b) => $place($a) <=> $place($b));
 
         return $this->shape($table, $select, $stored, $request, []);
     }

@@ -9,10 +9,11 @@ use Illuminate\Support\Facades\DB;
  * The grants and row level security policies on the game catalogue, from
  * `supabase/migrations` (20260821100000, 20260821130000, 20260821140000,
  * 20260914200000, 20260918170000 and 20260918180000), and on the picture
- * tables (`asset_read_approved` and the grants in production's schema), for
- * anon and authenticated callers. The service role bypasses row level
+ * tables (`asset_read_approved` and the grants in production's schema) and
+ * the map tables (production's schema on 19 November 2026), for anon and
+ * authenticated callers. The service role bypasses row level
  * security, as it does in Postgres, but holds only the privileges granted on
- * the picture tables.
+ * the picture and map tables.
  */
 final class Policies
 {
@@ -30,17 +31,21 @@ final class Policies
             'insert' => ['game_id', 'requested_by', 'note', 'state', 'decided_by', 'decided_at', 'created_at'],
             'update' => ['state', 'decided_by', 'decided_at'],
         ],
+        'map_download_source' => ['insert' => ['*'], 'delete' => ['*']],
+        'map_ownership_request' => ['insert' => ['*'], 'update' => ['state', 'decided_by', 'decided_at']],
     ];
 
     /** Tables anon and authenticated may read at all. */
     private const READABLE = [
         'game', 'game_version', 'game_faction', 'game_unit', 'game_unit_revision', 'game_download_source',
         'game_browse', 'asset',
+        'map', 'map_point', 'map_author', 'author_name', 'author_alias', 'map_pack', 'map_pack_map', 'map_download_source',
+        'map_mirror_host', 'map_browse', 'map_listing', 'map_pack_entry', 'author_spelling', 'author_display_name', 'author_map_count',
     ];
 
     /**
-     * What the service role may do on each picture table. Anon and
-     * authenticated may only read `asset`.
+     * What the service role may do on each picture and map table. Of the
+     * picture tables anon and authenticated may only read `asset`.
      *
      * @var array<string, list<string>>
      */
@@ -52,15 +57,34 @@ final class Policies
         'asset_upload_ip' => ['insert'],
         'asset_withdrawal' => ['select'],
         'staged_object_deletion' => ['select'],
+        'map' => ['select', 'insert', 'update'],
+        'map_point' => ['select', 'insert', 'update', 'delete'],
+        'map_author' => ['select', 'insert', 'update', 'delete'],
+        'author_name' => ['select', 'insert', 'update'],
+        'author_alias' => ['select', 'insert', 'update', 'delete'],
+        'author_owner' => ['select', 'insert', 'delete'],
+        'map_pack' => ['select', 'insert', 'update', 'delete'],
+        'map_pack_map' => ['select', 'insert', 'delete'],
+        'map_download_source' => ['select', 'insert', 'update', 'delete'],
+        'map_mirror_host' => ['select', 'insert', 'update'],
+        'map_ownership_request' => ['select', 'update'],
+        'map_source_conflict' => ['select', 'insert'],
     ];
+
+    /** Map tables anon and authenticated may not read at all. Requests are for the signed in only. */
+    private const UNREADABLE = ['author_owner', 'map_source_conflict'];
 
     /** Refuses a read the caller holds no privilege for, before any policy. */
     public static function readGrant(Caller $caller, string $table): void
     {
-        if (! Tables::isPicture($table)) {
+        if (Tables::isMap($table)) {
+            $allowed = $caller->isService() || ! (in_array($table, self::UNREADABLE, true)
+                || ($table === 'map_ownership_request' && $caller->role() !== 'authenticated'));
+        } elseif (Tables::isPicture($table)) {
+            $allowed = $caller->isService() ? in_array('select', self::SERVICE_GRANTS[$table], true) : $table === 'asset';
+        } else {
             return;
         }
-        $allowed = $caller->isService() ? in_array('select', self::SERVICE_GRANTS[$table], true) : $table === 'asset';
         if (! $allowed) {
             throw new LocalException('permission denied for table '.$table, 403, '42501');
         }
@@ -75,7 +99,7 @@ final class Policies
     public static function grant(Caller $caller, string $table, string $command, array $columns): void
     {
         if ($caller->isService()) {
-            if (Tables::isPicture($table) && ! in_array($command, self::SERVICE_GRANTS[$table], true)) {
+            if (isset(self::SERVICE_GRANTS[$table]) && ! in_array($command, self::SERVICE_GRANTS[$table], true)) {
                 throw new LocalException('permission denied for table '.$table, 403, '42501');
             }
 
@@ -95,7 +119,7 @@ final class Policies
         if ($caller->isService()) {
             return;
         }
-        if ($table === 'game_ownership_request') {
+        if ($table === 'game_ownership_request' || $table === 'map_ownership_request') {
             self::ownRequests($caller, $query, $alias);
 
             return;
@@ -129,7 +153,8 @@ final class Policies
         match ($table) {
             'game' => self::ownerOrModerator($caller, $query, $alias.'.id'),
             'game_unit', 'game_download_source' => self::ownerOrModerator($caller, $query, $alias.'.game_id'),
-            'game_ownership_request' => $caller->isModerator() ? null : $query->whereRaw('1 = 0'),
+            'game_ownership_request', 'map_ownership_request' => $caller->isModerator() ? null : $query->whereRaw('1 = 0'),
+            'map_download_source' => self::mapEditor($caller, $query, $alias.'.map_id'),
             default => $query->whereRaw('1 = 0'),
         };
     }
@@ -148,9 +173,10 @@ final class Policies
         $passes = match ($table) {
             'game' => self::ownsGame($caller, (string) $row['id']) || $caller->isModerator(),
             'game_unit', 'game_download_source' => self::ownsGame($caller, (string) $row['game_id']) || $caller->isModerator(),
-            'game_ownership_request' => array_key_exists('id', $row) && $row['id'] !== null
+            'game_ownership_request', 'map_ownership_request' => array_key_exists('id', $row) && $row['id'] !== null
                 ? $caller->isModerator()
                 : ($row['requested_by'] ?? null) === $caller->userId() && ($row['state'] ?? null) === 'open',
+            'map_download_source' => MapFunctions::canEditMap($caller, (string) $row['map_id']),
             default => false,
         };
         if (! $passes) {
@@ -240,6 +266,16 @@ final class Policies
         }
         $userId = $caller->userId();
         $query->whereExists(fn (Builder $game) => $game->from('game as og')->whereColumn('og.id', $gameId)->where('og.owner_user_id', $userId));
+    }
+
+    /** `public.can_edit_map(map_id)` as a `using` rule: the maps this caller may edit. */
+    private static function mapEditor(Caller $caller, Builder $query, string $mapId): void
+    {
+        $editable = MapFunctions::editableMapIds($caller);
+        if ($editable === null) {
+            return;
+        }
+        $editable === [] ? $query->whereRaw('1 = 0') : $query->whereIn($mapId, $editable);
     }
 
     private static function ownsGame(Caller $caller, string $gameId): bool
