@@ -58,3 +58,8 @@ $$;
 -- create or replace keeps the grants, repeated so the file reads on its own.
 revoke execute on function public.record_download(text, text, text) from public, anon, authenticated;
 grant execute on function public.record_download(text, text, text) to service_role;
+
+-- Nothing calls record_item_imported since the hub moved to record_download.
+-- It has the same hole, so close it. The function stays for old callers to
+-- fail on rather than 404.
+revoke execute on function public.record_item_imported(uuid) from public, anon, authenticated;

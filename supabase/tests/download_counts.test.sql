@@ -4,7 +4,7 @@
 -- back as the owner because download_day and download_seen have no grants.
 
 begin;
-select plan(22);
+select plan(23);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -127,6 +127,12 @@ select throws_ok(
   '42501',
   null,
   'anon cannot call record_download');
+
+select throws_ok(
+  $$select public.record_item_imported('dddddddd-0000-0000-0000-000000000001')$$,
+  '42501',
+  null,
+  'anon cannot call record_item_imported');
 
 set local role authenticated;
 select throws_ok(
