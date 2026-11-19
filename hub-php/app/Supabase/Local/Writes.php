@@ -43,11 +43,12 @@ final class Writes
     }
 
     /**
-     * Inserts one completed row and answers with its id.
+     * Inserts one completed row and answers with its key, as {@see keyOf()} gives it.
      *
      * @param  array<string, mixed>  $row
+     * @return int|string|array<string, mixed>
      */
-    public static function insert(Caller $caller, string $table, array $row): int|string
+    public static function insert(Caller $caller, string $table, array $row): int|string|array
     {
         $stored = self::stored($table, $row);
         self::refuse($table, $stored, null);

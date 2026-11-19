@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Maps;
 
+use App\Domain\Moderation\MapOwnership;
 use App\Supabase\Local\MapStore;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
@@ -328,13 +329,45 @@ class LocalMapsTest extends ModerationTestCase
         $admin = Supabase::admin();
         $request = $admin->from('map_ownership_request')->select('map_id,state,map(slug)')->not('map_id', 'is', 'null')->maybeSingle();
         $this->assertSame(['map_id' => self::COMET, 'state' => 'open', 'map' => ['slug' => 'comet']], $request);
-        // Production grants the service role no update on `author_owner`, so an upsert there is refused as it is in Postgres.
+        // Production grants the service role no update on `author_owner`, so an upsert there is refused as it is in Postgres. MapOwnership deletes and inserts instead.
         try {
             $admin->from('author_owner')->upsert([['key' => 'beherith', 'user_id' => self::USER]], 'key')->execute();
             $this->fail('An upsert without the update grant.');
         } catch (SupabaseException $e) {
             $this->assertSame('42501', $e->errorCode);
         }
+    }
+
+    public function test_approving_an_author_request_makes_the_requester_the_owner_and_lets_them_edit(): void
+    {
+        $this->supabase([
+            'GET /auth/v1/user' => fn (Request $r) => self::reply(['id' => $r->header('Authorization')[0] === 'Bearer mapper' ? self::USER : self::STRANGER]),
+            'POST /rpc/is_moderator' => fn (Request $r) => self::reply($r->header('Authorization')[0] === 'Bearer moderator'),
+        ]);
+        $this->map(self::COMET, 'Comet 1.0', 'comet');
+        $this->credit(self::COMET, [['Beh', 'beherith']]);
+        $mapper = Supabase::forToken('mapper');
+        $this->assertFalse($mapper->rpc('can_edit_map', ['p_map_id' => self::COMET]));
+        DB::table('map_ownership_request')->insert(['requested_by' => self::USER, 'requested_by_name' => 'Mapper', 'author_key' => 'beherith', 'state' => 'open', 'created_at' => '2026-10-01 10:00:00.000000']);
+        $id = (string) DB::table('map_ownership_request')->value('id');
+
+        $this->assertTrue(MapOwnership::decideRequest(Supabase::forToken('moderator'), Supabase::admin(), self::STRANGER, $id, true));
+
+        $this->assertSame([self::USER], DB::table('author_owner')->where('key', 'beherith')->pluck('user_id')->all());
+        $this->assertSame('approved', DB::table('map_ownership_request')->value('state'));
+        $this->assertTrue($mapper->rpc('can_edit_map', ['p_map_id' => self::COMET]));
+    }
+
+    public function test_approving_a_second_author_request_replaces_the_owner(): void
+    {
+        $this->supabase(['GET /auth/v1/user' => self::reply(['id' => self::STRANGER])]);
+        DB::table('author_owner')->insert(['key' => 'beherith', 'user_id' => self::STRANGER, 'created_at' => '2026-10-01 10:00:00.000000']);
+        DB::table('map_ownership_request')->insert(['requested_by' => self::USER, 'requested_by_name' => 'Mapper', 'author_key' => 'beherith', 'state' => 'open', 'created_at' => '2026-10-01 10:00:00.000000']);
+        $id = (string) DB::table('map_ownership_request')->value('id');
+
+        $this->assertTrue(MapOwnership::decideRequest(Supabase::forToken('moderator'), Supabase::admin(), self::STRANGER, $id, true));
+
+        $this->assertSame([self::USER], DB::table('author_owner')->where('key', 'beherith')->pluck('user_id')->all());
     }
 
     public function test_packs_and_clearing_a_map(): void
