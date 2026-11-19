@@ -29,6 +29,11 @@ final class Downloads
      */
     public static function network(string $address): string
     {
+        // A missing or malformed address must not break the download.
+        if (filter_var($address, FILTER_VALIDATE_IP) === false) {
+            return $address;
+        }
+
         return IpUtils::anonymize($address, 0, 8);
     }
 

@@ -8,6 +8,7 @@ use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Mockery;
 use Tests\TestCase;
 
 class DownloadsTest extends TestCase
@@ -90,6 +91,23 @@ class DownloadsTest extends TestCase
         Downloads::record('map', 'Red', $this->request('2001:db8:1:2:aaaa:bbbb:cccc:dddd'));
 
         Http::assertSent(fn (HttpRequest $sent) => $sent->data()['p_seen_key'] === Downloads::seenKey('map', 'Red', Downloads::network('2001:db8:1:2::1'), now()->toDateString()));
+    }
+
+    public function test_an_invalid_address_is_returned_unchanged(): void
+    {
+        $this->assertSame('', Downloads::network(''));
+        $this->assertSame('garbage', Downloads::network('garbage'));
+    }
+
+    public function test_record_still_counts_with_an_empty_invalid_or_null_address(): void
+    {
+        foreach (['', 'garbage', null] as $ip) {
+            $this->answer('true');
+            $request = Mockery::mock(Request::class)->makePartial();
+            $request->shouldReceive('ip')->andReturn($ip);
+
+            $this->assertTrue(Downloads::record('map', 'Red', $request), var_export($ip, true));
+        }
     }
 
     public function test_record_is_false_without_a_service_key(): void
