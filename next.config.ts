@@ -16,8 +16,8 @@ if (process.env.VERCEL && !getSupabaseConfig().ok) {
 }
 
 // The hub now runs from `hub-php/` at this address. On Vercel this app only
-// sends people there. Locally it still serves every page, as the reference the
-// PHP port is checked against.
+// sends people there. Without `VERCEL` set it still serves its old pages, which
+// nothing is checked against.
 const PHP_HUB = "https://hub.coilbox.org";
 const ON_VERCEL = Boolean(process.env.VERCEL);
 

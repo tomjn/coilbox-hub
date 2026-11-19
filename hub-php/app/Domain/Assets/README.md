@@ -1,6 +1,6 @@
 # Pictures
 
-`AssetResolver` is the Next app's `lib/assets/resolve.ts`. A page never asks for a tier or builds a picture URL itself. It names what it wants a picture of, and the resolver returns a URL or a placeholder.
+`AssetResolver` picks the picture for each thing a page shows. A page never asks for a tier or builds a picture URL itself. It names what it wants a picture of, and the resolver returns a URL or a placeholder.
 
 ## Drawing pictures on a page
 
@@ -50,4 +50,4 @@ The full shapes are documented at the top of `AssetResolver.php`.
 - `Have::identityKey($identity)` is the key `$held` is indexed by.
 - `Asset` has the vocabulary: `Asset::unitBuildpicVariant()`, `unitTopRenderVariant()`, `unitRenderAngles()`, `factionLogoVariant()`, `MAP_MINIMAP_VARIANT`, `MAP_HEIGHT_OVERLAY_VARIANT`.
 
-As in the Next app, `fetchHeldAssets` does not read `faction_key`, so a faction logo identity always resolves to a placeholder through it.
+`fetchHeldAssets` does not read `faction_key`, so a faction logo identity always resolves to a placeholder through it.
