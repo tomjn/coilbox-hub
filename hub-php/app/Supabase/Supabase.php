@@ -21,9 +21,10 @@ class Supabase
         return new Client(self::url(), (string) config('hub.supabase.publishable_key'), null, self::timeout());
     }
 
-    public static function forToken(string $accessToken): Client
+    /** `$userId` saves the local store asking Supabase Auth who the token is. */
+    public static function forToken(string $accessToken, ?string $userId = null): Client
     {
-        return new Client(self::url(), (string) config('hub.supabase.publishable_key'), $accessToken, self::timeout());
+        return new Client(self::url(), (string) config('hub.supabase.publishable_key'), $accessToken, self::timeout(), $userId);
     }
 
     public static function admin(): Client
