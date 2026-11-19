@@ -33,6 +33,8 @@ class AuthUsersTest extends TestCase
             'hub.items_store' => 'supabase',
         ]);
         $this->withoutMiddleware(ValidateCsrfToken::class);
+        // Tests without RefreshDatabase sign in too, and on CI's MariaDB their accounts stay.
+        DB::table('auth_user')->delete();
     }
 
     /** @return array<string, mixed> A user as Supabase Auth gives it. */
