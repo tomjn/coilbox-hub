@@ -64,6 +64,11 @@ class DownloadRedirectTest extends TestCase
         ];
     }
 
+    private function rpcBodies(): array
+    {
+        return Http::recorded(fn (Request $r) => str_ends_with($r->url(), '/rpc/record_download'))->map(fn ($pair) => $pair[0]->data())->values()->all();
+    }
+
     private function rpcCalls(): int
     {
         return Http::recorded(fn (Request $r) => str_ends_with($r->url(), '/rpc/record_download'))->count();
@@ -73,6 +78,7 @@ class DownloadRedirectTest extends TestCase
     {
         $this->get('/map/comet/download/0')->assertRedirect('https://owner.test/comet.sd7')->assertStatus(302);
         $this->assertSame(1, $this->rpcCalls());
+        $this->assertSame(['map', self::COMET], [$this->rpcBodies()[0]['p_kind'], $this->rpcBodies()[0]['p_target']]);
         $this->get('/map/comet/download/1')->assertRedirect('https://github.com/owner/comet/releases');
     }
 
@@ -100,6 +106,7 @@ class DownloadRedirectTest extends TestCase
     {
         $this->get('/games/BA/download/1')->assertRedirect('https://ba.test/ba.sdz');
         $this->assertSame(1, $this->rpcCalls());
+        $this->assertSame(['game', 'BA'], [$this->rpcBodies()[0]['p_kind'], $this->rpcBodies()[0]['p_target']]);
         $this->get('/games/BA/download/0')->assertNotFound();
         $this->get('/games/BA/download/2')->assertNotFound();
         $this->get('/games/nothing/download/0')->assertNotFound();

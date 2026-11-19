@@ -17,7 +17,7 @@ class DownloadsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['hub.supabase.url' => 'https://sb.test', 'hub.supabase.publishable_key' => 'pk']);
+        config(['hub.supabase.url' => 'https://sb.test', 'hub.supabase.publishable_key' => 'pk', 'hub.supabase.service_role_key' => 'sk']);
     }
 
     private function request(string $ip = '203.0.113.5'): Request
@@ -64,8 +64,41 @@ class DownloadsTest extends TestCase
             return $sent->url() === self::URL
                 && $body['p_kind'] === 'map'
                 && $body['p_target'] === 'Red'
+                && $sent->hasHeader('apikey', 'sk')
                 && $body['p_seen_key'] === Downloads::seenKey('map', 'Red', '203.0.113.5', now()->toDateString());
         });
+    }
+
+    public function test_the_key_uses_the_ipv6_network_not_the_address(): void
+    {
+        $key = fn (string $ip) => Downloads::seenKey('map', 'Red', Downloads::network($ip), '2026-11-18');
+
+        $this->assertSame($key('2001:db8:1:2::1'), $key('2001:db8:1:2:aaaa:bbbb:cccc:dddd'));
+        $this->assertNotSame($key('2001:db8:1:2::1'), $key('2001:db8:1:3::1'));
+    }
+
+    public function test_an_ipv4_address_is_left_whole(): void
+    {
+        $this->assertSame('203.0.113.5', Downloads::network('203.0.113.5'));
+        $this->assertNotSame(Downloads::network('203.0.113.5'), Downloads::network('203.0.113.6'));
+    }
+
+    public function test_record_sends_the_ipv6_network_in_the_key(): void
+    {
+        $this->answer('true');
+
+        Downloads::record('map', 'Red', $this->request('2001:db8:1:2:aaaa:bbbb:cccc:dddd'));
+
+        Http::assertSent(fn (HttpRequest $sent) => $sent->data()['p_seen_key'] === Downloads::seenKey('map', 'Red', Downloads::network('2001:db8:1:2::1'), now()->toDateString()));
+    }
+
+    public function test_record_is_false_without_a_service_key(): void
+    {
+        config(['hub.supabase.service_role_key' => '']);
+        $this->answer('true');
+
+        $this->assertFalse(Downloads::record('map', 'Red', $this->request()));
+        Http::assertNothingSent();
     }
 
     public function test_record_is_false_when_supabase_fails(): void

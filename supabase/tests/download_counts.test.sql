@@ -1,10 +1,10 @@
 -- Anonymous download counters. record_download counts one download per
 -- target per anonymous key per day, and the browse view reads the totals.
--- Calls run as anon, the role the hub route uses, and counts are read back as
--- the owner because download_day and download_seen have no grants.
+-- Calls run as service_role, the only role with execute, and counts are read
+-- back as the owner because download_day and download_seen have no grants.
 
 begin;
-select plan(17);
+select plan(22);
 
 create extension if not exists pgtap with schema extensions;
 
@@ -28,10 +28,15 @@ values
    '{"format":"coilbox","container":1,"kind":"mod-project","kindVersion":1,"payload":{}}',
    '55555555-5555-5555-5555-555555555555', 'Downloads', now());
 
+insert into public.game (id, shortname, hidden_at)
+values
+  ('dddddddd-0000-0000-0000-0000000000a1', 'SHOWN', null),
+  ('dddddddd-0000-0000-0000-0000000000a2', 'SECRET', now());
+
 insert into public.download_seen (day, seen_key)
 values (current_date - 2, repeat('e', 64));
 
-set local role anon;
+set local role service_role;
 
 select is(public.record_download('map', 'Counted 1.0', repeat('a', 64)), true,
   'a first download of a map is recorded');
@@ -43,7 +48,7 @@ select is(
      and target_id = (select id from public.map where map_name = 'Counted 1.0')),
   1, 'today has one download for the map');
 
-set local role anon;
+set local role service_role;
 select is(public.record_download('map', 'Counted 1.0', repeat('a', 64)), true,
   'the same key downloading again still reports success');
 
@@ -54,7 +59,7 @@ select is(
      and target_id = (select id from public.map where map_name = 'Counted 1.0')),
   1, 'the same key on the same day is counted once');
 
-set local role anon;
+set local role service_role;
 select record_download('map', 'Counted 1.0', repeat('b', 64));
 
 reset role;
@@ -64,11 +69,15 @@ select is(
      and target_id = (select id from public.map where map_name = 'Counted 1.0')),
   2, 'a different key makes it two');
 
-set local role anon;
+set local role service_role;
 select is(public.record_download('map', 'No such map', repeat('c', 64)), false,
   'an unknown map name is not recorded');
 select is(public.record_download('game', 'nosuchgame', repeat('c', 64)), false,
   'an unknown game shortname is not recorded');
+select is(public.record_download('game', 'SECRET', repeat('c', 64)), false,
+  'a hidden game is not recorded');
+select is(public.record_download('game', 'SHOWN', repeat('f', 64)), true,
+  'a visible game is recorded');
 select is(public.record_download('item', 'dddddddd-0000-0000-0000-000000000002', repeat('c', 64)), false,
   'a withdrawn item is not recorded');
 select is(public.record_download('item', 'dddddddd-0000-0000-0000-000000000001', repeat('c', 64)), true,
@@ -112,6 +121,24 @@ select throws_ok(
   '42501',
   null,
   'anon cannot read download_seen');
+
+select throws_ok(
+  $$select public.record_download('map', 'Counted 1.0', repeat('d', 64))$$,
+  '42501',
+  null,
+  'anon cannot call record_download');
+
+set local role authenticated;
+select throws_ok(
+  $$select public.record_download('map', 'Counted 1.0', repeat('d', 64))$$,
+  '42501',
+  null,
+  'authenticated cannot call record_download');
+
+reset role;
+select is(
+  has_function_privilege('service_role', 'public.record_download(text, text, text)', 'execute'),
+  true, 'service_role can execute record_download');
 
 select * from finish();
 rollback;

@@ -6,6 +6,7 @@ use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use App\Support\HubCache;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\IpUtils;
 
 /**
  * Anonymous download counters. The database counts a download once per seen
@@ -22,14 +23,24 @@ final class Downloads
         return hash_hmac('sha256', "$date|$address|$kind|$target", (string) config('app.key'));
     }
 
-    /** True when the database counted this download. */
+    /**
+     * An IPv6 visitor holds a whole /64, so the key uses the network, not the
+     * address. IPv4 stays whole.
+     */
+    public static function network(string $address): string
+    {
+        return IpUtils::anonymize($address, 0, 8);
+    }
+
+    /** True when the target exists. A repeat the same day is also true. */
     public static function record(string $kind, string $target, Request $request): bool
     {
         try {
-            $counted = Supabase::anon()->rpc('record_download', [
+            // Admin only, so a caller with the public key cannot skip the dedupe.
+            $counted = Supabase::admin()->rpc('record_download', [
                 'p_kind' => $kind,
                 'p_target' => $target,
-                'p_seen_key' => self::seenKey($kind, $target, (string) $request->ip(), now()->toDateString()),
+                'p_seen_key' => self::seenKey($kind, $target, self::network((string) $request->ip()), now()->toDateString()),
             ]);
         } catch (SupabaseException) {
             return false;
