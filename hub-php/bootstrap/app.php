@@ -4,6 +4,7 @@ use App\Support\Api;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -34,6 +35,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (Throwable $e, Request $request) {
             if (! $request->is('api/*')) {
                 return null;
+            }
+            // Already an answer, such as the rate limiter's 429.
+            if ($e instanceof HttpResponseException) {
+                return $e->getResponse();
             }
             $status = $e instanceof HttpExceptionInterface ? $e->getStatusCode() : 500;
             $message = $status === 404 ? 'Not found.' : ($status >= 500 ? 'Something went wrong on the hub.' : $e->getMessage());

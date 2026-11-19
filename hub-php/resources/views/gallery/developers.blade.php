@@ -185,7 +185,7 @@
             <x-developers.field name="map_catalog" type="string">A digest of the map fact catalog the app must describe maps by.</x-developers.field>
             <x-developers.field name="providers" type="string[], optional">The sign in providers this hub offers, in the order to show them. Each is a Supabase provider id.</x-developers.field>
             <x-developers.field name="email_password" type="boolean, optional">Whether email and password sign in is available.</x-developers.field>
-            <x-developers.field name="endpoints" type="object, optional">The hub's own sign in endpoints, as paths on the hub. <x-developers.inline>logout</x-developers.inline> is the sign out endpoint below.</x-developers.field>
+            <x-developers.field name="endpoints" type="object, optional">The hub's own sign in endpoints, as paths on the hub: <x-developers.inline>authorize</x-developers.inline>, <x-developers.inline>token</x-developers.inline> and <x-developers.inline>logout</x-developers.inline>, each described below. A client that uses them never needs <x-developers.inline>supabase_url</x-developers.inline> or <x-developers.inline>publishable_key</x-developers.inline>.</x-developers.field>
         </x-developers.fields>
         <x-developers.sub>Example response</x-developers.sub>
         <p class="text-sm text-neutral-400">
@@ -194,6 +194,42 @@
         <x-developers.code label="Example response">{{ $authExample }}</x-developers.code>
         <x-developers.sub>Errors</x-developers.sub>
         <x-developers.errors :rows="$apiErrors['auth']" />
+    </x-developers.section>
+
+    <x-developers.section id="authorize" title="Start signing in" path="GET /api/v1/auth/authorize">
+        <p class="text-neutral-300">
+            Open this in the person's browser. It redirects to the sign in service with the same query, so it takes
+            the parameters Supabase's authorize endpoint takes: <x-developers.inline>provider</x-developers.inline>,
+            <x-developers.inline>redirect_to</x-developers.inline>, <x-developers.inline>code_challenge</x-developers.inline> and
+            <x-developers.inline>code_challenge_method=s256</x-developers.inline>. The service sends the browser on to
+            <x-developers.inline>redirect_to</x-developers.inline> with a <x-developers.inline>code</x-developers.inline>, if that address is on its allowed list.
+        </p>
+        <x-developers.code label="Example request">{{ $origin }}/api/v1/auth/authorize?provider=discord&amp;redirect_to=REDIRECT_URL&amp;code_challenge=CHALLENGE&amp;code_challenge_method=s256</x-developers.code>
+    </x-developers.section>
+
+    <x-developers.section id="token" title="Get or refresh tokens" path="POST /api/v1/auth/token">
+        <p class="text-neutral-300">
+            Swaps the <x-developers.inline>code</x-developers.inline> from signing in for tokens, or a refresh token for new tokens.
+            Send <x-developers.inline>grant_type</x-developers.inline> in the query or the JSON body.
+            With <x-developers.inline>pkce</x-developers.inline>, send <x-developers.inline>auth_code</x-developers.inline> and <x-developers.inline>code_verifier</x-developers.inline>.
+            With <x-developers.inline>refresh_token</x-developers.inline>, send <x-developers.inline>refresh_token</x-developers.inline>.
+            Each refresh token works once, and the answer carries the next one.
+        </p>
+        <x-developers.code label="Example request">curl -X POST -H "Content-Type: application/json" -d '{"refresh_token":"TOKEN"}' "{{ $origin }}/api/v1/auth/token?grant_type=refresh_token"</x-developers.code>
+        <x-developers.sub>Response</x-developers.sub>
+        <x-developers.fields>
+            <x-developers.field name="access_token" type="string">Send as <x-developers.inline>Authorization: Bearer &lt;token&gt;</x-developers.inline> on endpoints that need a signed in account.</x-developers.field>
+            <x-developers.field name="refresh_token" type="string">Use once, to get the next tokens.</x-developers.field>
+            <x-developers.field name="expires_in" type="number">Seconds until the access token expires.</x-developers.field>
+            <x-developers.field name="user" type="object">The signed in account, as the sign in service describes it.</x-developers.field>
+        </x-developers.fields>
+        <p class="text-neutral-300">
+            A refused code or refresh token answers with the sign in service's own status and JSON body, usually
+            <x-developers.inline>400</x-developers.inline> with an <x-developers.inline>error_code</x-developers.inline>.
+            An address may make 30 code swaps and 150 refreshes in 5 minutes.
+        </p>
+        <x-developers.sub>Errors</x-developers.sub>
+        <x-developers.errors :rows="$apiErrors['token']" />
     </x-developers.section>
 
     <x-developers.section id="logout" title="Sign out" path="POST /api/v1/auth/logout">

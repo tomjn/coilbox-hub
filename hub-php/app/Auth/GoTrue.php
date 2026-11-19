@@ -171,6 +171,21 @@ final class GoTrue
     }
 
     /**
+     * Supabase's own token endpoint, answer and all, for Coilbox's sign in
+     * through the hub. Callers pass the answer on, so an error keeps the body
+     * Supabase gave.
+     *
+     * @param  'pkce'|'refresh_token'  $grantType
+     * @param  array<string, string>  $fields
+     *
+     * @throws SupabaseException when Supabase Auth could not be reached
+     */
+    public static function token(string $grantType, array $fields): Response
+    {
+        return self::reach(fn () => self::request()->post(Supabase::url().'/auth/v1/token?grant_type='.$grantType, $fields));
+    }
+
+    /**
      * Ends the session an access token belongs to, so its refresh tokens stop
      * working. True when the session ended or was already gone, false when
      * Supabase refused the token, which is how it answers an expired one.

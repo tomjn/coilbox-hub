@@ -58,5 +58,9 @@ final class AuthDiscovery
      * than a version bump, because released copies of Coilbox refuse a version
      * above 1 and ignore fields they do not know.
      */
-    public const ENDPOINTS = ['logout' => '/api/v1/auth/logout'];
+    public const ENDPOINTS = [
+        'authorize' => '/api/v1/auth/authorize',
+        'token' => '/api/v1/auth/token',
+        'logout' => '/api/v1/auth/logout',
+    ];
 }
