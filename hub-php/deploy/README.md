@@ -13,7 +13,7 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
 ## One time setup
 
 1. Point `hub.coilbox.org` at the droplet with an A record, and an AAAA record if it has IPv6.
-2. Install PHP, the extensions the hub uses, and the memcached server that holds its cache and sessions:
+2. Install PHP, the extensions the hub uses, and the memcached server that holds its cache. Sessions are kept in MariaDB, so a full cache never signs anyone out:
 
    ```
    sudo apt install php8.4-fpm php8.4-cli php8.4-curl php8.4-mbstring php8.4-xml php8.4-intl php8.4-zip php8.4-gd php8.4-mysql php8.4-memcached memcached
@@ -37,7 +37,8 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
    APP_URL=https://hub.coilbox.org
    APP_KEY=            # php artisan key:generate --show, on any machine
    CACHE_STORE=memcached
-   SESSION_DRIVER=memcached
+   SESSION_DRIVER=database
+   SESSION_LIFETIME=43200
    SESSION_SECURE_COOKIE=true
    SUPABASE_URL=https://twptlkjgdvjhpywdoajf.supabase.co
    SUPABASE_PUBLISHABLE_KEY=
