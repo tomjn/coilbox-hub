@@ -119,6 +119,12 @@ To go back, run `php artisan games:store supabase`. Supabase's `game` rows stay 
 
 No config cache or PHP-FPM reload is needed. The switch is a row in the `data_move` table.
 
+## Staged pictures return 404
+
+Staged pictures live in `shared/storage/app/staged-pictures`. PHP-FPM runs as `www-data`, so that folder must be group `www-data` and mode `2775`. Check it with `ls -ld /srv/www/hub.coilbox.org/shared/storage/app/staged-pictures`.
+
+A folder showing `drwx--S---` is closed to `www-data`. It happens when the deploy user's artisan command creates the folder first, for example a copy run. Fix it with `sudo chgrp www-data` and `sudo chmod 2775` on the folder. New installs create it with mode `0775` already.
+
 ## Mirror signing key
 
 The hub signs upload tokens and the mirror catalogue with one Ed25519 key. The secret half is `HUB_MIRROR_SECRET_KEY` in `shared/.env`. It never goes in the repository, a log or a chat.
