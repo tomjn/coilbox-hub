@@ -3,7 +3,9 @@
 namespace Tests\Feature\Gallery;
 
 use App\Domain\Container\Container;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -13,6 +15,8 @@ use Tests\TestCase;
  */
 class ItemsApiTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const USER = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
     private const ID = '11111111-1111-1111-1111-111111111111';
@@ -205,21 +209,19 @@ class ItemsApiTest extends TestCase
         $this->assertSame('Could not publish it: Too many published in the last hour. Try again later.', $response->json('error'));
     }
 
-    public function test_the_import_ping_is_a_204_when_the_rpc_counted_the_item(): void
+    public function test_the_import_ping_is_a_204_and_counts_a_live_item(): void
     {
-        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response('true', 200, ['Content-Type' => 'application/json'])]);
+        Http::fake(['https://sb.test/rest/v1/item*' => Http::response([['id' => self::ID]])]);
 
         $response = $this->postJson('/api/v1/items/'.self::ID.'/imported');
 
         $response->assertNoContent()->assertHeader('Access-Control-Allow-Origin', '*');
-        $recorded = Http::recorded();
-        $this->assertSame('item', $recorded[0][0]->data()['p_kind']);
-        $this->assertSame(self::ID, $recorded[0][0]->data()['p_target']);
+        $this->assertSame(1, (int) DB::table('download_day')->where('kind', 'item')->where('target_id', self::ID)->value('count'));
     }
 
-    public function test_the_import_ping_is_a_404_when_the_rpc_fails(): void
+    public function test_the_import_ping_is_a_404_when_supabase_fails(): void
     {
-        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response(['message' => 'down'], 500)]);
+        Http::fake(['https://sb.test/rest/v1/item*' => Http::response(['message' => 'down'], 500)]);
 
         $this->postJson('/api/v1/items/'.self::ID.'/imported')->assertNotFound()->assertExactJson(['error' => 'No such item.']);
     }
@@ -229,9 +231,9 @@ class ItemsApiTest extends TestCase
         $this->options('/api/v1/items/'.self::ID.'/imported')->assertNoContent()->assertHeader('Access-Control-Allow-Origin', '*');
     }
 
-    public function test_the_import_ping_is_a_404_when_the_rpc_counted_nothing(): void
+    public function test_the_import_ping_is_a_404_for_an_item_that_is_gone(): void
     {
-        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response('false', 200, ['Content-Type' => 'application/json'])]);
+        Http::fake(['https://sb.test/rest/v1/item*' => Http::response([])]);
 
         $response = $this->postJson('/api/v1/items/'.self::ID.'/imported');
 

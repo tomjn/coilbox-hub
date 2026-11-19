@@ -3,6 +3,7 @@
 namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\URL;
 
@@ -28,5 +29,22 @@ abstract class TestCase extends BaseTestCase
         // url() and Site::url() must agree on the made up origin above.
         URL::forceRootUrl('http://localhost');
         Http::preventStrayRequests();
+    }
+
+    /**
+     * Runs `$act` against a database with no tables, so every query fails the
+     * way an unreachable MariaDB does. Removing a table instead would commit
+     * on MariaDB and outlive the test.
+     */
+    protected function withBrokenDatabase(callable $act): mixed
+    {
+        $default = DB::getDefaultConnection();
+        config(['database.connections.empty' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
+        DB::setDefaultConnection('empty');
+        try {
+            return $act();
+        } finally {
+            DB::setDefaultConnection($default);
+        }
     }
 }

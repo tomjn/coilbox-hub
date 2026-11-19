@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Gallery;
 
 use App\Auth\HubSession;
+use App\Domain\Downloads\Downloads;
 use App\Domain\Gallery\Art\ItemArt;
 use App\Domain\Gallery\ItemPage;
 use App\Domain\Gallery\Labels;
@@ -133,6 +134,8 @@ class ItemController extends Controller
      */
     private function page(array $item, array $pictures, array $controls, array $meta = []): Response
     {
+        // Imports counted in Supabase before the move, plus those counted since.
+        $item['import_count'] = (int) $item['import_count'] + Downloads::total('item', $item['id']);
         $kind = $item['kind'];
         $game = $item['game_key'];
         // What the catalog calls each unit and what each one does, for a

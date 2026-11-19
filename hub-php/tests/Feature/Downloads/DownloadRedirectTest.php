@@ -2,16 +2,25 @@
 
 namespace Tests\Feature\Downloads;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /** The counted download links on the map and game pages. */
 class DownloadRedirectTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const COMET = 'Comet Catcher Remake 1.8';
 
-    private int $rpcStatus = 200;
+    private const MAP_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
+
+    private const GAME_ID = 'bbbbbbbb-0000-0000-0000-000000000001';
+
+    /** What Supabase answers when a download looks up its target. */
+    private int $lookupStatus = 200;
 
     protected function setUp(): void
     {
@@ -19,11 +28,14 @@ class DownloadRedirectTest extends TestCase
         config(['hub.supabase.url' => 'https://sb.test', 'hub.supabase.publishable_key' => 'pk', 'hub.supabase.service_role_key' => 'sk', 'cache.default' => 'array']);
         Http::fake(function (Request $request) {
             $name = preg_replace('#^/rest/v1/(rpc/)?#', '', (string) parse_url($request->url(), PHP_URL_PATH));
-            if ($name === 'record_download') {
-                return Http::response($this->rpcStatus === 200 ? 'true' : ['message' => 'down'], $this->rpcStatus, ['Content-Type' => 'application/json']);
+            $query = urldecode((string) parse_url($request->url(), PHP_URL_QUERY));
+            if ($name === 'map' && str_contains($query, 'map_name=eq.')) {
+                return $this->lookupStatus === 200
+                    ? Http::response(str_contains($query, 'map_name=eq.'.self::COMET) ? [['id' => self::MAP_ID]] : [])
+                    : Http::response(['message' => 'down'], $this->lookupStatus);
             }
             $rows = match ($name) {
-                'map' => ! str_contains(urldecode((string) parse_url($request->url(), PHP_URL_QUERY)), 'slug=eq.comet') ? [] : [['id' => 'map-1', 'map_name' => self::COMET, 'archive_filename' => 'comet.sd7']],
+                'map' => ! str_contains($query, 'slug=eq.comet') ? [] : [['id' => self::MAP_ID, 'map_name' => self::COMET, 'archive_filename' => 'comet.sd7']],
                 'map_facts' => [['map_name' => self::COMET, 'facts' => $this->facts()]],
                 'asset_licence' => [['all_maps' => true, 'map_name' => null, 'redistribute_extracted' => 'allowed', 'redistribute_rendered' => 'allowed']],
                 'game' => [$this->game()],
@@ -51,7 +63,7 @@ class DownloadRedirectTest extends TestCase
     private function game(): array
     {
         return [
-            'shortname' => 'BA', 'display_name' => 'Balanced Annihilation', 'description' => null, 'links' => [], 'conquest_factions' => null,
+            'id' => self::GAME_ID, 'shortname' => 'BA', 'display_name' => 'Balanced Annihilation', 'description' => null, 'links' => [], 'conquest_factions' => null,
             'owner_user_id' => null, 'hidden_at' => null, 'base_game' => null,
             'logo_path' => null, 'logo_hash' => null, 'logo_staged_tier' => null,
             'banner_path' => null, 'banner_hash' => null, 'banner_staged_tier' => null,
@@ -64,34 +76,29 @@ class DownloadRedirectTest extends TestCase
         ];
     }
 
-    private function rpcBodies(): array
+    /** @return list<array{0: string, 1: string, 2: int}> kind, target id and count per counted row */
+    private function counted(): array
     {
-        return Http::recorded(fn (Request $r) => str_ends_with($r->url(), '/rpc/record_download'))->map(fn ($pair) => $pair[0]->data())->values()->all();
-    }
-
-    private function rpcCalls(): int
-    {
-        return Http::recorded(fn (Request $r) => str_ends_with($r->url(), '/rpc/record_download'))->count();
+        return DB::table('download_day')->get()->map(fn ($row) => [$row->kind, $row->target_id, (int) $row->count])->all();
     }
 
     public function test_a_map_download_redirects_to_its_href_and_counts_once(): void
     {
         $this->get('/map/comet/download/0')->assertRedirect('https://owner.test/comet.sd7')->assertStatus(302);
-        $this->assertSame(1, $this->rpcCalls());
-        $this->assertSame(['map', self::COMET], [$this->rpcBodies()[0]['p_kind'], $this->rpcBodies()[0]['p_target']]);
+        $this->assertSame([['map', self::MAP_ID, 1]], $this->counted());
         $this->get('/map/comet/download/1')->assertRedirect('https://github.com/owner/comet/releases');
     }
 
     public function test_a_map_download_past_the_end_or_for_an_unknown_map_is_not_found(): void
     {
         $this->get('/map/comet/download/2')->assertNotFound();
-        $this->assertSame(0, $this->rpcCalls());
+        $this->assertSame([], $this->counted());
         $this->get('/map/nothing/download/0')->assertNotFound();
     }
 
     public function test_the_redirect_happens_when_counting_fails(): void
     {
-        $this->rpcStatus = 500;
+        $this->lookupStatus = 500;
         $this->get('/map/comet/download/0')->assertRedirect('https://owner.test/comet.sd7');
     }
 
@@ -105,8 +112,7 @@ class DownloadRedirectTest extends TestCase
     public function test_a_game_download_redirects_by_index_and_rapid_is_not_found(): void
     {
         $this->get('/games/BA/download/1')->assertRedirect('https://ba.test/ba.sdz');
-        $this->assertSame(1, $this->rpcCalls());
-        $this->assertSame(['game', 'BA'], [$this->rpcBodies()[0]['p_kind'], $this->rpcBodies()[0]['p_target']]);
+        $this->assertSame([['game', self::GAME_ID, 1]], $this->counted());
         $this->get('/games/BA/download/0')->assertNotFound();
         $this->get('/games/BA/download/2')->assertNotFound();
         $this->get('/games/nothing/download/0')->assertNotFound();

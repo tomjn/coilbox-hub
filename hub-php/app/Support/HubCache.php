@@ -25,7 +25,7 @@ final class HubCache
     /** The Next app's `cacheLife("weeks")`. */
     public const WEEKS = 604800;
 
-    /** How long a map or game download count is held. Pings never invalidate pages, so this is how stale a count can be. */
+    /** How long a popular map listing is held. Downloads never invalidate it, so this is how stale its order can be. */
     public const DOWNLOAD_COUNTS = 600;
 
     public const ITEMS = 'items';
@@ -35,9 +35,6 @@ final class HubCache
     public const GAMES = 'games';
 
     public const ASSETS = 'assets';
-
-    /** Only for download counts, so no catalog write flushes them. */
-    public const DOWNLOADS = 'downloads';
 
     public static function item(string $id): string
     {
