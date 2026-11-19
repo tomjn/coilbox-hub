@@ -407,8 +407,10 @@ final class Units
     }
 
     /**
-     * Every side a game has, as `['key', 'name']`, in the order the read returns
-     * them. The Random side is left out. A failed read gives an empty list.
+     * Every side a game has, as `['key', 'name']`, in the order the game first
+     * reported them. Postgres gave them in whatever order its storage held,
+     * which MariaDB cannot copy, so the order is now stated. The Random side
+     * is left out. A failed read gives an empty list.
      *
      * @return list<array{key: string, name: string}>
      */
@@ -418,6 +420,7 @@ final class Units
             $rows = $supabase->from('game_faction')
                 ->select('key,name,game!inner(shortname)')
                 ->eq('game.shortname', $shortname)
+                ->order('id')
                 ->get();
         } catch (SupabaseException) {
             return [];

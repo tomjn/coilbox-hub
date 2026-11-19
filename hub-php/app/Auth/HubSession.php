@@ -85,7 +85,7 @@ final class HubSession
     {
         $token = self::accessToken();
 
-        return $token === null ? null : Supabase::forToken($token);
+        return $token === null ? null : Supabase::forToken($token, self::userId());
     }
 
     /** The authenticator level of this session, `aal1` or `aal2`. */

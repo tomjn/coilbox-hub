@@ -71,6 +71,7 @@ final class Page
             $held['game_faction'] ?? [],
             fn (array $faction) => ! Factions::isRandomFaction($faction),
         ));
+        $factions = self::withLiveLogos($supabase, $held['shortname'], $factions);
 
         return [
             'id' => $held['id'] ?? null,
@@ -100,5 +101,43 @@ final class Page
             'base' => $base,
             'mutators' => $mutators,
         ];
+    }
+
+    /**
+     * Each side's logo, read from the approved logo pictures. In Supabase a
+     * trigger on `asset` copies the newest approved logo onto `game_faction`.
+     * Pictures stay in Supabase until #598 while sides moved to MariaDB, so
+     * no trigger reaches them, and the page asks the pictures directly. The
+     * stored column stays as it was copied.
+     *
+     * @param  list<array<string, mixed>>  $factions
+     * @return list<array<string, mixed>>
+     */
+    private static function withLiveLogos(Client $supabase, string $shortname, array $factions): array
+    {
+        if ($factions === []) {
+            return $factions;
+        }
+        try {
+            $logos = $supabase->from('asset')
+                ->select('faction_key,path')
+                ->eq('game', $shortname)
+                ->eq('variant', 'logo')
+                ->eq('moderation', 'approved')
+                ->eq('tier', 'static')
+                ->not('faction_key', 'is', null)
+                ->order('updated_at', ascending: false)
+                ->order('id')
+                ->get();
+        } catch (SupabaseException) {
+            // The copied logos are the best left to show.
+            return $factions;
+        }
+        $newest = [];
+        foreach ($logos as $logo) {
+            $newest[$logo['faction_key']] ??= $logo['path'];
+        }
+
+        return array_map(fn (array $faction) => ['logo_path' => $newest[$faction['key']] ?? null] + $faction, $factions);
     }
 }

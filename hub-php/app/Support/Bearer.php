@@ -48,6 +48,6 @@ final class Bearer
             return Api::error('That access token is not valid. Sign in again and use a fresh one.', 401);
         }
 
-        return new self($user, (string) $user['id'], Supabase::forToken($token));
+        return new self($user, (string) $user['id'], Supabase::forToken($token, (string) $user['id']));
     }
 }

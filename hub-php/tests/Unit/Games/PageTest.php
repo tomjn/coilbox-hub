@@ -65,6 +65,10 @@ class PageTest extends TestCase
 
         Http::fake(function (Request $request) use ($row, $counts, $base, $mutators) {
             $url = urldecode($request->url());
+            if (str_contains($url, '/rest/v1/asset')) {
+                // The approved side logos the page draws.
+                return Http::response([['faction_key' => 'cortex', 'path' => 'factions/cortex.webp']]);
+            }
             if (str_contains($url, '/rest/v1/game_browse')) {
                 if (str_contains($url, 'base_game=eq.')) {
                     return Http::response($mutators);

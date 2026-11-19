@@ -2,8 +2,14 @@
 
 namespace App\Supabase;
 
+use App\Supabase\Local\GameFunctions;
+use App\Supabase\Local\GameStore;
+use App\Supabase\Local\Rest;
+use App\Supabase\Local\Tables;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -16,6 +22,12 @@ use Illuminate\Support\Facades\Http;
  *   access token. Row level security sees that user.
  * - {@see Supabase::admin()}: the service role key. Bypasses row level
  *   security. Server only, and only where the Next app used `createAdminClient`.
+ *
+ * Once the game catalogue has moved (#597), requests for its tables and
+ * functions are answered from MariaDB by {@see Rest} and {@see GameFunctions},
+ * which apply the same row level security for the same caller. `remote()`
+ * gives a client that always asks Supabase, for the copy and for keeping
+ * Supabase's `game` rows in step.
  */
 class Client
 {
@@ -24,7 +36,31 @@ class Client
         private readonly string $apiKey,
         private readonly ?string $accessToken,
         private readonly int $timeout,
+        private readonly ?string $userId = null,
+        private readonly bool $remoteOnly = false,
     ) {}
+
+    /** This client, asking Supabase even for tables that have moved. */
+    public function remote(): self
+    {
+        return new self($this->url, $this->apiKey, $this->accessToken, $this->timeout, $this->userId, true);
+    }
+
+    /** `service_role`, `authenticated` or `anon`, as row level security sees the caller. */
+    public function role(): string
+    {
+        if ($this->apiKey !== '' && $this->apiKey === (string) config('hub.supabase.service_role_key')) {
+            return 'service_role';
+        }
+
+        return $this->accessToken !== null ? 'authenticated' : 'anon';
+    }
+
+    /** The signed in user's id when the creator knew it. */
+    public function knownUserId(): ?string
+    {
+        return $this->userId;
+    }
 
     public function from(string $table): Query
     {
@@ -39,9 +75,53 @@ class Client
      */
     public function rpc(string $function, array $args = []): mixed
     {
+        if (! $this->remoteOnly && GameFunctions::handles($function)) {
+            $target = GameFunctions::writes($function) ? GameStore::writeTarget() : GameStore::state();
+            if ($target === GameStore::MARIADB) {
+                return GameFunctions::call($this, $function, $args);
+            }
+        }
         $response = $this->send('POST', '/rest/v1/rpc/'.rawurlencode($function), [], $args === [] ? (object) [] : $args);
 
         return $response['json'];
+    }
+
+    /**
+     * The same function called once for each set of arguments, the requests
+     * sent together. Answers in the order asked. Always asks Supabase.
+     *
+     * @param  list<array<string, mixed>>  $argsList
+     * @return list<mixed>
+     */
+    public function rpcEach(string $function, array $argsList): array
+    {
+        if ($argsList === []) {
+            return [];
+        }
+        $url = $this->url.'/rest/v1/rpc/'.rawurlencode($function);
+        try {
+            $responses = Http::pool(function (Pool $pool) use ($argsList, $url) {
+                foreach (array_values($argsList) as $i => $args) {
+                    $this->configure($pool->as((string) $i))->post($url, $args === [] ? (object) [] : $args);
+                }
+            });
+        } catch (ConnectionException $e) {
+            throw new SupabaseException('Could not reach Supabase: '.$e->getMessage(), 0, 'CONNECTION');
+        }
+        $answers = [];
+        foreach (array_keys(array_values($argsList)) as $i) {
+            $response = $responses[(string) $i] ?? null;
+            if (! $response instanceof Response) {
+                throw new SupabaseException('Could not reach Supabase', 0, 'CONNECTION');
+            }
+            $json = $response->body() === '' ? null : $response->json();
+            if (! $response->successful()) {
+                throw SupabaseException::fromResponse($response->status(), is_array($json) ? $json : null, 'Supabase request failed');
+            }
+            $answers[] = $json;
+        }
+
+        return $answers;
     }
 
     /** The signed in user's access token, when this client has one. */
@@ -106,6 +186,12 @@ class Client
      */
     public function rest(string $method, string $table, string $query, mixed $body, array $headers): array
     {
+        if (! $this->remoteOnly && Tables::handles($table)) {
+            $reads = $method === 'GET' || $method === 'HEAD';
+            if (($reads ? GameStore::state() : GameStore::writeTarget()) === GameStore::MARIADB) {
+                return Rest::handle($this, $method, $table, $query, $body, $headers);
+            }
+        }
         $path = '/rest/v1/'.rawurlencode($table).($query !== '' ? '?'.$query : '');
         $response = $this->send($method, $path, $headers, $body);
         $json = $response['json'];
@@ -121,8 +207,23 @@ class Client
     }
 
     /**
+     * Rows read straight from Supabase with JSON objects kept as objects, so
+     * an empty `{}` stays an object rather than becoming an empty list. For
+     * copying rows out.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function rowsKeepingObjects(string $table, string $query): array
+    {
+        $response = $this->send('GET', '/rest/v1/'.rawurlencode($table).'?'.$query, [], null);
+        $rows = json_decode($response['body'], false, 512, JSON_THROW_ON_ERROR);
+
+        return array_map(fn ($row) => get_object_vars($row), is_array($rows) ? $rows : []);
+    }
+
+    /**
      * @param  array<string, string>  $headers
-     * @return array{json: mixed, headers: array<string, string>}
+     * @return array{json: mixed, headers: array<string, string>, body: string}
      */
     private function send(string $method, string $path, array $headers, mixed $body): array
     {
@@ -145,10 +246,15 @@ class Client
             $flat[strtolower($name)] = is_array($values) ? implode(', ', $values) : (string) $values;
         }
 
-        return ['json' => $json, 'headers' => $flat];
+        return ['json' => $json, 'headers' => $flat, 'body' => $response->body()];
     }
 
     private function request(): PendingRequest
+    {
+        return $this->configure(Http::createPendingRequest());
+    }
+
+    private function configure(PendingRequest $request): PendingRequest
     {
         $headers = ['apikey' => $this->apiKey];
         // A user's token wins. Otherwise a key that is itself a JWT (the older
@@ -159,7 +265,7 @@ class Client
             $headers['Authorization'] = 'Bearer '.$bearer;
         }
 
-        return Http::withHeaders($headers)->acceptJson()->timeout($this->timeout)->connectTimeout(5);
+        return $request->withHeaders($headers)->acceptJson()->timeout($this->timeout)->connectTimeout(5);
     }
 
     private static function encodePath(string $path): string

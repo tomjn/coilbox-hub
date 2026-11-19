@@ -27,6 +27,11 @@ return [
         'reservation' => (int) env('HUB_MIRROR_RESERVATION', 86400),
     ],
 
+    // Which database holds the game catalogue. Leave unset in production, where
+    // `data_move` holds it and `php artisan games:copy` switches it. Set to
+    // `supabase` or `mariadb` to fix it, as the tests do.
+    'games_store' => env('HUB_GAMES_STORE'),
+
     // The Coilbox desktop app's website.
     'coilbox_url' => 'https://coilbox.org/',
 ];

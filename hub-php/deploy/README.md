@@ -105,6 +105,20 @@ ln -sfn /srv/www/hub.coilbox.org/releases/<older commit> /srv/www/hub.coilbox.or
 sudo systemctl reload php8.4-fpm
 ```
 
+Rolling back past the release that moved the game catalogue (#597) makes the hub read games from Supabase again. Run `php artisan games:store supabase` first, so the newer releases agree.
+
+## Game catalogue in MariaDB
+
+Games, releases, sides and units live in MariaDB once `php artisan games:copy` has run. Until then the hub reads them from Supabase. Run these in `/srv/www/hub.coilbox.org/current`:
+
+1. `php artisan games:copy --dry-run` prints the rows in each table in Supabase and in MariaDB. It writes nothing.
+2. `php artisan games:copy` refuses game writes, waits out the Supabase timeout, copies every row, checks each table's count against Supabase and then switches the hub to MariaDB. If any count differs it switches back to Supabase and exits with an error.
+3. `php artisan games:store` prints which database the hub reads games from.
+
+To go back, run `php artisan games:store supabase`. Supabase's `game` rows stay current, because the hub writes each change to a game there too. Units, releases, sides and offers written in MariaDB since the switch are not in Supabase.
+
+No config cache or PHP-FPM reload is needed. The switch is a row in the `data_move` table.
+
 ## Mirror signing key
 
 The hub signs upload tokens and the mirror catalogue with one Ed25519 key. The secret half is `HUB_MIRROR_SECRET_KEY` in `shared/.env`. It never goes in the repository, a log or a chat.
