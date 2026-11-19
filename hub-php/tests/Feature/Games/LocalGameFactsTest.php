@@ -57,9 +57,7 @@ class LocalGameFactsTest extends TestCase
             ['kind' => 'unit', 'name' => 'minion', 'outcome' => 'accepted'],
         ]);
         $game = DB::table('game')->where('shortname', 'NEW')->first();
-        // The SQL function reads `name`, and the route sends `display_name`, so
-        // a report never fills the display name. Kept as Supabase does it.
-        $this->assertNull($game->display_name);
+        $this->assertSame('New Game', $game->display_name);
         $this->assertSame(self::OWNER, $game->submitted_by);
         $this->assertSame('["boss"]', $game->start_units);
         $unit = DB::table('game_unit')->where('game_id', $game->id)->where('unit_name', 'boss')->first();
@@ -67,6 +65,14 @@ class LocalGameFactsTest extends TestCase
         $this->assertSame('{"health":10}', $unit->stats);
         $this->assertSame(1, DB::table('game_unit_revision')->where('unit_id', $unit->id)->where('version', '0.1')->count());
         $this->assertSame(1, DB::table('game_version')->where('game_id', $game->id)->count());
+    }
+
+    public function test_a_report_never_replaces_a_display_name_the_game_has(): void
+    {
+        $this->submit(['shortname' => 'NAMED', 'release' => '0.1', 'name' => 'First Name', 'units' => []])->assertOk();
+        $this->submit(['shortname' => 'NAMED', 'release' => '0.2', 'name' => 'Second Name', 'units' => []])->assertOk();
+
+        $this->assertSame('First Name', DB::table('game')->where('shortname', 'NAMED')->value('display_name'));
     }
 
     public function test_a_unit_the_table_refuses_costs_only_itself(): void

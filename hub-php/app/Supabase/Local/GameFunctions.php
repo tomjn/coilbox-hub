@@ -86,7 +86,7 @@ final class GameFunctions
             $held = (array) $game;
             $links = is_array($submission->links ?? null) ? $submission->links : null;
             $values = [
-                'display_name' => $held['display_name'] ?? self::text($submission, 'name'),
+                'display_name' => $held['display_name'] ?? self::text($submission, 'display_name'),
                 'description' => $held['description'] ?? self::text($submission, 'description'),
             ];
             if (json_decode((string) $held['links'], true) === [] && $links !== null && $links !== []) {
