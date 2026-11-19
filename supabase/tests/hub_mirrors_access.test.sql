@@ -1,8 +1,9 @@
 -- What the mirror tables refuse and who can reach them, run as the roles
 -- PostgREST uses.
 --
--- The tables are closed to every browser role. The hub reads mirror and
--- catalogue_state as service_role and writes only through functions.
+-- The tables are closed to every browser role. The hub reads every mirror
+-- table as service_role, archives only to copy them into MariaDB (#600), and
+-- writes only through functions.
 
 begin;
 select plan(34);
@@ -17,11 +18,11 @@ select table_privs_are('public', 'mirror', 'service_role', ARRAY['SELECT'], 'ser
 
 select table_privs_are('public', 'archive', 'anon', ARRAY[]::name[], 'anon holds nothing on archive');
 select table_privs_are('public', 'archive', 'authenticated', ARRAY[]::name[], 'authenticated holds nothing on archive');
-select table_privs_are('public', 'archive', 'service_role', ARRAY[]::name[], 'service_role holds nothing on archive');
+select table_privs_are('public', 'archive', 'service_role', ARRAY['SELECT'], 'service_role can only select on archive');
 
 select table_privs_are('public', 'archive_mirror', 'anon', ARRAY[]::name[], 'anon holds nothing on archive_mirror');
 select table_privs_are('public', 'archive_mirror', 'authenticated', ARRAY[]::name[], 'authenticated holds nothing on archive_mirror');
-select table_privs_are('public', 'archive_mirror', 'service_role', ARRAY[]::name[], 'service_role holds nothing on archive_mirror');
+select table_privs_are('public', 'archive_mirror', 'service_role', ARRAY['SELECT'], 'service_role can only select on archive_mirror');
 
 select table_privs_are('public', 'catalogue_state', 'anon', ARRAY[]::name[], 'anon holds nothing on catalogue_state');
 select table_privs_are('public', 'catalogue_state', 'authenticated', ARRAY[]::name[], 'authenticated holds nothing on catalogue_state');
