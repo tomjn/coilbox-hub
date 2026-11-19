@@ -154,13 +154,43 @@ final class GoTrue
         self::json($response, 'Could not delete the account');
     }
 
-    /** Ends this session at Supabase. Failure is ignored: the local session is cleared either way. */
-    public static function signOut(string $accessToken): void
+    /**
+     * Ends a browser's session at Supabase. Supabase refuses an expired access
+     * token, so one near its end is refreshed first. Failure is ignored: the
+     * local session is cleared either way.
+     */
+    public static function signOut(string $accessToken, string $refreshToken, int $expiresAt): void
     {
         try {
-            self::request($accessToken)->post(Supabase::url().'/auth/v1/logout?scope=local');
-        } catch (ConnectionException) {
+            if ($expiresAt <= time() + 30) {
+                $accessToken = (string) self::refresh($refreshToken)['access_token'];
+            }
+            self::revoke($accessToken);
+        } catch (SupabaseException) {
         }
+    }
+
+    /**
+     * Ends the session an access token belongs to, so its refresh tokens stop
+     * working. True when the session ended or was already gone, false when
+     * Supabase refused the token, which is how it answers an expired one.
+     *
+     * @throws SupabaseException when Supabase Auth could not be reached or failed
+     */
+    public static function revoke(string $accessToken): bool
+    {
+        $response = self::reach(fn () => self::request($accessToken)->post(Supabase::url().'/auth/v1/logout?scope=local'));
+        if ($response->successful()) {
+            return true;
+        }
+        $body = $response->json();
+        if ($response->status() === 403 && is_array($body) && ($body['error_code'] ?? null) === 'session_not_found') {
+            return true;
+        }
+        if ($response->status() === 401 || $response->status() === 403) {
+            return false;
+        }
+        throw SupabaseException::fromResponse($response->status(), is_array($body) ? $body : null, 'Could not sign out');
     }
 
     /**

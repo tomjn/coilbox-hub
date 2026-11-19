@@ -185,6 +185,7 @@
             <x-developers.field name="map_catalog" type="string">A digest of the map fact catalog the app must describe maps by.</x-developers.field>
             <x-developers.field name="providers" type="string[], optional">The sign in providers this hub offers, in the order to show them. Each is a Supabase provider id.</x-developers.field>
             <x-developers.field name="email_password" type="boolean, optional">Whether email and password sign in is available.</x-developers.field>
+            <x-developers.field name="endpoints" type="object, optional">The hub's own sign in endpoints, as paths on the hub. <x-developers.inline>logout</x-developers.inline> is the sign out endpoint below.</x-developers.field>
         </x-developers.fields>
         <x-developers.sub>Example response</x-developers.sub>
         <p class="text-sm text-neutral-400">
@@ -193,6 +194,18 @@
         <x-developers.code label="Example response">{{ $authExample }}</x-developers.code>
         <x-developers.sub>Errors</x-developers.sub>
         <x-developers.errors :rows="$apiErrors['auth']" />
+    </x-developers.section>
+
+    <x-developers.section id="logout" title="Sign out" path="POST /api/v1/auth/logout">
+        <p class="text-neutral-300">
+            Ends the session an access token belongs to, so its refresh token stops working too.
+            Send the access token as <x-developers.inline>Authorization: Bearer &lt;token&gt;</x-developers.inline> and no body.
+            The answer is <x-developers.inline>204</x-developers.inline> with no body when the session ended, or had already ended.
+            Refresh an expired access token before signing out with it.
+        </p>
+        <x-developers.code label="Example request">curl -X POST -H "Authorization: Bearer $TOKEN" {{ $origin }}/api/v1/auth/logout</x-developers.code>
+        <x-developers.sub>Errors</x-developers.sub>
+        <x-developers.errors :rows="$apiErrors['logout']" />
     </x-developers.section>
 
     <x-developers.section id="profile" title="Get the signed in account's name" path="GET /api/v1/profile">
