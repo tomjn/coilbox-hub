@@ -50,4 +50,11 @@ class RobotsTest extends TestCase
         }
         $this->assertStringEndsWith("\nDisallow: /", $group);
     }
+
+    public function test_amazons_search_crawler_is_turned_away_from_the_whole_site(): void
+    {
+        $group = explode("\n\n", Robots::text(self::ORIGIN))[1];
+        $this->assertStringContainsString("User-Agent: Amzn-SearchBot\n", $group);
+        $this->assertStringEndsWith("\nDisallow: /", $group);
+    }
 }
