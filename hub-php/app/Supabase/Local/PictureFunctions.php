@@ -14,9 +14,8 @@ use Illuminate\Support\Facades\DB;
  * moderator check and its answers. Updates to `asset` go through
  * {@see Writes}, so the triggers run as they did in Postgres.
  *
- * `has_capability` and `is_moderator` stay in Supabase. They read
- * `user_capability` and the sign in factors, which every area uses and which
- * have not moved.
+ * `has_capability` and `is_moderator` are asked of whichever database holds
+ * `user_capability`, which moves with the items (#601).
  */
 final class PictureFunctions
 {

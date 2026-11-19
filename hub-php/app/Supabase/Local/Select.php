@@ -41,6 +41,10 @@ final class Select
             $open = strpos($part, '(');
         }
         if ($open === false) {
+            if (preg_match('/^(\w+)::text$/', $part, $cast)) {
+                // A whole column as text, `container::text`.
+                return new SelectItem('column', $cast[1], $alias, text: true);
+            }
             if (str_contains($part, '::')) {
                 throw new LocalException('Casts are not supported by the local store: '.$part, 400, 'PGRST100');
             }

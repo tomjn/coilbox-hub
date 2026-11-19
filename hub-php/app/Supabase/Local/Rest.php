@@ -74,7 +74,14 @@ final class Rest
         if (in_array($table, Tables::MAP_VIEWS, true)) {
             return MapViews::read($this->caller, $table, $request, $head);
         }
+        if ($table === 'item_facet') {
+            return ItemRules::facets($this->caller, $this, $request, $head);
+        }
         $select = Select::parse($request->select);
+        Policies::readColumns($this->caller, $table, [
+            ...array_map(fn (SelectItem $item) => $item->kind === 'star' ? '*' : $item->name, array_filter($select->items, fn (SelectItem $item) => $item->kind !== 'embed')),
+            ...array_map(fn (array $filter) => (string) ($filter['column'] ?? '*'), $request->filters([])),
+        ]);
         $alias = $this->alias();
         $query = DB::table($table.' as '.$alias);
         $this->narrow($query, $table, $alias, $select, $request, []);
@@ -126,8 +133,25 @@ final class Rest
                         $shaped[$column] = Values::read($type, $row[$column] ?? null);
                     }
                 } elseif ($item->kind === 'column') {
+                    if (isset(Tables::COMPUTED[$table][$item->name]) && $item->path === []) {
+                        $shaped[$item->alias ?? $item->name] = ItemRules::computed($table, $item->name, $row);
+
+                        continue;
+                    }
                     if (! isset($columns[$item->name])) {
                         throw new LocalException('column '.$table.'.'.$item->name.' does not exist', 400, '42703');
+                    }
+                    if ($item->text && $item->path === []) {
+                        // `column::text`. jsonb keeps `{}` as an object, so it is read again as one.
+                        $stored = $row[$item->name] ?? null;
+                        $shaped[$item->alias ?? $item->name] = match (true) {
+                            $stored === null => null,
+                            $columns[$item->name] === 'json' => ItemRules::jsonbText(json_decode((string) $stored, false, 512, JSON_THROW_ON_ERROR)),
+                            in_array($columns[$item->name], ['text', 'uuid'], true) => (string) $stored,
+                            default => throw new LocalException('The local store only casts json and text columns to text', 400, 'PGRST100'),
+                        };
+
+                        continue;
                     }
                     $value = Values::read($columns[$item->name], $row[$item->name] ?? null);
                     $shaped[$item->alias ?? $item->name] = $item->path === [] ? $value : $item->at($value);
@@ -258,13 +282,15 @@ final class Rest
      */
     private static function relation(string $table, string $embed): array
     {
-        $up = Tables::FOREIGN_KEYS[$table] ?? null;
-        if ($up !== null && $up[1] === $embed) {
-            return [$embed, $up[2], $up[0], false];
+        foreach (Tables::foreignKeys($table) as $up) {
+            if ($up[1] === $embed) {
+                return [$embed, $up[2], $up[0], false];
+            }
         }
-        $down = Tables::FOREIGN_KEYS[$embed] ?? null;
-        if ($down !== null && $down[1] === $table) {
-            return [$embed, $down[0], $down[2], true];
+        foreach (Tables::foreignKeys($embed) as $down) {
+            if ($down[1] === $table) {
+                return [$embed, $down[0], $down[2], true];
+            }
         }
 
         throw new LocalException(
@@ -310,6 +336,10 @@ final class Rest
                     continue;
                 }
                 $record = Writes::complete($this->caller, $table, $row, $now);
+                if ($table === 'report' && ItemRules::openReportHeld($record)) {
+                    // `report_dedupe_open` drops the row without an error.
+                    continue;
+                }
                 $ids[] = Writes::insert($this->caller, $table, $record);
             }
 

@@ -3,7 +3,7 @@
 namespace App\Supabase\Local;
 
 /**
- * The game catalogue, picture, map and mirror tables as Postgres declares them: columns in table order
+ * The game catalogue, picture, map, mirror and item tables as Postgres declares them: columns in table order
  * with their types, defaults, foreign keys and check constraints. The local
  * store reads this to answer in PostgREST's shapes and to refuse what Postgres
  * would refuse.
@@ -31,6 +31,9 @@ final class Tables
     /** The hub mirror tables (#600). They move on their own switch. */
     public const MIRRORS = ['mirror', 'archive', 'archive_mirror', 'archive_mismatch', 'catalogue_state'];
 
+    /** Published items, reports, profiles and capabilities (#601), with the `item_facet` view. They move on their own switch. */
+    public const ITEMS = ['item', 'report', 'profile', 'user_capability', 'item_facet'];
+
     /** Views worked out by {@see MapViews}. Read only. */
     public const MAP_VIEWS = ['map_browse', 'map_listing', 'map_pack_entry', 'author_spelling', 'author_display_name', 'author_map_count'];
 
@@ -38,6 +41,7 @@ final class Tables
     public const PRIMARY_KEYS = [
         'archive_mirror' => ['archive_id', 'mirror_id'],
         'author_name' => ['key'], 'author_alias' => ['from_key'], 'author_owner' => ['key'], 'map_pack_map' => ['pack_id', 'map_name'],
+        'profile' => ['user_id'], 'user_capability' => ['user_id', 'capability'],
     ];
 
     /** @var array<string, array<string, string>> */
@@ -196,7 +200,31 @@ final class Tables
             'id' => 'bool', 'next_seq' => 'int', 'changes' => 'int', 'built_changes' => 'int', 'seq' => 'int', 'generated_at' => 'int',
             'body' => 'text', 'sig' => 'text', 'next_key_public' => 'text', 'next_key_since_seq' => 'int',
         ],
+        // `search`, the tsvector, is not a column here. Filters on it are
+        // answered by ItemRules.
+        'item' => [
+            'id' => 'uuid', 'kind' => 'text', 'kind_version' => 'int', 'title' => 'text', 'description' => 'text',
+            'game_name' => 'text', 'map_name' => 'text', 'tags' => 'json', 'container' => 'json', 'author_id' => 'uuid',
+            'author_name' => 'text', 'created_at' => 'ts', 'updated_at' => 'ts', 'deleted_at' => 'ts', 'mode' => 'text',
+            'game_key' => 'text', 'import_count' => 'int', 'featured_at' => 'ts', 'featured_by' => 'uuid',
+        ],
+        'report' => [
+            'id' => 'uuid', 'item_id' => 'uuid', 'reporter_id' => 'uuid', 'reason' => 'text', 'created_at' => 'ts',
+            'handled_at' => 'ts', 'handled_by' => 'uuid', 'map_id' => 'uuid', 'kind' => 'text',
+        ],
+        'profile' => ['user_id' => 'uuid', 'display_name' => 'text', 'created_at' => 'ts', 'updated_at' => 'ts'],
+        'user_capability' => ['user_id' => 'uuid', 'capability' => 'text', 'granted_at' => 'ts', 'granted_by' => 'uuid'],
+        // A view, worked out by ItemRules. Read only.
+        'item_facet' => ['facet' => 'text', 'value' => 'text'],
     ];
+
+    /**
+     * Columns worked out from the row when read, as Postgres functions that
+     * take a row are. Read only.
+     *
+     * @var array<string, array<string, string>>
+     */
+    public const COMPUTED = ['item' => ['clone_count' => 'int']];
 
     /**
      * Foreign keys, child table => [column, parent table, parent column]. An
@@ -223,6 +251,8 @@ final class Tables
         'map_download_source' => ['map_id', 'map', 'id'],
         'map_ownership_request' => ['map_id', 'map', 'id'],
         'map_source_conflict' => ['map_id', 'map', 'id'],
+        // A report names an item or a map.
+        'report' => [['item_id', 'item', 'id'], ['map_id', 'map', 'id']],
     ];
 
     /**
@@ -262,13 +292,18 @@ final class Tables
         'map_mirror_host' => ['enabled' => true, 'sort_order' => 0],
         'map_ownership_request' => ['state' => 'open', 'created_at' => 'now'],
         'map_source_conflict' => ['at' => 'now'],
+        // `author_name` defaults to `public.current_author_name()`, filled by Writes.
+        'item' => ['description' => '', 'tags' => '[]', 'created_at' => 'now', 'updated_at' => 'now', 'import_count' => 0],
+        'report' => ['created_at' => 'now'],
+        'profile' => ['created_at' => 'now', 'updated_at' => 'now'],
+        'user_capability' => ['granted_at' => 'now'],
     ];
 
     /** Tables whose `id` is a uuid Postgres makes with `gen_random_uuid()`. */
-    public const UUID_IDS = ['game', 'asset', 'asset_licence', 'map', 'map_pack'];
+    public const UUID_IDS = ['game', 'asset', 'asset_licence', 'map', 'map_pack', 'item', 'report'];
 
     /** Tables whose `updated_at` a trigger moves on every update. */
-    public const TOUCHED = ['game', 'game_unit', 'asset', 'asset_licence', 'map'];
+    public const TOUCHED = ['game', 'game_unit', 'asset', 'asset_licence', 'map', 'item', 'profile'];
 
     /** @var array<string, list<string>> */
     public const NOT_NULL = [
@@ -305,6 +340,13 @@ final class Tables
         'map_mirror_host' => ['name', 'url_template', 'enabled', 'sort_order'],
         'map_ownership_request' => ['requested_by', 'requested_by_name', 'state', 'created_at'],
         'map_source_conflict' => ['map_id', 'source_archive', 'held_source_hash', 'reported_source_hash', 'at'],
+        'item' => [
+            'id', 'kind', 'kind_version', 'title', 'description', 'tags', 'container', 'author_id', 'author_name', 'created_at',
+            'updated_at', 'import_count',
+        ],
+        'report' => ['id', 'reason', 'created_at'],
+        'profile' => ['user_id', 'display_name', 'created_at', 'updated_at'],
+        'user_capability' => ['user_id', 'capability', 'granted_at'],
     ];
 
     /**
@@ -355,6 +397,9 @@ final class Tables
         'map_mirror_host' => ['name' => [1, 128], 'url_template' => [1, 512]],
         'map_ownership_request' => ['author_key' => [1, 256], 'requested_by_name' => [1, 256]],
         'map_source_conflict' => ['held_source_hash' => [1, 128], 'reported_source_hash' => [1, 128], 'source_archive' => [1, 256]],
+        'item' => ['title' => [1, 120]],
+        'report' => ['reason' => [1, 1000]],
+        'profile' => ['display_name' => [2, 40]],
     ];
 
     /** Untrimmed length limits, column => max. @var array<string, array<string, int>> */
@@ -367,6 +412,7 @@ final class Tables
         'map_pack' => ['blurb' => 2000],
         'map_mirror_host' => ['note' => 2000],
         'map_ownership_request' => ['note' => 2000],
+        'item' => ['description' => 2000],
     ];
 
     /** Columns limited to a set of values. @var array<string, array<string, list<string>>> */
@@ -388,6 +434,9 @@ final class Tables
         'map_point' => ['kind' => ['start', 'metal', 'geo']],
         'map_download_source' => ['kind' => ['url', 'github']],
         'map_ownership_request' => ['state' => ['open', 'approved', 'declined']],
+        'item' => ['kind' => ['preset', 'challenge', 'setup-pack', 'scenario', 'blueprint', 'mod-project', 'module']],
+        'report' => ['kind' => ['crashes_engine', 'files_missing', 'download_wrong', 'wrong_map', 'other']],
+        'user_capability' => ['capability' => ['can_seed_unit_assets', 'can_publish_unreviewed', 'can_moderate', 'can_replace_any_asset']],
     ];
 
     /** Unique keys, name => columns. @var array<string, array<string, list<string>>> */
@@ -416,6 +465,11 @@ final class Tables
         'map_pack_map' => ['map_pack_map_pkey' => ['pack_id', 'map_name']],
         'map_mirror_host' => ['map_mirror_host_name_idx' => ['name']],
         'map_source_conflict' => ['map_source_conflict_report_idx' => ['map_id', 'reported_source_hash']],
+        'item' => ['item_pkey' => ['id']],
+        'report' => ['report_pkey' => ['id']],
+        // `profile_display_name_unique`, on the lower cased name, is checked in Writes.
+        'profile' => ['profile_pkey' => ['user_id']],
+        'user_capability' => ['user_capability_pkey' => ['user_id', 'capability']],
     ];
 
     /** The tables the local store answers for. */
@@ -442,6 +496,12 @@ final class Tables
         return in_array($table, self::MIRRORS, true);
     }
 
+    /** Whether a table belongs to the published items and accounts, which move on their own switch. */
+    public static function isItem(string $table): bool
+    {
+        return in_array($table, self::ITEMS, true);
+    }
+
     /** The switch that says which database holds a table. @return class-string<DataMove> */
     public static function store(string $table): string
     {
@@ -449,8 +509,22 @@ final class Tables
             self::isPicture($table) => PictureStore::class,
             self::isMap($table) => MapStore::class,
             self::isMirror($table) => MirrorStore::class,
+            self::isItem($table) => ItemStore::class,
             default => GameStore::class,
         };
+    }
+
+    /**
+     * A table's foreign keys to other local tables, each [column, parent
+     * table, parent column].
+     *
+     * @return list<array{0: string, 1: string, 2: string}>
+     */
+    public static function foreignKeys(string $table): array
+    {
+        $keys = self::FOREIGN_KEYS[$table] ?? [];
+
+        return $keys === [] || is_array($keys[0]) ? $keys : [$keys];
     }
 
     /** The columns that pick out one row: `id`, or the table's own primary key. @return list<string> */
@@ -534,6 +608,9 @@ final class Tables
             }
         }
         if ($whole && ($name = self::mapViolation($table, $row)) !== null) {
+            return $check($name);
+        }
+        if ($whole && ($name = ItemRules::violation($table, $row)) !== null) {
             return $check($name);
         }
         if ($table === 'game') {

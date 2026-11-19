@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
  * Inserts and updates on the local tables with what Postgres adds around
  * them: defaults, the `updated_at` triggers, check constraints, unique keys
  * (the two partial ones included), foreign keys, the `with check` policies,
- * the triggers on `asset` ({@see AssetTriggers}), and Supabase's copies of
+ * the triggers on `asset` ({@see AssetTriggers}) and `item` ({@see ItemRules}), and Supabase's copies of
  * `game` and `map` kept in step for the areas that still read them.
  *
  * Callers run these inside a transaction.
@@ -34,9 +34,16 @@ final class Writes
             $row['id'] = Rest::uuid();
         }
         if (in_array($table, ['game_ownership_request', 'map_ownership_request'], true) && ! array_key_exists('requested_by_name', $row)) {
-            // `public.current_author_name()`, the column's default. Profiles are
-            // still in Supabase, so it is asked there as the same caller.
-            $row['requested_by_name'] = $caller->client->remote()->rpc('current_author_name');
+            // `public.current_author_name()`, the column's default, asked as the
+            // same caller of whichever database holds the profiles.
+            $row['requested_by_name'] = $caller->client->rpc('current_author_name');
+        }
+        if ($table === 'item') {
+            if (! array_key_exists('author_name', $row)) {
+                $row['author_name'] = ItemFunctions::currentAuthorName($caller);
+            }
+            // Generated in Postgres from the container.
+            $row['mode'] = ItemRules::mode($row['container'] ?? null);
         }
 
         return $row;
@@ -75,6 +82,9 @@ final class Writes
         }
         if ($table === Tables::GAME) {
             self::refuseReservedGameArt($stored, array_keys($stored));
+        }
+        if ($table === 'item') {
+            ItemRules::refuseTooMany((string) $stored['author_id']);
         }
 
         if (isset(Tables::PRIMARY_KEYS[$table])) {
@@ -175,7 +185,7 @@ final class Writes
                 throw $violation;
             }
             self::refuse($table, $after, self::keyOf($table, $target));
-            Policies::check($caller, $table, $after);
+            Policies::check($caller, $table, $after, 'update');
             if ($table === 'asset') {
                 AssetTriggers::before($target, $after, array_keys($values));
             }
@@ -221,6 +231,10 @@ final class Writes
         if (($violation = Tables::violation($table, $decoded, $whole)) !== null) {
             throw $violation;
         }
+        if ($whole && $table === 'item' && array_key_exists('container', $row)
+            && ($name = ItemRules::containerViolation((string) ($row['kind'] ?? ''), $row['container'])) !== null) {
+            throw new LocalException('new row for relation "item" violates check constraint "'.$name.'"', 400, '23514');
+        }
         $stored = [];
         foreach ($row as $column => $value) {
             $stored[$column] = Values::write($columns[$column], $value);
@@ -252,12 +266,22 @@ final class Writes
                 throw self::duplicate($name, $table);
             }
         }
-        $foreign = Tables::FOREIGN_KEYS[$table] ?? null;
-        if ($foreign !== null && ($stored[$foreign[0]] ?? null) !== null
-            && ! DB::table($foreign[1])->where($foreign[2], $stored[$foreign[0]])->exists()) {
-            throw new LocalException(
-                'insert or update on table "'.$table.'" violates foreign key constraint "'.$table.'_'.$foreign[0].'_fkey"', 409, '23503',
-            );
+        if ($table === 'profile' && isset($stored['display_name'])) {
+            $query = DB::table('profile')->whereRaw('name_key = lower(?)', [(string) $stored['display_name']]);
+            if ($self !== null) {
+                $query->where('user_id', '<>', $self['user_id']);
+            }
+            if ($query->exists()) {
+                throw self::duplicate('profile_display_name_unique', $table);
+            }
+        }
+        foreach (Tables::foreignKeys($table) as $foreign) {
+            if (($stored[$foreign[0]] ?? null) !== null
+                && ! DB::table($foreign[1])->where($foreign[2], $stored[$foreign[0]])->exists()) {
+                throw new LocalException(
+                    'insert or update on table "'.$table.'" violates foreign key constraint "'.$table.'_'.$foreign[0].'_fkey"', 409, '23503',
+                );
+            }
         }
     }
 

@@ -3,6 +3,7 @@
 namespace App\Auth;
 
 use App\Supabase\Client;
+use App\Supabase\Local\Profiles;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Support\Facades\Cache;
@@ -31,6 +32,9 @@ final class HubSession
     {
         session()->regenerate();
         self::store($tokens);
+        // A new account's profile, which Supabase's sign up trigger made
+        // while profiles were there.
+        Profiles::seed(is_array($tokens['user'] ?? null) ? $tokens['user'] : []);
         self::refreshNav();
     }
 

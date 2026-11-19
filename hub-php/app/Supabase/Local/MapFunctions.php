@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
  * the mirror copies there through {@see MapArchives}, and
  * `map_mirror_status`, which is all archive data, stays a Supabase function
  * until then. Its `can_edit_map` check reads Supabase's `map` rows, which
- * {@see MapShadow} keeps in step. `is_moderator` stays in Supabase too.
+ * {@see MapShadow} keeps in step. `is_moderator` moves with the items (#601).
  */
 final class MapFunctions
 {
