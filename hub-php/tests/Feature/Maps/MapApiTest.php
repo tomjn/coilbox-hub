@@ -2,13 +2,17 @@
 
 namespace Tests\Feature\Maps;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /** The route level cases from `lib/api/map*.test.ts`, plus the write path with Supabase faked. */
 class MapApiTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const MAP = [
         'map_name' => 'Comet Catcher Remake 1.8',
         'source_archive' => 'Comet Catcher Remake 1.8',
@@ -188,27 +192,27 @@ class MapApiTest extends TestCase
         $this->call('OPTIONS', '/api/v1/maps/lookup')->assertNoContent()->assertHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     }
 
-    public function test_the_downloaded_ping_is_a_204_when_the_rpc_counted_the_map(): void
+    public function test_the_downloaded_ping_is_a_204_and_counts_the_map(): void
     {
-        $this->answers['/rest/v1/rpc/record_download'] = fn () => Http::response('true', 200, ['Content-Type' => 'application/json']);
+        $this->answers['/rest/v1/map'] = [['id' => 'aaaaaaaa-0000-0000-0000-000000000001']];
 
         $response = $this->postJson_('/api/v1/maps/downloaded', ['name' => 'Comet Catcher Remake 1.8'], null);
 
         $response->assertNoContent()->assertHeader('Access-Control-Allow-Origin', '*');
-        $this->assertContains('/rest/v1/rpc/record_download', $this->paths);
+        $this->assertSame(1, (int) DB::table('download_day')->where('kind', 'map')->where('target_id', 'aaaaaaaa-0000-0000-0000-000000000001')->value('count'));
     }
 
-    public function test_the_downloaded_ping_is_a_404_when_the_rpc_counted_nothing(): void
+    public function test_the_downloaded_ping_is_a_404_for_a_map_that_does_not_exist(): void
     {
-        $this->answers['/rest/v1/rpc/record_download'] = fn () => Http::response('false', 200, ['Content-Type' => 'application/json']);
+        $this->answers['/rest/v1/map'] = [];
 
         $this->postJson_('/api/v1/maps/downloaded', ['name' => 'Nope'], null)
             ->assertNotFound()->assertExactJson(['error' => 'No such map.'])->assertHeader('Access-Control-Allow-Origin', '*');
     }
 
-    public function test_the_downloaded_ping_is_a_404_when_the_rpc_fails(): void
+    public function test_the_downloaded_ping_is_a_404_when_supabase_fails(): void
     {
-        $this->answers['/rest/v1/rpc/record_download'] = fn () => Http::response(['message' => 'down'], 500);
+        $this->answers['/rest/v1/map'] = fn () => Http::response(['message' => 'down'], 500);
 
         $this->postJson_('/api/v1/maps/downloaded', ['name' => 'Nope'], null)->assertNotFound()->assertExactJson(['error' => 'No such map.']);
     }
@@ -220,7 +224,7 @@ class MapApiTest extends TestCase
         foreach ([[], ['name' => ''], ['name' => 5], ['name' => str_repeat('a', 257)], 'null', '[]'] as $body) {
             $this->postJson_('/api/v1/maps/downloaded', $body, null)->assertStatus(400);
         }
-        $this->assertNotContains('/rest/v1/rpc/record_download', $this->paths);
+        $this->assertNotContains('/rest/v1/map', $this->paths);
     }
 
     public function test_the_downloaded_ping_answers_a_preflight(): void

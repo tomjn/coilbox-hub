@@ -3,13 +3,17 @@
 namespace Tests\Feature\Games;
 
 use App\Domain\Games\GameFacts;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /** `GET /api/v1/games` and `POST /api/v1/games/facts`, against a faked Supabase. */
 class GameApiTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const USER = '11111111-1111-1111-1111-111111111111';
 
     protected function setUp(): void
@@ -204,27 +208,26 @@ class GameApiTest extends TestCase
             ->assertStatus(503)->assertJsonPath('error', 'This deployment has not configured Supabase. Set SUPABASE_SERVICE_ROLE_KEY.');
     }
 
-    public function test_the_downloaded_ping_is_a_204_when_the_rpc_counted_the_game(): void
+    public function test_the_downloaded_ping_is_a_204_and_counts_the_game(): void
     {
-        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response('true', 200, ['Content-Type' => 'application/json'])]);
+        Http::fake(['https://sb.test/rest/v1/game*' => Http::response([['id' => 'bbbbbbbb-0000-0000-0000-000000000001']])]);
 
         $this->postJson('/api/v1/games/BA/downloaded')->assertNoContent()->assertHeader('Access-Control-Allow-Origin', '*');
-        $recorded = Http::recorded();
-        $this->assertSame('game', $recorded[0][0]->data()['p_kind']);
-        $this->assertSame('BA', $recorded[0][0]->data()['p_target']);
+        Http::assertSent(fn (Request $sent) => str_contains(urldecode($sent->url()), 'shortname=eq.BA'));
+        $this->assertSame(1, (int) DB::table('download_day')->where('kind', 'game')->where('target_id', 'bbbbbbbb-0000-0000-0000-000000000001')->value('count'));
     }
 
-    public function test_the_downloaded_ping_is_a_404_when_the_rpc_counted_nothing(): void
+    public function test_the_downloaded_ping_is_a_404_for_a_game_that_does_not_exist(): void
     {
-        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response('false', 200, ['Content-Type' => 'application/json'])]);
+        Http::fake(['https://sb.test/rest/v1/game*' => Http::response([])]);
 
         $this->postJson('/api/v1/games/nope/downloaded')
             ->assertNotFound()->assertExactJson(['error' => 'No such game.'])->assertHeader('Access-Control-Allow-Origin', '*');
     }
 
-    public function test_the_downloaded_ping_is_a_404_when_the_rpc_fails(): void
+    public function test_the_downloaded_ping_is_a_404_when_supabase_fails(): void
     {
-        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response(['message' => 'down'], 500)]);
+        Http::fake(['https://sb.test/rest/v1/game*' => Http::response(['message' => 'down'], 500)]);
 
         $this->postJson('/api/v1/games/BA/downloaded')->assertNotFound()->assertExactJson(['error' => 'No such game.']);
     }

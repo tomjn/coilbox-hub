@@ -2,17 +2,21 @@
 
 namespace Tests\Feature\Maps;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use App\Domain\Maps\Listing;
 use App\Support\HubCache;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /** `/maps` and `/map/{slug}` with Supabase faked. Ports the page cases of `lib/maps/page.test.ts`. */
 class MapPagesTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const COMET = 'Comet Catcher Remake 1.8';
 
     /** @var array<string, mixed> */
@@ -53,7 +57,7 @@ class MapPagesTest extends TestCase
 
     private function holdComet(): void
     {
-        $this->answers['map'] = [['id' => 'map-1', 'map_name' => self::COMET, 'archive_filename' => 'comet.sd7']];
+        $this->answers['map'] = [['id' => 'aaaaaaaa-0000-0000-0000-000000000001', 'map_name' => self::COMET, 'archive_filename' => 'comet.sd7']];
         $this->answers['map_facts'] = [['map_name' => self::COMET, 'facts' => self::facts()]];
         $this->answers['map_mirror_host'] = [['name' => 'hakora', 'url_template' => 'http://hakora.xyz/{filename}', 'enabled' => true]];
     }
@@ -113,7 +117,7 @@ class MapPagesTest extends TestCase
             ->assertSee('Look for it on hakora')
             ->assertSee('http://hakora.xyz/comet.sd7', false)
             ->assertSee('<dt class="text-sm uppercase tracking-wide text-neutral-400">Water</dt>', false)
-            ->assertSee('name="map_id" value="map-1"', false)
+            ->assertSee('name="map_id" value="aaaaaaaa-0000-0000-0000-000000000001"', false)
             // No minimap held, so the drawing at the catalog's shape, and no 3D view.
             ->assertSee('viewBox="0 0', false)
             ->assertDontSee('data-map-preview=', false)
@@ -225,39 +229,62 @@ class MapPagesTest extends TestCase
     public function test_a_map_page_shows_its_download_count(): void
     {
         $this->holdComet();
-        $this->answers['map_download_count'] = [['target_id' => 'map-1', 'downloads_total' => 1204, 'downloads_30d' => 87, 'downloads_182d' => 300]];
+        DB::table('download_day')->insert([
+            ['kind' => 'map', 'target_id' => 'aaaaaaaa-0000-0000-0000-000000000001', 'day' => now()->toDateString(), 'count' => 87],
+            ['kind' => 'map', 'target_id' => 'aaaaaaaa-0000-0000-0000-000000000001', 'day' => now()->subDays(40)->toDateString(), 'count' => 1117],
+        ]);
 
         $this->get('/map/comet')->assertOk()
             ->assertSee('>Downloads</dt>', false)
             ->assertSee('1,204, 87 in the last 30 days');
-        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/rest/v1/map_download_count') && str_contains(urldecode($r->url()), 'target_id=eq.map-1'));
     }
 
     public function test_a_map_with_no_downloads_or_an_unreadable_count_shows_no_downloads_line(): void
     {
         $this->holdComet();
-        $this->answers['map_download_count'] = [['target_id' => 'map-1', 'downloads_total' => 0, 'downloads_30d' => 0, 'downloads_182d' => 0]];
         $this->get('/map/comet')->assertOk()->assertDontSee('Downloads</dt>', false);
 
-        $this->answers['map_download_count'] = null;
         Cache::flush();
-        $this->get('/map/comet')->assertOk()->assertSee('Comet Catcher Remake')->assertDontSee('Downloads</dt>', false);
+        $this->withBrokenDatabase(fn () => $this->get('/map/comet')->assertOk()->assertSee('Comet Catcher Remake')->assertDontSee('Downloads</dt>', false));
     }
 
     public function test_the_popular_sorts_are_kept_and_order_by_downloads_then_name(): void
     {
-        foreach (['popular-month' => 'downloads_30d', 'popular-6-months' => 'downloads_182d'] as $sort => $column) {
+        foreach (['popular-month', 'popular-6-months'] as $sort) {
             $filters = Listing::parseFilters(['sort' => $sort]);
             $this->assertSame($sort, $filters['sort']);
             // The sort hides nothing, so the page still counts as unfiltered.
             $this->assertFalse(Listing::isFiltered($filters));
             $this->assertFalse(Listing::isLanding($filters));
-
-            Http::fake(['*' => Http::response([], 200)]);
-            Listing::applyOrder(\App\Supabase\Supabase::anon()->from('map_browse'), $sort)->get();
-            $query = (string) parse_url((string) Http::recorded()->last()[0]->url(), PHP_URL_QUERY);
-            $this->assertStringContainsString("order=$column.desc,map_name.asc", urldecode($query));
         }
+
+        // Supabase lists the ids in name order, then the page's cards in any order.
+        $rows = [];
+        foreach (['alpha', 'bravo', 'charlie', 'delta'] as $index => $slug) {
+            $rows[$slug] = ['id' => 'aaaaaaaa-0000-0000-0000-00000000000'.($index + 1)] + self::row($slug, ucfirst($slug).' Map');
+        }
+        $this->answers['map_browse'] = fn (string $query) => str_starts_with($query, 'select=id&')
+            ? array_map(fn (array $row) => ['id' => $row['id']], array_values($rows))
+            : array_reverse(array_values($rows));
+        $day = fn (int $ago) => now()->subDays($ago)->toDateString();
+        DB::table('download_day')->insert([
+            // Charlie and bravo tie this month, so name order puts bravo first.
+            ['kind' => 'map', 'target_id' => $rows['charlie']['id'], 'day' => $day(0), 'count' => 5],
+            ['kind' => 'map', 'target_id' => $rows['bravo']['id'], 'day' => $day(3), 'count' => 5],
+            // Delta's downloads are older than a month but inside six.
+            ['kind' => 'map', 'target_id' => $rows['delta']['id'], 'day' => $day(60), 'count' => 9],
+            // A game download never lifts a map.
+            ['kind' => 'game', 'target_id' => $rows['alpha']['id'], 'day' => $day(0), 'count' => 50],
+        ]);
+
+        $order = function (string $sort): array {
+            $html = $this->get('/maps?sort='.$sort)->assertOk()->assertSee('4 maps')->getContent();
+            preg_match_all('#href="/map/(alpha|bravo|charlie|delta)"#', $html, $m);
+
+            return array_values(array_unique($m[1]));
+        };
+        $this->assertSame(['bravo', 'charlie', 'alpha', 'delta'], $order('popular-month'));
+        $this->assertSame(['delta', 'bravo', 'charlie', 'alpha'], $order('popular-6-months'));
     }
 
     public function test_the_sort_control_labels_the_popular_sorts(): void

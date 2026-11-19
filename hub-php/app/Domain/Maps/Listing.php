@@ -3,12 +3,14 @@
 namespace App\Domain\Maps;
 
 use App\Domain\Assets\AssetResolver;
+use App\Domain\Downloads\Downloads;
 use App\Domain\Gallery\GalleryQuery;
 use App\Supabase\Client;
 use App\Supabase\Query;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use App\Support\HubCache;
+use Illuminate\Database\QueryException;
 
 /**
  * How a reader narrows the catalog down, `lib/maps/query.ts` and the listing
@@ -53,9 +55,13 @@ final class Listing
         'players' => ['start_positions', false],
         'added' => ['created_at', false],
         'uploaded' => ['uploaded_at', false],
-        'popular-month' => ['downloads_30d', false],
-        'popular-6-months' => ['downloads_182d', false],
     ];
+
+    /** The popular sorts and the days each counts. The counts live in MariaDB, so these are sorted here. */
+    private const POPULAR_DAYS = ['popular-month' => 30, 'popular-6-months' => 182];
+
+    /** The most rows PostgREST returns for one request, `max_rows` in `supabase/config.toml`. */
+    private const MAX_ROWS = 1000;
 
     public static function isSize(?string $value): bool
     {
@@ -305,6 +311,12 @@ final class Listing
                     throw new SupabaseException('The licence gate could not be read.');
                 }
 
+                if (isset(self::POPULAR_DAYS[$filters['sort']])) {
+                    $page = self::popularPage($supabase, $filters, $authorKey, $rule);
+
+                    return ['maps' => $page['maps'], 'count' => $page['count'], 'error' => null, 'pictures' => self::pictures($supabase, $page['maps'])];
+                }
+
                 $listing = fn () => self::applyOrder(
                     Lookup::applyListingRule(
                         self::applyFilters($supabase->from('map_browse')->select(self::SUMMARY_COLUMNS, 'exact'), $filters, $authorKey),
@@ -326,6 +338,54 @@ final class Listing
         } catch (SupabaseException $e) {
             return ['maps' => [], 'count' => 0, 'error' => $e->getMessage(), 'pictures' => []];
         }
+    }
+
+    /**
+     * One page in a popular order. Postgres cannot join the MariaDB counts, so
+     * this reads the id of every map the filters keep, in name order, sorts
+     * them by downloads here, then reads the page's cards by id. Ties keep the
+     * name order, so paging never shows one map twice or skips one.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  array<string, mixed>  $rule
+     * @return array{maps: list<array<string, mixed>>, count: int}
+     *
+     * @throws SupabaseException when either database cannot be read
+     */
+    private static function popularPage(Client $supabase, array $filters, ?string $authorKey, array $rule): array
+    {
+        $ids = [];
+        do {
+            $chunk = Lookup::applyListingRule(self::applyFilters($supabase->from('map_browse')->select('id', 'exact'), $filters, $authorKey), $rule)
+                ->order('map_name', true)
+                ->range(count($ids), count($ids) + self::MAX_ROWS - 1)
+                ->getWithCount();
+            array_push($ids, ...array_map(fn (array $row) => (string) $row['id'], $chunk['rows']));
+        } while ($chunk['rows'] !== [] && count($ids) < ($chunk['count'] ?? 0));
+
+        try {
+            $downloads = Downloads::ranking('map', self::POPULAR_DAYS[$filters['sort']]);
+        } catch (QueryException) {
+            throw new SupabaseException('The download counts could not be read.');
+        }
+        // usort is stable, so maps with equal counts stay in name order.
+        usort($ids, fn (string $a, string $b) => ($downloads[$b] ?? 0) <=> ($downloads[$a] ?? 0));
+
+        $pageIds = array_slice($ids, ($filters['page'] - 1) * self::PAGE_SIZE, self::PAGE_SIZE);
+        $byId = [];
+        if ($pageIds !== []) {
+            foreach ($supabase->from('map_browse')->select(self::SUMMARY_COLUMNS)->in('id', $pageIds)->get() as $map) {
+                $byId[$map['id']] = $map;
+            }
+        }
+        $maps = [];
+        foreach ($pageIds as $id) {
+            if (isset($byId[$id])) {
+                $maps[] = $byId[$id];
+            }
+        }
+
+        return ['maps' => $maps, 'count' => count($ids)];
     }
 
     /**
