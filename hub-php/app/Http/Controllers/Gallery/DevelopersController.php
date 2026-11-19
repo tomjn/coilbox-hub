@@ -218,6 +218,12 @@ class DevelopersController extends Controller
                 'auth' => [
                     ['status' => 503, 'body' => '{"error":"This deployment has not configured Supabase sign-in."}', 'text' => 'The hub is missing its sign in settings.'],
                 ],
+                'token' => [
+                    ['status' => 400, 'body' => '{"error":"grant_type must be \"pkce\" or \"refresh_token\"."}', 'text' => 'No grant type, or one the hub does not pass on.'],
+                    ['status' => 400, 'body' => '{"error":"\"refresh_token\" must be a non-empty string."}', 'text' => 'A field the grant needs is missing. The name is the field.'],
+                    ['status' => 429, 'body' => '{"error":"Too many sign in requests from this address. Try again in a few minutes."}', 'text' => 'Over the limit above. Retry-After says how many seconds to wait.'],
+                    ['status' => 502, 'body' => '{"error":"Could not reach the sign in service. Try again."}', 'text' => 'The sign in service failed or did not answer.'],
+                ],
                 'logout' => [
                     ['status' => 401, 'body' => '{"error":"Send an access token as \"Authorization: Bearer <token>\"."}', 'text' => 'No token was sent, or it is not a token.'],
                     ['status' => 401, 'body' => '{"error":"That access token has expired. Refresh it and send the new one."}', 'text' => 'The sign in service refused the token, so the session is still open.'],
