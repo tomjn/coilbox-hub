@@ -289,7 +289,10 @@ final class Listing
     {
         try {
             // A failed read throws out of the loader, so an error answer is never cached.
-            return HubCache::remember(self::cacheKey('page:'.json_encode($filters)), [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($filters) {
+            // Pings never clear the MAPS tag, so the popular sorts expire on the count timer.
+            $lifetime = in_array($filters['sort'], ['popular-month', 'popular-6-months'], true) ? HubCache::DOWNLOAD_COUNTS : HubCache::WEEKS;
+
+            return HubCache::remember(self::cacheKey('page:'.json_encode($filters)), [HubCache::MAPS, HubCache::ASSETS], $lifetime, function () use ($filters) {
                 $supabase = Supabase::anon();
                 $authorKey = self::resolveAuthorKey($supabase, $filters['author']);
 

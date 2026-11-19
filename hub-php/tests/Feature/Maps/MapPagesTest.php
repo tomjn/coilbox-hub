@@ -4,6 +4,7 @@ namespace Tests\Feature\Maps;
 
 use Illuminate\Http\Client\Request;
 use App\Domain\Maps\Listing;
+use App\Support\HubCache;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -365,6 +366,21 @@ class MapPagesTest extends TestCase
 
         $this->answers['map_browse'] = [self::row('duel', 'Duel Map')];
         $this->get('/maps?play=1v1')->assertOk()->assertSee('href="/map/duel"', false);
+    }
+
+    public function test_a_popular_listing_is_held_for_the_count_lifetime_and_others_for_longer(): void
+    {
+        $this->answers['map_browse'] = [self::row('duel', 'Duel Map')];
+        foreach (['/maps?sort=popular-month', '/maps?sort=popular-6-months', '/maps?sort=name'] as $url) {
+            $this->get($url)->assertOk()->assertSee('href="/map/duel"', false);
+        }
+
+        $this->answers['map_browse'] = [self::row('rematch', 'Rematch Map')];
+        $this->travel(HubCache::DOWNLOAD_COUNTS + 1)->seconds();
+
+        $this->get('/maps?sort=popular-month')->assertSee('href="/map/rematch"', false);
+        $this->get('/maps?sort=popular-6-months')->assertSee('href="/map/rematch"', false);
+        $this->get('/maps?sort=name')->assertSee('href="/map/duel"', false);
     }
 
     public function test_the_listing_says_why_it_is_empty(): void
