@@ -41,6 +41,9 @@
         <section class="flex flex-col gap-3 border-t border-neutral-900 pt-6" aria-labelledby="mod-map-owners">
             <h2 id="mod-map-owners" class="text-sm uppercase tracking-wide text-neutral-400">Maps and map authors</h2>
             <p class="text-sm text-neutral-400">People asking to say where a map can be downloaded. Approving an author covers every map credited to that author, now and later, and replaces any owner the author had.</p>
+            @if (session('mapOwnerError'))
+                <p role="alert" class="text-sm text-red-400">{{ session('mapOwnerError') }}</p>
+            @endif
             @if ($mapQueue === [])
                 <p class="text-sm text-neutral-400">Nobody is asking right now.</p>
             @else

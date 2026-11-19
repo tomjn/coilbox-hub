@@ -28,6 +28,8 @@ class MapEditTest extends TestCase
 
     private bool $moderator = false;
 
+    private bool $refuseOwnerInsert = false;
+
     /** @var list<Request> */
     private array $sent = [];
 
@@ -40,6 +42,9 @@ class MapEditTest extends TestCase
         Http::fake(function (Request $request) {
             $this->sent[] = $request;
             $name = preg_replace('#^/rest/v1/(rpc/)?#', '', (string) parse_url($request->url(), PHP_URL_PATH));
+            if ($this->refuseOwnerInsert && $request->method() === 'POST' && $name === 'author_owner') {
+                return Http::response(json_encode(['code' => '42501', 'message' => 'denied']), 403, ['Content-Type' => 'application/json']);
+            }
             $value = match (true) {
                 $name === 'can_edit_map' => $this->canEdit,
                 $name === 'is_moderator' => $this->moderator,
@@ -258,11 +263,27 @@ class MapEditTest extends TestCase
         $this->signedIn('granted')->post('/moderation/games/decide-map', ['request_id' => '3', 'approve' => 'true'])->assertRedirect('/moderation/games');
 
         $writes = $this->writes();
-        $this->assertCount(2, $writes);
+        $this->assertCount(3, $writes);
         $this->assertSame('PATCH', $writes[0]->method());
         $this->assertSame('approved', $writes[0]->data()['state']);
-        $this->assertStringContainsString('/rest/v1/author_owner', $writes[1]->url());
-        $this->assertSame([['key' => 'beherith', 'user_id' => self::VISITOR]], $writes[1]->data());
+        // Delete then insert, because the service role has no update grant for an upsert.
+        $this->assertSame('DELETE', $writes[1]->method());
+        $this->assertStringContainsString('/rest/v1/author_owner?key=eq.beherith', urldecode($writes[1]->url()));
+        $this->assertSame('POST', $writes[2]->method());
+        $this->assertStringContainsString('/rest/v1/author_owner', $writes[2]->url());
+        $this->assertSame([['key' => 'beherith', 'user_id' => self::VISITOR]], $writes[2]->data());
+        $this->assertSame([], array_filter($writes[2]->header('Prefer'), fn ($p) => str_contains($p, 'resolution')));
+    }
+
+    public function test_the_moderator_is_told_when_approval_does_not_move_ownership(): void
+    {
+        $this->moderator = true;
+        $this->answers['map_ownership_request'] = [['map_id' => null, 'author_key' => 'beherith', 'state' => 'open', 'requested_by' => self::VISITOR, 'map' => null]];
+        $this->refuseOwnerInsert = true;
+
+        $this->signedIn('granted')->post('/moderation/games/decide-map', ['request_id' => '3', 'approve' => 'true'])
+            ->assertRedirect('/moderation/games')
+            ->assertSessionHas('mapOwnerError');
     }
 
     public function test_approving_a_map_request_sets_the_map_owner(): void

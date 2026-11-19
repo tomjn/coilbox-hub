@@ -17,18 +17,20 @@ final class MapOwnership
 {
     /**
      * Approving moves ownership with the state. An author request makes the
-     * requester that author's only owner. Silent either way, as games are.
+     * requester that author's only owner, replacing any owner there was.
+     * Silent, as games are, except that this returns false when the request was
+     * approved and ownership still did not move.
      */
-    public static function decideRequest(Client $session, Client $admin, string $userId, string $id, bool $approve): void
+    public static function decideRequest(Client $session, Client $admin, string $userId, string $id, bool $approve): bool
     {
         if ($id === '' || ! ctype_digit($id) || ! Access::isModerator($session)) {
-            return;
+            return true;
         }
         try {
             $request = $admin->from('map_ownership_request')->select('map_id,author_key,state,requested_by,map(slug)')
                 ->eq('id', (int) $id)->maybeSingle();
             if ($request === null || $request['state'] !== 'open') {
-                return;
+                return true;
             }
             $admin->from('map_ownership_request')->update([
                 'state' => $approve ? 'approved' : 'declined',
@@ -36,22 +38,29 @@ final class MapOwnership
                 'decided_at' => Meters::iso(new \DateTimeImmutable),
             ])->eq('id', (int) $id)->execute();
         } catch (SupabaseException) {
-            return;
+            return true;
         }
         if (! $approve) {
-            return;
+            return true;
         }
         try {
             if ($request['map_id'] !== null) {
                 $admin->from('map')->update(['owner_user_id' => $request['requested_by']])->eq('id', $request['map_id'])->execute();
                 HubCache::invalidate([HubCache::map((string) ($request['map']['slug'] ?? ''))]);
             } else {
-                $admin->from('author_owner')->upsert([['key' => $request['author_key'], 'user_id' => $request['requested_by']]], 'key')->execute();
+                // Delete then insert, not an upsert: the service role holds no update grant on author_owner,
+                // and Postgres wants one for `on conflict do update` even when the row is new.
+                $admin->from('author_owner')->delete()->eq('key', $request['author_key'])->execute();
+                $admin->from('author_owner')->insert([['key' => $request['author_key'], 'user_id' => $request['requested_by']]])->execute();
                 // The author's maps are not known here, and every page credited to them caches who owns them.
                 HubCache::invalidate([HubCache::MAPS]);
             }
         } catch (SupabaseException $e) {
             Log::error("decideMapOwnership: request {$id} was approved but ownership did not move", ['error' => $e->getMessage()]);
+
+            return false;
         }
+
+        return true;
     }
 }

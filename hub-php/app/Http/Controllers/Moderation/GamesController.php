@@ -84,7 +84,9 @@ class GamesController extends ModerationController
             } catch (SupabaseException) {
                 return $this->back(self::PAGE);
             }
-            MapOwnership::decideRequest($session, $admin, $userId, (string) $request->input('request_id', ''), $request->input('approve') === 'true');
+            if (! MapOwnership::decideRequest($session, $admin, $userId, (string) $request->input('request_id', ''), $request->input('approve') === 'true')) {
+                return redirect(self::PAGE)->with('mapOwnerError', 'The request is approved, but the ownership change was not saved. The request has left the queue, so ask the requester to send it again.');
+            }
         }
 
         return redirect(self::PAGE);
