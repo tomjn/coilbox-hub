@@ -172,8 +172,27 @@ final class GoTrue
     }
 
     /**
+     * One account as Supabase Auth holds it, with its `identities`, read with
+     * the service role key. Null when there is no such user.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function adminUser(string $userId): ?array
+    {
+        $key = (string) config('hub.supabase.service_role_key');
+        $response = self::reach(fn () => Http::withHeaders(['apikey' => $key, 'Authorization' => 'Bearer '.$key])
+            ->acceptJson()->timeout(10)
+            ->get(Supabase::url().'/auth/v1/admin/users/'.rawurlencode($userId)));
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        return self::json($response, 'Could not read the account');
+    }
+
+    /**
      * Every account Supabase Auth holds, with the service role key, read a
-     * page at a time.
+     * page at a time. The list leaves out each account's `identities`.
      *
      * @return list<array<string, mixed>>
      */

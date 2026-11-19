@@ -1,5 +1,6 @@
 <?php
 
+use App\Auth\UserCopy;
 use App\Domain\Assets\PictureCopy;
 use App\Domain\Gallery\ItemCopy;
 use App\Domain\Games\CatalogueCopy;
@@ -387,6 +388,26 @@ Artisan::command('items:store {state? : supabase, to go back}', function () {
 
     return 0;
 })->purpose('Show which database published items, reports, profiles and capabilities are read from, or go back to Supabase');
+
+Artisan::command('users:copy {--dry-run : Show the counts and write nothing}', function () {
+    $copy = new UserCopy(fn (string $line) => $this->line($line));
+
+    try {
+        $counts = $this->option('dry-run') ? $copy->counts() : $copy->run();
+    } catch (Throwable $e) {
+        $this->error('The copy stopped: '.$e->getMessage());
+
+        return 1;
+    }
+    $this->line(sprintf('Accounts: Supabase %d, MariaDB %d. Providers: Supabase %d, MariaDB %d.',
+        $counts['supabase_users'], $counts['mariadb_users'], $counts['supabase_identities'], $counts['mariadb_identities']));
+    if ($this->option('dry-run')) {
+        $this->line(sprintf('To add: %d accounts. To remove: %d accounts Supabase no longer has.', $counts['to_add'], $counts['to_remove']));
+        $this->line('Dry run: nothing was written.');
+    }
+
+    return 0;
+})->purpose('Copy Supabase Auth accounts and their sign in providers into MariaDB, keeping their ids. Sign in still runs on Supabase');
 
 Artisan::command('promotion:token', function () {
     $made = JobToken::make();

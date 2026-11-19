@@ -157,6 +157,10 @@ final class HubSession
     private static function store(array $tokens): void
     {
         $claims = GoTrue::claims((string) $tokens['access_token']);
+        // Sign in and each refresh bring the account as Supabase holds it.
+        if (is_array($tokens['user'] ?? null)) {
+            AuthUsers::keep($tokens['user']);
+        }
         session()->put(self::KEY, [
             'access_token' => (string) $tokens['access_token'],
             'refresh_token' => (string) $tokens['refresh_token'],

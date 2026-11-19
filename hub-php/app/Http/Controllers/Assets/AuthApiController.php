@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Assets;
 
+use App\Auth\AuthUsers;
 use App\Auth\GoTrue;
 use App\Domain\Assets\AuthDiscovery;
 use App\Http\Controllers\Controller;
@@ -97,9 +98,14 @@ class AuthApiController extends Controller
 
             return Api::error('Could not reach the sign in service. Try again.', 502);
         }
+        // Coilbox signing in, or refreshing, brings the account as Supabase holds it.
+        $body = $response->json();
+        if ($response->successful() && is_array($body['user'] ?? null)) {
+            AuthUsers::keep($body['user']);
+        }
 
         // Tokens must never sit in a shared cache.
-        return response()->json($response->json() ?? [], $response->status(), Api::CORS_HEADERS + ['Cache-Control' => 'no-store']);
+        return response()->json($body ?? [], $response->status(), Api::CORS_HEADERS + ['Cache-Control' => 'no-store']);
     }
 
     /**

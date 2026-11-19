@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Auth\AuthUsers;
 use App\Auth\GoTrue;
 use App\Auth\HubSession;
 use App\Domain\Account\AccountRules;
@@ -115,6 +116,7 @@ class AccountController
         $picturesLocal = PictureStore::writeTarget() === PictureStore::MARIADB;
         $itemsLocal = ItemStore::writeTarget() === ItemStore::MARIADB;
         GoTrue::adminDeleteUser($userId);
+        AuthUsers::forget($userId);
         if ($itemsLocal) {
             ItemRules::forgetAccount($userId);
         }
@@ -176,6 +178,9 @@ class AccountController
         } catch (SupabaseException) {
             return $fail('Could not remove that way of signing in. Try again.');
         }
+        // So the removed provider no longer leads to this account in the hub's copy.
+        $user['identities'] = array_values(array_filter($identities, fn ($identity) => $identity !== $owned));
+        AuthUsers::keep($user);
 
         return redirect('/account#sign-in-methods');
     }
