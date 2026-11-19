@@ -180,6 +180,7 @@ Artisan::command('pictures:copy {--dry-run : Show the row and object counts, and
         $copy->run();
     } catch (Throwable $e) {
         $this->error('The copy stopped: '.$e->getMessage());
+        $this->line('Running it again keeps the objects already copied and copies the rest.');
 
         return 1;
     }

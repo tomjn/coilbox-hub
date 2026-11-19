@@ -25,10 +25,16 @@ use RuntimeException;
  */
 final class PictureCopy
 {
-    /** Parents before children, so foreign keys hold as rows arrive. */
+    /**
+     * Parents before children, so foreign keys hold as rows arrive.
+     *
+     * `asset_upload_ip` is not here. The service role may only insert into it,
+     * so Supabase will not hand its rows over. It holds the address of each
+     * upload still waiting for a moderator, used only to look into abuse, and
+     * starts empty here.
+     */
     public const TABLES = [
-        'asset', 'asset_event', 'asset_licence', 'asset_source_conflict', 'asset_upload_ip', 'asset_withdrawal',
-        'staged_object_deletion',
+        'asset', 'asset_event', 'asset_licence', 'asset_source_conflict', 'asset_withdrawal', 'staged_object_deletion',
     ];
 
     /** Rows per insert. */
@@ -96,8 +102,10 @@ final class PictureCopy
             throw new RuntimeException('The hub already reads pictures from MariaDB. Copying again would lose every picture uploaded or moderated since the switch.');
         }
 
-        // While uploads still land in Supabase.
-        $this->syncObjects($this->listBucket());
+        // While uploads still land in Supabase. Some objects take Supabase
+        // longer than the hub's usual timeout to send, and nothing waits on
+        // this pass, so it waits as long as they take.
+        $this->syncObjects($this->listBucket(), $this->supabase->withTimeout(0));
 
         PictureStore::set(PictureStore::FROZEN);
         ($this->say)('Picture writes and uploads are refused until the copy finishes.');
@@ -107,10 +115,11 @@ final class PictureCopy
             ($this->wait)((int) config('hub.supabase.timeout', 10));
 
             $listed = $this->listBucket();
-            $this->syncObjects($listed);
+            $this->syncObjects($listed, $this->supabase);
             $this->checkObjects($listed);
 
             $counts = DB::transaction(function () {
+                DB::table('asset_upload_ip')->delete();
                 foreach (array_reverse(self::TABLES) as $table) {
                     DB::table($table)->delete();
                 }
@@ -212,7 +221,7 @@ final class PictureCopy
      *
      * @param  array<string, array{path: string, bytes: int, mime: ?string, created_at: string, updated_at: string}>  $listed
      */
-    private function syncObjects(array $listed): void
+    private function syncObjects(array $listed, Client $downloads): void
     {
         $changed = $this->changed($listed);
         $needed = array_sum(array_column($changed, 'bytes'));
@@ -226,7 +235,7 @@ final class PictureCopy
         ($this->say)(sprintf('Objects: %d in Supabase, %d to copy (%d bytes), %d bytes free.', count($listed), count($changed), $needed, (int) $free));
 
         foreach ($changed as $object) {
-            $bytes = $this->supabase->downloadObject(StagedObjects::BUCKET, $object['path']);
+            $bytes = $downloads->downloadObject(StagedObjects::BUCKET, $object['path']);
             if ($bytes === null) {
                 throw new RuntimeException("{$object['path']} was listed but could not be downloaded.");
             }

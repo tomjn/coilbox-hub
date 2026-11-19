@@ -53,6 +53,12 @@ class Client
         return new self($this->url, $this->apiKey, $this->accessToken, $this->timeout, $this->userId, true);
     }
 
+    /** This client with another request timeout in seconds, 0 for none. */
+    public function withTimeout(int $seconds): self
+    {
+        return new self($this->url, $this->apiKey, $this->accessToken, $seconds, $this->userId, $this->remoteOnly);
+    }
+
     /** `service_role`, `authenticated` or `anon`, as row level security sees the caller. */
     public function role(): string
     {
