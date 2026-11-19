@@ -5,10 +5,13 @@ use App\Domain\Games\CatalogueCopy;
 use App\Domain\Maps\MapCopy;
 use App\Domain\Mirrors\CatalogueStore;
 use App\Domain\Mirrors\HubKeys;
+use App\Domain\Mirrors\MirrorCopy;
 use App\Domain\Promotion\JobToken;
 use App\Supabase\Local\GameStore;
 use App\Supabase\Local\MapStore;
+use App\Supabase\Local\MirrorStore;
 use App\Supabase\Local\PictureStore;
+use App\Supabase\Local\Shadow;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Foundation\Inspiring;
@@ -148,6 +151,11 @@ Artisan::command('games:store {state? : supabase, to go back}', function () {
 
         return 1;
     }
+    if (MirrorStore::fresh() !== MirrorStore::SUPABASE) {
+        $this->error('The mirrors read games from MariaDB. Run mirrors:store supabase first.');
+
+        return 1;
+    }
     if (GameStore::fresh() === GameStore::MARIADB) {
         $this->warn('Writes made in MariaDB since the switch are not in Supabase, apart from game rows themselves.');
     }
@@ -206,6 +214,8 @@ Artisan::command('pictures:store {state? : supabase, to go back}', function () {
     if (PictureStore::fresh() === PictureStore::MARIADB) {
         $this->warn('Pictures uploaded or moderated since the switch are only in MariaDB and on this disk, not in Supabase.');
     }
+    // Supabase's staged picture sweep reads its game rows again.
+    Shadow::pushAll();
     PictureStore::set(PictureStore::SUPABASE);
     $this->line('The hub reads pictures from supabase.');
 
@@ -251,6 +261,11 @@ Artisan::command('maps:store {state? : supabase, to go back}', function () {
 
         return 1;
     }
+    if (MirrorStore::fresh() !== MirrorStore::SUPABASE) {
+        $this->error('The mirrors read maps from MariaDB. Run mirrors:store supabase first.');
+
+        return 1;
+    }
     if (MapStore::fresh() === MapStore::MARIADB) {
         $this->warn('Writes made in MariaDB since the switch are not in Supabase, apart from map rows and source conflicts.');
     }
@@ -259,6 +274,58 @@ Artisan::command('maps:store {state? : supabase, to go back}', function () {
 
     return 0;
 })->purpose('Show which database maps are read from, or go back to Supabase');
+
+Artisan::command('mirrors:copy {--dry-run : Show the row counts and write nothing}', function () {
+    $copy = new MirrorCopy(
+        Supabase::admin()->remote(),
+        fn (string $line) => $this->line($line),
+        fn (int $seconds) => sleep($seconds),
+    );
+    $this->line('The hub reads the mirrors from '.MirrorStore::fresh().'.');
+    $waiting = MirrorCopy::waitingFor();
+
+    try {
+        if ($this->option('dry-run')) {
+            foreach ($copy->counts() as $table => $count) {
+                $this->line(sprintf('%s: Supabase %d, MariaDB %d', $table, $count['supabase'], $count['mariadb']));
+            }
+            $this->line($waiting === null ? 'Games and maps are in MariaDB, so the copy can run.' : 'The copy would stop: '.$waiting);
+            $this->line('Dry run: nothing was written.');
+
+            return 0;
+        }
+        $copy->run();
+    } catch (Throwable $e) {
+        $this->error('The copy stopped: '.$e->getMessage());
+
+        return 1;
+    }
+
+    return 0;
+})->purpose('Copy the hub mirrors, their archives and the catalogue from Supabase into MariaDB and switch the hub to them');
+
+Artisan::command('mirrors:store {state? : supabase, to go back}', function () {
+    $state = $this->argument('state');
+    if ($state === null) {
+        $this->line('The hub reads the mirrors from '.MirrorStore::fresh().'.');
+
+        return 0;
+    }
+    if ($state !== MirrorStore::SUPABASE) {
+        $this->error('Only supabase can be set here. mirrors:copy switches to mariadb once the rows are copied.');
+
+        return 1;
+    }
+    if (MirrorStore::fresh() === MirrorStore::MARIADB) {
+        $this->warn('Reports, uploads, removals and mirror changes made in MariaDB since the switch are not in Supabase.');
+    }
+    // Supabase's archive functions read its game rows again.
+    Shadow::pushAll();
+    MirrorStore::set(MirrorStore::SUPABASE);
+    $this->line('The hub reads the mirrors from supabase.');
+
+    return 0;
+})->purpose('Show which database the hub mirrors are read from, or go back to Supabase');
 
 Artisan::command('promotion:token', function () {
     $made = JobToken::make();

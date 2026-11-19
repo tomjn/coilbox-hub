@@ -154,7 +154,9 @@ final class GameBrowse
                 );
             }
         }
-        $mirrors = $caller->client->remote()->rpcEach('game_mirror_sources', array_map(fn ($id) => ['p_game_id' => $id], $ids));
+        $mirrors = MirrorStore::local()
+            ? array_values(MirrorSources::games($ids))
+            : $caller->client->remote()->rpcEach('game_mirror_sources', array_map(fn ($id) => ['p_game_id' => $id], $ids));
         $out = [];
         foreach ($ids as $i => $id) {
             $out[$id] = [...($sources[$id] ?? []), ...(is_array($mirrors[$i] ?? null) ? $mirrors[$i] : [])];

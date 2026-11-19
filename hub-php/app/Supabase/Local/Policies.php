@@ -10,7 +10,8 @@ use Illuminate\Support\Facades\DB;
  * `supabase/migrations` (20260821100000, 20260821130000, 20260821140000,
  * 20260914200000, 20260918170000 and 20260918180000), and on the picture
  * tables (`asset_read_approved` and the grants in production's schema) and
- * the map tables (production's schema on 19 November 2026), for anon and
+ * the map tables (production's schema on 19 November 2026) and the mirror
+ * tables (20261117120000_hub_mirrors.sql), for anon and
  * authenticated callers. The service role bypasses row level
  * security, as it does in Postgres, but holds only the privileges granted on
  * the picture and map tables.
@@ -69,6 +70,13 @@ final class Policies
         'map_mirror_host' => ['select', 'insert', 'update'],
         'map_ownership_request' => ['select', 'update'],
         'map_source_conflict' => ['select', 'insert'],
+        // The mirror tables are written only by their functions, and the
+        // service role reads two of them.
+        'mirror' => ['select'],
+        'catalogue_state' => ['select'],
+        'archive' => [],
+        'archive_mirror' => [],
+        'archive_mismatch' => [],
     ];
 
     /** Map tables anon and authenticated may not read at all. Requests are for the signed in only. */
@@ -80,6 +88,8 @@ final class Policies
         if (Tables::isMap($table)) {
             $allowed = $caller->isService() || ! (in_array($table, self::UNREADABLE, true)
                 || ($table === 'map_ownership_request' && $caller->role() !== 'authenticated'));
+        } elseif (Tables::isMirror($table)) {
+            $allowed = $caller->isService() && in_array('select', self::SERVICE_GRANTS[$table], true);
         } elseif (Tables::isPicture($table)) {
             $allowed = $caller->isService() ? in_array('select', self::SERVICE_GRANTS[$table], true) : $table === 'asset';
         } else {

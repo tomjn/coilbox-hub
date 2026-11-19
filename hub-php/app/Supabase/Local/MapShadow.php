@@ -9,13 +9,13 @@ use Illuminate\Support\Facades\DB;
  * Keeps Supabase's `map` and `map_source_conflict` rows in step with
  * MariaDB's after the maps move (#599).
  *
- * Areas that have not moved yet still read `public.map` inside Postgres:
- * reports name a map by id and the moderation queue embeds it, and the hub
- * mirrors' archive functions look a map up by name before taking an upload.
- * Conflicts are kept so `public.clear_map_facts` can delete Supabase's row
- * when a moderator clears a map. Writes happen inside the local transaction,
- * so a refusal from Supabase undoes the local write as well. This ends when
- * mirrors (#600) and reports have moved.
+ * Reports have not moved yet and still read `public.map` inside Postgres:
+ * reports name a map by id and the moderation queue embeds it. Until the
+ * mirrors move (#600) their archive functions also look a map up by name
+ * before taking an upload. Conflicts are kept so `public.clear_map_facts` can
+ * delete Supabase's row when a moderator clears a map. Writes happen inside
+ * the local transaction, so a refusal from Supabase undoes the local write as
+ * well. This ends when reports have moved (#601).
  */
 final class MapShadow
 {

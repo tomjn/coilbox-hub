@@ -6,8 +6,9 @@ use App\Domain\Games\ReadAll;
 use App\Supabase\Supabase;
 
 /**
- * What the hub mirrors hold of each map, read from Supabase, where archives
- * and mirrors stay until they move (#600).
+ * What the hub mirrors hold of each map. Once the mirrors have moved (#600)
+ * it is read from MariaDB by {@see MirrorSources}. Until then it is read from
+ * Supabase, as below.
  *
  * Supabase grants no role a read of `archive`. Its own functions and the
  * `map_browse` view reach it as their owner. So the two mirror columns of
@@ -29,6 +30,9 @@ final class MapArchives
     {
         if ($names === []) {
             return [];
+        }
+        if (MirrorStore::local()) {
+            return MirrorSources::listedMaps($names === null ? null : array_values(array_unique($names)));
         }
         $out = [];
         foreach ($names === null ? [null] : array_chunk(array_values(array_unique($names)), 100) as $chunk) {
@@ -64,6 +68,9 @@ final class MapArchives
      */
     public static function sources(array $names): array
     {
+        if (MirrorStore::local()) {
+            return array_filter(MirrorSources::maps(array_values(array_unique($names))), fn (array $copies) => $copies !== []);
+        }
         $mirrored = array_keys(array_filter(self::listed($names), fn (array $held) => $held['urls'] !== []));
         $answers = Supabase::admin()->remote()->rpcEach('map_mirror_sources', array_map(fn (string $name) => ['p_map_name' => $name], $mirrored));
         $out = [];

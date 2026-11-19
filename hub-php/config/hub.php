@@ -49,6 +49,10 @@ return [
     // `php artisan maps:copy`.
     'maps_store' => env('HUB_MAPS_STORE'),
 
+    // The same for the hub mirrors, their archives and the catalogue (#600),
+    // switched by `php artisan mirrors:copy` once games and maps have moved.
+    'mirrors_store' => env('HUB_MIRRORS_STORE'),
+
     // The Coilbox desktop app's website.
     'coilbox_url' => 'https://coilbox.org/',
 ];

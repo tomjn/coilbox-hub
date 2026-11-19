@@ -7,6 +7,8 @@ use App\Supabase\Local\GameFunctions;
 use App\Supabase\Local\GameStore;
 use App\Supabase\Local\MapFunctions;
 use App\Supabase\Local\MapStore;
+use App\Supabase\Local\MirrorFunctions;
+use App\Supabase\Local\MirrorStore;
 use App\Supabase\Local\PictureFunctions;
 use App\Supabase\Local\PictureStore;
 use App\Supabase\Local\Rest;
@@ -35,9 +37,10 @@ use Illuminate\Support\Facades\Http;
  * (#598) move the same way on their own switch: their tables and functions go
  * to {@see Rest} and {@see PictureFunctions}, and the `staged-pictures` bucket
  * to {@see StagedObjects} on the droplet's disk. Maps (#599) follow on a third
- * switch, with {@see MapFunctions} and the map views in {@see MapViews}.
+ * switch, with {@see MapFunctions} and the map views in {@see MapViews}, and
+ * the hub mirrors (#600) on a fourth, with {@see MirrorFunctions}.
  * `remote()` gives a client that always asks Supabase, for the copies and for
- * keeping Supabase's `game` and `map` rows in step.
+ * keeping Supabase's `map` rows in step.
  */
 class Client
 {
@@ -107,6 +110,12 @@ class Client
             $target = MapFunctions::writes($function) ? MapStore::writeTarget() : MapStore::state();
             if ($target === MapStore::MARIADB) {
                 return MapFunctions::call($this, $function, $args);
+            }
+        }
+        if (! $this->remoteOnly && MirrorFunctions::handles($function)) {
+            $target = MirrorFunctions::writes($function) ? MirrorStore::writeTarget() : MirrorStore::state();
+            if ($target === MirrorStore::MARIADB) {
+                return MirrorFunctions::call($this, $function, $args);
             }
         }
         $response = $this->send('POST', '/rest/v1/rpc/'.rawurlencode($function), [], $args === [] ? (object) [] : $args);
