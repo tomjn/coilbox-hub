@@ -49,6 +49,14 @@ final class AuthDiscovery
             'map_catalog' => self::digest('map-catalog.json'),
             'providers' => array_keys(GoTrue::PROVIDERS),
             'email_password' => self::EMAIL_PASSWORD_ENABLED,
+            'endpoints' => self::ENDPOINTS,
         ];
     }
+
+    /**
+     * The hub's own sign in endpoints, as paths on the hub. A new field rather
+     * than a version bump, because released copies of Coilbox refuse a version
+     * above 1 and ignore fields they do not know.
+     */
+    public const ENDPOINTS = ['logout' => '/api/v1/auth/logout'];
 }

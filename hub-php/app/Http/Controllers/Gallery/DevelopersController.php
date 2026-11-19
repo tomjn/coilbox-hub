@@ -131,6 +131,7 @@ class DevelopersController extends Controller
             'map_catalog' => self::MAP_CATALOG_DIGEST,
             'providers' => ['discord', 'github', 'twitch'],
             'email_password' => AuthDiscovery::EMAIL_PASSWORD_ENABLED,
+            'endpoints' => AuthDiscovery::ENDPOINTS,
         ];
 
         $exportExample = [
@@ -216,6 +217,11 @@ class DevelopersController extends Controller
                 ],
                 'auth' => [
                     ['status' => 503, 'body' => '{"error":"This deployment has not configured Supabase sign-in."}', 'text' => 'The hub is missing its sign in settings.'],
+                ],
+                'logout' => [
+                    ['status' => 401, 'body' => '{"error":"Send an access token as \"Authorization: Bearer <token>\"."}', 'text' => 'No token was sent, or it is not a token.'],
+                    ['status' => 401, 'body' => '{"error":"That access token has expired. Refresh it and send the new one."}', 'text' => 'The sign in service refused the token, so the session is still open.'],
+                    ['status' => 502, 'body' => '{"error":"Could not reach the sign in service. Try again."}', 'text' => 'The sign in service failed or did not answer.'],
                 ],
                 'profile' => [
                     ['status' => 401, 'body' => '{"error":"Send an access token as \"Authorization: Bearer <token>\"."}', 'text' => 'No token was sent, or the token is not valid.'],

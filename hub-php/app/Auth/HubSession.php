@@ -137,7 +137,7 @@ final class HubSession
     {
         $tokens = session(self::KEY);
         if (is_array($tokens)) {
-            GoTrue::signOut((string) $tokens['access_token']);
+            GoTrue::signOut((string) $tokens['access_token'], (string) $tokens['refresh_token'], (int) $tokens['expires_at']);
         }
         self::clear();
         session()->invalidate();
