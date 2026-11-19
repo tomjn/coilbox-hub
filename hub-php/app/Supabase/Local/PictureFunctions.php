@@ -31,6 +31,11 @@ final class PictureFunctions
         'asset_storage_usage' => ['service_role'],
         'staged_pictures_bucket_bytes' => ['service_role'],
         'unclaimed_staged_objects' => ['service_role'],
+        'promote_assets' => ['service_role'],
+        'clear_promoted_blob_paths' => ['service_role'],
+        'record_asset_withdrawn' => ['service_role'],
+        'reserve_staged_deletions' => ['service_role'],
+        'release_staged_deletions' => ['service_role'],
     ];
 
     private const READS = [
@@ -73,6 +78,13 @@ final class PictureFunctions
                 ->groupBy('tier', 'variant')->orderBy('tier')->orderBy('variant')->get()->all()),
             'staged_pictures_bucket_bytes' => (int) DB::table('staged_object')->sum('bytes'),
             'unclaimed_staged_objects' => self::unclaimed((int) ($args['max_objects'] ?? 0)),
+            'promote_assets' => self::promote($caller, self::ids($args['ids'] ?? []), self::ids($args['paths'] ?? [])),
+            'clear_promoted_blob_paths' => DB::table('asset')->whereIn('id', self::ids($args['ids'] ?? []))
+                ->whereNotNull('blob_path')->update(['blob_path' => null, 'blob_path_tier' => null]),
+            'record_asset_withdrawn' => DB::table('asset_withdrawal')->whereIn('asset_id', self::ids($args['ids'] ?? []))
+                ->whereNull('withdrawn_at')->update(['withdrawn_at' => Values::now()]),
+            'reserve_staged_deletions' => self::reserve(self::ids($args['object_paths'] ?? []), (bool) ($args['queued_is_claimed'] ?? false)),
+            'release_staged_deletions' => DB::table('staged_object_deletion')->whereIn('path', self::ids($args['object_paths'] ?? []))->delete(),
         };
     }
 
@@ -204,25 +216,123 @@ final class PictureFunctions
     }
 
     /**
+     * `promote_assets`: each approved picture still on the staging tier moves to
+     * its durable path, keeping the staging path in `blob_path` until the job
+     * has deleted the object. Answers with the rows that moved.
+     *
+     * @param  list<string>  $ids
+     * @param  list<string>  $paths
+     * @return list<array{id: string, blob_path: string, blob_path_tier: string}>
+     */
+    private static function promote(Caller $caller, array $ids, array $paths): array
+    {
+        if (count($ids) !== count($paths)) {
+            throw new LocalException('promote_assets wants one path per id', 400, '22023');
+        }
+        $wanted = array_combine($ids, $paths);
+        $now = Values::now();
+
+        return DB::transaction(function () use ($caller, $wanted, $now) {
+            $targets = DB::table('asset')->whereIn('id', array_keys($wanted))->where('tier', '<>', 'static')
+                ->where('moderation', 'approved')->whereNull('blob_path')->whereNull('bytes_missing_at')
+                ->orderBy('id')->lockForUpdate()->get()->all();
+            $moved = [];
+            foreach ($targets as $target) {
+                $target = (array) $target;
+                Writes::update($caller, 'asset', [$target], [
+                    'path' => $wanted[$target['id']], 'tier' => 'static', 'promoted_at' => $now,
+                    'blob_path' => $target['path'], 'blob_path_tier' => $target['tier'],
+                ], $now);
+                $moved[] = ['id' => $target['id'], 'blob_path' => $target['path'], 'blob_path_tier' => $target['tier']];
+            }
+
+            return $moved;
+        });
+    }
+
+    /**
+     * `reserve_staged_deletions`: reserves the paths nothing claims and answers
+     * with them, which is the caller's delete list. A path already reserved
+     * comes back again, so a run can finish what a dead run started.
+     *
+     * The reservation row is written first and the claims are read after it
+     * with locking reads. An upload claiming the path locks the same
+     * reservation row ({@see AssetTriggers::before()}), so whichever commits
+     * first wins, as with Postgres's advisory lock.
+     *
+     * @param  list<string>  $paths
+     * @return list<array{object_path: string}>
+     */
+    private static function reserve(array $paths, bool $queuedIsClaimed): array
+    {
+        $paths = array_values(array_unique($paths));
+        sort($paths);
+        if ($paths === []) {
+            return [];
+        }
+        $gameArt = self::stagedGameArt();
+        $releasedBefore = self::holdEnds();
+
+        return DB::transaction(function () use ($paths, $queuedIsClaimed, $gameArt, $releasedBefore) {
+            $reserved = [];
+            foreach ($paths as $path) {
+                $fresh = DB::table('staged_object_deletion')->insertOrIgnore(['path' => $path, 'reserved_at' => Values::now()]) === 1;
+                $claimed = in_array($path, $gameArt, true)
+                    || DB::table('asset')->where('path', $path)->where('tier', '<>', 'static')
+                        ->where(fn (Builder $holds) => $holds->where('moderation', '<>', 'rejected')
+                            ->orWhere('rejection_kind', '<>', 'editorial')
+                            ->orWhere('updated_at', '>=', $releasedBefore))
+                        ->lockForUpdate()->exists()
+                    || ($queuedIsClaimed && DB::table('asset')->where('blob_path', $path)->lockForUpdate()->exists());
+                if ($claimed) {
+                    if ($fresh) {
+                        DB::table('staged_object_deletion')->where('path', $path)->delete();
+                    }
+
+                    continue;
+                }
+                $reserved[] = ['object_path' => $path];
+            }
+
+            return $reserved;
+        }, 3);
+    }
+
+    /**
+     * The paths a game's logo, banner or card holds in the bucket. Read
+     * through the client, from whichever database holds games. Postgres's
+     * functions left the card out, which let the sweep delete a staged card.
+     *
+     * @return list<string>
+     */
+    private static function stagedGameArt(): array
+    {
+        $kinds = ['logo', 'banner', 'card'];
+        $columns = implode(',', array_merge(...array_map(fn ($kind) => [$kind.'_path', $kind.'_staged_tier'], $kinds)));
+        $games = Supabase::admin()->from('game')->select($columns)
+            ->or(implode(',', array_map(fn ($kind) => $kind.'_staged_tier.eq.bucket', $kinds)))->get();
+        $paths = [];
+        foreach ($games as $game) {
+            foreach ($kinds as $kind) {
+                if (($game[$kind.'_staged_tier'] ?? null) === 'bucket' && ($game[$kind.'_path'] ?? null) !== null) {
+                    $paths[] = $game[$kind.'_path'];
+                }
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
      * Staged objects nothing claims: no picture still holding its bytes, no
      * promoted picture still waiting for its staged copy to go, and no game's
-     * logo or banner in the bucket. Games are read through the client, from
-     * whichever database holds them.
+     * logo, banner or card in the bucket.
      *
      * @return list<array{object_path: string, bytes: int, created_at: string}>
      */
     private static function unclaimed(int $max): array
     {
-        $gameArt = [];
-        $games = Supabase::admin()->from('game')->select('logo_path,logo_staged_tier,banner_path,banner_staged_tier')
-            ->or('logo_staged_tier.eq.bucket,banner_staged_tier.eq.bucket')->get();
-        foreach ($games as $game) {
-            foreach (['logo', 'banner'] as $kind) {
-                if (($game[$kind.'_staged_tier'] ?? null) === 'bucket' && ($game[$kind.'_path'] ?? null) !== null) {
-                    $gameArt[] = $game[$kind.'_path'];
-                }
-            }
-        }
+        $gameArt = self::stagedGameArt();
         $releasedBefore = self::holdEnds();
         $query = DB::table('staged_object as o')
             ->whereNotExists(fn (Builder $held) => $held->from('asset as a')->whereColumn('a.path', 'o.path')->where('a.tier', '<>', 'static')

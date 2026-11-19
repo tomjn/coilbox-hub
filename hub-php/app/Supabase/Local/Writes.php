@@ -63,6 +63,9 @@ final class Writes
         if ($table === 'asset') {
             AssetTriggers::before(null, $stored, array_keys($stored));
         }
+        if ($table === Tables::GAME) {
+            self::refuseReservedGameArt($stored, array_keys($stored));
+        }
 
         if (array_key_exists('id', $stored) && $stored['id'] !== null) {
             DB::table($table)->insert($stored);
@@ -114,6 +117,9 @@ final class Writes
             Policies::check($caller, $table, $after);
             if ($table === 'asset') {
                 AssetTriggers::before($target, $after, array_keys($values));
+            }
+            if ($table === Tables::GAME) {
+                self::refuseReservedGameArt($after, array_keys($values));
             }
         }
         $ids = array_column($targets, 'id');
@@ -188,6 +194,28 @@ final class Writes
             throw new LocalException(
                 'insert or update on table "'.$table.'" violates foreign key constraint "'.$table.'_'.$foreign[0].'_fkey"', 409, '23503',
             );
+        }
+    }
+
+    /**
+     * `game_refuse_reserved_staged_path`: a game picture may not claim a bucket
+     * path while the promotion job has it reserved for deletion. The lock on
+     * the reservation row is the one `reserve_staged_deletions` takes. Postgres
+     * checked the logo and banner only, so the card is added here.
+     *
+     * @param  array<string, mixed>  $row
+     * @param  list<string>  $set  the columns the statement sets
+     */
+    private static function refuseReservedGameArt(array $row, array $set): void
+    {
+        foreach (['logo', 'banner', 'card'] as $kind) {
+            if (array_intersect($set, [$kind.'_path', $kind.'_staged_tier']) === [] || ($row[$kind.'_staged_tier'] ?? null) !== 'bucket'
+                || ($row[$kind.'_path'] ?? null) === null) {
+                continue;
+            }
+            if (DB::table('staged_object_deletion')->where('path', $row[$kind.'_path'])->lockForUpdate()->exists()) {
+                throw new LocalException('staged object '.$row[$kind.'_path'].' is being deleted, so it cannot be claimed until that finishes', 409, '55006');
+            }
         }
     }
 
