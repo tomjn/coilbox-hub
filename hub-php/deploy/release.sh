@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs on the droplet after CI has copied a build to releases/<sha>. Links the
-# shared settings and storage into it, warms Laravel's caches, then points
+# shared settings and storage into it, warms Laravel's caches, runs the
+# MariaDB migrations, then points
 # `current` at it in one step, so a request never sees half a release.
 #
 #   deploy/release.sh /srv/www/hub.coilbox.org <sha>
@@ -27,6 +28,9 @@ cd "$release"
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
+# Before the switch, so the new code never runs against the old schema. A
+# migration must therefore leave the schema working for the release still live.
+php artisan migrate --force
 
 ln -sfn "$release" "$root/current.new"
 mv -Tf "$root/current.new" "$root/current"

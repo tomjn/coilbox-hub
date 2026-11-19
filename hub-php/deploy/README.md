@@ -16,7 +16,7 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
 2. Install PHP, the extensions the hub uses, and the memcached server that holds its cache and sessions:
 
    ```
-   sudo apt install php8.4-fpm php8.4-cli php8.4-curl php8.4-mbstring php8.4-xml php8.4-intl php8.4-zip php8.4-gd php8.4-memcached memcached
+   sudo apt install php8.4-fpm php8.4-cli php8.4-curl php8.4-mbstring php8.4-xml php8.4-intl php8.4-zip php8.4-gd php8.4-mysql php8.4-memcached memcached
    sudo systemctl enable --now memcached
    ```
 
@@ -46,13 +46,29 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
 
    The two Supabase keys are in the Supabase dashboard under Project Settings, API keys. Keep the file readable only by the deploy user and PHP.
 
-5. Let the deploy user reload PHP-FPM and nothing else, so a release can clear OPcache. Run `sudo visudo -f /etc/sudoers.d/hub-deploy` and add, with your deploy user's name:
+5. Create the hub's MariaDB database and user. MariaDB 11.8 already runs on the droplet, listening on `127.0.0.1` only. This makes a random password and writes it straight into `shared/.env`, so it never appears on screen:
+
+   ```
+   ENV=/srv/www/hub.coilbox.org/shared/.env
+   PASS=$(openssl rand -hex 32)
+   sudo mariadb <<SQL
+   CREATE DATABASE hub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE USER 'hub'@'localhost' IDENTIFIED BY '$PASS';
+   GRANT ALL PRIVILEGES ON hub.* TO 'hub'@'localhost';
+   SQL
+   printf 'DB_CONNECTION=mariadb\nDB_SOCKET=/run/mysqld/mysqld.sock\nDB_DATABASE=hub\nDB_USERNAME=hub\nDB_PASSWORD=%s\n' "$PASS" >> "$ENV"
+   unset PASS
+   ```
+
+   The droplet's MariaDB has `skip_name_resolve` on, so `'hub'@'localhost'` only matches connections over the socket. A connection to `127.0.0.1` is refused, which is why `shared/.env` sets `DB_SOCKET` and no `DB_HOST`. Each release runs `php artisan migrate --force` before it goes live.
+
+6. Let the deploy user reload PHP-FPM and nothing else, so a release can clear OPcache. Run `sudo visudo -f /etc/sudoers.d/hub-deploy` and add, with your deploy user's name:
 
    ```
    deployuser ALL=(root) NOPASSWD: /usr/bin/systemctl reload php8.4-fpm
    ```
 
-6. Get a certificate, then install the Nginx site. On this droplet one Nginx site, `/etc/nginx/sites-available/http`, answers port 80 for every host. It sends each request to the same address on HTTPS, except certbot's checks, which it answers from `/var/www/html`. So certbot proves the domain through that folder, and the hub needs no port 80 setup of its own:
+7. Get a certificate, then install the Nginx site. On this droplet one Nginx site, `/etc/nginx/sites-available/http`, answers port 80 for every host. It sends each request to the same address on HTTPS, except certbot's checks, which it answers from `/var/www/html`. So certbot proves the domain through that folder, and the hub needs no port 80 setup of its own:
 
    ```
    sudo certbot certonly --webroot -w /var/www/html -d hub.coilbox.org
@@ -68,14 +84,14 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
    sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
    ```
 
-7. Make an SSH key for GitHub Actions to deploy with, used for nothing else. Put the public half in the deploy user's `~/.ssh/authorized_keys`. Then add these secrets to the hub repository's `production` environment:
+8. Make an SSH key for GitHub Actions to deploy with, used for nothing else. Put the public half in the deploy user's `~/.ssh/authorized_keys`. Then add these secrets to the hub repository's `production` environment:
 
    - `DEPLOY_HOST`: the droplet's address.
    - `DEPLOY_USER`: the deploy user.
    - `DEPLOY_SSH_KEY`: the private key.
    - `DEPLOY_KNOWN_HOSTS`: the output of `ssh-keyscan <droplet address>`.
 
-8. In the Supabase dashboard, under Authentication, URL Configuration, add `https://hub.coilbox.org/auth/callback` to the redirect URLs, and set the Site URL to `https://hub.coilbox.org`. Without the redirect URL, signing in on the website sends people back to the old address.
+9. In the Supabase dashboard, under Authentication, URL Configuration, add `https://hub.coilbox.org/auth/callback` to the redirect URLs, and set the Site URL to `https://hub.coilbox.org`. Without the redirect URL, signing in on the website sends people back to the old address.
 
 ## Deploying
 
