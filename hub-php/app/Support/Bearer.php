@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Auth\AuthUsers;
 use App\Supabase\Client;
 use App\Supabase\Local\Profiles;
 use App\Supabase\Supabase;
@@ -51,6 +52,7 @@ final class Bearer
 
         // An account that signed up in Coilbox and has not been here yet.
         Profiles::seed($user);
+        AuthUsers::keep($user);
 
         return new self($user, (string) $user['id'], Supabase::forToken($token, (string) $user['id']));
     }
