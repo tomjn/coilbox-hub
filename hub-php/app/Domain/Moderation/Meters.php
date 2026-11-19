@@ -4,6 +4,8 @@ namespace App\Domain\Moderation;
 
 use App\Domain\Assets\Asset;
 use App\Supabase\Client;
+use App\Supabase\Local\PictureStore;
+use App\Supabase\Local\StagedObjects;
 use App\Supabase\SupabaseException;
 use RuntimeException;
 
@@ -101,26 +103,7 @@ final class Meters
             'at' => self::iso($now),
             'durable' => self::durableClasses($rows),
             'meters' => [
-                [
-                    'name' => 'Supabase Storage',
-                    'basis' => 'counted',
-                    'used' => $bucketBytes,
-                    'allowance' => self::SUPABASE_STORAGE_ALLOWANCE_BYTES,
-                    'note' => 'Every object in the staged-pictures bucket, summed by storage.get_size_by_bucket(). '
-                        .'Every upload counts here whatever its moderation state: a rejected picture (#348) is '
-                        .'still bytes in the bucket until somebody decides what happens to it.',
-                ],
-                [
-                    'name' => 'Supabase egress this month',
-                    'basis' => 'dashboard',
-                    'used' => null,
-                    'allowance' => self::SUPABASE_EGRESS_ALLOWANCE_BYTES,
-                    'note' => '5 GB cached and 5 GB uncached, shared by the database, auth and storage across the '
-                        .'whole organisation and not just this project. /assets/staged/ reads a staged picture '
-                        ."out of the bucket whenever Vercel's CDN has no copy, which includes the first view "
-                        .'after every deployment, and the CDN answers the rest. Not exposed to the '
-                        .'application. Read it off the project dashboard.',
-                ],
+                ...(PictureStore::state() === PictureStore::MARIADB ? self::dropletMeters($bucketBytes) : self::supabaseMeters($bucketBytes)),
                 [
                     'name' => 'Vercel fast data transfer, last '.self::VERCEL_WINDOW_DAYS.' days',
                     'basis' => 'dashboard',
@@ -148,6 +131,74 @@ final class Meters
                     'note' => 'A soft limit, and GitHub publishes no figure for it anywhere a job could read. There '
                         .'is nothing to report until somebody is emailed about it.',
                 ],
+            ],
+        ];
+    }
+
+    /**
+     * The staging store's meters while staged pictures are in Supabase's bucket.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function supabaseMeters(?int $bucketBytes): array
+    {
+        return [
+            [
+                'name' => 'Supabase Storage',
+                'basis' => 'counted',
+                'used' => $bucketBytes,
+                'allowance' => self::SUPABASE_STORAGE_ALLOWANCE_BYTES,
+                'note' => 'Every object in the staged-pictures bucket, summed by storage.get_size_by_bucket(). '
+                    .'Every upload counts here whatever its moderation state: a rejected picture (#348) is '
+                    .'still bytes in the bucket until somebody decides what happens to it.',
+            ],
+            [
+                'name' => 'Supabase egress this month',
+                'basis' => 'dashboard',
+                'used' => null,
+                'allowance' => self::SUPABASE_EGRESS_ALLOWANCE_BYTES,
+                'note' => '5 GB cached and 5 GB uncached, shared by the database, auth and storage across the '
+                    .'whole organisation and not just this project. /assets/staged/ reads a staged picture '
+                    ."out of the bucket whenever Vercel's CDN has no copy, which includes the first view "
+                    .'after every deployment, and the CDN answers the rest. Not exposed to the '
+                    .'application. Read it off the project dashboard.',
+            ],
+        ];
+    }
+
+    /**
+     * The staging store's meters once staged pictures are on the droplet's
+     * disk (#598). Supabase's 1 GB storage allowance no longer applies. What
+     * can run out is the disk, which the hub, its logs and MariaDB share, so
+     * the meter is the whole disk.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function dropletMeters(?int $stagedBytes): array
+    {
+        $folder = is_dir(StagedObjects::root()) ? StagedObjects::root() : storage_path();
+        $total = @disk_total_space($folder);
+        $free = @disk_free_space($folder);
+        $measured = is_float($total) && is_float($free) && $total > 0;
+
+        return [
+            [
+                'name' => 'Droplet disk',
+                'basis' => 'counted',
+                'used' => $measured ? (int) ($total - $free) : null,
+                'allowance' => $measured ? (int) $total : 1,
+                'note' => 'Everything on the disk staged pictures are kept on, which the hub, its logs and MariaDB '
+                    .'share. Staged pictures are '.($stagedBytes === null ? 'not measurable' : self::formatBytes($stagedBytes))
+                    .' of it, every upload whatever its moderation state. A full disk stops uploads and can stop the hub.',
+            ],
+            [
+                'name' => 'Supabase egress this month',
+                'basis' => 'dashboard',
+                'used' => null,
+                'allowance' => self::SUPABASE_EGRESS_ALLOWANCE_BYTES,
+                'note' => '5 GB cached and 5 GB uncached, shared by the database, auth and storage across the '
+                    .'whole organisation and not just this project. Staged pictures are served from the droplet '
+                    .'now, so they no longer count here. Not exposed to the application. Read it off the project dashboard.',
             ],
         ];
     }

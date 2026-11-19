@@ -4,6 +4,7 @@ use App\Domain\Assets\PictureCopy;
 use App\Domain\Games\CatalogueCopy;
 use App\Domain\Mirrors\CatalogueStore;
 use App\Domain\Mirrors\HubKeys;
+use App\Domain\Promotion\JobToken;
 use App\Supabase\Local\GameStore;
 use App\Supabase\Local\PictureStore;
 use App\Supabase\Supabase;
@@ -208,3 +209,16 @@ Artisan::command('pictures:store {state? : supabase, to go back}', function () {
 
     return 0;
 })->purpose('Show which database pictures are read from, or go back to Supabase');
+
+Artisan::command('promotion:token', function () {
+    $made = JobToken::make();
+    $this->line('Token, for the PROMOTION_TOKEN secret in tomjn/coilbox-assets. It is not stored anywhere else:');
+    $this->line($made['token']);
+    $this->line('');
+    $this->line('Hash, for PROMOTION_TOKEN_HASH (or PROMOTION_NEXT_TOKEN_HASH while rotating) in the hub\'s .env:');
+    $this->line($made['hash']);
+    $this->line('');
+    $this->line('Run php artisan config:cache after changing .env.');
+
+    return 0;
+})->purpose('Make a token for the daily promotion job, and the hash the hub keeps');
