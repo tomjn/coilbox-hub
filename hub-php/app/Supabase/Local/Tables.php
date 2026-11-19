@@ -21,6 +21,21 @@ final class Tables
         'staged_object_deletion',
     ];
 
+    /** The map tables and views (#599). They move on their own switch. */
+    public const MAPS = [
+        'map', 'map_point', 'map_author', 'author_name', 'author_alias', 'author_owner', 'map_pack', 'map_pack_map',
+        'map_download_source', 'map_mirror_host', 'map_ownership_request', 'map_source_conflict',
+        'map_browse', 'map_listing', 'map_pack_entry', 'author_spelling', 'author_display_name', 'author_map_count',
+    ];
+
+    /** Views worked out by {@see MapViews}. Read only. */
+    public const MAP_VIEWS = ['map_browse', 'map_listing', 'map_pack_entry', 'author_spelling', 'author_display_name', 'author_map_count'];
+
+    /** Primary keys that are not `id`. @var array<string, list<string>> */
+    public const PRIMARY_KEYS = [
+        'author_name' => ['key'], 'author_alias' => ['from_key'], 'author_owner' => ['key'], 'map_pack_map' => ['pack_id', 'map_name'],
+    ];
+
     /** @var array<string, array<string, string>> */
     public const COLUMNS = [
         'game' => [
@@ -100,6 +115,61 @@ final class Tables
         'asset_upload_ip' => ['id' => 'int', 'asset_id' => 'uuid', 'ip' => 'text', 'at' => 'ts'],
         'asset_withdrawal' => ['id' => 'int', 'asset_id' => 'uuid', 'path' => 'text', 'at' => 'ts', 'withdrawn_at' => 'ts'],
         'staged_object_deletion' => ['path' => 'text', 'reserved_at' => 'ts'],
+        'map' => [
+            'id' => 'uuid', 'map_name' => 'text', 'slug' => 'text', 'display_name' => 'text', 'description' => 'text',
+            'map_version' => 'text', 'archive_filename' => 'text', 'width_elmos' => 'int', 'height_elmos' => 'int',
+            'world_height_min' => 'float', 'world_height_max' => 'float', 'min_wind' => 'float', 'max_wind' => 'float',
+            'tidal_strength' => 'float', 'void_water' => 'bool', 'void_ground' => 'bool', 'water_coverage' => 'float',
+            'appearance' => 'json', 'curated_tags' => 'json', 'source_hash' => 'text', 'source_archive' => 'text',
+            'catalog_version' => 'int', 'facts_digest' => 'text', 'submitted_by' => 'uuid', 'seen_at' => 'ts',
+            'created_at' => 'ts', 'updated_at' => 'ts', 'featured_at' => 'ts', 'featured_by' => 'uuid', 'owner_user_id' => 'uuid',
+        ],
+        'map_point' => [
+            'id' => 'int', 'map_id' => 'uuid', 'kind' => 'text', 'ordinal' => 'int', 'x' => 'float', 'z' => 'float', 'y' => 'float',
+            'meta' => 'json',
+        ],
+        'map_author' => ['id' => 'int', 'map_id' => 'uuid', 'credit_index' => 'int', 'raw' => 'text', 'key' => 'text'],
+        'author_name' => ['key' => 'text', 'name' => 'text', 'set_at' => 'ts'],
+        'author_alias' => ['from_key' => 'text', 'to_key' => 'text', 'note' => 'text', 'set_by' => 'uuid', 'set_at' => 'ts'],
+        'author_owner' => ['key' => 'text', 'user_id' => 'uuid', 'created_at' => 'ts'],
+        'map_pack' => [
+            'id' => 'uuid', 'title' => 'text', 'blurb' => 'text', 'featured_at' => 'ts', 'featured_by' => 'uuid', 'created_at' => 'ts',
+        ],
+        'map_pack_map' => ['pack_id' => 'uuid', 'map_name' => 'text', 'position' => 'int'],
+        'map_download_source' => [
+            'id' => 'int', 'map_id' => 'uuid', 'kind' => 'text', 'value' => 'text', 'asset' => 'text', 'filename' => 'text',
+            'sort_order' => 'int',
+        ],
+        'map_mirror_host' => [
+            'id' => 'int', 'name' => 'text', 'url_template' => 'text', 'enabled' => 'bool', 'sort_order' => 'int', 'note' => 'text',
+        ],
+        'map_ownership_request' => [
+            'id' => 'int', 'map_id' => 'uuid', 'author_key' => 'text', 'requested_by' => 'uuid', 'requested_by_name' => 'text',
+            'note' => 'text', 'state' => 'text', 'decided_by' => 'uuid', 'decided_at' => 'ts', 'created_at' => 'ts',
+        ],
+        'map_source_conflict' => [
+            'id' => 'int', 'map_id' => 'uuid', 'source_archive' => 'text', 'held_source_hash' => 'text',
+            'reported_source_hash' => 'text', 'reported_by' => 'uuid', 'at' => 'ts',
+        ],
+        // Views, worked out by MapViews. Read only. `search` stands for the
+        // tsvector and can only be searched.
+        'map_browse' => [
+            'id' => 'uuid', 'map_name' => 'text', 'slug' => 'text', 'display_name' => 'text', 'width_elmos' => 'int',
+            'height_elmos' => 'int', 'tags' => 'json', 'created_at' => 'ts', 'longer_edge_elmos' => 'int',
+            'start_positions' => 'int', 'author_keys' => 'json', 'author_names' => 'json', 'search' => 'text',
+            'featured_at' => 'ts', 'uploaded_at' => 'ts', 'play_types' => 'json', 'mirror_urls' => 'json', 'map_version' => 'text',
+        ],
+        'map_listing' => [
+            'id' => 'uuid', 'map_name' => 'text', 'slug' => 'text', 'display_name' => 'text', 'width_elmos' => 'int',
+            'height_elmos' => 'int', 'tags' => 'json',
+        ],
+        'map_pack_entry' => [
+            'pack_id' => 'uuid', 'map_name' => 'text', 'position' => 'int', 'slug' => 'text', 'display_name' => 'text',
+            'archive_filename' => 'text',
+        ],
+        'author_spelling' => ['key' => 'text', 'raw' => 'text', 'credits' => 'int'],
+        'author_display_name' => ['key' => 'text', 'name' => 'text'],
+        'author_map_count' => ['key' => 'text', 'name' => 'text', 'maps' => 'int'],
     ];
 
     /**
@@ -121,6 +191,12 @@ final class Tables
         'asset_source_conflict' => ['asset_id', 'asset', 'id'],
         'asset_upload_ip' => ['asset_id', 'asset', 'id'],
         'asset_withdrawal' => ['asset_id', 'asset', 'id'],
+        'map_point' => ['map_id', 'map', 'id'],
+        'map_author' => ['map_id', 'map', 'id'],
+        'map_pack_map' => ['pack_id', 'map_pack', 'id'],
+        'map_download_source' => ['map_id', 'map', 'id'],
+        'map_ownership_request' => ['map_id', 'map', 'id'],
+        'map_source_conflict' => ['map_id', 'map', 'id'],
     ];
 
     /**
@@ -151,13 +227,22 @@ final class Tables
         'asset_upload_ip' => ['at' => 'now'],
         'asset_withdrawal' => ['at' => 'now'],
         'staged_object_deletion' => ['reserved_at' => 'now'],
+        'map' => ['appearance' => '{}', 'curated_tags' => '[]', 'seen_at' => 'now', 'created_at' => 'now', 'updated_at' => 'now'],
+        'author_name' => ['set_at' => 'now'],
+        'author_alias' => ['set_at' => 'now'],
+        'author_owner' => ['created_at' => 'now'],
+        'map_pack' => ['created_at' => 'now'],
+        'map_download_source' => ['sort_order' => 0],
+        'map_mirror_host' => ['enabled' => true, 'sort_order' => 0],
+        'map_ownership_request' => ['state' => 'open', 'created_at' => 'now'],
+        'map_source_conflict' => ['at' => 'now'],
     ];
 
     /** Tables whose `id` is a uuid Postgres makes with `gen_random_uuid()`. */
-    public const UUID_IDS = ['game', 'asset', 'asset_licence'];
+    public const UUID_IDS = ['game', 'asset', 'asset_licence', 'map', 'map_pack'];
 
     /** Tables whose `updated_at` a trigger moves on every update. */
-    public const TOUCHED = ['game', 'game_unit', 'asset', 'asset_licence'];
+    public const TOUCHED = ['game', 'game_unit', 'asset', 'asset_licence', 'map'];
 
     /** @var array<string, list<string>> */
     public const NOT_NULL = [
@@ -179,6 +264,21 @@ final class Tables
         'asset_upload_ip' => ['asset_id', 'ip', 'at'],
         'asset_withdrawal' => ['asset_id', 'path', 'at'],
         'staged_object_deletion' => ['path', 'reserved_at'],
+        'map' => [
+            'id', 'map_name', 'slug', 'width_elmos', 'height_elmos', 'world_height_min', 'world_height_max', 'appearance',
+            'curated_tags', 'source_hash', 'source_archive', 'catalog_version', 'facts_digest', 'seen_at', 'created_at', 'updated_at',
+        ],
+        'map_point' => ['map_id', 'kind', 'ordinal', 'x', 'z'],
+        'map_author' => ['map_id', 'credit_index', 'raw', 'key'],
+        'author_name' => ['key', 'name', 'set_at'],
+        'author_alias' => ['from_key', 'to_key', 'set_at'],
+        'author_owner' => ['key', 'user_id', 'created_at'],
+        'map_pack' => ['id', 'title', 'created_at'],
+        'map_pack_map' => ['pack_id', 'map_name', 'position'],
+        'map_download_source' => ['map_id', 'kind', 'value', 'sort_order'],
+        'map_mirror_host' => ['name', 'url_template', 'enabled', 'sort_order'],
+        'map_ownership_request' => ['requested_by', 'requested_by_name', 'state', 'created_at'],
+        'map_source_conflict' => ['map_id', 'source_archive', 'held_source_hash', 'reported_source_hash', 'at'],
     ];
 
     /**
@@ -215,6 +315,20 @@ final class Tables
         'asset_source_conflict' => ['held_source_hash' => [1, 128], 'reported_source_hash' => [1, 128], 'source_archive' => [1, 256]],
         'asset_withdrawal' => ['path' => [1, 512]],
         'staged_object_deletion' => ['path' => [1, 512]],
+        'map' => [
+            'archive_filename' => [1, 256], 'display_name' => [1, 256], 'facts_digest' => [1, 128], 'map_name' => [1, 256],
+            'map_version' => [1, 64], 'slug' => [1, 256], 'source_archive' => [1, 256], 'source_hash' => [1, 128],
+        ],
+        'map_author' => ['key' => [1, 256], 'raw' => [1, 256]],
+        'author_name' => ['key' => [1, 256], 'name' => [1, 256]],
+        'author_alias' => ['from_key' => [1, 256], 'to_key' => [1, 256]],
+        'author_owner' => ['key' => [1, 256]],
+        'map_pack' => ['title' => [1, 128]],
+        'map_pack_map' => ['map_name' => [1, 256]],
+        'map_download_source' => ['asset' => [1, 256], 'filename' => [1, 256], 'value' => [1, 512]],
+        'map_mirror_host' => ['name' => [1, 128], 'url_template' => [1, 512]],
+        'map_ownership_request' => ['author_key' => [1, 256], 'requested_by_name' => [1, 256]],
+        'map_source_conflict' => ['held_source_hash' => [1, 128], 'reported_source_hash' => [1, 128], 'source_archive' => [1, 256]],
     ];
 
     /** Untrimmed length limits, column => max. @var array<string, array<string, int>> */
@@ -222,6 +336,11 @@ final class Tables
         'game' => ['description' => 4000],
         'game_unit' => ['snippet' => 2000],
         'game_ownership_request' => ['note' => 2000],
+        'map' => ['description' => 4000],
+        'author_alias' => ['note' => 2000],
+        'map_pack' => ['blurb' => 2000],
+        'map_mirror_host' => ['note' => 2000],
+        'map_ownership_request' => ['note' => 2000],
     ];
 
     /** Columns limited to a set of values. @var array<string, array<string, list<string>>> */
@@ -240,6 +359,9 @@ final class Tables
             'rejection_kind' => ['safety', 'editorial', 'unrecorded'],
         ],
         'asset_licence' => ['redistribute_extracted' => ['unknown', 'allowed', 'denied'], 'redistribute_rendered' => ['unknown', 'allowed', 'denied']],
+        'map_point' => ['kind' => ['start', 'metal', 'geo']],
+        'map_download_source' => ['kind' => ['url', 'github']],
+        'map_ownership_request' => ['state' => ['open', 'approved', 'declined']],
     ];
 
     /** Unique keys, name => columns. @var array<string, array<string, list<string>>> */
@@ -258,6 +380,16 @@ final class Tables
         'asset_source_conflict' => ['asset_source_conflict_report_idx' => ['asset_id', 'reported_source_hash']],
         'asset_withdrawal' => ['asset_withdrawal_asset_idx' => ['asset_id']],
         'asset_licence' => ['asset_licence_game_idx' => ['game'], 'asset_licence_map_idx' => ['map_name'], 'asset_licence_all_maps_idx' => ['all_maps']],
+        'map' => ['map_pkey' => ['id'], 'map_identity_idx' => ['map_name'], 'map_slug_idx' => ['slug']],
+        'map_point' => ['map_point_identity_idx' => ['map_id', 'kind', 'ordinal']],
+        'map_author' => ['map_author_credit_idx' => ['map_id', 'credit_index']],
+        'author_name' => ['author_name_pkey' => ['key']],
+        'author_alias' => ['author_alias_pkey' => ['from_key']],
+        'author_owner' => ['author_owner_pkey' => ['key']],
+        'map_pack' => ['map_pack_pkey' => ['id']],
+        'map_pack_map' => ['map_pack_map_pkey' => ['pack_id', 'map_name']],
+        'map_mirror_host' => ['map_mirror_host_name_idx' => ['name']],
+        'map_source_conflict' => ['map_source_conflict_report_idx' => ['map_id', 'reported_source_hash']],
     ];
 
     /** The tables the local store answers for. */
@@ -270,6 +402,28 @@ final class Tables
     public static function isPicture(string $table): bool
     {
         return in_array($table, self::PICTURES, true);
+    }
+
+    /** Whether a table or view belongs to the maps, which move on their own switch. */
+    public static function isMap(string $table): bool
+    {
+        return in_array($table, self::MAPS, true);
+    }
+
+    /** The switch that says which database holds a table. @return class-string<DataMove> */
+    public static function store(string $table): string
+    {
+        return match (true) {
+            self::isPicture($table) => PictureStore::class,
+            self::isMap($table) => MapStore::class,
+            default => GameStore::class,
+        };
+    }
+
+    /** The columns that pick out one row: `id`, or the table's own primary key. @return list<string> */
+    public static function primaryKey(string $table): array
+    {
+        return self::PRIMARY_KEYS[$table] ?? ['id'];
     }
 
     /** @return array<string, string> */
@@ -346,6 +500,9 @@ final class Tables
                 return $check('asset_source_conflict_differs_check');
             }
         }
+        if ($whole && ($name = self::mapViolation($table, $row)) !== null) {
+            return $check($name);
+        }
         if ($table === 'game') {
             foreach (['links', 'conquest_factions'] as $column) {
                 if (array_key_exists($column, $row) && ! (is_array($row[$column]) && array_is_list($row[$column]))) {
@@ -409,6 +566,61 @@ final class Tables
         $variant = (string) $v('variant');
         if ($v('unit_name') !== null && $variant !== 'buildpic' && ! str_starts_with($variant, 'render:')) {
             return 'asset_unit_variant_check';
+        }
+
+        return null;
+    }
+
+    /**
+     * The map tables' other checks, on a whole row. As in Postgres, a check
+     * whose columns are null passes.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private static function mapViolation(string $table, array $row): ?string
+    {
+        $v = fn (string $column) => $row[$column] ?? null;
+        $below = fn (string $column, int|float $min) => $v($column) !== null && $v($column) < $min;
+        switch ($table) {
+            case 'map':
+                foreach (['width_elmos', 'height_elmos', 'catalog_version'] as $column) {
+                    if ($below($column, 1)) {
+                        return 'map_'.$column.'_check';
+                    }
+                }
+                if (in_array($v('void_water'), [true, 1, '1'], true) && $v('water_coverage') !== null) {
+                    return 'map_void_water_coverage_check';
+                }
+                if ($v('water_coverage') !== null && ($v('water_coverage') < 0 || $v('water_coverage') > 1)) {
+                    return 'map_water_coverage_check';
+                }
+                if ($v('min_wind') !== null && $v('max_wind') !== null && $v('max_wind') < $v('min_wind')) {
+                    return 'map_wind_range_check';
+                }
+                if ($v('world_height_min') !== null && $v('world_height_max') !== null && $v('world_height_max') < $v('world_height_min')) {
+                    return 'map_world_height_check';
+                }
+
+                return null;
+            case 'map_point':
+                return $below('ordinal', 0) ? 'map_point_ordinal_check' : null;
+            case 'map_author':
+                return $below('credit_index', 0) ? 'map_author_credit_index_check' : null;
+            case 'map_pack_map':
+                return $below('position', 0) ? 'map_pack_map_position_check' : null;
+            case 'map_download_source':
+                if ($v('asset') !== null && $v('kind') !== 'github') {
+                    return 'map_download_source_asset_kind_check';
+                }
+
+                return $v('filename') !== null && $v('kind') !== 'url' ? 'map_download_source_filename_kind_check' : null;
+            case 'author_alias':
+                return $v('from_key') !== null && $v('from_key') === $v('to_key') ? 'author_alias_not_self_check' : null;
+            case 'map_ownership_request':
+                return ($v('map_id') === null) === ($v('author_key') === null) ? 'map_ownership_request_target_check' : null;
+            case 'map_source_conflict':
+                return $v('held_source_hash') !== null && $v('held_source_hash') === $v('reported_source_hash')
+                    ? 'map_source_conflict_differs_check' : null;
         }
 
         return null;
