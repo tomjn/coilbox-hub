@@ -2,13 +2,19 @@
 
 This folder is the hub, a Laravel app. It is the only hub. It runs on a DigitalOcean droplet at `https://hub.coilbox.org`. The Next.js app in the repository root used to be the hub. Since November 2026 it only forwards `coilbox-hub.vercel.app` traffic here: pages redirect, and `/api/v1/*` and `/i/*` are proxied so installed copies of Coilbox keep working. Do not run it, read it as a specification, or compare this app against it.
 
-For now the hub keeps Supabase for some of the data, sign in and the staging picture bucket. It talks to Supabase over HTTP, the same PostgREST and Auth endpoints supabase-js uses, so row level security and the database functions apply. Data moves to MariaDB one area at a time, each under its own issue.
+Since 19 November 2026 the hub uses Supabase only for sign in. Games, pictures, maps, mirrors, items, reports, profiles and capabilities all read MariaDB in production. Supabase still holds the old copies of those tables until #613, #617 and #630 drop them. The hub talks to Supabase over HTTP, the same PostgREST and Auth endpoints supabase-js uses.
 
 ## New data goes in MariaDB
 
 New tables, columns, views and functions go in MariaDB, as Laravel migrations in `database/migrations`. MariaDB is the default database connection. Each deploy runs `php artisan migrate --force` before the new release goes live, so a migration must keep working with the release that is still live.
 
-Change Supabase only for data that has not moved yet, and only with the owner's agreement. Supabase schema stays in `supabase/migrations` until its area moves.
+Supabase migrations in `supabase/migrations` are pre-approved by the owner. The CI `migrate` job does not apply them. Its `SUPABASE_*` secrets are not set, so it skips the push and still reports success. After the pull request merges, run `supabase db push --linked --dry-run`, then `supabase db push --linked --yes`, then `supabase migration list --linked` to confirm production recorded it.
+
+## Moving data between the databases
+
+Each move has a row in the `data_move` table and a pair of commands, such as `maps:copy` and `maps:store supabase`. Merging a move changes nothing in production. It takes effect when the owner runs its `*:copy` command on the droplet, after `--dry-run`.
+
+To go back, switch in this order: items, mirrors, maps, then games. Each `*:store supabase` command refuses while a move that depends on it is still in MariaDB.
 
 Locally, `scripts/local-services.sh up mariadb` starts MariaDB on port 3307, and `deploy/env.example` points at it. Tests run on SQLite in memory locally and on MariaDB in CI, so write queries both accept.
 
