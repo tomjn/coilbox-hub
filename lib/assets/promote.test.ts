@@ -1,11 +1,12 @@
 import { beforeEach, expect, test } from "bun:test";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PromotionStore } from "./jobStore";
 import {
   PROMOTION_AGE_DAYS,
   StagingReadError,
   durablePath,
   promotionCutoff,
   runPromotion,
+  type PromotableRow,
   type PromotionPorts,
 } from "./promote";
 
@@ -120,52 +121,18 @@ class World {
 }
 
 /**
- * As much of PostgREST as this module asks for, over an array of rows.
+ * As much of the hub's promotion API as this module asks for, over an array of
+ * rows.
  *
- * The two functions are reimplemented rather than stubbed, closely enough that
- * the filters which make the batch safe are exercised here.
- * `asset_promotion.test.sql` is what proves the real statement is one
- * transaction and that the safety trigger refuses it, which no fake can.
+ * The functions are reimplemented rather than stubbed, closely enough that the
+ * filters which make the batch safe are exercised here. `asset_promotion.test.sql`
+ * and `hub-php/tests/Feature/Promotion/PromotionApiTest.php` are what prove the
+ * real statements, which no fake can. A kill point is named after the function
+ * the hub runs.
  */
-function fakeSupabase(world: World): SupabaseClient {
-  const query = (rows: Row[]) => {
-    let matching = rows;
-    const builder = {
-      select: () => builder,
-      order: () => builder,
-      limit: (n: number) => {
-        matching = matching.slice(0, n);
-        return builder;
-      },
-      eq: (col: keyof Row, value: unknown) => {
-        matching = matching.filter((row) => row[col] === value);
-        return builder;
-      },
-      is: (col: keyof Row, value: unknown) => {
-        matching = matching.filter((row) => row[col] === value);
-        return builder;
-      },
-      neq: (col: keyof Row, value: unknown) => {
-        matching = matching.filter((row) => row[col] !== value);
-        return builder;
-      },
-      not: (col: keyof Row, _op: string, value: unknown) => {
-        matching = matching.filter((row) => row[col] !== value);
-        return builder;
-      },
-      lte: (col: keyof Row, value: string) => {
-        matching = matching.filter((row) => String(row[col]) <= value);
-        return builder;
-      },
-      in: (col: keyof Row, values: unknown[]) => {
-        matching = matching.filter((row) => values.includes(row[col]));
-        return builder;
-      },
-      then: (resolve: (value: { data: Row[]; error: null }) => unknown) =>
-        resolve({ data: matching.map((row) => ({ ...row })), error: null }),
-    };
-    return builder;
-  };
+function fakeStore(world: World): PromotionStore {
+  const cutoff = promotionCutoff(NOW);
+  const copy = <T>(rows: T[]) => rows.map((row) => ({ ...row }));
 
   const promote = (ids: string[], paths: string[]) => {
     const moved: { id: string; blob_path: string }[] = [];
@@ -201,36 +168,75 @@ function fakeSupabase(world: World): SupabaseClient {
 
   // The claims 20260914170000 checks under its lock.
   const reserve = (paths: string[], queuedIsClaimed: boolean) =>
-    [...new Set(paths)]
-      .filter(
-        (path) =>
-          !world.rows.some((row) => row.path === path && row.tier !== "static") &&
-          !(queuedIsClaimed && world.rows.some((row) => row.blob_path === path)),
-      )
-      .map((path) => {
-        world.reservations.add(path);
-        return { object_path: path };
-      });
+    [...new Set(paths)].filter(
+      (path) =>
+        !world.rows.some((row) => row.path === path && row.tier !== "static") &&
+        !(queuedIsClaimed && world.rows.some((row) => row.blob_path === path)),
+    ).map((path) => {
+      world.reservations.add(path);
+      return path;
+    });
 
   const release = (paths: string[]) => paths.filter((path) => world.reservations.delete(path)).length;
 
+  const unused = async (): Promise<never> => {
+    throw new Error("the asset pass does not ask for this");
+  };
+
   return {
-    from: () => query(world.rows),
-    rpc: (name: string, args: Record<string, unknown>) => {
-      world.trip(name);
-
-      const data =
-        name === "promote_assets"
-          ? promote(args.ids as string[], args.paths as string[])
-          : name === "reserve_staged_deletions"
-            ? reserve(args.object_paths as string[], args.queued_is_claimed as boolean)
-            : name === "release_staged_deletions"
-              ? release(args.object_paths as string[])
-              : clear(args.ids as string[]);
-
-      return Promise.resolve({ data, error: null });
+    due: async (limit) =>
+      copy(
+        world.rows
+          .filter(
+            (row) =>
+              row.tier === "bucket" &&
+              row.moderation === "approved" &&
+              row.blob_path === null &&
+              row.bytes_missing_at === null &&
+              row.updated_at <= cutoff,
+          )
+          .slice(0, limit),
+      ) as unknown as PromotableRow[],
+    stillDue: async (ids) =>
+      world.rows
+        .filter(
+          (row) =>
+            ids.includes(row.id) &&
+            row.tier === "bucket" &&
+            row.moderation === "approved" &&
+            row.bytes_missing_at === null,
+        )
+        .map((row) => row.id),
+    pendingDeletions: async () =>
+      world.rows
+        .filter((row) => row.blob_path !== null)
+        .map((row) => ({ id: row.id, path: row.path, tier: row.tier, blob_path: row.blob_path! })),
+    promote: async (ids, paths) => {
+      world.trip("promote_assets");
+      return promote(ids, paths);
     },
-  } as unknown as SupabaseClient;
+    clearPromoted: async (ids) => {
+      world.trip("clear_promoted_blob_paths");
+      return clear(ids);
+    },
+    reserve: async (paths, queuedIsClaimed) => {
+      world.trip("reserve_staged_deletions");
+      return reserve(paths, queuedIsClaimed);
+    },
+    release: async (paths) => {
+      world.trip("release_staged_deletions");
+      return release(paths);
+    },
+    withdrawals: unused,
+    recordWithdrawn: unused,
+    readStaged: unused,
+    discard: unused,
+    unclaimed: unused,
+    abandoned: unused,
+    games: unused,
+    clearGameStagedTier: unused,
+    meters: unused,
+  };
 }
 
 function fakePorts(world: World): PromotionPorts {
@@ -307,7 +313,7 @@ beforeEach(() => {
 });
 
 const run = (options: { limit?: number } = {}) =>
-  runPromotion(fakeSupabase(world), fakePorts(world), { now: NOW, ...options });
+  runPromotion(fakeStore(world), fakePorts(world), options);
 
 test("the cutoff is a day back, on the row's own clock", () => {
   expect(promotionCutoff(NOW)).toBe("2026-08-13T12:00:00.000Z");
@@ -439,21 +445,19 @@ test("an upload that reuses a bucket object while it is being promoted keeps the
   // delete. The reservation sees the new claim and refuses.
   const path = "units/bar/buildpic/aaa1.webp";
   world = new World([unit("00000000-0000-4000-8000-000000000001", "armsolar", "aaa1")]);
-  const supabase = fakeSupabase(world);
-  const rpc = supabase.rpc.bind(supabase);
-  (supabase as unknown as { rpc: typeof rpc }).rpc = ((name: string, args: Record<string, unknown>) => {
-    if (name === "reserve_staged_deletions") {
-      world.rows.push(
-        unit("00000000-0000-4000-8000-000000000003", "armadvsol", "aaa1", {
-          moderation: "pending",
-          updated_at: RECENT,
-        }),
-      );
-    }
-    return rpc(name as never, args as never);
-  }) as typeof rpc;
+  const store = fakeStore(world);
+  const reserve = store.reserve;
+  store.reserve = (paths, queuedIsClaimed) => {
+    world.rows.push(
+      unit("00000000-0000-4000-8000-000000000003", "armadvsol", "aaa1", {
+        moderation: "pending",
+        updated_at: RECENT,
+      }),
+    );
+    return reserve(paths, queuedIsClaimed);
+  };
 
-  const result = await runPromotion(supabase, fakePorts(world), { now: NOW });
+  const result = await runPromotion(store, fakePorts(world));
 
   expect(result).toMatchObject({ promoted: 1, deleted: 0 });
   expect(world.discardedStaged).toEqual([]);
@@ -521,7 +525,7 @@ test("a run that dies after pushing does not write the same bytes again", async 
     await write(path, bytes);
   };
 
-  await runPromotion(fakeSupabase(world), ports, { now: NOW });
+  await runPromotion(fakeStore(world), ports);
 
   // Content addressed, so the objects the first run pushed are already the
   // right bytes at the right path. Rewriting them would be a change to a file
@@ -543,7 +547,7 @@ test("a rejection landing mid-run stops the row moving and spares its object", a
     return bytes;
   };
 
-  const result = await runPromotion(fakeSupabase(world), ports, { now: NOW });
+  const result = await runPromotion(fakeStore(world), ports);
 
   expect(result.promoted).toBe(1);
   expect(result.skipped).toBe(1);
@@ -627,7 +631,7 @@ test("bytes that are not the length the row claims are never committed", async (
   const ports = fakePorts(world);
   ports.readStaged = async () => new Uint8Array(11);
 
-  const result = await runPromotion(fakeSupabase(world), ports, { now: NOW });
+  const result = await runPromotion(fakeStore(world), ports);
 
   expect(result).toEqual({ drained: 0, promoted: 0, skipped: 1, deleted: 0, unreadable: 0 });
   expect([...world.pushed]).toEqual([]);
@@ -645,7 +649,7 @@ test("an object the store will not return skips its row and the rest of the batc
     return readStaged(path);
   };
 
-  const result = await runPromotion(fakeSupabase(world), ports, { now: NOW });
+  const result = await runPromotion(fakeStore(world), ports);
 
   expect(result).toEqual({ drained: 0, promoted: 1, skipped: 1, deleted: 1, unreadable: 1 });
   expect(world.rows[0].tier).toBe("bucket");
@@ -666,7 +670,7 @@ test("a store that refuses every read moves nothing and loses nothing", async ()
     throw new StagingReadError(403, path);
   };
 
-  const result = await runPromotion(fakeSupabase(world), ports, { now: NOW });
+  const result = await runPromotion(fakeStore(world), ports);
 
   expect(result).toEqual({ drained: 0, promoted: 0, skipped: 2, deleted: 0, unreadable: 2 });
   expect(world.discardedStaged).toEqual([]);
@@ -692,7 +696,7 @@ test("a row marked as lost in the store is not selected, so it cannot fill a bat
     return reading(path);
   };
 
-  const result = await runPromotion(fakeSupabase(world), ports, { now: NOW, limit: 1 });
+  const result = await runPromotion(fakeStore(world), ports, { limit: 1 });
 
   expect(result).toEqual({ drained: 0, promoted: 1, skipped: 0, deleted: 1, unreadable: 0 });
   expect(read).toEqual(["units/bar/buildpic/bbb2.webp"]);

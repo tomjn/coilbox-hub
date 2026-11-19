@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { beforeEach, expect, test } from "bun:test";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PromotionStore } from "./jobStore";
 import { type PromotionPorts, StagingReadError } from "./promote";
 
 const { runGameImagePromotion, fetchStagedGameImages } = await import("./promoteGameImages");
@@ -96,44 +96,51 @@ class World {
   }
 }
 
-function fakeSupabase(world: World): SupabaseClient {
-  const builder = (update?: Partial<GameRow>) => {
-    const filters: [keyof GameRow, unknown][] = [];
-    const chain = {
-      select: () => chain,
-      update: (values: Partial<GameRow>) => builder(values),
-      eq: (column: keyof GameRow, value: unknown) => {
-        filters.push([column, value]);
-        return chain;
-      },
-      then: (resolve: (value: { data: GameRow[]; error: null }) => unknown) => {
-        const matching = world.rows.filter((row) => filters.every(([column, value]) => row[column] === value));
-        if (update) {
-          world.trip("clear");
-          for (const row of matching) Object.assign(row, update);
-        }
-        return resolve({ data: matching.map((row) => ({ ...row })), error: null });
-      },
-    };
-    return chain;
+function fakeStore(world: World): PromotionStore {
+  const unused = async (): Promise<never> => {
+    throw new Error("the game picture pass does not ask for this");
   };
 
-  const rpc = (name: string, args: Record<string, unknown>) => {
-    world.trip(name);
-    if (name === "reserve_staged_deletions") {
-      const data = (args.object_paths as string[])
+  return {
+    games: async () => world.rows.map((row) => ({ ...row })),
+    clearGameStagedTier: async (image) => {
+      world.trip("clear");
+      const matching = world.rows.filter(
+        (row) =>
+          row.shortname === image.shortname &&
+          row[`${image.kind}_path` as keyof GameRow] === image.path &&
+          row[`${image.kind}_hash` as keyof GameRow] === image.hash &&
+          row[`${image.kind}_staged_tier` as keyof GameRow] === "bucket",
+      );
+      for (const row of matching) Object.assign(row, { [`${image.kind}_staged_tier`]: null });
+      return matching.length > 0;
+    },
+    reserve: async (paths) => {
+      world.trip("reserve_staged_deletions");
+      return paths
         .filter((path) => !world.claims(path))
         .map((path) => {
           world.reservations.add(path);
-          return { object_path: path };
+          return path;
         });
-      return Promise.resolve({ data, error: null });
-    }
-    const released = (args.object_paths as string[]).filter((path) => world.reservations.delete(path));
-    return Promise.resolve({ data: released.length, error: null });
+    },
+    release: async (paths) => {
+      world.trip("release_staged_deletions");
+      return paths.filter((path) => world.reservations.delete(path)).length;
+    },
+    withdrawals: unused,
+    recordWithdrawn: unused,
+    due: unused,
+    stillDue: unused,
+    pendingDeletions: unused,
+    promote: unused,
+    clearPromoted: unused,
+    readStaged: unused,
+    discard: unused,
+    unclaimed: unused,
+    abandoned: unused,
+    meters: unused,
   };
-
-  return { from: () => builder(), rpc } as unknown as SupabaseClient;
 }
 
 function fakePorts(world: World): PromotionPorts {
@@ -195,7 +202,7 @@ beforeEach(() => {
   world = new World([stagedLogo("SF"), stagedLogo("BA")]);
 });
 
-const run = () => runGameImagePromotion(fakeSupabase(world), fakePorts(world));
+const run = () => runGameImagePromotion(fakeStore(world), fakePorts(world));
 
 test("a staged picture is written, published, confirmed serving, then cleared from staging", async () => {
   const result = await run();
@@ -234,7 +241,7 @@ test("a store that refuses a read is said out loud rather than read as already p
     throw new StagingReadError(403, path);
   };
 
-  const result = await runGameImagePromotion(fakeSupabase(world), ports);
+  const result = await runGameImagePromotion(fakeStore(world), ports);
 
   expect(result).toEqual({ promoted: 0, skipped: 2, unreadable: 2, removed: 0 });
   expect(world.said.join("\n")).toContain("403 reading");
@@ -262,7 +269,7 @@ test("a push the durable tier never serves throws before anything is deleted", a
     void paths;
     // The deploy did not happen, so nothing lands in `served`.
   };
-  await expect(runGameImagePromotion(fakeSupabase(world), ports)).rejects.toThrow(
+  await expect(runGameImagePromotion(fakeStore(world), ports)).rejects.toThrow(
     /Nothing has been deleted/,
   );
   expect(world.bucket.size).toBe(2);
@@ -279,7 +286,7 @@ test("a re-run after an interrupted one converges", async () => {
     attempts++;
     return attempts === 1 ? [] : realServing(paths);
   };
-  await expect(runGameImagePromotion(fakeSupabase(world), ports)).rejects.toThrow();
+  await expect(runGameImagePromotion(fakeStore(world), ports)).rejects.toThrow();
   reachable(world);
 
   const second = await run();
@@ -302,7 +309,7 @@ test("rows with paths but no hashes are not offered for promotion", async () => 
       },
     },
   ]);
-  const images = await fetchStagedGameImages(fakeSupabase(world));
+  const images = await fetchStagedGameImages(fakeStore(world));
   expect(images).toEqual([]);
 });
 
@@ -329,7 +336,7 @@ test("an owner upload that lands while a bucket picture is promoted keeps the ne
     world.rows[0].logo_hash = HASH("new art");
   };
 
-  const result = await runGameImagePromotion(fakeSupabase(world), ports);
+  const result = await runGameImagePromotion(fakeStore(world), ports);
 
   expect(result.promoted).toBe(1);
   expect(world.discardedStaged).toEqual([]);
@@ -373,7 +380,7 @@ test("a row that records no staged copy is not offered for promotion", async () 
   imported.row.logo_staged_tier = null;
   world = new World([imported]);
 
-  expect(await fetchStagedGameImages(fakeSupabase(world))).toEqual([]);
+  expect(await fetchStagedGameImages(fakeStore(world))).toEqual([]);
 });
 
 // ## Removed art (#360)
@@ -436,7 +443,7 @@ test("a logo removed while the run reads its bytes is taken back out of the chec
     return bytes;
   };
 
-  const result = await runGameImagePromotion(fakeSupabase(world), ports);
+  const result = await runGameImagePromotion(fakeStore(world), ports);
 
   expect(result).toEqual({ promoted: 0, skipped: 1, unreadable: 0, removed: 1 });
   expect(world.checkout.has("games/BA/logo.webp")).toBe(false);
@@ -455,7 +462,7 @@ test("a logo removed after the rows were read again is pushed once, left unclaim
     removedLogo(world.rows[0]);
   };
 
-  const first = await runGameImagePromotion(fakeSupabase(world), ports);
+  const first = await runGameImagePromotion(fakeStore(world), ports);
 
   expect(first).toEqual({ promoted: 1, skipped: 0, unreadable: 0, removed: 0 });
   expect(world.said).toContain(

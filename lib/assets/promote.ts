@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PromotionStore } from "./jobStore";
 import { rowIdentity } from "./have";
 import { deleteStagedObjects } from "./orphan";
 import { assetObjectPath } from "./path";
@@ -112,10 +113,7 @@ export const PROMOTION_BATCH = 200;
 
 /** Everything promotion needs off a row: the identity and hash the durable
  *  path is recomputed from, the staging path the bytes are read from, and
- *  the length they have to be. */
-const PROMOTABLE_COLUMNS =
-  "id, game, unit_name, map_name, faction_key, variant, hash, mime, tier, path, bytes, updated_at";
-
+ *  the length they have to be. The hub's `PromotionJob::due()` reads these. */
 export interface PromotableRow {
   id: string;
   game: string | null;
@@ -295,30 +293,18 @@ export function durablePath(row: PromotableRow): string | null {
  * only fail, and if a run kept trying it, enough marked rows would fill every
  * batch and nothing staged since would ever move.
  *
- * Wants the secret key. The read is narrowed to approved rows anyway, so row
- * level security would not hide anything this needs, but the rule in `./queue`
- * is that a staging path stays on the server rather than reaching a caller
- * that has no other use for it.
+ * The hub works out the moderation hold ({@link PROMOTION_AGE_DAYS}) itself,
+ * so the job's token cannot ask for a picture approved a minute ago.
  */
 export async function fetchPromotable(
-  supabase: SupabaseClient,
+  store: PromotionStore,
   limit: number = PROMOTION_BATCH,
-  now: Date = new Date(),
 ): Promise<PromotableRow[]> {
-  const { data, error } = await supabase
-    .from("asset")
-    .select(PROMOTABLE_COLUMNS)
-    .eq("tier", "bucket")
-    .eq("moderation", "approved")
-    .is("blob_path", null)
-    .is("bytes_missing_at", null)
-    .lte("updated_at", promotionCutoff(now))
-    .order("updated_at", { ascending: true })
-    .limit(limit);
-
-  if (error) throw new Error(`Could not read what is due for promotion: ${error.message}`);
-
-  return (data ?? []) as unknown as PromotableRow[];
+  try {
+    return await store.due(limit);
+  } catch (error) {
+    throw new Error(`Could not read what is due for promotion: ${message(error)}`);
+  }
 }
 
 /**
@@ -337,22 +323,16 @@ export async function fetchPromotable(
  * and its staging copy is never deleted.
  */
 export async function stillPromotable(
-  supabase: SupabaseClient,
+  store: PromotionStore,
   ids: string[],
 ): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
 
-  const { data, error } = await supabase
-    .from("asset")
-    .select("id")
-    .in("id", ids)
-    .eq("tier", "bucket")
-    .eq("moderation", "approved")
-    .is("bytes_missing_at", null);
-
-  if (error) throw new Error(`Could not re-check the batch before pushing: ${error.message}`);
-
-  return new Set((data ?? []).map((row) => (row as { id: string }).id));
+  try {
+    return new Set(await store.stillDue(ids));
+  } catch (error) {
+    throw new Error(`Could not re-check the batch before pushing: ${message(error)}`);
+  }
 }
 
 /** A staging object whose row has already moved, and where that row points
@@ -375,37 +355,34 @@ export interface PendingDeletion {
  *
  * This is the whole reason `blob_path` is a column. `path` has been overwritten
  * with the durable path by then, so without this the object would be one
- * Postgres cannot name and #113 finds orphans by enumerating from Postgres.
+ * the database cannot name, and #113 finds orphans by enumerating from it.
  */
-export async function fetchPendingDeletions(
-  supabase: SupabaseClient,
-): Promise<PendingDeletion[]> {
-  const { data, error } = await supabase
-    .from("asset")
-    .select("id, path, tier, blob_path")
-    .not("blob_path", "is", null);
-
-  if (error) throw new Error(`Could not read the pending deletions: ${error.message}`);
-
-  return (data ?? []) as unknown as PendingDeletion[];
+export async function fetchPendingDeletions(store: PromotionStore): Promise<PendingDeletion[]> {
+  try {
+    return await store.pendingDeletions();
+  } catch (error) {
+    throw new Error(`Could not read the pending deletions: ${message(error)}`);
+  }
 }
 
 /** Move the rows and answer with the ones that actually moved, each with the
  *  staging path it is now the only record of. */
 export async function promoteRows(
-  supabase: SupabaseClient,
+  store: PromotionStore,
   batch: Promotable[],
 ): Promise<PendingDeletion[]> {
   if (batch.length === 0) return [];
 
-  const { data, error } = await supabase.rpc("promote_assets", {
-    ids: batch.map((item) => item.row.id),
-    paths: batch.map((item) => item.durable),
-  });
+  let moved: { id: string; blob_path: string }[];
+  try {
+    moved = await store.promote(
+      batch.map((item) => item.row.id),
+      batch.map((item) => item.durable),
+    );
+  } catch (error) {
+    throw new Error(`Could not move the rows to the durable tier: ${message(error)}`);
+  }
 
-  if (error) throw new Error(`Could not move the rows to the durable tier: ${error.message}`);
-
-  const moved = (data ?? []) as { id: string; blob_path: string }[];
   const durable = new Map(batch.map((item) => [item.row.id, item.durable]));
 
   return moved.map((row) => ({
@@ -418,16 +395,16 @@ export async function promoteRows(
 
 /** Forget staging objects that have been deleted. */
 export async function clearPendingDeletions(
-  supabase: SupabaseClient,
+  store: PromotionStore,
   ids: string[],
 ): Promise<number> {
   if (ids.length === 0) return 0;
 
-  const { data, error } = await supabase.rpc("clear_promoted_blob_paths", { ids });
-
-  if (error) throw new Error(`Could not clear the pending deletions: ${error.message}`);
-
-  return typeof data === "number" ? data : 0;
+  try {
+    return await store.clearPromoted(ids);
+  } catch (error) {
+    throw new Error(`Could not clear the pending deletions: ${message(error)}`);
+  }
 }
 
 /**
@@ -441,9 +418,9 @@ export async function clearPendingDeletions(
  * is permanent.
  */
 export interface PromotionPorts {
-  /** The bytes at a path in the Supabase bucket. Throws
-   *  {@link StagingReadError} with 404 when nothing is there, and with the
-   *  Storage API's status for any other refusal. */
+  /** The bytes at a staged path. Throws {@link StagingReadError} with 404
+   *  when nothing is there, and with the store's status for any other
+   *  refusal. */
   readStaged(path: string): Promise<Uint8Array>;
   /** Whether the durable checkout already holds this path. Content addressed,
    *  so if it does, it holds the same bytes and there is nothing to write. */
@@ -460,8 +437,8 @@ export interface PromotionPorts {
    *  while for the ones it is not. The gate on every deletion, and the reason
    *  no deletion rests on a push having been followed by a deploy that worked. */
   serving(paths: string[]): Promise<string[]>;
-  /** Remove objects from the Supabase bucket. Safe to repeat. Only ever
-   *  called on paths `reserve_staged_deletions` has reserved. */
+  /** Remove staged objects. Safe to repeat. Only ever called on paths
+   *  `reserve_staged_deletions` has reserved. */
   discardStaged(paths: string[]): Promise<void>;
   say(message: string): void;
 }
@@ -532,7 +509,7 @@ function message(error: unknown): string {
  * holds (`deleteStagedObjects` in `./orphan`).
  */
 async function deletePromoted(
-  supabase: SupabaseClient,
+  store: PromotionStore,
   ports: PromotionPorts,
   pending: PendingDeletion[],
 ): Promise<number> {
@@ -566,7 +543,7 @@ async function deletePromoted(
       ports.say(`keep ${row.blob_path}: its row was replaced with the same bytes and serves it again.`);
     }
     await clearPendingDeletions(
-      supabase,
+      store,
       reclaimed.map((row) => row.id),
     );
   }
@@ -574,7 +551,7 @@ async function deletePromoted(
   const toDelete = ready.filter((row) => !reclaimed.includes(row));
   if (toDelete.length > 0) {
     const gone = await deleteStagedObjects(
-      supabase,
+      store,
       (paths) => ports.discardStaged(paths),
       toDelete.map((row) => row.blob_path),
       false,
@@ -584,7 +561,7 @@ async function deletePromoted(
 
     if (going.length > 0) {
       await clearPendingDeletions(
-        supabase,
+        store,
         going.map((row) => row.id),
       );
       deleted += going.length;
@@ -601,23 +578,23 @@ async function deletePromoted(
  * convenience, and every `await` between two steps is load bearing.
  */
 export async function runPromotion(
-  supabase: SupabaseClient,
+  store: PromotionStore,
   ports: PromotionPorts,
-  options: { limit?: number; now?: Date } = {},
+  options: { limit?: number } = {},
 ): Promise<PromotionResult> {
   // 1. Whatever a previous run left in both tiers. A failure here is not a
   // reason to stop: every leftover is still named in `blob_path`, so the next
   // run drains it, and the rows due today have nothing to do with it.
   let drained = 0;
   try {
-    drained = await deletePromoted(supabase, ports, await fetchPendingDeletions(supabase));
+    drained = await deletePromoted(store, ports, await fetchPendingDeletions(store));
     if (drained > 0) ports.say(`Deleted ${drained} staging object(s) left by an earlier run.`);
   } catch (error) {
     ports.say(`Could not drain what an earlier run left, so it waits for the next: ${message(error)}`);
   }
 
   // 2. What is due.
-  const rows = await fetchPromotable(supabase, options.limit ?? PROMOTION_BATCH, options.now);
+  const rows = await fetchPromotable(store, options.limit ?? PROMOTION_BATCH);
   if (rows.length === 0) {
     ports.say("Nothing is due for promotion.");
     return { drained, promoted: 0, skipped: 0, deleted: 0, unreadable: 0 };
@@ -681,7 +658,7 @@ export async function runPromotion(
 
   // 4. Last look before the permanent bit, then one commit and one push.
   const surviving = await stillPromotable(
-    supabase,
+    store,
     batch.map((item) => item.row.id),
   );
   const pushing = batch.filter((item) => surviving.has(item.row.id));
@@ -708,7 +685,7 @@ export async function runPromotion(
   }
 
   // 6. All of them or none, and the staging paths come back out.
-  const moved = await promoteRows(supabase, pushing);
+  const moved = await promoteRows(store, pushing);
   skipped += pushing.length - moved.length;
 
   // 7. The only irreversible step, and the last one. It asks the durable tier
@@ -716,7 +693,7 @@ export async function runPromotion(
   // deliberate: every deletion in this file goes through one function that
   // checks for itself, rather than some of them inheriting a check made
   // earlier by a caller.
-  const deleted = await deletePromoted(supabase, ports, moved);
+  const deleted = await deletePromoted(store, ports, moved);
 
   return { drained, promoted: moved.length, skipped, deleted, unreadable };
 }

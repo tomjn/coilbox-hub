@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { GAME_IMAGE_KINDS, type GameImageKind } from "@/lib/api/gameBranding";
+import type { GameImageRow, PromotionStore } from "./jobStore";
 import { deleteStagedObjects } from "./orphan";
 import { type PromotionPorts, StagingReadError } from "./promote";
 
@@ -64,19 +64,6 @@ import { type PromotionPorts, StagingReadError } from "./promote";
  * `lib/assets/withdraw.ts` describes for a takedown.
  */
 
-/** What the run reads off a game row: three columns per picture kind, which is
- *  why the columns are named from the kind list rather than written out. */
-type GameImagePaths = { shortname: string } & Record<string, string | null>;
-
-/** The columns each of the two reads below asks for. Built from the kind list,
- *  so a fourth picture is one entry in that list and nothing here. */
-const GAME_IMAGE_PATH_COLUMNS = GAME_IMAGE_KINDS.map((kind) => `${kind}_path`);
-const GAME_IMAGE_ALL_COLUMNS = GAME_IMAGE_KINDS.flatMap((kind) => [
-  `${kind}_path`,
-  `${kind}_hash`,
-  `${kind}_staged_tier`,
-]);
-
 /** One picture a row names: the shared path and the hash that vouches for the
  *  bytes. */
 export interface GameImage {
@@ -103,17 +90,11 @@ const GAME_IMAGE_EXTENSIONS = ["png", "webp"] as const;
  * Wants the secret key, to read hidden games' rows, whose art is kept.
  */
 export async function strayGameImages(
-  supabase: SupabaseClient,
+  store: PromotionStore,
   held: (path: string) => Promise<boolean>,
   written: string[] = [],
 ): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("game")
-    .select(["shortname", ...GAME_IMAGE_PATH_COLUMNS].join(","));
-
-  if (error) throw new Error(`Could not read the game rows: ${error.message}`);
-
-  const rows = (data ?? []) as unknown as GameImagePaths[];
+  const rows = await gameRows(store);
   const named = new Set<string>();
   const candidates = new Set<string>(written);
   for (const row of rows) {
@@ -131,24 +112,18 @@ export async function strayGameImages(
   return stray;
 }
 
-/**
- * Every picture a game row says is staged, oldest row first.
- *
- * Wants the secret key, for the reason the asset run gives: a staging path
- * stays on the server rather than reaching a caller that has no other use for
- * it.
- */
-export async function fetchStagedGameImages(
-  supabase: SupabaseClient,
-): Promise<GameImage[]> {
-  const { data, error } = await supabase
-    .from("game")
-    .select(["shortname", ...GAME_IMAGE_ALL_COLUMNS].join(","));
+async function gameRows(store: PromotionStore): Promise<GameImageRow[]> {
+  try {
+    return await store.games();
+  } catch (error) {
+    throw new Error(`Could not read the game rows: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
 
-  if (error) throw new Error(`Could not read the game rows: ${error.message}`);
-
+/** Every picture a game row says is staged, in shortname order. */
+export async function fetchStagedGameImages(store: PromotionStore): Promise<GameImage[]> {
   const out: GameImage[] = [];
-  for (const row of (data ?? []) as unknown as GameImagePaths[]) {
+  for (const row of await gameRows(store)) {
     for (const kind of GAME_IMAGE_KINDS) {
       const path = row[`${kind}_path`];
       const hash = row[`${kind}_hash`];
@@ -165,21 +140,16 @@ export async function fetchStagedGameImages(
  * names the path and hash that were promoted. Answers whether it did, which
  * is false when an upload has replaced the picture since it was read.
  */
-async function clearStagedTier(supabase: SupabaseClient, image: GameImage): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("game")
-    .update({ [`${image.kind}_staged_tier`]: null })
-    .eq("shortname", image.shortname)
-    .eq(`${image.kind}_path`, image.path)
-    .eq(`${image.kind}_hash`, image.hash)
-    .eq(`${image.kind}_staged_tier`, "bucket")
-    .select("shortname");
-
-  if (error) {
-    throw new Error(`Could not clear the staged ${image.kind} for ${image.shortname}: ${error.message}`);
+async function clearStagedTier(store: PromotionStore, image: GameImage): Promise<boolean> {
+  try {
+    return await store.clearGameStagedTier(image);
+  } catch (error) {
+    throw new Error(
+      `Could not clear the staged ${image.kind} for ${image.shortname}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
   }
-
-  return (data ?? []).length > 0;
 }
 
 const sha256 = (bytes: Uint8Array): string =>
@@ -202,10 +172,10 @@ export interface GameImagePromotionResult {
  * both to the same real side effects and the tests fake both the same way.
  */
 export async function runGameImagePromotion(
-  supabase: SupabaseClient,
+  store: PromotionStore,
   ports: PromotionPorts,
 ): Promise<GameImagePromotionResult> {
-  const images = await fetchStagedGameImages(supabase);
+  const images = await fetchStagedGameImages(store);
   const seen = new Set<string>();
   let pushing: GameImage[] = [];
   let skipped = 0;
@@ -260,7 +230,7 @@ export async function runGameImagePromotion(
   // Read after the writes, so a removal that landed while the bytes were being
   // read is caught here rather than pushed.
   const stray = await strayGameImages(
-    supabase,
+    store,
     (path) => ports.held(path),
     pushing.map((image) => image.path),
   );
@@ -306,14 +276,14 @@ export async function runGameImagePromotion(
   // refused while the deletion is reserved.
   const cleared: GameImage[] = [];
   for (const image of pushing) {
-    if (await clearStagedTier(supabase, image)) {
+    if (await clearStagedTier(store, image)) {
       cleared.push(image);
     } else {
       ports.say(`keep ${image.path}: a newer upload or a removal changed the row after it was read.`);
     }
   }
   const gone = await deleteStagedObjects(
-    supabase,
+    store,
     (paths) => ports.discardStaged(paths),
     cleared.map((image) => image.path),
     true,
