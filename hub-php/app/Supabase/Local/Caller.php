@@ -19,6 +19,9 @@ final class Caller
 
     private ?bool $moderator = null;
 
+    /** Inside a `security definer` function: past every privilege and policy, still knowing who called. */
+    private bool $definer = false;
+
     public function __construct(public readonly Client $client)
     {
         $this->userId = $client->knownUserId();
@@ -27,7 +30,20 @@ final class Caller
 
     public function role(): string
     {
-        return $this->client->role();
+        return $this->definer ? 'service_role' : $this->client->role();
+    }
+
+    /**
+     * This caller as a `security definer` function sees them: the function's
+     * writes pass every grant and policy, and `auth.uid()` is still theirs.
+     */
+    public function definer(): self
+    {
+        $this->userId();
+        $definer = clone $this;
+        $definer->definer = true;
+
+        return $definer;
     }
 
     public function isService(): bool

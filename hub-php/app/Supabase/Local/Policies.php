@@ -8,9 +8,11 @@ use Illuminate\Support\Facades\DB;
 /**
  * The grants and row level security policies on the game catalogue, from
  * `supabase/migrations` (20260821100000, 20260821130000, 20260821140000,
- * 20260914200000, 20260918170000 and 20260918180000), for anon and
- * authenticated callers. The service role bypasses both, as it does in
- * Postgres.
+ * 20260914200000, 20260918170000 and 20260918180000), and on the picture
+ * tables (`asset_read_approved` and the grants in production's schema), for
+ * anon and authenticated callers. The service role bypasses row level
+ * security, as it does in Postgres, but holds only the privileges granted on
+ * the picture tables.
  */
 final class Policies
 {
@@ -33,8 +35,36 @@ final class Policies
     /** Tables anon and authenticated may read at all. */
     private const READABLE = [
         'game', 'game_version', 'game_faction', 'game_unit', 'game_unit_revision', 'game_download_source',
-        'game_browse',
+        'game_browse', 'asset',
     ];
+
+    /**
+     * What the service role may do on each picture table. Anon and
+     * authenticated may only read `asset`.
+     *
+     * @var array<string, list<string>>
+     */
+    private const SERVICE_GRANTS = [
+        'asset' => ['select', 'insert', 'update'],
+        'asset_event' => ['select'],
+        'asset_licence' => ['select'],
+        'asset_source_conflict' => ['select', 'insert'],
+        'asset_upload_ip' => ['insert'],
+        'asset_withdrawal' => ['select'],
+        'staged_object_deletion' => ['select'],
+    ];
+
+    /** Refuses a read the caller holds no privilege for, before any policy. */
+    public static function readGrant(Caller $caller, string $table): void
+    {
+        if (! Tables::isPicture($table)) {
+            return;
+        }
+        $allowed = $caller->isService() ? in_array('select', self::SERVICE_GRANTS[$table], true) : $table === 'asset';
+        if (! $allowed) {
+            throw new LocalException('permission denied for table '.$table, 403, '42501');
+        }
+    }
 
     /**
      * Refuses a write the caller holds no privilege for, as Postgres does
@@ -45,6 +75,10 @@ final class Policies
     public static function grant(Caller $caller, string $table, string $command, array $columns): void
     {
         if ($caller->isService()) {
+            if (Tables::isPicture($table) && ! in_array($command, self::SERVICE_GRANTS[$table], true)) {
+                throw new LocalException('permission denied for table '.$table, 403, '42501');
+            }
+
             return;
         }
         $allowed = $caller->role() === 'authenticated' ? (self::GRANTS[$table][$command] ?? null) : null;
@@ -76,6 +110,7 @@ final class Policies
             'game_faction', 'game_unit' => self::visibleGame($caller, $query, $alias.'.game_id'),
             'game_version' => self::visibleVersion($caller, $query, $alias.'.game_id', $alias.'.version'),
             'game_unit_revision' => self::visibleRevision($caller, $query, $alias),
+            'asset' => $query->where($alias.'.moderation', 'approved'),
             default => null,
         };
     }

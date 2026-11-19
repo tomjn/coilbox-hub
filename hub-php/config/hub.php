@@ -32,6 +32,10 @@ return [
     // `supabase` or `mariadb` to fix it, as the tests do.
     'games_store' => env('HUB_GAMES_STORE'),
 
+    // The same for pictures and the staged picture bucket (#598), switched by
+    // `php artisan pictures:copy`.
+    'pictures_store' => env('HUB_PICTURES_STORE'),
+
     // The Coilbox desktop app's website.
     'coilbox_url' => 'https://coilbox.org/',
 ];

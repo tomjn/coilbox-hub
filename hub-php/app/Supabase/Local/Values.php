@@ -23,6 +23,7 @@ final class Values
         return match ($type) {
             'int' => (int) $value,
             'bool' => (bool) $value,
+            'float' => self::real((float) $value),
             'json' => json_decode((string) $value, true, 512, JSON_THROW_ON_ERROR),
             'ts' => self::timestamp((string) $value),
             default => (string) $value,
@@ -39,10 +40,30 @@ final class Values
         return match ($type) {
             'int' => (int) $value,
             'bool' => is_string($value) ? in_array(strtolower($value), ['true', 't', '1'], true) : (bool) $value,
+            'float' => self::real((float) $value),
             'json' => self::json($value),
             'ts' => self::stored($value),
             default => is_bool($value) ? ($value ? 'true' : 'false') : (string) $value,
         };
+    }
+
+    /**
+     * A Postgres `real` as PostgREST writes it: rounded to single precision,
+     * then the shortest decimal that rounds back to it, whole numbers without
+     * a fraction. MariaDB keeps it as a double.
+     */
+    public static function real(float $value): int|float
+    {
+        $single = unpack('g', pack('g', $value))[1];
+        for ($digits = 1; $digits <= 9; $digits++) {
+            $short = (float) sprintf('%.'.$digits.'g', $single);
+            if (unpack('g', pack('g', $short))[1] === $single) {
+                break;
+            }
+        }
+        $short ??= $single;
+
+        return $short === floor($short) && abs($short) < 1e15 ? (int) $short : $short;
     }
 
     /** Now, to the microsecond, in the form stored. */

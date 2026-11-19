@@ -177,7 +177,12 @@ class AssetApiController extends Controller
             Staging::put($admin, $check['path'], $bytes, $declaration['mime']);
         } catch (StagedAssetExistsException) {
             // Kept as it is.
-        } catch (SupabaseException) {
+        } catch (SupabaseException $e) {
+            if ($e->errorCode === 'HUB_FROZEN') {
+                // `pictures:copy` is moving the bucket. Coilbox tries again later.
+                return Api::error($e->getMessage(), 503);
+            }
+
             return Api::error('The asset store would not accept that upload just now.', 502);
         }
 

@@ -18,6 +18,12 @@ final class Request
 
     public bool $upsert = false;
 
+    /** `resolution=ignore-duplicates`: rows that hit `onConflict` are skipped. */
+    public bool $ignoreDuplicates = false;
+
+    /** @var list<string> the `on_conflict` columns */
+    public array $onConflict = [];
+
     /** @var array<string, list<array<string, mixed>>> */
     private array $filters = [];
 
@@ -49,6 +55,7 @@ final class Request
                 $request->returns = true;
             } elseif (str_starts_with($preference, 'resolution=')) {
                 $request->upsert = true;
+                $request->ignoreDuplicates = $preference === 'resolution=ignore-duplicates';
             }
         }
 
@@ -92,7 +99,12 @@ final class Request
 
             return;
         }
-        if ($name === 'columns' || $name === 'on_conflict') {
+        if ($name === 'on_conflict') {
+            $this->onConflict = array_map('trim', explode(',', $value));
+
+            return;
+        }
+        if ($name === 'columns') {
             return;
         }
         $parts = explode('.', $name);

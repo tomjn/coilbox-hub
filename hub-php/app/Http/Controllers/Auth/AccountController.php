@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Auth;
 use App\Auth\GoTrue;
 use App\Auth\HubSession;
 use App\Domain\Account\AccountRules;
-use App\Supabase\Supabase;
+use App\Supabase\Client;
+use App\Supabase\Local\PictureStore;
+use App\Supabase\Local\Values;
 use App\Supabase\SupabaseException;
 use App\Support\HubCache;
 use App\Support\Site;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
@@ -106,7 +109,15 @@ class AccountController
         if (! AccountRules::confirmsDeletion($request->input('confirm'), $name)) {
             return redirect('/account')->with('delete', ['error' => "That is not your name. Type {$name} exactly to delete your account."]);
         }
+        // Asked first, so a deletion during the picture copy is refused rather than missed.
+        $picturesLocal = PictureStore::writeTarget() === PictureStore::MARIADB;
         GoTrue::adminDeleteUser($userId);
+        if ($picturesLocal) {
+            // `asset.uploaded_by` references `auth.users` on delete set null,
+            // and its update trigger moves `updated_at`. That foreign key
+            // cannot reach MariaDB.
+            DB::table('asset')->where('uploaded_by', $userId)->update(['uploaded_by' => null, 'updated_at' => Values::now()]);
+        }
         HubCache::invalidate([HubCache::ITEMS]);
         HubSession::signOut();
 
@@ -304,7 +315,7 @@ class AccountController
         return $out;
     }
 
-    private static function capabilityAccess(\App\Supabase\Client $client, string $capability): string
+    private static function capabilityAccess(Client $client, string $capability): string
     {
         try {
             $answer = $client->rpc('capability_access', ['capability' => $capability]);
