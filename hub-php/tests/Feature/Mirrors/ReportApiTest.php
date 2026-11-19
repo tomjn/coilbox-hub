@@ -81,7 +81,7 @@ class ReportApiTest extends TestCase
             && $r['p_mirror'] === 'jj-darkstars' && $r['p_healthy'] === true);
     }
 
-    /** Whether a value cached under the maps and games tags before the report is still served after it. */
+    /** Whether a map page and a game page, cached under their loaders' tags before the report, are still served after it. */
     private function cachedPagesSurvive(array $recorded, mixed $healthChanged): bool
     {
         Http::fake($this->currentCatalogue() + [
@@ -91,13 +91,16 @@ class ReportApiTest extends TestCase
             'https://sb.test/rest/v1/rpc/set_mirror_health' => Http::response(json_encode($healthChanged), 200),
         ]);
         HubCache::remember('maps:test', [HubCache::MAPS], 60, fn () => 'before');
-        HubCache::remember('games:test', [HubCache::GAMES], 60, fn () => 'before');
+        HubCache::remember('games:test', [HubCache::GAMES, HubCache::DOWNLOADS], 60, fn () => 'before');
+        HubCache::remember('games:unit:test', [HubCache::GAMES, HubCache::ASSETS, HubCache::unit('BA', 'armcom')], 60, fn () => 'before');
 
         $this->send('report-sync.json')->assertOk();
 
         $maps = HubCache::remember('maps:test', [HubCache::MAPS], 60, fn () => 'after');
-        $games = HubCache::remember('games:test', [HubCache::GAMES], 60, fn () => 'after');
+        $games = HubCache::remember('games:test', [HubCache::GAMES, HubCache::DOWNLOADS], 60, fn () => 'after');
         $this->assertSame($maps, $games);
+        // A unit page lists no downloads, so no report drops it.
+        $this->assertSame('before', HubCache::remember('games:unit:test', [HubCache::GAMES, HubCache::ASSETS, HubCache::unit('BA', 'armcom')], 60, fn () => 'after'));
 
         return $maps === 'before';
     }

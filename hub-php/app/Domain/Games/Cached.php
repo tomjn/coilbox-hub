@@ -2,7 +2,9 @@
 
 namespace App\Domain\Games;
 
+use App\Domain\Assets\AssetResolver;
 use App\Supabase\Supabase;
+use App\Supabase\SupabaseException;
 use App\Support\HubCache;
 
 /**
@@ -22,7 +24,7 @@ final class Cached
     /** @return array{games: list<array>, error: string|null} */
     public static function gamesListing(): array
     {
-        return self::remember('games:listing', [HubCache::GAMES], function () {
+        return self::remember('games:listing', [HubCache::GAMES, HubCache::DOWNLOADS], function () {
             if (! Supabase::configured()) {
                 return ['games' => [], 'error' => null];
             }
@@ -47,7 +49,7 @@ final class Cached
     public static function gamePage(string $shortname): ?array
     {
         // v2: the page gained `id`. Bump when the shape changes, so a deploy does not serve week old entries without it.
-        return self::remember('games:page:v2:'.$shortname, [HubCache::GAMES], function () use ($shortname) {
+        return self::remember('games:page:v2:'.$shortname, [HubCache::GAMES, HubCache::DOWNLOADS], function () use ($shortname) {
             if (! Supabase::configured()) {
                 return null;
             }
@@ -122,10 +124,20 @@ final class Cached
                 return null;
             }
             $supabase = Supabase::anon();
-            $page = Units::loadUnitPage($supabase, $shortname, $unitName, $version);
+            $page = Units::loadUnitPage(
+                $supabase,
+                $shortname,
+                $unitName,
+                $version,
+                self::unitCatalog($shortname),
+                fn (string $release) => self::releaseCatalog($shortname, $release),
+                self::gameFactions($shortname),
+                self::gameReleases($shortname),
+            );
             if ($page === null) {
                 return null;
             }
+            $pictures = self::unitPictures($shortname);
             // Both directions of the edge and every stage draw as cells, one
             // buildpic each, deduped so a unit that builds its own builder is
             // asked for once.
@@ -139,10 +151,42 @@ final class Cached
 
             return [
                 'page' => $page,
-                'renders' => Units::unitRenders($supabase, $shortname, $unitName),
-                'buildpic' => Units::unitBuildpic($supabase, $shortname, $unitName),
-                'buildPictures' => Units::unitBuildpics($supabase, $shortname, array_values($cells)),
+                'renders' => Units::unitRenders($supabase, $shortname, $unitName, $pictures),
+                'buildpic' => Units::unitBuildpic($supabase, $shortname, $unitName, $pictures),
+                'buildPictures' => Units::unitBuildpics($supabase, $shortname, array_values($cells), $pictures),
             ];
+        });
+    }
+
+    /**
+     * Every unit of a game, as {@see Units::unitCatalog()}. Null when the read
+     * fails.
+     *
+     * This and the two loaders below hold what every unit page of a game
+     * shares, read once per game rather than once per page (#590). Crawlers
+     * visit each unit page once, so the page cache alone barely helps. A failed
+     * read is not kept, so one bad moment does not strip a week of pages.
+     */
+    public static function unitCatalog(string $shortname): ?array
+    {
+        return self::rememberRead('games:catalog:'.$shortname, [HubCache::GAMES], function () use ($shortname) {
+            return Supabase::configured() ? Units::unitCatalog(Supabase::anon(), $shortname) : [];
+        });
+    }
+
+    /** One release's revisions, as {@see Units::releaseCatalog()}. Null when the read fails. */
+    public static function releaseCatalog(string $shortname, string $version): ?array
+    {
+        return self::rememberRead('games:release-catalog:'.json_encode([$shortname, $version]), [HubCache::GAMES], function () use ($shortname, $version) {
+            return Supabase::configured() ? Units::releaseCatalog(Supabase::anon(), $shortname, $version) : [];
+        });
+    }
+
+    /** Every approved buildpic and render of a game's units. Null when the read fails. */
+    public static function unitPictures(string $shortname): ?array
+    {
+        return self::rememberRead('games:unit-pictures:'.$shortname, [HubCache::GAMES, HubCache::ASSETS], function () use ($shortname) {
+            return Supabase::configured() ? AssetResolver::fetchGameUnitPictures(Supabase::anon(), $shortname) : [];
         });
     }
 
@@ -238,5 +282,15 @@ final class Cached
     private static function remember(string $key, array $tags, \Closure $load): mixed
     {
         return HubCache::remember($key, $tags, self::LIFE, $load);
+    }
+
+    /** As {@see remember()}, except that a load answering null is returned and not kept. */
+    private static function rememberRead(string $key, array $tags, \Closure $load): ?array
+    {
+        try {
+            return self::remember($key, $tags, fn () => $load() ?? throw new SupabaseException('Not kept: the read failed.'));
+        } catch (SupabaseException) {
+            return null;
+        }
     }
 }

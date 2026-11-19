@@ -97,8 +97,9 @@ final class Registry
         $ok = in_array($outcome, (array) $success, true);
 
         if ($ok) {
-            // Map and game pages are cached and list the mirrors that hold each download.
-            HubCache::invalidate([HubCache::MAPS, HubCache::GAMES]);
+            // Map and game pages are cached and list the mirrors that hold each
+            // download. Unit pages list none, so the narrower tag spares them.
+            HubCache::invalidate([HubCache::MAPS, HubCache::DOWNLOADS]);
         }
 
         return [

@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Cache;
  * store, including the file store, which has no tag support of its own.
  *
  * Tag names match `lib/cache/tags.ts`: `items`, `item:<id>`, `maps`,
- * `map:<slug>`, `games`, `unit:<shortname>/<unit>`, `assets`.
+ * `map:<slug>`, `games`, `unit:<shortname>/<unit>`, `assets`. `downloads` is
+ * the hub's own, for game entries that carry download lists.
  */
 final class HubCache
 {
@@ -35,6 +36,13 @@ final class HubCache
     public const GAMES = 'games';
 
     public const ASSETS = 'assets';
+
+    /**
+     * Game entries holding download lists, which mirror copies join. A mirror
+     * change clears these rather than every game entry, so unit pages, which
+     * list no downloads, stay cached (#590).
+     */
+    public const DOWNLOADS = 'downloads';
 
     public static function item(string $id): string
     {

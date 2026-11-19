@@ -2,6 +2,7 @@
 
 namespace App\Domain\Assets;
 
+use App\Domain\Games\ReadAll;
 use App\Supabase\Client;
 use App\Supabase\SupabaseException;
 
@@ -197,24 +198,36 @@ final class AssetResolver
                 continue;
             }
 
-            foreach ($rows as $row) {
-                // A row whose store lost the bytes is served as if there were none.
-                if (! empty($row['bytes_missing_at'])) {
-                    continue;
-                }
-                $held[Have::identityKey(Have::rowIdentity($row))] = [
-                    'tier' => (string) $row['tier'],
-                    'path' => (string) $row['path'],
-                    'width' => $row['width'],
-                    'height' => $row['height'],
-                    'moderation' => (string) $row['moderation'],
-                    'world_height_min' => $row['world_height_min'] ?? null,
-                    'world_height_max' => $row['world_height_max'] ?? null,
-                ];
-            }
+            $held = array_merge($held, self::heldRows($rows));
         }
 
         return $held;
+    }
+
+    /**
+     * Every approved buildpic and render of one game's units, keyed and shaped
+     * as {@see fetchHeldAssets()} returns them, in one paged read. A unit page
+     * resolves its own pictures and those of every unit it draws a cell for,
+     * so one list per game replaces a lookup per page. Null on a failed read.
+     *
+     * @return array<string, array<string, mixed>>|null
+     */
+    public static function fetchGameUnitPictures(Client $supabase, string $game): ?array
+    {
+        $variants = [
+            Asset::unitBuildpicVariant(),
+            ...array_map(fn (string $angle) => Asset::unitRenderVariantPrefix().$angle, Asset::unitRenderAngles()),
+        ];
+        $rows = ReadAll::rows(fn () => $supabase->from('asset')
+            ->select(self::SERVE_COLUMNS)
+            ->eq('moderation', 'approved')
+            ->eq('game', $game)
+            ->not('unit_name', 'is', null)
+            ->in('variant', $variants)
+            ->is('bytes_missing_at', null)
+            ->order('id'));
+
+        return $rows === null ? null : self::heldRows($rows);
     }
 
     /**
@@ -277,6 +290,34 @@ final class AssetResolver
             'width' => $row['width'],
             'height' => $row['height'],
         ];
+    }
+
+    /**
+     * Asset rows keyed by {@see Have::identityKey()}, as a page resolves them.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, array<string, mixed>>
+     */
+    private static function heldRows(array $rows): array
+    {
+        $held = [];
+        foreach ($rows as $row) {
+            // A row whose store lost the bytes is served as if there were none.
+            if (! empty($row['bytes_missing_at'])) {
+                continue;
+            }
+            $held[Have::identityKey(Have::rowIdentity($row))] = [
+                'tier' => (string) $row['tier'],
+                'path' => (string) $row['path'],
+                'width' => $row['width'],
+                'height' => $row['height'],
+                'moderation' => (string) $row['moderation'],
+                'world_height_min' => $row['world_height_min'] ?? null,
+                'world_height_max' => $row['world_height_max'] ?? null,
+            ];
+        }
+
+        return $held;
     }
 
     /** The vocabulary's angles in portrait order. A stable sort, so a new angle lands last. @return list<string> */

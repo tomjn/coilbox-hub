@@ -3,6 +3,7 @@
 namespace Tests\Unit\Games;
 
 use App\Domain\Assets\Asset;
+use App\Domain\Games\Changes;
 use App\Domain\Games\Units;
 use App\Supabase\Client;
 use App\Supabase\Supabase;
@@ -458,11 +459,26 @@ class UnitsTest extends TestCase
         ]);
     }
 
+    /** A unit's page, with the lists it shares with its game read straight from the fake. */
+    private function page(string $unit, ?string $version = null): ?array
+    {
+        return Units::loadUnitPage(
+            $this->supabase,
+            'BA',
+            $unit,
+            $version,
+            Units::unitCatalog($this->supabase, 'BA'),
+            fn (string $release) => Units::releaseCatalog($this->supabase, 'BA', $release),
+            Units::gameFactions($this->supabase, 'BA'),
+            array_map(fn (array $release) => $release['version'], Changes::loadGameReleases($this->supabase, 'BA') ?? []),
+        );
+    }
+
     public function test_asking_for_an_older_release_shows_what_that_release_said(): void
     {
         $this->revisioned();
 
-        $page = Units::loadUnitPage($this->supabase, 'BA', 'armcom', '1.0');
+        $page = $this->page('armcom', '1.0');
 
         $this->assertSame('1.0', $page['shown_version']);
         $this->assertSame('Commander Mk I', $page['full_name']);
@@ -476,7 +492,7 @@ class UnitsTest extends TestCase
     {
         $this->revisioned();
 
-        $page = Units::loadUnitPage($this->supabase, 'BA', 'armcom', '0.9');
+        $page = $this->page('armcom', '0.9');
 
         // An ordinary answer for a unit a later patch added, and the page says so rather than 404ing.
         $this->assertNull($page['shown_version']);
@@ -487,7 +503,7 @@ class UnitsTest extends TestCase
     {
         $this->revisioned();
 
-        $page = Units::loadUnitPage($this->supabase, 'BA', 'armcom');
+        $page = $this->page('armcom');
 
         $this->assertNull($page['shown_version']);
         $this->assertSame(['health' => 3000], $page['stats']);
@@ -505,14 +521,14 @@ class UnitsTest extends TestCase
     {
         $this->revisioned();
 
-        $this->assertNull(Units::loadUnitPage($this->supabase, 'BA', 'nothere'));
+        $this->assertNull($this->page('nothere'));
     }
 
     public function test_a_failed_page_read_has_no_page(): void
     {
         Http::fake(['*' => Http::response(['message' => 'boom'], 500)]);
 
-        $this->assertNull(Units::loadUnitPage($this->supabase, 'BA', 'armcom'));
+        $this->assertNull($this->page('armcom'));
     }
 
     private const COMMANDER = [
@@ -528,7 +544,14 @@ class UnitsTest extends TestCase
     {
         $this->serve(['game_unit' => $rows ?? self::COMMANDER]);
 
-        return Units::loadUnitStages($this->supabase, 'BA', $unit, $version);
+        return Units::loadUnitStages(
+            $this->supabase,
+            'BA',
+            $unit,
+            $version,
+            Units::unitCatalog($this->supabase, 'BA'),
+            $version !== null ? Units::releaseCatalog($this->supabase, 'BA', $version) : null,
+        );
     }
 
     public function test_a_levels_page_lists_every_stage_in_order_and_marks_the_one_being_shown(): void
@@ -658,7 +681,7 @@ class UnitsTest extends TestCase
     {
         $this->serve(['game_unit' => self::BUILDERS]);
 
-        $this->assertSame([['name' => 'armcom', 'label' => 'Commander']], Units::unitBuilders($this->supabase, 'BA', 'armlab'));
+        $this->assertSame([['name' => 'armcom', 'label' => 'Commander']], Units::unitBuilders('armlab', Units::unitCatalog($this->supabase, 'BA')));
     }
 
     public function test_a_retired_builder_is_not_a_live_path_to_a_unit(): void
@@ -666,7 +689,7 @@ class UnitsTest extends TestCase
         $this->serve(['game_unit' => self::BUILDERS]);
 
         // armshed builds armck too, but it retired, so only the lab counts.
-        $this->assertSame([['name' => 'armlab', 'label' => 'Kbot Lab']], Units::unitBuilders($this->supabase, 'BA', 'armck'));
+        $this->assertSame([['name' => 'armlab', 'label' => 'Kbot Lab']], Units::unitBuilders('armck', Units::unitCatalog($this->supabase, 'BA')));
     }
 
     public function test_a_release_answers_with_that_releases_builders_under_that_releases_names(): void
@@ -676,16 +699,16 @@ class UnitsTest extends TestCase
         // In 1.0 the lab was called a factory and did not build armpw yet, and it had not retired, so the shed still counts.
         $this->assertSame(
             [['name' => 'armlab', 'label' => 'Kbot Factory'], ['name' => 'armshed', 'label' => 'Kbot Shed']],
-            Units::unitBuilders($this->supabase, 'BA', 'armck', '1.0'),
+            Units::unitBuilders('armck', Units::releaseCatalog($this->supabase, 'BA', '1.0')),
         );
-        $this->assertSame([], Units::unitBuilders($this->supabase, 'BA', 'armpw', '1.0'));
+        $this->assertSame([], Units::unitBuilders('armpw', Units::releaseCatalog($this->supabase, 'BA', '1.0')));
     }
 
     public function test_a_builder_read_that_fails_answers_with_nothing_rather_than_taking_the_page_down(): void
     {
         Http::fake(['*' => Http::response(['message' => 'nope'], 401)]);
 
-        $this->assertSame([], Units::unitBuilders($this->supabase, 'BA', 'armlab'));
+        $this->assertSame([], Units::unitBuilders('armlab', Units::unitCatalog($this->supabase, 'BA')));
     }
 
     public function test_the_random_side_hides_from_every_faction_list(): void
