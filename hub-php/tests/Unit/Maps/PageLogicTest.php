@@ -166,18 +166,24 @@ class PageLogicTest extends TestCase
         $this->assertSame('select=slug&featured_at=not.is.null&play_types=ov.{1v1,team}&uploaded_at=not.is.null&order=uploaded_at.desc,map_name.asc', $sent[2]);
     }
 
-    public function test_an_author_key_is_the_databases_answer(): void
+    public function test_an_author_key_is_folded_here_then_follows_a_merge(): void
     {
         config(['hub.supabase.url' => 'https://sb.test', 'hub.supabase.publishable_key' => 'sb_publishable_x']);
-        Http::fake([
-            'sb.test/rest/v1/rpc/author_key' => Http::response(json_encode('beherith')),
-            'sb.test/rest/v1/rpc/resolved_author_key' => Http::response(json_encode('beherith-merged')),
-        ]);
+        Http::fake(['sb.test/rest/v1/author_alias*' => Http::response([['to_key' => 'beherith-merged']])]);
 
         $this->assertNull(Listing::resolveAuthorKey(Supabase::anon(), null));
         $this->assertSame('beherith-merged', Listing::resolveAuthorKey(Supabase::anon(), '[BAR]Beherith'));
-        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/author_key') && $request['credit'] === '[BAR]Beherith');
-        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/resolved_author_key') && $request['credit_key'] === 'beherith');
+        Http::assertSent(fn (Request $request) => str_contains($request->url(), '/author_alias?select=to_key&from_key=eq.beherith'));
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), '/rpc/'));
+    }
+
+    public function test_an_author_without_a_merge_keeps_the_folded_key(): void
+    {
+        config(['hub.supabase.url' => 'https://sb.test', 'hub.supabase.publishable_key' => 'sb_publishable_x']);
+        Http::fake(['sb.test/rest/v1/author_alias*' => Http::response([])]);
+
+        $this->assertSame('beherith', Listing::resolveAuthorKey(Supabase::anon(), ' (BAR) Beherith! '));
+        $this->assertSame('', Listing::resolveAuthorKey(Supabase::anon(), '[BAR]'));
     }
 
     private const HOST = ['name' => 'hakora', 'url_template' => 'http://hakora.xyz/files/springrts/maps/{filename}', 'enabled' => true];
