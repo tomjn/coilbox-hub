@@ -1,7 +1,9 @@
 <?php
 
+use App\Domain\Games\CatalogueCopy;
 use App\Domain\Mirrors\CatalogueStore;
 use App\Domain\Mirrors\HubKeys;
+use App\Supabase\Local\GameStore;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Foundation\Inspiring;
@@ -101,3 +103,51 @@ Artisan::command('mirrors:status', function () {
 
     return 0;
 })->purpose('Show each mirror and whether the next hub key is safe to switch to');
+
+Artisan::command('games:copy {--dry-run : Show the row counts and write nothing}', function () {
+    $copy = new CatalogueCopy(
+        Supabase::admin()->remote(),
+        fn (string $line) => $this->line($line),
+        fn (int $seconds) => sleep($seconds),
+    );
+    $this->line('The hub reads games from '.GameStore::fresh().'.');
+
+    try {
+        if ($this->option('dry-run')) {
+            foreach ($copy->counts() as $table => $count) {
+                $this->line(sprintf('%s: Supabase %d, MariaDB %d', $table, $count['supabase'], $count['mariadb']));
+            }
+            $this->line('Dry run: nothing was written.');
+
+            return 0;
+        }
+        $copy->run();
+    } catch (Throwable $e) {
+        $this->error('The copy stopped: '.$e->getMessage());
+
+        return 1;
+    }
+
+    return 0;
+})->purpose('Copy the game catalogue from Supabase into MariaDB and switch the hub to it');
+
+Artisan::command('games:store {state? : supabase, to go back}', function () {
+    $state = $this->argument('state');
+    if ($state === null) {
+        $this->line('The hub reads games from '.GameStore::fresh().'.');
+
+        return 0;
+    }
+    if ($state !== GameStore::SUPABASE) {
+        $this->error('Only supabase can be set here. games:copy switches to mariadb once the rows are copied.');
+
+        return 1;
+    }
+    if (GameStore::fresh() === GameStore::MARIADB) {
+        $this->warn('Writes made in MariaDB since the switch are not in Supabase, apart from game rows themselves.');
+    }
+    GameStore::set(GameStore::SUPABASE);
+    $this->line('The hub reads games from supabase.');
+
+    return 0;
+})->purpose('Show which database the game catalogue is read from, or go back to Supabase');
