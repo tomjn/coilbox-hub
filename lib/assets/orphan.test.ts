@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "bun:test";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PromotionStore } from "./jobStore";
 import type { CleanupPorts } from "./orphan";
 
 /**
@@ -46,90 +46,54 @@ class World {
   }
 }
 
-function pick(row: Record<string, unknown>, columns: string[]): Record<string, unknown> {
-  return Object.fromEntries(columns.map((column) => [column, row[column]]));
-}
-
-/** As much of PostgREST as this module asks for. */
-function fakeSupabase(world: World): SupabaseClient {
-  const table = (name: string, rows: Record<string, unknown>[]) => {
-    let matching = rows;
-    let columns: string[] = [];
-
-    const builder = {
-      select: (list: string) => {
-        columns = list.split(",").map((column) => column.trim());
-        return builder;
-      },
-      eq: (column: string, value: unknown) => {
-        matching = matching.filter((row) => row[column] === value);
-        return builder;
-      },
-      neq: (column: string, value: unknown) => {
-        matching = matching.filter((row) => row[column] !== value);
-        return builder;
-      },
-      is: (column: string, value: unknown) => {
-        matching = matching.filter((row) => row[column] === value);
-        return builder;
-      },
-      lt: (column: string, value: string) => {
-        matching = matching.filter((row) => String(row[column]) < value);
-        return builder;
-      },
-      in: (column: string, values: unknown[]) => {
-        matching = matching.filter((row) => values.includes(row[column]));
-        return builder;
-      },
-      order: () => builder,
-      limit: (n: number) => {
-        matching = matching.slice(0, n);
-        return builder;
-      },
-      then: (resolve: (value: { data: Record<string, unknown>[]; error: null }) => unknown) =>
-        resolve({ data: matching.map((row) => pick(row, columns)), error: null }),
-    };
-
-    return builder;
+/**
+ * As much of the hub's promotion API as this module asks for. The hub works out
+ * which reservations are abandoned from its own clock, so the fake takes `now`.
+ */
+function fakeStore(world: World, now: Date): PromotionStore {
+  const unused = async (): Promise<never> => {
+    throw new Error("the sweep does not ask for this");
   };
+  const before = new Date(now.getTime() - ABANDONED_RESERVATION_MINUTES * 60 * 1000).toISOString();
 
   return {
-    from: (name: string) =>
-      table(
-        name,
-        (name === "staged_object_deletion"
-          ? [...world.reservations].map(([path, reserved_at]) => ({ path, reserved_at }))
-          : world.assets) as unknown as Record<string, unknown>[],
-      ),
-    rpc: (name: string, args: Record<string, unknown>) => {
-      if (name === "unclaimed_staged_objects") {
-        const data = [...world.bucket]
-          .filter((path) => !world.claims(path))
-          .slice(0, args.max_objects as number)
-          .map((path) => ({ object_path: path, bytes: 1024, created_at: "2026-09-14T00:00:00.000Z" }));
-        world.afterListing?.();
-        return Promise.resolve({ data, error: null });
-      }
-      if (name === "reserve_staged_deletions") {
-        const data = [...new Set(args.object_paths as string[])]
-          .filter((path) => !world.claims(path, args.queued_is_claimed as boolean))
-          .map((path) => {
-            if (!world.reservations.has(path)) world.reservations.set(path, "2026-09-14T12:00:00.000Z");
-            return { object_path: path };
-          });
-        return Promise.resolve({ data, error: null });
-      }
-      if (name === "release_staged_deletions") {
-        let released = 0;
-        for (const path of args.object_paths as string[]) {
-          if (world.reservations.delete(path)) released++;
-        }
-        return Promise.resolve({ data: released, error: null });
-      }
-
-      throw new Error(`no fake for ${name}`);
+    unclaimed: async (limit) => {
+      const data = [...world.bucket]
+        .filter((path) => !world.claims(path))
+        .slice(0, limit)
+        .map((path) => ({ path, bytes: 1024, created_at: "2026-09-14T00:00:00.000Z" }));
+      world.afterListing?.();
+      return data;
     },
-  } as unknown as SupabaseClient;
+    abandoned: async () =>
+      [...world.reservations].filter(([, reservedAt]) => reservedAt < before).map(([path]) => path),
+    reserve: async (paths, queuedIsClaimed) =>
+      [...new Set(paths)]
+        .filter((path) => !world.claims(path, queuedIsClaimed))
+        .map((path) => {
+          if (!world.reservations.has(path)) world.reservations.set(path, "2026-09-14T12:00:00.000Z");
+          return path;
+        }),
+    release: async (paths) => {
+      let released = 0;
+      for (const path of paths) {
+        if (world.reservations.delete(path)) released++;
+      }
+      return released;
+    },
+    withdrawals: unused,
+    recordWithdrawn: unused,
+    due: unused,
+    stillDue: unused,
+    pendingDeletions: unused,
+    promote: unused,
+    clearPromoted: unused,
+    readStaged: unused,
+    discard: unused,
+    games: unused,
+    clearGameStagedTier: unused,
+    meters: unused,
+  };
 }
 
 function fakePorts(world: World): CleanupPorts {
@@ -156,11 +120,11 @@ beforeEach(() => {
   world = new World();
 });
 
-// ## The Supabase bucket (#335)
+// ## The staged pictures (#335, #616)
 //
-// Nothing is queued: the bucket is listed from Postgres, and a deletion is
-// reserved first, under a lock an upload also takes. The SQL half, including
-// the lock, is `staged_pictures_promotion.test.sql`. This half is the order.
+// Nothing is queued: the hub lists what nothing claims, and a deletion is
+// reserved first, under a lock an upload also takes. The database half is
+// `PromotionApiTest.php` in the hub. This half is the order.
 
 const NOW = new Date("2026-09-14T12:00:00.000Z");
 
@@ -183,7 +147,7 @@ test("the bucket sweep takes what nothing claims and leaves a shared object two 
     world.bucket.add(path);
   }
 
-  const result = await sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, NOW);
+  const result = await sweepStagedObjects(fakeStore(world, NOW), fakePorts(world), 200);
 
   expect(result).toEqual({ deleted: 1, kept: 0 });
   expect(world.discardedStaged).toEqual(["units/bar/buildpic/spare.webp"]);
@@ -197,7 +161,7 @@ test("an object an upload claims after the bucket was listed is kept", async () 
     world.assets.push({ path: "units/bar/buildpic/reused.webp", tier: "bucket", blob_path: null });
   };
 
-  const result = await sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, NOW);
+  const result = await sweepStagedObjects(fakeStore(world, NOW), fakePorts(world), 200);
 
   expect(result).toEqual({ deleted: 0, kept: 1 });
   expect(world.discardedStaged).toEqual([]);
@@ -209,7 +173,7 @@ test("a sweep killed at the delete leaves the reservation, and a sweep after the
   world.bucket.add("units/bar/buildpic/spare.webp");
   world.discardStagedFails = true;
 
-  await expect(sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, NOW)).rejects.toThrow("would not answer");
+  await expect(sweepStagedObjects(fakeStore(world, NOW), fakePorts(world), 200)).rejects.toThrow("would not answer");
 
   // Still reserved, so the database keeps refusing an upload that would reuse it.
   expect(world.reservations.has("units/bar/buildpic/spare.webp")).toBe(true);
@@ -219,12 +183,12 @@ test("a sweep killed at the delete leaves the reservation, and a sweep after the
   // The object itself is gone by the next sweep only if the delete landed, so
   // take the worst case: it did, and only the reservation is left.
   world.bucket.delete("units/bar/buildpic/spare.webp");
-  const soon = await sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, NOW);
+  const soon = await sweepStagedObjects(fakeStore(world, NOW), fakePorts(world), 200);
   expect(soon).toEqual({ deleted: 0, kept: 0 });
   expect(world.reservations.size).toBe(1);
 
   const later = new Date(NOW.getTime() + (ABANDONED_RESERVATION_MINUTES + 1) * 60 * 1000);
-  const result = await sweepStagedObjects(fakeSupabase(world), fakePorts(world), 200, later);
+  const result = await sweepStagedObjects(fakeStore(world, later), fakePorts(world), 200);
 
   expect(result).toEqual({ deleted: 1, kept: 0 });
   expect(world.discardedStaged).toEqual(["units/bar/buildpic/spare.webp"]);

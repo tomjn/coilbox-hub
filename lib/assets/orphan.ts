@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PromotionStore } from "./jobStore";
 
 /**
  * Clearing staging objects nothing claims (issues #113 and #335).
@@ -32,7 +33,7 @@ export const CLEANUP_BATCH = 200;
  *  `PromotionPorts` is: a test must be able to watch what would be deleted
  *  without a store to delete it from. */
 export interface CleanupPorts {
-  /** Remove objects from the Supabase bucket. Safe to repeat. */
+  /** Remove staged objects. Safe to repeat. */
   discardStaged(paths: string[]): Promise<void>;
   say(message: string): void;
 }
@@ -61,7 +62,8 @@ export interface UnclaimedStagedObject {
   created_at: string;
 }
 
-/** Bucket objects nothing claims, oldest first. Wants the secret key. */
+/** Bucket objects nothing claims, oldest first, read from Supabase for the old
+ *  allowances page. The sweep asks the hub ({@link PromotionStore.unclaimed}). */
 export async function fetchUnclaimedStagedObjects(
   supabase: SupabaseClient,
   limit: number = CLEANUP_BATCH,
@@ -91,35 +93,37 @@ export async function fetchUnclaimedStagedObjects(
  * tier is serving the bytes every entry for that path names.
  */
 export async function deleteStagedObjects(
-  supabase: SupabaseClient,
+  store: PromotionStore,
   discardStaged: (paths: string[]) => Promise<void>,
   paths: string[],
   queuedIsClaimed: boolean,
 ): Promise<Set<string>> {
   if (paths.length === 0) return new Set();
 
-  const { data, error } = await supabase.rpc("reserve_staged_deletions", {
-    object_paths: paths,
-    queued_is_claimed: queuedIsClaimed,
-  });
-
-  if (error) throw new Error(`Could not reserve bucket objects for deletion: ${error.message}`);
-
-  const reserved = ((data ?? []) as { object_path: string }[]).map((row) => row.object_path);
+  let reserved: string[];
+  try {
+    reserved = await store.reserve(paths, queuedIsClaimed);
+  } catch (error) {
+    throw new Error(`Could not reserve bucket objects for deletion: ${reason(error)}`);
+  }
   if (reserved.length === 0) return new Set();
 
   await discardStaged(reserved);
-  await releaseStagedDeletions(supabase, reserved);
+  await releaseStagedDeletions(store, reserved);
 
   return new Set(reserved);
 }
 
-async function releaseStagedDeletions(supabase: SupabaseClient, paths: string[]): Promise<number> {
-  const { data, error } = await supabase.rpc("release_staged_deletions", { object_paths: paths });
+async function releaseStagedDeletions(store: PromotionStore, paths: string[]): Promise<number> {
+  try {
+    return await store.release(paths);
+  } catch (error) {
+    throw new Error(`Could not release the deleted bucket objects: ${reason(error)}`);
+  }
+}
 
-  if (error) throw new Error(`Could not release the deleted bucket objects: ${error.message}`);
-
-  return typeof data === "number" ? data : 0;
+function reason(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -132,7 +136,8 @@ async function releaseStagedDeletions(supabase: SupabaseClient, paths: string[])
  */
 export const ABANDONED_RESERVATION_MINUTES = 60;
 
-/** Paths reserved by a run that died before releasing them. */
+/** Paths reserved by a run that died before releasing them, read from Supabase
+ *  for the old allowances page. The sweep asks the hub. */
 export async function fetchAbandonedStagedDeletions(
   supabase: SupabaseClient,
   now: Date = new Date(),
@@ -159,21 +164,20 @@ export async function fetchAbandonedStagedDeletions(
  * nothing claims, through {@link deleteStagedObjects}.
  */
 export async function sweepStagedObjects(
-  supabase: SupabaseClient,
+  store: PromotionStore,
   ports: CleanupPorts,
   limit: number = CLEANUP_BATCH,
-  now: Date = new Date(),
 ): Promise<CleanupResult> {
-  const abandoned = await fetchAbandonedStagedDeletions(supabase, now);
+  const abandoned = await store.abandoned();
   if (abandoned.length > 0) {
     await ports.discardStaged(abandoned);
-    await releaseStagedDeletions(supabase, abandoned);
+    await releaseStagedDeletions(store, abandoned);
     ports.say(`Finished deleting ${abandoned.length} bucket object(s) an earlier run reserved.`);
   }
 
-  const unclaimed = await fetchUnclaimedStagedObjects(supabase, limit);
+  const unclaimed = await store.unclaimed(limit);
   const deleted = await deleteStagedObjects(
-    supabase,
+    store,
     (paths) => ports.discardStaged(paths),
     unclaimed.map((object) => object.path),
     true,

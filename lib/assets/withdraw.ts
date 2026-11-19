@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PromotionStore } from "./jobStore";
 
 /**
  * The takedown queue: pictures that reached the durable tier and were rejected
@@ -48,21 +48,17 @@ export interface OutstandingWithdrawal {
 /**
  * Everything still owed, oldest first.
  *
- * Wants the secret key. `authenticated` and `anon` hold nothing on the table,
- * because the list names a file the hub is trying to take down.
+ * Only the job's token can read it. The list names a file the hub is trying to
+ * take down, which is not a list to publish.
  */
 export async function fetchOutstandingWithdrawals(
-  supabase: SupabaseClient,
+  store: PromotionStore,
 ): Promise<OutstandingWithdrawal[]> {
-  const { data, error } = await supabase
-    .from("asset_withdrawal")
-    .select("asset_id, path, at")
-    .is("withdrawn_at", null)
-    .order("at", { ascending: true });
-
-  if (error) throw new Error(`Could not read the takedown queue: ${error.message}`);
-
-  return (data ?? []) as unknown as OutstandingWithdrawal[];
+  try {
+    return await store.withdrawals();
+  } catch (error) {
+    throw new Error(`Could not read the takedown queue: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /**
@@ -72,17 +68,14 @@ export async function fetchOutstandingWithdrawals(
  * asked about: an id that was never queued, or was settled already, settles
  * nothing. The caller reports the number rather than assuming it.
  */
-export async function recordWithdrawn(
-  supabase: SupabaseClient,
-  ids: string[],
-): Promise<number> {
+export async function recordWithdrawn(store: PromotionStore, ids: string[]): Promise<number> {
   if (ids.length === 0) return 0;
 
-  const { data, error } = await supabase.rpc("record_asset_withdrawn", { ids });
-
-  if (error) throw new Error(`Could not settle the takedown: ${error.message}`);
-
-  return typeof data === "number" ? data : 0;
+  try {
+    return await store.recordWithdrawn(ids);
+  } catch (error) {
+    throw new Error(`Could not settle the takedown: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /**

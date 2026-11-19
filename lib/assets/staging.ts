@@ -21,12 +21,9 @@
  * 2. `putStagedGameImage` uploads with `upsert: true`, the one write that
  *    overwrites: a game's logo or banner has a deterministic path and a
  *    replacement is meant to replace.
- * 3. `downloadStagedAsset` reads the bytes back, for moderation and
- *    promotion.
- * 4. `removeStagedAssets` deletes a batch. Verified against the local stack:
- *    the Storage API does not error on a path that is already gone, single or
- *    batched, so promotion and the sweep can delete twice without either
- *    call failing.
+ * 3. `downloadStagedAsset` reads the bytes back, for moderation.
+ *
+ * Promotion and the sweep delete through the hub since #616.
  *
  * Nothing here lists the bucket. Postgres already knows every object, because
  * every object has a `public.asset` or `public.game` row.
@@ -139,23 +136,4 @@ export async function downloadStagedAsset(supabase: SupabaseClient, path: string
 
   if (error) throw error;
   return data;
-}
-
-/**
- * Delete a batch of objects from the staging bucket, addressed by path.
- *
- * Safe to repeat: confirmed against the local stack, `remove()` does not
- * error on a path that is already gone, whether that is the only path asked
- * for or one of several. That is what lets promotion and the sweep delete
- * twice and have the second call be a no-op rather than a failure.
- *
- * Takes a list because every caller works in batches, and does nothing at
- * all with an empty one rather than making a round trip to delete nothing.
- */
-export async function removeStagedAssets(supabase: SupabaseClient, paths: string[]): Promise<void> {
-  if (paths.length === 0) return;
-
-  const { error } = await supabase.storage.from(STAGED_PICTURES_BUCKET).remove(paths.map(pathname));
-
-  if (error) throw error;
 }

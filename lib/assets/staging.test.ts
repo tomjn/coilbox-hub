@@ -4,7 +4,6 @@ import {
   downloadStagedAsset,
   putStagedAsset,
   putStagedGameImage,
-  removeStagedAssets,
   STAGED_PICTURES_BUCKET,
   StagedAssetExistsError,
 } from "./staging";
@@ -169,44 +168,3 @@ test("a download of a missing object throws the raw NoSuchKey error", async () =
   await expect(downloadStagedAsset(store.supabase, "units/bar/gone.webp")).rejects.toThrow("Object not found");
 });
 
-test("a remove passes the whole batch through as normalised keys", async () => {
-  const store = fakeStorage();
-
-  await removeStagedAssets(store.supabase, ["units/bar/abc.webp", "/maps/def.webp"]);
-
-  expect(store.buckets).toEqual([STAGED_PICTURES_BUCKET]);
-  expect(store.calls.remove[0][0]).toEqual(["units/bar/abc.webp", "maps/def.webp"]);
-});
-
-test("removing a path that is already gone is not an error", async () => {
-  // Confirmed against the local stack: remove() answers `{ data: [], error:
-  // null }` for a path with nothing at it, alone or alongside a path that did
-  // exist. This module does no extra work for that case because the Storage
-  // API already behaves this way, so the test pins the fake to what was
-  // observed rather than a guess.
-  const store = fakeStorage();
-  store.setRemoveResult({ data: [], error: null });
-
-  await expect(removeStagedAssets(store.supabase, ["units/bar/already-gone.webp"])).resolves.toBeUndefined();
-});
-
-test("an empty batch makes no request at all", async () => {
-  const store = fakeStorage();
-
-  await removeStagedAssets(store.supabase, []);
-
-  expect(store.calls.remove).toHaveLength(0);
-  expect(store.buckets).toEqual([]);
-});
-
-test("a remove failure for a reason other than a missing path still throws", async () => {
-  const store = fakeStorage();
-  store.setRemoveResult({
-    data: null,
-    error: new StorageApiError("The resource was not found", 400, "404", "storage", "BucketNotFound"),
-  });
-
-  await expect(removeStagedAssets(store.supabase, ["units/bar/abc.webp"])).rejects.toThrow(
-    "The resource was not found",
-  );
-});

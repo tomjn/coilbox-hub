@@ -27,6 +27,15 @@ return [
         'reservation' => (int) env('HUB_MIRROR_RESERVATION', 86400),
     ],
 
+    // The daily promotion job in tomjn/coilbox-assets calls /api/v1/promotion
+    // with a bearer token (#616). Only the token's SHA-256 hash is kept here.
+    // `php artisan promotion:token` makes a token and its hash. The next hash
+    // is set only while rotating, so the old and new tokens both work.
+    'promotion' => [
+        'token_hash' => strtolower(trim((string) env('PROMOTION_TOKEN_HASH', ''))),
+        'next_token_hash' => strtolower(trim((string) env('PROMOTION_NEXT_TOKEN_HASH', ''))),
+    ],
+
     // Which database holds the game catalogue. Leave unset in production, where
     // `data_move` holds it and `php artisan games:copy` switches it. Set to
     // `supabase` or `mariadb` to fix it, as the tests do.

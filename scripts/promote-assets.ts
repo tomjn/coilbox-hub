@@ -4,16 +4,16 @@
  * The order the run happens in, what each step guarantees and what an
  * interrupted run leaves behind are all in `lib/assets/promote.ts`, which is
  * where they are tested. This file is the things that module cannot do
- * itself: read an object over HTTP or out of the Supabase bucket, put a file in
- * a checkout, commit and push it, ask the published site whether it is serving
- * yet, and delete from the bucket.
+ * itself: read a staged object from the hub, put a file in a checkout, commit
+ * and push it, ask the published site whether it is serving yet, and ask the
+ * hub to delete the staged copy.
  *
  *   bun run promote:assets --assets-repo ../coilbox-assets --dry-run
  *   bun run promote:assets --assets-repo ../coilbox-assets --write
  *   bun run promote:assets --withdrawn <asset-id>
  *
- * A dry run reads Postgres and reports. It writes nothing, pushes nothing,
- * deletes nothing and does not even read the bytes, so it costs a few queries
+ * A dry run asks the hub and reports. It writes nothing, pushes nothing,
+ * deletes nothing and does not even read the bytes, so it costs a few requests
  * and can be run against production to see whether staging is draining.
  *
  * ## The takedown queue, which this reports and never acts on
@@ -38,11 +38,12 @@
  * The alternative, running in the hub, means a deploy key or a personal access
  * token with write access to another repository, stored indefinitely.
  *
- * The cost is that this needs a repository secret on the assets repo:
- * `SUPABASE_SERVICE_ROLE_KEY`, which bypasses row level security on the whole
- * database and is also what reads and deletes in the Supabase bucket. It has
- * nothing to do with publishing images, and it is the most powerful credential
- * the project has, so it is worth naming rather than adding quietly.
+ * The cost is a repository secret on the assets repo: `PROMOTION_TOKEN`, with
+ * `HUB_URL` beside it (#616). It opens only the hub's `/api/v1/promotion`
+ * routes, which read approved pictures and staged game art, record promotions
+ * and delete staged objects nothing claims. It replaced
+ * `SUPABASE_SERVICE_ROLE_KEY`, which bypassed row level security on the whole
+ * database, once pictures and games moved to the hub's MariaDB.
  *
  * ## Why it dispatches the Pages workflow
  *
@@ -57,17 +58,11 @@ export {}; // top level await needs this file to be a module
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { createClient, StorageApiError } from "@supabase/supabase-js";
 import { staticTierUrl } from "@/lib/assets/cdn";
 import { servingAfterDeploy } from "@/lib/assets/deployWait";
-import {
-  PROMOTION_BATCH,
-  type PromotionPorts,
-  runPromotion,
-  StagingReadError,
-} from "@/lib/assets/promote";
+import { promotionStoreFromEnv } from "@/lib/assets/jobStore";
+import { PROMOTION_BATCH, type PromotionPorts, runPromotion } from "@/lib/assets/promote";
 import { runGameImagePromotion } from "@/lib/assets/promoteGameImages";
-import { downloadStagedAsset, removeStagedAssets, STAGED_PICTURES_BUCKET } from "@/lib/assets/staging";
 import {
   fetchOutstandingWithdrawals,
   recordWithdrawn,
@@ -119,24 +114,17 @@ if (!repo && !withdrawn) {
   process.exit(1);
 }
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key) {
-  console.error(
-    "Need NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY set. " +
-      "See .env.development.local for the local stack.",
-  );
+const hub = promotionStoreFromEnv();
+if ("error" in hub) {
+  console.error(hub.error);
   process.exit(1);
 }
+const { store } = hub;
 
-// Which database, before anything is read or written, for the reason
+// Which hub, before anything is read or written, for the reason
 // `backfill-game-names.ts` gives: Bun loads whichever env file happens to win
-// and the two look identical from the output alone.
-console.log(`${write ? "Promoting against" : "Reading"} ${new URL(url).host}`);
-
-const supabase = createClient(url, key, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+// and a local hub and production look identical from the output alone.
+console.log(`${write ? "Promoting against" : "Reading"} ${hub.host}`);
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -208,17 +196,10 @@ async function dispatchPages(): Promise<void> {
 const committed = new Set<string>();
 
 const ports: PromotionPorts = {
-  // The bucket is private, so this goes through the Storage API with the
-  // secret key rather than over a public URL. A missing object is a 404, so
-  // the game picture pass can tell absent from refused.
-  readStaged: async (path) => {
-    try {
-      return new Uint8Array(await (await downloadStagedAsset(supabase, path)).arrayBuffer());
-    } catch (error) {
-      if (!(error instanceof StorageApiError)) throw error;
-      throw new StagingReadError(Number(error.statusCode) || error.status, `${STAGED_PICTURES_BUCKET}/${path}`);
-    }
-  },
+  // Through the job's API rather than the public staged picture URL, which
+  // only serves approved pictures. A missing object is a 404, so the game
+  // picture pass can tell absent from refused.
+  readStaged: (path) => store.readStaged(path),
 
   held: async (path) => await Bun.file(join(repo!, path)).exists(),
 
@@ -302,7 +283,7 @@ const ports: PromotionPorts = {
 
   discardStaged: async (paths) => {
     for (let at = 0; at < paths.length; at += DELETE_CHUNK) {
-      await removeStagedAssets(supabase, paths.slice(at, at + DELETE_CHUNK));
+      await store.discard(paths.slice(at, at + DELETE_CHUNK));
     }
   },
 
@@ -311,12 +292,12 @@ const ports: PromotionPorts = {
 
 // First, and on every run whatever it was asked to do. A takedown that only
 // shows up when somebody thinks to look for it is a takedown nobody sees.
-for (const line of withdrawalReport(await fetchOutstandingWithdrawals(supabase))) {
+for (const line of withdrawalReport(await fetchOutstandingWithdrawals(store))) {
   console.log(line);
 }
 
 if (withdrawn) {
-  const settled = await recordWithdrawn(supabase, [withdrawn]);
+  const settled = await recordWithdrawn(store, [withdrawn]);
   console.log(
     settled === 1
       ? `Recorded ${withdrawn} as removed from the durable tier.`
@@ -328,30 +309,30 @@ if (withdrawn) {
   );
   const { fetchStagedGameImages, strayGameImages } = await import("@/lib/assets/promoteGameImages");
 
-  const leftover = await fetchPendingDeletions(supabase);
+  const leftover = await fetchPendingDeletions(store);
   for (const row of leftover) {
-    console.log(`would delete ${row.blob_path}, promoted already and still in the bucket`);
+    console.log(`would delete ${row.blob_path}, promoted already and still staged`);
   }
 
-  const due = await fetchPromotable(supabase, limit);
+  const due = await fetchPromotable(store, limit);
   for (const row of due) {
     console.log(
       `would promote ${row.id}: ${row.tier} ${row.path} -> ${durablePath(row) ?? "(unstorable)"}`,
     );
   }
 
-  const staged = await fetchStagedGameImages(supabase);
+  const staged = await fetchStagedGameImages(store);
   let waiting = 0;
   const seen = new Set<string>();
   for (const image of staged) {
     if (seen.has(image.path)) continue;
     seen.add(image.path);
-    console.log(`would promote game ${image.kind} ${image.path} from the bucket`);
+    console.log(`would promote game ${image.kind} ${image.path} from staging`);
     waiting++;
   }
 
   // Removed art, and art at an old extension, still in the checkout (#360).
-  const stray = await strayGameImages(supabase, ports.held);
+  const stray = await strayGameImages(store, ports.held);
   for (const path of stray) console.log(`would remove ${path} from the durable tier: no game row names it`);
 
   console.log(
@@ -365,7 +346,7 @@ if (withdrawn) {
   let failed = false;
 
   try {
-    const result = await runPromotion(supabase, ports, { limit });
+    const result = await runPromotion(store, ports, { limit });
 
     console.log(
       `${result.drained} drained, ${result.promoted} promoted, ${result.deleted} deleted, ${result.skipped} skipped.`,
@@ -386,7 +367,7 @@ if (withdrawn) {
   // The game pictures ride the same run and the same ports. After the asset
   // pass, so their files join whatever commit it made or start their own.
   try {
-    const images = await runGameImagePromotion(supabase, ports);
+    const images = await runGameImagePromotion(store, ports);
     if (images.skipped > 0) console.log(`${images.skipped} game picture(s) skipped, listed above.`);
     if (images.removed > 0) console.log(`${images.removed} game picture(s) removed, listed above.`);
     if (images.unreadable > 0) failed = true;
