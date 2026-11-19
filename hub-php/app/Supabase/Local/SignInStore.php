@@ -41,6 +41,16 @@ final class SignInStore extends DataMove
         return once(fn () => self::fresh());
     }
 
+    /** Why switching does nothing while `HUB_SIGNIN_STORE` fixes the state, or null when `data_move` decides. */
+    public static function fixedMessage(): ?string
+    {
+        $fixed = self::fixed();
+
+        return $fixed === null
+            ? null
+            : "HUB_SIGNIN_STORE is set to {$fixed}, which overrides data_move, so this would change nothing. Remove it from .env, then run php artisan config:cache.";
+    }
+
     /** What a `*:store supabase` command says while sign in runs on the hub, or null when it may go ahead. */
     public static function blocksRollback(): ?string
     {

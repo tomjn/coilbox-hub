@@ -47,7 +47,8 @@ final class AuthUsers
      * Once the hub runs the browser sign in, its tables are the record and
      * Supabase only signs Coilbox in (until #602 part 3c). A Supabase account
      * the hub has not seen is added, with the providers nobody else holds.
-     * Nothing the hub holds is changed or moved to another account.
+     * Nothing the hub holds is changed or moved to another account, except
+     * that a Supabase ban carries over.
      *
      * @param  array<string, mixed>  $user
      */
@@ -57,6 +58,12 @@ final class AuthUsers
         $identities = is_array($user['identities'] ?? null) ? self::identities($record['id'], $user['identities']) : [];
         DB::transaction(function () use ($record, $identities) {
             DB::table('auth_user')->insertOrIgnore([$record + ['copied_at' => Values::now(), 'copy_hash' => '']]);
+            // A ban made in Supabase still applies. A longer one made on the hub is kept.
+            if ($record['banned_until'] !== null) {
+                DB::table('auth_user')->where('id', $record['id'])
+                    ->where(fn ($query) => $query->whereNull('banned_until')->orWhere('banned_until', '<', $record['banned_until']))
+                    ->update(['banned_until' => $record['banned_until']]);
+            }
             foreach ($identities as $identity) {
                 $taken = DB::table('auth_identity')->where('id', $identity['id'])
                     ->orWhere(fn ($query) => $query->where('provider', $identity['provider'])->where('provider_id', $identity['provider_id']))

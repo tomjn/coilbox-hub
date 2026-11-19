@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Auth\HubSession;
 use App\Support\Api;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -32,6 +33,15 @@ class AppServiceProvider extends ServiceProvider
                 : Limit::perMinutes(5, 30)->by('sign-in|'.$request->ip());
 
             return $limit->response(fn (Request $request, array $headers) => Api::error('Too many sign in requests from this address. Try again in a few minutes.', 429)->withHeaders($headers));
+        });
+
+        // Codes from an authenticator app, per account so a stolen provider
+        // account cannot keep guessing. `token_verifications` under
+        // [auth.rate_limit] in supabase/config.toml, Supabase's own limit.
+        RateLimiter::for('auth-code', function (Request $request) {
+            return Limit::perMinutes(5, 30)
+                ->by('code|'.(HubSession::userId() ?? $request->ip()))
+                ->response(fn (Request $request, array $headers) => response('Too many codes tried. Wait a few minutes, then try the newest code.', 429, $headers));
         });
     }
 }

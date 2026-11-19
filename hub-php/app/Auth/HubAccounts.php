@@ -169,6 +169,48 @@ final class HubAccounts
         ];
     }
 
+    /**
+     * The ids of the accounts with this id, or with this email in any case.
+     *
+     * @return list<string>
+     */
+    public static function find(string $idOrEmail): array
+    {
+        $value = mb_strtolower(trim($idOrEmail));
+        $byId = DB::table('auth_user')->where('id', $value)->pluck('id')->all();
+
+        return array_values(array_map('strval', $byId !== [] ? $byId : DB::table('auth_user')->whereRaw('lower(email) = ?', [$value])->orderBy('id')->pluck('id')->all()));
+    }
+
+    /**
+     * When a ban given as `--until` ends, in the stored form. No date means
+     * no end, written as the last moment the column holds.
+     *
+     * @throws \InvalidArgumentException for a date that is not readable or not in the future
+     */
+    public static function banEnd(mixed $until): string
+    {
+        if ($until === null || $until === '') {
+            return '9999-12-31 23:59:59.000000';
+        }
+        try {
+            $stored = Values::stored((string) $until);
+        } catch (\Throwable) {
+            throw new \InvalidArgumentException('Give --until as a date, such as 2027-01-31.');
+        }
+        if ($stored <= Values::now()) {
+            throw new \InvalidArgumentException('--until must be in the future. Use --lift to end a ban.');
+        }
+
+        return $stored;
+    }
+
+    /** Sets or lifts a ban. A banned account's sessions end on their next request. */
+    public static function ban(string $userId, ?string $until): void
+    {
+        DB::table('auth_user')->where('id', $userId)->update(['banned_until' => $until, 'updated_at' => Values::now()]);
+    }
+
     /** Whether an account may hold a session: it exists and is not banned. */
     public static function active(string $userId): bool
     {

@@ -5,6 +5,9 @@ namespace Tests\Feature;
 use App\Auth\AuthUsers;
 use App\Auth\Factors;
 use App\Auth\Totp;
+use App\Supabase\Local\Caller;
+use App\Supabase\Local\ItemFunctions;
+use App\Supabase\Supabase;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -387,6 +390,86 @@ class HubSignInTest extends TestCase
         $this->assertSame(self::ALICE, DB::table('auth_identity')->where('provider', 'github')->value('user_id'));
         $this->assertSame(self::BOB, DB::table('auth_identity')->where('provider', 'discord')->value('user_id'));
         $this->assertSame(2, DB::table('auth_user')->count());
+    }
+
+    public function test_codes_are_limited_per_account(): void
+    {
+        $this->account(self::ALICE, 'alice@example.test', [['github', '1']]);
+        $this->account(self::BOB, 'bob@example.test', [['twitch', '2']]);
+        $started = Factors::start(self::ALICE, 'Alice');
+        DB::table('auth_factor')->update(['status' => 'verified']);
+
+        for ($i = 0; $i < 30; $i++) {
+            $this->asAlice()->post('/account/verify', ['factorId' => $started['factorId'], 'code' => '000000'])->assertRedirect();
+        }
+        $this->asAlice()->post('/account/verify', ['factorId' => $started['factorId'], 'code' => '000000'])->assertStatus(429);
+        $this->asAlice()->post('/account/factor/confirm', ['factorId' => $started['factorId'], 'code' => '000000'])->assertStatus(429);
+        // Another account from the same address is not held back.
+        $this->withSession(['hub' => ['user_id' => self::BOB, 'aal' => 'aal1']])
+            ->post('/account/verify', ['code' => '000000'])->assertRedirect();
+    }
+
+    public function test_a_ban_ends_the_session_and_stops_sign_in(): void
+    {
+        $this->account(self::ALICE, 'alice@example.test', [['github', self::PROVIDER_ID]]);
+        config(['hub.signin_store' => null]);
+        DB::table('data_move')->insert(['area' => 'signin', 'state' => 'mariadb', 'changed_at' => '2026-11-20 00:00:00.000000']);
+
+        $this->artisan('users:ban', ['user' => 'ALICE@example.test', '--dry-run' => true])
+            ->expectsOutput('Would ban until 9999-12-31 23:59:59.000000 UTC.')->assertExitCode(0);
+        $this->assertNull(DB::table('auth_user')->value('banned_until'));
+
+        $this->artisan('users:ban', ['user' => self::ALICE, '--until' => '2999-01-31'])->assertExitCode(0);
+        $this->assertStringStartsWith('2999-01-31 00:00:00', (string) DB::table('auth_user')->value('banned_until'));
+        $this->asAlice()->get('/account')->assertRedirect('/publish');
+        $this->assertNull(session('hub'));
+        $this->signInWith('github', [])->assertRedirect('/?error=sign_in_failed&provider=github');
+
+        $this->artisan('users:ban', ['user' => self::ALICE, '--lift' => true])->expectsOutput('The ban is lifted.')->assertExitCode(0);
+        $this->assertNull(DB::table('auth_user')->value('banned_until'));
+        $this->artisan('users:ban', ['user' => self::ALICE, '--until' => '2001-01-01'])->assertExitCode(1);
+        $this->artisan('users:ban', ['user' => 'nobody@example.test'])->expectsOutput('No account has that id or email.')->assertExitCode(1);
+    }
+
+    public function test_banning_on_the_hub_waits_for_the_switch(): void
+    {
+        $this->account(self::ALICE, 'alice@example.test', [['github', '1']]);
+        config(['hub.signin_store' => 'supabase']);
+
+        $this->artisan('users:ban', ['user' => self::ALICE])->expectsOutputToContain('Ban the account in the Supabase dashboard')->assertExitCode(1);
+        $this->assertNull(DB::table('auth_user')->value('banned_until'));
+    }
+
+    public function test_a_ban_made_in_supabase_carries_over_but_never_shortens_one_made_here(): void
+    {
+        $this->account(self::ALICE, 'alice@example.test', [['github', '1']]);
+        $supabase = ['id' => self::ALICE, 'email' => 'alice@example.test', 'banned_until' => '2900-01-01T00:00:00Z', 'identities' => []];
+
+        AuthUsers::keep($supabase);
+        $this->assertStringStartsWith('2900-01-01 00:00:00', (string) DB::table('auth_user')->value('banned_until'));
+
+        DB::table('auth_user')->update(['banned_until' => '9999-12-31 23:59:59.000000']);
+        AuthUsers::keep($supabase);
+        $this->assertStringStartsWith('9999-12-31', (string) DB::table('auth_user')->value('banned_until'));
+    }
+
+    public function test_switching_refuses_while_the_environment_fixes_where_sign_in_runs(): void
+    {
+        $this->artisan('users:copy', ['--switch' => true])->expectsOutputToContain('HUB_SIGNIN_STORE is set to mariadb')->assertExitCode(1);
+        $this->artisan('users:store', ['state' => 'supabase'])->expectsOutputToContain('HUB_SIGNIN_STORE is set to mariadb')->assertExitCode(1);
+    }
+
+    public function test_a_coilbox_token_still_has_to_enter_a_code_for_a_supabase_authenticator(): void
+    {
+        $this->account(self::ALICE, 'alice@example.test', [['github', '1']]);
+        DB::table('user_capability')->insert(['user_id' => self::ALICE, 'capability' => 'can_moderate', 'granted_at' => now()]);
+        Http::fake(['https://project.supabase.test/auth/v1/user' => Http::response(['id' => self::ALICE, 'factors' => [['id' => 'f', 'status' => 'verified', 'factor_type' => 'totp']]])]);
+
+        $bearer = new Caller(Supabase::forToken('header.'.rtrim(strtr(base64_encode('{"aal":"aal1"}'), '+/', '-_'), '=').'.sig', self::ALICE));
+        $this->assertSame('verify', ItemFunctions::capabilityAccess($bearer, 'can_moderate'));
+
+        $session = new Caller(Supabase::forUser(self::ALICE, 'aal1'));
+        $this->assertSame('granted', ItemFunctions::capabilityAccess($session, 'can_moderate'));
     }
 
     /**

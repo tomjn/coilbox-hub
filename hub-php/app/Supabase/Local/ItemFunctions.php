@@ -87,9 +87,15 @@ final class ItemFunctions
         if ($caller->client->aal() === 'aal2') {
             return 'granted';
         }
-        // Once sign in runs on the hub, its authenticators are the ones that count.
+        // Once sign in runs on the hub, its authenticators count. A Coilbox
+        // token still comes from Supabase, so Supabase's count for it too.
         if (SignInStore::state() === SignInStore::MARIADB) {
-            return Factors::hasVerified($userId) ? 'verify' : 'granted';
+            if (Factors::hasVerified($userId)) {
+                return 'verify';
+            }
+            if ($caller->client->hubSession()) {
+                return 'granted';
+            }
         }
 
         return self::hasVerifiedFactor((string) $caller->client->accessToken()) ? 'verify' : 'granted';

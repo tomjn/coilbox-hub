@@ -58,6 +58,14 @@ abstract class DataMove
         return is_string($state) ? $state : self::SUPABASE;
     }
 
+    /** The state the config fixes, overriding `data_move`, or null when `data_move` decides. */
+    public static function fixed(): ?string
+    {
+        $fixed = config(static::configKey());
+
+        return is_string($fixed) && $fixed !== '' ? $fixed : null;
+    }
+
     /** Where a write goes now, refusing while the copy runs. */
     public static function writeTarget(): string
     {

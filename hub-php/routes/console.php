@@ -1,5 +1,6 @@
 <?php
 
+use App\Auth\HubAccounts;
 use App\Auth\UserCopy;
 use App\Domain\Assets\PictureCopy;
 use App\Domain\Gallery\ItemCopy;
@@ -21,6 +22,7 @@ use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -419,6 +421,11 @@ Artisan::command('users:copy {--dry-run : Show the counts and write nothing} {--
     $switch = (bool) $this->option('switch');
     $copy = new UserCopy(fn (string $line) => $this->line($line));
     $this->line('The browser sign in runs on '.(SignInStore::fresh() === SignInStore::MARIADB ? 'the hub' : 'Supabase').'.');
+    if ($switch && ($fixed = SignInStore::fixedMessage()) !== null) {
+        $this->error($fixed);
+
+        return 1;
+    }
     if (($blocked = UserCopy::blocksCopy()) !== null) {
         $this->error($blocked);
 
@@ -472,9 +479,14 @@ Artisan::command('users:store {state? : supabase, to go back}', function () {
 
         return 1;
     }
+    if (($fixed = SignInStore::fixedMessage()) !== null) {
+        $this->error($fixed);
+
+        return 1;
+    }
     if (SignInStore::fresh() === SignInStore::MARIADB) {
         $made = UserCopy::madeOnHub();
-        $this->warn(sprintf('%d accounts were made on the hub since the switch. Supabase does not have them, so they cannot sign in until sign in moves back to the hub.', $made));
+        $this->warn(sprintf('%d accounts were made on the hub since the switch. Supabase does not have them, so signing in through Supabase gives each of those people a new, empty account.', $made));
         $this->warn('Providers linked or removed, and authenticator apps set up, on the hub are not in Supabase. Everybody signed in on the hub has to sign in again.');
     }
     SignInStore::set(SignInStore::SUPABASE);
@@ -482,6 +494,42 @@ Artisan::command('users:store {state? : supabase, to go back}', function () {
 
     return 0;
 })->purpose('Show where the browser sign in runs, or go back to Supabase');
+
+Artisan::command('users:ban {user : The account id, or its email} {--until= : When the ban ends, such as 2027-01-31. Leave out for no end} {--lift : End the ban now} {--dry-run : Show the account and write nothing}', function () {
+    if (SignInStore::fresh() !== SignInStore::MARIADB) {
+        $this->error('Sign in runs on Supabase. Ban the account in the Supabase dashboard, and the copy carries the ban over.');
+
+        return 1;
+    }
+    $found = HubAccounts::find((string) $this->argument('user'));
+    if (count($found) !== 1) {
+        $this->error($found === [] ? 'No account has that id or email.' : 'More than one account has that email: '.implode(', ', $found).'. Use the id.');
+
+        return 1;
+    }
+    $userId = $found[0];
+    try {
+        $until = $this->option('lift') ? null : HubAccounts::banEnd($this->option('until'));
+    } catch (InvalidArgumentException $e) {
+        $this->error($e->getMessage());
+
+        return 1;
+    }
+    $name = DB::table('profile')->where('user_id', $userId)->value('display_name') ?? 'no display name';
+    $this->line(sprintf('Account %s (%s), banned until: %s.', $userId, $name, DB::table('auth_user')->where('id', $userId)->value('banned_until') ?? 'not banned'));
+    if ($this->option('dry-run')) {
+        $this->line($until === null ? 'Would lift the ban.' : 'Would ban until '.$until.' UTC.');
+        $this->line('Dry run: nothing was written.');
+
+        return 0;
+    }
+    HubAccounts::ban($userId, $until);
+    $this->line($until === null
+        ? 'The ban is lifted.'
+        : 'Banned until '.$until.' UTC. Their browser session ends on its next request. Coilbox signs in with Supabase until #602 part 3c, so ban them in Supabase too.');
+
+    return 0;
+})->purpose('Ban an account from signing in on the hub, or lift a ban, once the hub runs sign in');
 
 Artisan::command('promotion:token', function () {
     $made = JobToken::make();
