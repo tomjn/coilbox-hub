@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Maps;
 
 use App\Auth\HubSession;
+use App\Domain\Downloads\Downloads;
 use App\Domain\Gallery\SearchParams;
 use App\Domain\Maps\Labels;
 use App\Domain\Maps\Listing;
@@ -62,6 +63,8 @@ class MapsController extends Controller
             'slug' => $slug,
             'canEdit' => $canEdit,
             'ownershipTargets' => $ownershipTargets,
+            // Read outside the cached page, which a download ping never refreshes.
+            'downloadCounts' => Downloads::counts('map', $page['mapId']),
             'title' => $title,
             'description' => $description,
             'ogTitle' => $title,

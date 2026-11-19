@@ -35,7 +35,7 @@ final class Listing
     /** The three size bands, which are derived tags rather than a column. */
     public const SIZES = ['small', 'medium', 'large'];
 
-    public const SORTS = ['name', 'size', 'players', 'added', 'uploaded'];
+    public const SORTS = ['name', 'size', 'players', 'added', 'uploaded', 'popular-month', 'popular-6-months'];
 
     /** The play types a map can be marked with, the values of `play_types` on the view. */
     public const PLAY_TYPES = ['1v1', 'team'];
@@ -53,6 +53,8 @@ final class Listing
         'players' => ['start_positions', false],
         'added' => ['created_at', false],
         'uploaded' => ['uploaded_at', false],
+        'popular-month' => ['downloads_30d', false],
+        'popular-6-months' => ['downloads_182d', false],
     ];
 
     public static function isSize(?string $value): bool

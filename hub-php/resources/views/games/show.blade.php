@@ -44,6 +44,12 @@
             @if ($page['release'])
                 <p class="text-sm text-neutral-400">Game version {{ $page['release'] }}</p>
             @endif
+            @if ($downloadCounts)
+                <dl class="flex flex-col gap-1">
+                    <dt class="text-sm uppercase tracking-wide text-neutral-400">Downloads</dt>
+                    <dd class="text-sm text-neutral-100">{{ number_format($downloadCounts['total']) }}, {{ number_format($downloadCounts['last30']) }} in the last 30 days</dd>
+                </dl>
+            @endif
             @if ($page['downloads'] !== [])
                 {{-- In the order to try them, the order coilbox walks them. A
                      rapid tag is text, because there is nowhere for it to go. --}}

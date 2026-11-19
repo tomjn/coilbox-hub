@@ -56,6 +56,9 @@
                 @if ($facts['void_water'] ?? false)
                     <div class="flex flex-col gap-1"><dt class="{{ $term }}">Water</dt><dd class="{{ $value }}">None</dd></div>
                 @endif
+                @if ($downloadCounts)
+                    <div class="flex flex-col gap-1"><dt class="{{ $term }}">Downloads</dt><dd class="{{ $value }}">{{ number_format($downloadCounts['total']) }}, {{ number_format($downloadCounts['last30']) }} in the last 30 days</dd></div>
+                @endif
                 @if (($facts['authors'] ?? []) !== [])
                     <div class="flex flex-col gap-1"><dt class="{{ $term }}">Made by</dt><dd class="{{ $value }}">
                         <ul class="flex flex-col gap-0.5">

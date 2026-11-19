@@ -5,6 +5,7 @@ namespace Tests\Feature\Maps;
 use Illuminate\Http\Client\Request;
 use App\Domain\Maps\Listing;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -218,6 +219,51 @@ class MapPagesTest extends TestCase
         $this->get('/maps')->assertOk()->assertSee('class="map-row', false);
         $this->get('/maps')->assertSee('grid-cols-[repeat(auto-fill,minmax(min(200px,calc(50%_-_8px)),1fr))]', false);
         $this->assertMatchesRegularExpression('#<div class="map-row[^"]*">\s*<ul[ >]#', $this->get('/maps')->getContent());
+    }
+
+    public function test_a_map_page_shows_its_download_count(): void
+    {
+        $this->holdComet();
+        $this->answers['map_download_count'] = [['target_id' => 'map-1', 'downloads_total' => 1204, 'downloads_30d' => 87, 'downloads_182d' => 300]];
+
+        $this->get('/map/comet')->assertOk()
+            ->assertSee('>Downloads</dt>', false)
+            ->assertSee('1,204, 87 in the last 30 days');
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/rest/v1/map_download_count') && str_contains(urldecode($r->url()), 'target_id=eq.map-1'));
+    }
+
+    public function test_a_map_with_no_downloads_or_an_unreadable_count_shows_no_downloads_line(): void
+    {
+        $this->holdComet();
+        $this->answers['map_download_count'] = [['target_id' => 'map-1', 'downloads_total' => 0, 'downloads_30d' => 0, 'downloads_182d' => 0]];
+        $this->get('/map/comet')->assertOk()->assertDontSee('Downloads</dt>', false);
+
+        $this->answers['map_download_count'] = null;
+        Cache::flush();
+        $this->get('/map/comet')->assertOk()->assertSee('Comet Catcher Remake')->assertDontSee('Downloads</dt>', false);
+    }
+
+    public function test_the_popular_sorts_are_kept_and_order_by_downloads_then_name(): void
+    {
+        foreach (['popular-month' => 'downloads_30d', 'popular-6-months' => 'downloads_182d'] as $sort => $column) {
+            $filters = Listing::parseFilters(['sort' => $sort]);
+            $this->assertSame($sort, $filters['sort']);
+            // The sort hides nothing, so the page still counts as unfiltered.
+            $this->assertFalse(Listing::isFiltered($filters));
+            $this->assertFalse(Listing::isLanding($filters));
+
+            Http::fake(['*' => Http::response([], 200)]);
+            Listing::applyOrder(\App\Supabase\Supabase::anon()->from('map_browse'), $sort)->get();
+            $query = (string) parse_url((string) Http::recorded()->last()[0]->url(), PHP_URL_QUERY);
+            $this->assertStringContainsString("order=$column.desc,map_name.asc", urldecode($query));
+        }
+    }
+
+    public function test_the_sort_control_labels_the_popular_sorts(): void
+    {
+        $this->get('/maps?sort=popular-month')->assertOk()
+            ->assertSee('Popular this month')
+            ->assertSee('Popular, last 6 months');
     }
 
     public function test_uploaded_sort_with_nothing_uploaded_says_no_match(): void

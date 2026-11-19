@@ -86,6 +86,46 @@ class GamePagesTest extends TestCase
             ->assertDontSee('Release changes');
     }
 
+    public function test_a_game_page_shows_its_download_count(): void
+    {
+        $this->fakeTables([
+            'game' => [['id' => 'game-ba'] + self::GAME],
+            'game_browse?select=faction_count' => [['faction_count' => 1, 'unit_count' => 40, 'item_count' => 1]],
+            'game_download_count' => [['target_id' => 'game-ba', 'downloads_total' => 1204, 'downloads_30d' => 87, 'downloads_182d' => 300]],
+        ]);
+        $this->get('/games/BA')->assertOk()->assertSee('>Downloads</dt>', false)->assertSee('1,204, 87 in the last 30 days');
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/rest/v1/game_download_count') && str_contains(urldecode($r->url()), 'target_id=eq.game-ba'));
+    }
+
+    public function test_a_game_with_no_downloads_shows_no_downloads_line(): void
+    {
+        $this->fakeTables([
+            'game' => [['id' => 'game-ba'] + self::GAME],
+            'game_browse?select=faction_count' => [['faction_count' => 1, 'unit_count' => 40, 'item_count' => 1]],
+            'game_download_count' => [['target_id' => 'game-ba', 'downloads_total' => 0, 'downloads_30d' => 0, 'downloads_182d' => 0]],
+        ]);
+        $this->get('/games/BA')->assertOk()->assertDontSee('Downloads</dt>', false);
+    }
+
+    public function test_a_failed_count_read_leaves_the_game_page_standing(): void
+    {
+        Http::fake(function (Request $request) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+            if ($path === '/rest/v1/game_download_count') {
+                return Http::response(['message' => 'down'], 500);
+            }
+            $rows = match ($path) {
+                '/rest/v1/game' => [['id' => 'game-ba'] + self::GAME],
+                '/rest/v1/game_browse' => ! str_contains($request->url(), 'select=faction_count') ? [] : [['faction_count' => 1, 'unit_count' => 40, 'item_count' => 1]],
+                default => [],
+            };
+
+            return Http::response($rows, 200, ['Content-Range' => '0-0/'.count($rows)]);
+        });
+
+        $this->get('/games/BA')->assertOk()->assertSee('Balanced Annihilation')->assertDontSee('Downloads</dt>', false);
+    }
+
     public function test_an_unknown_game_is_not_found_at_every_level(): void
     {
         $this->fakeTables([]);
