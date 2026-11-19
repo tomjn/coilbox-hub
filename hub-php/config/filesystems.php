@@ -43,6 +43,10 @@ return [
         'staged' => [
             'driver' => 'local',
             'root' => storage_path('app/staged-pictures'),
+            // Laravel makes a new root 0700 by default. PHP-FPM runs as
+            // www-data, so the root must be group readable and writable.
+            'directory_visibility' => 'public',
+            'permissions' => ['dir' => ['public' => 0775]],
             'throw' => true,
             'report' => false,
         ],
