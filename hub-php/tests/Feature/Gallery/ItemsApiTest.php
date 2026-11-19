@@ -207,18 +207,31 @@ class ItemsApiTest extends TestCase
 
     public function test_the_import_ping_is_a_204_when_the_rpc_counted_the_item(): void
     {
-        Http::fake(['https://sb.test/rest/v1/rpc/record_item_imported' => Http::response('true', 200, ['Content-Type' => 'application/json'])]);
+        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response('true', 200, ['Content-Type' => 'application/json'])]);
 
         $response = $this->postJson('/api/v1/items/'.self::ID.'/imported');
 
-        $response->assertNoContent();
+        $response->assertNoContent()->assertHeader('Access-Control-Allow-Origin', '*');
         $recorded = Http::recorded();
-        $this->assertSame(['target_id' => self::ID], $recorded[0][0]->data());
+        $this->assertSame('item', $recorded[0][0]->data()['p_kind']);
+        $this->assertSame(self::ID, $recorded[0][0]->data()['p_target']);
+    }
+
+    public function test_the_import_ping_is_a_404_when_the_rpc_fails(): void
+    {
+        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response(['message' => 'down'], 500)]);
+
+        $this->postJson('/api/v1/items/'.self::ID.'/imported')->assertNotFound()->assertExactJson(['error' => 'No such item.']);
+    }
+
+    public function test_the_import_ping_answers_a_preflight(): void
+    {
+        $this->options('/api/v1/items/'.self::ID.'/imported')->assertNoContent()->assertHeader('Access-Control-Allow-Origin', '*');
     }
 
     public function test_the_import_ping_is_a_404_when_the_rpc_counted_nothing(): void
     {
-        Http::fake(['https://sb.test/rest/v1/rpc/record_item_imported' => Http::response('false', 200, ['Content-Type' => 'application/json'])]);
+        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response('false', 200, ['Content-Type' => 'application/json'])]);
 
         $response = $this->postJson('/api/v1/items/'.self::ID.'/imported');
 

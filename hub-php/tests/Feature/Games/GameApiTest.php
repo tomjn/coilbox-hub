@@ -203,4 +203,34 @@ class GameApiTest extends TestCase
         $this->postJson('/api/v1/games/facts', $this->facts(), ['Authorization' => 'Bearer t'])
             ->assertStatus(503)->assertJsonPath('error', 'This deployment has not configured Supabase. Set SUPABASE_SERVICE_ROLE_KEY.');
     }
+
+    public function test_the_downloaded_ping_is_a_204_when_the_rpc_counted_the_game(): void
+    {
+        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response('true', 200, ['Content-Type' => 'application/json'])]);
+
+        $this->postJson('/api/v1/games/BA/downloaded')->assertNoContent()->assertHeader('Access-Control-Allow-Origin', '*');
+        $recorded = Http::recorded();
+        $this->assertSame('game', $recorded[0][0]->data()['p_kind']);
+        $this->assertSame('BA', $recorded[0][0]->data()['p_target']);
+    }
+
+    public function test_the_downloaded_ping_is_a_404_when_the_rpc_counted_nothing(): void
+    {
+        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response('false', 200, ['Content-Type' => 'application/json'])]);
+
+        $this->postJson('/api/v1/games/nope/downloaded')
+            ->assertNotFound()->assertExactJson(['error' => 'No such game.'])->assertHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    public function test_the_downloaded_ping_is_a_404_when_the_rpc_fails(): void
+    {
+        Http::fake(['https://sb.test/rest/v1/rpc/record_download' => Http::response(['message' => 'down'], 500)]);
+
+        $this->postJson('/api/v1/games/BA/downloaded')->assertNotFound()->assertExactJson(['error' => 'No such game.']);
+    }
+
+    public function test_the_downloaded_ping_answers_a_preflight(): void
+    {
+        $this->options('/api/v1/games/BA/downloaded')->assertNoContent()->assertHeader('Access-Control-Allow-Origin', '*');
+    }
 }
