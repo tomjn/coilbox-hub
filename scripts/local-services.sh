@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts and stops the local Supabase stack and the dev server.
+# Starts and stops the local Supabase stack, the hub's MariaDB and the dev server.
 # `down` only stops what `up` started, so it is safe to run when unsure.
 set -euo pipefail
 
@@ -9,9 +9,15 @@ PROJECT_ID="coilbox-hub" # project_id in supabase/config.toml
 PORT=3000
 # The hub uses the database, auth, the REST API and storage. It uses none of these.
 EXCLUDE="realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+# The same MariaDB version as the droplet. Port 3307, because a MariaDB
+# installed on the Mac itself usually holds 3306. The data volume outlives the
+# container, so `down` keeps the data.
+MARIADB_CONTAINER="coilbox-hub-mariadb"
+MARIADB_IMAGE="mariadb:11.8"
+MARIADB_PORT=3307
 
 usage() {
-  echo "Usage: scripts/local-services.sh up|down [supabase|dev]" >&2
+  echo "Usage: scripts/local-services.sh up|down [supabase|mariadb|dev]" >&2
   echo "       scripts/local-services.sh status" >&2
   exit 2
 }
@@ -97,6 +103,49 @@ down_dev() {
   echo "Dev server stopped"
 }
 
+mariadb_running() {
+  [ -n "$(docker ps -q --filter "name=^$MARIADB_CONTAINER\$" 2>/dev/null || true)" ]
+}
+
+up_mariadb() {
+  if mariadb_running; then
+    echo "MariaDB is already running, leaving it as it is"
+    return
+  fi
+  if [ -n "$(docker ps -aq --filter "name=^$MARIADB_CONTAINER\$")" ]; then
+    docker start "$MARIADB_CONTAINER" >/dev/null
+  else
+    docker run -d --name "$MARIADB_CONTAINER" \
+      -p "127.0.0.1:$MARIADB_PORT:3306" \
+      -v "$MARIADB_CONTAINER:/var/lib/mysql" \
+      -e MARIADB_DATABASE=hub -e MARIADB_USER=hub -e MARIADB_PASSWORD=hub \
+      -e MARIADB_ROOT_PASSWORD=root \
+      --health-cmd "healthcheck.sh --connect --innodb_initialized" \
+      --health-interval 1s --health-retries 60 \
+      "$MARIADB_IMAGE" >/dev/null
+  fi
+  touch "$STATE/mariadb.started"
+  # The first start creates the database, which takes a few seconds.
+  local health
+  while true; do
+    health="$(docker inspect -f '{{.State.Health.Status}}' "$MARIADB_CONTAINER")"
+    [ "$health" = healthy ] && break
+    if [ "$health" = unhealthy ]; then
+      echo "MariaDB did not become ready. docker logs $MARIADB_CONTAINER says why." >&2
+      exit 1
+    fi
+    sleep 1
+  done
+  echo "MariaDB running on 127.0.0.1:$MARIADB_PORT, database hub, user hub, password hub"
+}
+
+down_mariadb() {
+  [ -f "$STATE/mariadb.started" ] || return 0
+  docker stop "$MARIADB_CONTAINER" >/dev/null
+  rm "$STATE/mariadb.started"
+  echo "MariaDB stopped"
+}
+
 down_supabase() {
   [ -f "$STATE/supabase.started" ] || return 0
   supabase stop --project-id "$PROJECT_ID"
@@ -112,6 +161,13 @@ status() {
   else
     echo "Supabase: stopped"
   fi
+  if mariadb_running; then
+    owner="started outside this script, so down will leave it"
+    [ -f "$STATE/mariadb.started" ] && owner="started by this script"
+    echo "MariaDB: running on 127.0.0.1:$MARIADB_PORT ($owner)"
+  else
+    echo "MariaDB: stopped"
+  fi
   pids="$(dev_listeners | tr '\n' ' ')"
   if [ -n "$pids" ]; then
     owner="started outside this script, so down will leave it"
@@ -125,17 +181,20 @@ status() {
 [ $# -ge 1 ] || usage
 command="$1"
 target="${2:-all}"
-case "$target" in all | supabase | dev) ;; *) usage ;; esac
+case "$target" in all | supabase | mariadb | dev) ;; *) usage ;; esac
+wants() { [ "$target" = all ] || [ "$target" = "$1" ]; }
 
 mkdir -p "$STATE"
 case "$command" in
   up)
-    [ "$target" = dev ] || up_supabase
-    [ "$target" = supabase ] || up_dev
+    if wants supabase; then up_supabase; fi
+    if wants mariadb; then up_mariadb; fi
+    if wants dev; then up_dev; fi
     ;;
   down)
-    [ "$target" = supabase ] || down_dev
-    [ "$target" = dev ] || down_supabase
+    if wants dev; then down_dev; fi
+    if wants mariadb; then down_mariadb; fi
+    if wants supabase; then down_supabase; fi
     ;;
   status) status ;;
   *) usage ;;
