@@ -27,6 +27,12 @@ class RobotsTest extends TestCase
         }
     }
 
+    public function test_counted_download_links_are_kept_from_crawlers(): void
+    {
+        $this->assertContains('/map/*/download/', $this->disallowed());
+        $this->assertContains('/games/*/download/', $this->disallowed());
+    }
+
     public function test_the_public_pages_are_allowed_and_the_sitemap_named(): void
     {
         $text = Robots::text(self::ORIGIN);

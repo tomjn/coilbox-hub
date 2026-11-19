@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Gallery;
 
 use App\Domain\Container\Json;
+use App\Domain\Downloads\Downloads;
 use App\Domain\Gallery\ApiItems;
 use App\Domain\Gallery\ApiPublish;
 use App\Domain\Gallery\GalleryQuery;
@@ -111,20 +112,12 @@ class ItemsApiController extends Controller
      * (coilbox#1361). Fire and forget, so success is a bare 204. No sign in,
      * the same as `/i/<id>`.
      */
-    public function imported(string $id): JsonResponse|Response
+    public function imported(Request $request, string $id): JsonResponse|Response
     {
-        try {
-            $counted = Supabase::anon()->rpc('record_item_imported', ['target_id' => $id]);
-        } catch (SupabaseException) {
-            $counted = false;
-        }
         // Nothing is counted for an id that never existed or a withdrawn one.
-        if (! $counted) {
+        if (! Downloads::record('item', $id, $request)) {
             return Api::error('No such item.', 404);
         }
-
-        // The count is printed on the item's page, and only there.
-        HubCache::invalidate([HubCache::item($id)]);
 
         return new Response('', 204, Api::CORS_HEADERS);
     }

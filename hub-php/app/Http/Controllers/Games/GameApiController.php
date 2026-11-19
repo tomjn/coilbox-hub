@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Games;
 
 use App\Domain\Assets\ImageHeader;
 use App\Domain\Assets\Staging;
+use App\Domain\Downloads\Downloads;
 use App\Domain\Games\Editor;
 use App\Domain\Games\GameBranding;
 use App\Domain\Games\GameFacts;
@@ -53,6 +54,19 @@ class GameApiController extends Controller
         }
 
         return Api::json(GameList::body($listing['games'], $releases));
+    }
+
+    /**
+     * Coilbox pings this once a game has been downloaded. Fire and forget, so
+     * success is a bare 204. No sign in, and no body.
+     */
+    public function downloaded(Request $request, string $shortname): Response
+    {
+        if (! Downloads::record('game', $shortname, $request)) {
+            return Api::error('No such game.', 404);
+        }
+
+        return new Response('', 204, Api::CORS_HEADERS);
     }
 
     /**

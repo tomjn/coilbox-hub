@@ -38,7 +38,7 @@ final class Page
             $held = $supabase
                 ->from('game')
                 ->select(
-                    'shortname,display_name,description,links,conquest_factions,owner_user_id,hidden_at,base_game,'.
+                    'id,shortname,display_name,description,links,conquest_factions,owner_user_id,hidden_at,base_game,'.
                     'logo_path,logo_hash,logo_staged_tier,banner_path,banner_hash,banner_staged_tier,'.
                     'card_path,card_hash,card_staged_tier,'.
                     'game_download_source(kind,value,asset,filename,sort_order),'.
@@ -73,6 +73,7 @@ final class Page
         ));
 
         return [
+            'id' => $held['id'] ?? null,
             'shortname' => $held['shortname'] ?? null,
             'display_name' => $held['display_name'] ?? null,
             'description' => $held['description'] ?? null,

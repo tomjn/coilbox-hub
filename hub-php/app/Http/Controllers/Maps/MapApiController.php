@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Maps;
 
+use App\Domain\Downloads\Downloads;
 use App\Domain\Maps\Have;
 use App\Domain\Maps\Js;
 use App\Domain\Maps\Lookup;
@@ -20,6 +21,7 @@ use App\Support\Bearer;
 use App\Support\HubCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -148,6 +150,28 @@ class MapApiController extends Controller
         }
 
         return Api::json(MapLookup::body($parsed['names'], $facts), 200, 'no-store');
+    }
+
+    /**
+     * Coilbox pings this once a map archive has been downloaded. Fire and
+     * forget, so success is a bare 204. No sign in. The name is the map's name,
+     * and an unknown one is a 404.
+     */
+    public function downloaded(Request $request): JsonResponse|Response
+    {
+        if (! Js::parse($request->getContent(), $body)) {
+            return Api::error('The request body must be JSON.', 400);
+        }
+        $name = is_object($body) ? ($body->name ?? null) : null;
+        if (! is_string($name) || $name === '' || mb_strlen($name) > 256) {
+            return Api::error('"name" must be a non-empty string of at most 256 characters.', 400);
+        }
+
+        if (! Downloads::record('map', $name, $request)) {
+            return Api::error('No such map.', 404);
+        }
+
+        return new Response('', 204, Api::CORS_HEADERS);
     }
 
     /** Every map pack, for coilbox's Map packs menu. A failed read is a 503, never an empty list. */

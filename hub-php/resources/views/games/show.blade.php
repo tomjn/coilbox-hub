@@ -44,16 +44,22 @@
             @if ($page['release'])
                 <p class="text-sm text-neutral-400">Game version {{ $page['release'] }}</p>
             @endif
+            @if ($downloadCounts)
+                <dl class="flex flex-col gap-1">
+                    <dt class="text-sm uppercase tracking-wide text-neutral-400">Downloads</dt>
+                    <dd class="text-sm text-neutral-100">{{ number_format($downloadCounts['total']) }}, {{ number_format($downloadCounts['last30']) }} in the last 30 days</dd>
+                </dl>
+            @endif
             @if ($page['downloads'] !== [])
                 {{-- In the order to try them, the order coilbox walks them. A
                      rapid tag is text, because there is nowhere for it to go. --}}
                 <ul class="flex flex-wrap items-center gap-3">
-                    @foreach ($page['downloads'] as $download)
+                    @foreach ($page['downloads'] as $i => $download)
                         @php $href = Download::downloadHref($download); @endphp
                         @if ($href === null)
                             <li class="text-sm text-neutral-400">Install with rapid: <code class="rounded bg-neutral-900 px-2 py-1 font-mono text-neutral-200">{{ $download['value'] }}</code></li>
                         @else
-                            <li class="text-sm"><a href="{{ $href }}" class="{{ $control }}">{{ $download['kind'] === 'github' ? 'Releases on GitHub' : 'Download this game' }}</a></li>
+                            <li class="text-sm"><a href="/games/{{ $page['shortname'] }}/download/{{ $i }}" rel="nofollow noreferrer" class="{{ $control }}">{{ $download['kind'] === 'github' ? 'Releases on GitHub' : 'Download this game' }}</a></li>
                         @endif
                     @endforeach
                 </ul>

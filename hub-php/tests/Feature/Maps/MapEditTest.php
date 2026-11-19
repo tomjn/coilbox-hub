@@ -92,7 +92,7 @@ class MapEditTest extends TestCase
     public function test_the_map_page_lists_the_sources_above_the_mirror_guesses(): void
     {
         $this->get('/map/comet')->assertOk()
-            ->assertSeeInOrder(['Download', 'https://maps.example.test/comet.sd7', 'Download comet.sd7', 'https://github.com/beherith/comet/releases', 'Look for it on hakora'], false)
+            ->assertSeeInOrder(['Download', '/map/comet/download/0', 'Download comet.sd7', '/map/comet/download/1', 'Look for it on hakora'], false)
             ->assertDontSee('Edit this map')
             ->assertDontSee('Did you make this map?');
         // A signed out visitor costs no permission check.

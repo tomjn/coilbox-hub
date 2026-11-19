@@ -187,4 +187,44 @@ class MapApiTest extends TestCase
     {
         $this->call('OPTIONS', '/api/v1/maps/lookup')->assertNoContent()->assertHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     }
+
+    public function test_the_downloaded_ping_is_a_204_when_the_rpc_counted_the_map(): void
+    {
+        $this->answers['/rest/v1/rpc/record_download'] = fn () => Http::response('true', 200, ['Content-Type' => 'application/json']);
+
+        $response = $this->postJson_('/api/v1/maps/downloaded', ['name' => 'Comet Catcher Remake 1.8'], null);
+
+        $response->assertNoContent()->assertHeader('Access-Control-Allow-Origin', '*');
+        $this->assertContains('/rest/v1/rpc/record_download', $this->paths);
+    }
+
+    public function test_the_downloaded_ping_is_a_404_when_the_rpc_counted_nothing(): void
+    {
+        $this->answers['/rest/v1/rpc/record_download'] = fn () => Http::response('false', 200, ['Content-Type' => 'application/json']);
+
+        $this->postJson_('/api/v1/maps/downloaded', ['name' => 'Nope'], null)
+            ->assertNotFound()->assertExactJson(['error' => 'No such map.'])->assertHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    public function test_the_downloaded_ping_is_a_404_when_the_rpc_fails(): void
+    {
+        $this->answers['/rest/v1/rpc/record_download'] = fn () => Http::response(['message' => 'down'], 500);
+
+        $this->postJson_('/api/v1/maps/downloaded', ['name' => 'Nope'], null)->assertNotFound()->assertExactJson(['error' => 'No such map.']);
+    }
+
+    public function test_the_downloaded_ping_refuses_a_body_that_is_not_json_or_has_no_usable_name(): void
+    {
+        $this->postJson_('/api/v1/maps/downloaded', 'not json', null)
+            ->assertStatus(400)->assertExactJson(['error' => 'The request body must be JSON.'])->assertHeader('Access-Control-Allow-Origin', '*');
+        foreach ([[], ['name' => ''], ['name' => 5], ['name' => str_repeat('a', 257)], 'null', '[]'] as $body) {
+            $this->postJson_('/api/v1/maps/downloaded', $body, null)->assertStatus(400);
+        }
+        $this->assertNotContains('/rest/v1/rpc/record_download', $this->paths);
+    }
+
+    public function test_the_downloaded_ping_answers_a_preflight(): void
+    {
+        $this->call('OPTIONS', '/api/v1/maps/downloaded')->assertNoContent()->assertHeader('Access-Control-Allow-Origin', '*');
+    }
 }

@@ -18,7 +18,7 @@
     $chipOff = 'border-neutral-800 text-neutral-300 hover:border-neutral-600 active:border-neutral-500 hover:text-neutral-100 active:text-neutral-100';
     $chipOn = 'border-amber-500 text-amber-400';
     $sizeLabels = ['small' => 'Small, up to 12 squares', 'medium' => 'Medium, up to 20 squares', 'large' => 'Large, over 20 squares'];
-    $sortLabels = ['name' => 'Name', 'size' => 'Longer edge largest first', 'players' => 'Players most first', 'added' => 'Recently added', 'uploaded' => 'Upload date'];
+    $sortLabels = ['name' => 'Name', 'size' => 'Longer edge largest first', 'players' => 'Players most first', 'added' => 'Recently added', 'uploaded' => 'Upload date', 'popular-month' => 'Popular this month', 'popular-6-months' => 'Popular, last 6 months'];
     $chipTags = ['water map', 'tidal', 'windy'];
     $keptTags = array_values(array_intersect($filters['tag'], $chipTags));
     $freeTags = array_values(array_diff($filters['tag'], $chipTags));

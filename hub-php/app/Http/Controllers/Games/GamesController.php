@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Games;
 
+use App\Domain\Downloads\Downloads;
 use App\Domain\Games\Cached;
 use App\Domain\Games\GameArt;
 use App\Domain\Games\Js;
@@ -72,6 +73,8 @@ class GamesController extends Controller
             'factionSlots' => $factionSlots,
             'describes' => $plain !== null && Labels::saysMoreThanName($page, $plain),
             'onward' => $onward,
+            // Read outside the cached page, which a download ping never refreshes.
+            'downloadCounts' => Downloads::counts('game', $page['id'] ?? null),
             // Who is looking decides two things only: the owner or a moderator
             // gets the pen and the hide switch, and on a game nobody owns a
             // signed in visitor gets the ownership ask. Drawing a control is
