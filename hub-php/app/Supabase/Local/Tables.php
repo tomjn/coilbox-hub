@@ -3,7 +3,7 @@
 namespace App\Supabase\Local;
 
 /**
- * The game catalogue and picture tables as Postgres declares them: columns in table order
+ * The game catalogue, picture, map and mirror tables as Postgres declares them: columns in table order
  * with their types, defaults, foreign keys and check constraints. The local
  * store reads this to answer in PostgREST's shapes and to refuse what Postgres
  * would refuse.
@@ -28,11 +28,15 @@ final class Tables
         'map_browse', 'map_listing', 'map_pack_entry', 'author_spelling', 'author_display_name', 'author_map_count',
     ];
 
+    /** The hub mirror tables (#600). They move on their own switch. */
+    public const MIRRORS = ['mirror', 'archive', 'archive_mirror', 'archive_mismatch', 'catalogue_state'];
+
     /** Views worked out by {@see MapViews}. Read only. */
     public const MAP_VIEWS = ['map_browse', 'map_listing', 'map_pack_entry', 'author_spelling', 'author_display_name', 'author_map_count'];
 
     /** Primary keys that are not `id`. @var array<string, list<string>> */
     public const PRIMARY_KEYS = [
+        'archive_mirror' => ['archive_id', 'mirror_id'],
         'author_name' => ['key'], 'author_alias' => ['from_key'], 'author_owner' => ['key'], 'map_pack_map' => ['pack_id', 'map_name'],
     ];
 
@@ -170,6 +174,28 @@ final class Tables
         'author_spelling' => ['key' => 'text', 'raw' => 'text', 'credits' => 'int'],
         'author_display_name' => ['key' => 'text', 'name' => 'text'],
         'author_map_count' => ['key' => 'text', 'name' => 'text', 'maps' => 'int'],
+        // Written only by MirrorFunctions, never through Rest.
+        'mirror' => [
+            'id' => 'text', 'name' => 'text', 'base_url' => 'text', 'public_key' => 'text', 'enabled' => 'bool', 'healthy' => 'bool',
+            'last_report_at' => 'ts', 'last_report_sent_at' => 'int', 'last_catalogue_seq' => 'int',
+            'last_catalogue_generated_at' => 'int', 'last_check_at' => 'ts', 'created_at' => 'ts',
+        ],
+        'archive' => [
+            'id' => 'uuid', 'sha256' => 'text', 'filename' => 'text', 'filename_lower' => 'text', 'kind' => 'text',
+            'internal_name' => 'text', 'version' => 'text', 'shortname' => 'text', 'author' => 'text', 'description' => 'text',
+            'size' => 'int', 'uploader' => 'uuid', 'state' => 'text', 'game_id' => 'uuid', 'upload_mirror_id' => 'text',
+            'reserved_until' => 'ts', 'listed_at' => 'ts', 'removed_at' => 'ts', 'removal_reason' => 'text', 'removed_by' => 'uuid',
+            'created_at' => 'ts', 'updated_at' => 'ts', 'removal_note' => 'text',
+        ],
+        'archive_mirror' => ['archive_id' => 'uuid', 'mirror_id' => 'text', 'first_seen_at' => 'ts', 'last_seen_at' => 'ts'],
+        'archive_mismatch' => [
+            'id' => 'int', 'archive_id' => 'uuid', 'found' => 'json', 'ip' => 'text', 'created_at' => 'ts', 'handled_at' => 'ts',
+            'handled_by' => 'uuid', 'handled_how' => 'text',
+        ],
+        'catalogue_state' => [
+            'id' => 'bool', 'next_seq' => 'int', 'changes' => 'int', 'built_changes' => 'int', 'seq' => 'int', 'generated_at' => 'int',
+            'body' => 'text', 'sig' => 'text', 'next_key_public' => 'text', 'next_key_since_seq' => 'int',
+        ],
     ];
 
     /**
@@ -410,12 +436,19 @@ final class Tables
         return in_array($table, self::MAPS, true);
     }
 
+    /** Whether a table belongs to the hub mirrors, which move on their own switch. */
+    public static function isMirror(string $table): bool
+    {
+        return in_array($table, self::MIRRORS, true);
+    }
+
     /** The switch that says which database holds a table. @return class-string<DataMove> */
     public static function store(string $table): string
     {
         return match (true) {
             self::isPicture($table) => PictureStore::class,
             self::isMap($table) => MapStore::class,
+            self::isMirror($table) => MirrorStore::class,
             default => GameStore::class,
         };
     }
