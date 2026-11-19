@@ -2,6 +2,7 @@
 
 namespace App\Supabase\Local;
 
+use App\Auth\Factors;
 use App\Auth\GoTrue;
 use App\Supabase\Client;
 use App\Supabase\SupabaseException;
@@ -83,12 +84,21 @@ final class ItemFunctions
         if ($userId === null || ! self::holds($userId, $capability)) {
             return 'none';
         }
-        $token = (string) $caller->client->accessToken();
-        if ((GoTrue::claims($token)['aal'] ?? null) === 'aal2') {
+        if ($caller->client->aal() === 'aal2') {
             return 'granted';
         }
+        // Once sign in runs on the hub, its authenticators count. A Coilbox
+        // token still comes from Supabase, so Supabase's count for it too.
+        if (SignInStore::state() === SignInStore::MARIADB) {
+            if (Factors::hasVerified($userId)) {
+                return 'verify';
+            }
+            if ($caller->client->hubSession()) {
+                return 'granted';
+            }
+        }
 
-        return self::hasVerifiedFactor($token) ? 'verify' : 'granted';
+        return self::hasVerifiedFactor((string) $caller->client->accessToken()) ? 'verify' : 'granted';
     }
 
     /** Whether an account holds a capability, whatever its session. */
@@ -169,7 +179,10 @@ final class ItemFunctions
             throw new LocalException('moderator_accounts is for moderators', 403, '42501');
         }
         try {
-            $users = GoTrue::adminUsers();
+            // Accounts made on the hub since sign in moved are only in MariaDB.
+            $users = SignInStore::state() === SignInStore::MARIADB
+                ? DB::table('auth_user')->get(['id', 'created_at'])->map(fn ($row) => ['id' => $row->id, 'created_at' => (string) $row->created_at])->all()
+                : GoTrue::adminUsers();
         } catch (SupabaseException $e) {
             throw new LocalException($e->getMessage(), 503, null);
         }

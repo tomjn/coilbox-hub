@@ -4,6 +4,7 @@ namespace App\Auth;
 
 use App\Supabase\Client;
 use App\Supabase\Local\Profiles;
+use App\Supabase\Local\SignInStore;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Support\Facades\Cache;
@@ -11,18 +12,25 @@ use Illuminate\Support\Facades\Cache;
 /**
  * The signed in visitor, kept in the Laravel session.
  *
- * The Next app kept the Supabase session in `sb-<ref>-auth-token` cookies and
- * refreshed it in `proxy.ts`. Here the tokens live server side in the session,
- * and {@see client()} refreshes them when they are about to expire, so a page
- * or action only ever asks for a client.
+ * Until sign in moves to the hub (#602), Supabase Auth runs it. The Next app
+ * kept the Supabase session in `sb-<ref>-auth-token` cookies and refreshed it
+ * in `proxy.ts`. Here the tokens live server side in the session, and
+ * {@see Client()} refreshes them when they are about to expire, so a page or
+ * action only ever asks for a client.
  *
- * Every write still goes through a client carrying the user's own token, so
- * row level security decides what they may do, exactly as before. The `nav`
- * entry is only for drawing the header.
+ * Once `users:copy --switch` has run, the hub signs people in itself and the
+ * session holds only the account's id and its authenticator level. Every
+ * area's rules are the hub's by then, so no Supabase token is needed. A
+ * browser still holding Supabase tokens from before the switch keeps its
+ * account. After going back to Supabase, a hub session counts as signed out.
+ *
+ * The `nav` entry is only for drawing the header.
  */
 final class HubSession
 {
     private const KEY = 'supabase';
+
+    private const HUB = 'hub';
 
     /** Refresh this many seconds before the access token expires. */
     private const REFRESH_MARGIN = 60;
@@ -38,8 +46,29 @@ final class HubSession
         self::refreshNav();
     }
 
+    /** Starts a session for an account the hub signed in itself. */
+    public static function startHub(string $userId): void
+    {
+        session()->regenerate();
+        session()->forget(self::KEY);
+        session()->put(self::HUB, ['user_id' => $userId, 'aal' => 'aal1']);
+        request()->attributes->remove('hub.session');
+        Profiles::seed(HubAccounts::user($userId) ?? []);
+        self::refreshNav();
+    }
+
+    /** Whether this browser is signed in by the hub rather than Supabase. */
+    public static function onHub(): bool
+    {
+        return self::hub() !== null;
+    }
+
     public static function userId(): ?string
     {
+        $hub = self::hub();
+        if ($hub !== null) {
+            return $hub['user_id'];
+        }
         $tokens = session(self::KEY);
 
         return is_array($tokens) ? ($tokens['user_id'] ?? null) : null;
@@ -47,12 +76,15 @@ final class HubSession
 
     public static function signedIn(): bool
     {
-        return self::accessToken() !== null;
+        return self::hub() !== null || self::accessToken() !== null;
     }
 
-    /** The access token, refreshed when it is close to expiry. Null when signed out. */
+    /** The Supabase access token, refreshed when it is close to expiry. Null when signed out or signed in by the hub. */
     public static function accessToken(): ?string
     {
+        if (self::hub() !== null) {
+            return null;
+        }
         $tokens = session(self::KEY);
         if (! is_array($tokens)) {
             return null;
@@ -87,6 +119,10 @@ final class HubSession
     /** A Supabase client acting as the signed in user, or null when signed out. */
     public static function client(): ?Client
     {
+        $hub = self::hub();
+        if ($hub !== null) {
+            return Supabase::forUser($hub['user_id'], $hub['aal']);
+        }
         $token = self::accessToken();
 
         return $token === null ? null : Supabase::forToken($token, self::userId());
@@ -95,6 +131,10 @@ final class HubSession
     /** The authenticator level of this session, `aal1` or `aal2`. */
     public static function aal(): string
     {
+        $hub = self::hub();
+        if ($hub !== null) {
+            return $hub['aal'];
+        }
         $tokens = session(self::KEY);
 
         return is_array($tokens) ? (string) ($tokens['aal'] ?? 'aal1') : 'aal1';
@@ -137,10 +177,23 @@ final class HubSession
         self::refreshNav();
     }
 
+    /** Raises a hub session to `aal2`, after a code from an authenticator app. */
+    public static function upgrade(): void
+    {
+        $hub = self::hub();
+        if ($hub === null) {
+            return;
+        }
+        session()->migrate(true);
+        session()->put(self::HUB, ['user_id' => $hub['user_id'], 'aal' => 'aal2']);
+        request()->attributes->remove('hub.session');
+        self::refreshNav();
+    }
+
     public static function signOut(): void
     {
         $tokens = session(self::KEY);
-        if (is_array($tokens)) {
+        if (self::hub() === null && is_array($tokens)) {
             GoTrue::signOut((string) $tokens['access_token'], (string) $tokens['refresh_token'], (int) $tokens['expires_at']);
         }
         self::clear();
@@ -148,9 +201,45 @@ final class HubSession
         session()->regenerateToken();
     }
 
+    /**
+     * The hub session, checked once a request: the account must still exist
+     * and not be banned. A browser that signed in through Supabase before the
+     * switch becomes a hub session for the same account.
+     *
+     * @return array{user_id: string, aal: string}|null
+     */
+    private static function hub(): ?array
+    {
+        $attributes = request()->attributes;
+        if ($attributes->has('hub.session')) {
+            return $attributes->get('hub.session');
+        }
+        $hub = session(self::HUB);
+        $tokens = session(self::KEY);
+        $onHub = SignInStore::state() === SignInStore::MARIADB;
+        if ($onHub && ! is_array($hub) && is_array($tokens) && ($tokens['user_id'] ?? '') !== '') {
+            // These tokens came straight from Supabase to this server, so their user id is trusted.
+            $hub = ['user_id' => (string) $tokens['user_id'], 'aal' => (string) ($tokens['aal'] ?? 'aal1')];
+            session()->forget(self::KEY);
+            session()->put(self::HUB, $hub);
+        }
+        $valid = null;
+        if (is_array($hub)) {
+            if ($onHub && HubAccounts::active((string) $hub['user_id'])) {
+                $valid = ['user_id' => (string) $hub['user_id'], 'aal' => $hub['aal'] === 'aal2' ? 'aal2' : 'aal1'];
+            } else {
+                session()->forget([self::HUB, 'nav']);
+            }
+        }
+        $attributes->set('hub.session', $valid);
+
+        return $valid;
+    }
+
     private static function clear(): void
     {
-        session()->forget([self::KEY, 'nav']);
+        session()->forget([self::KEY, self::HUB, 'nav']);
+        request()->attributes->remove('hub.session');
     }
 
     /** @param array<string, mixed> $tokens */

@@ -127,13 +127,17 @@
                         <p class="text-sm text-neutral-400">To add or remove an authenticator, <a href="{{ AccountController::stepUpPath('/account#second-factor') }}" class="text-neutral-300 underline underline-offset-4">enter a code from one you already have</a>.</p>
                     @endif
                     @if ($confirm['done'] ?? false)
-                        <p role="status" class="text-sm text-green-400">Done. Your authenticator is set up, and any other place you were signed in has been signed out.</p>
+                        <p role="status" class="text-sm text-green-400">{{ ($confirm['hub'] ?? false) ? 'Done. Your authenticator is set up.' : 'Done. Your authenticator is set up, and any other place you were signed in has been signed out.' }}</p>
                     @endif
                     @if ($enrolment)
                         <div class="flex flex-col gap-4 rounded-md border border-neutral-800 p-4">
-                            <p class="text-sm text-neutral-400">Scan this with an authenticator app, then type the code it shows.</p>
-                            <img src="{{ $enrolment['qrCode'] }}" alt="QR code for your authenticator app" class="w-48 self-start rounded bg-white p-2">
-                            <p class="text-sm text-neutral-400">If you cannot scan it, type this key into the app instead:</p>
+                            @if ($enrolment['qrCode'] !== '')
+                                <p class="text-sm text-neutral-400">Scan this with an authenticator app, then type the code it shows.</p>
+                                <img src="{{ $enrolment['qrCode'] }}" alt="QR code for your authenticator app" class="w-48 self-start rounded bg-white p-2">
+                                <p class="text-sm text-neutral-400">If you cannot scan it, type this key into the app instead:</p>
+                            @else
+                                <p class="text-sm text-neutral-400">On the device with your authenticator app, <a href="{{ $enrolment['uri'] }}" class="text-neutral-300 underline underline-offset-4">open this link to add the hub</a>. Or type this key into the app, choosing a time based code:</p>
+                            @endif
                             <code class="select-all break-all rounded bg-neutral-900 px-2 py-1 text-sm text-neutral-100">{{ $enrolment['secret'] }}</code>
                             <form action="/account/factor/confirm" method="post" class="flex flex-col gap-3">
                                 @csrf

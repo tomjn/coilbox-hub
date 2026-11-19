@@ -45,14 +45,21 @@ class PublishController extends Controller
         // does not cost the description just written.
         $fail = fn (string $error) => redirect('/publish')->with('publish', ['error' => $error, 'values' => $values]);
 
-        $token = HubSession::accessToken();
-        $user = $token !== null ? GoTrue::user($token) : null;
-        $userId = $user['id'] ?? null;
-        if (! is_string($userId) || $userId === '') {
+        if (HubSession::onHub()) {
+            // The hub checked who this is when it signed them in.
+            $client = HubSession::client();
+            $userId = HubSession::userId();
+        } else {
+            $token = HubSession::accessToken();
+            $user = $token !== null ? GoTrue::user($token) : null;
+            $userId = $user['id'] ?? null;
+            $client = $token !== null ? Supabase::forToken($token) : null;
+        }
+        if ($client === null || ! is_string($userId) || $userId === '') {
             return $fail('Sign in before publishing.');
         }
 
-        $outcome = Publisher::publish(Supabase::forToken((string) $token), $userId, [
+        $outcome = Publisher::publish($client, $userId, [
             'code' => $values['code'],
             'title' => $values['title'],
             'description' => $values['description'],

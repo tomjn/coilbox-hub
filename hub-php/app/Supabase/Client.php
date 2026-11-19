@@ -2,6 +2,7 @@
 
 namespace App\Supabase;
 
+use App\Auth\GoTrue;
 use App\Supabase\Local\DataMove;
 use App\Supabase\Local\GameFunctions;
 use App\Supabase\Local\GameStore;
@@ -55,18 +56,19 @@ class Client
         private readonly int $timeout,
         private readonly ?string $userId = null,
         private readonly bool $remoteOnly = false,
+        private readonly ?string $sessionAal = null,
     ) {}
 
     /** This client, asking Supabase even for tables that have moved. */
     public function remote(): self
     {
-        return new self($this->url, $this->apiKey, $this->accessToken, $this->timeout, $this->userId, true);
+        return new self($this->url, $this->apiKey, $this->accessToken, $this->timeout, $this->userId, true, $this->sessionAal);
     }
 
     /** This client with another request timeout in seconds, 0 for none. */
     public function withTimeout(int $seconds): self
     {
-        return new self($this->url, $this->apiKey, $this->accessToken, $seconds, $this->userId, $this->remoteOnly);
+        return new self($this->url, $this->apiKey, $this->accessToken, $seconds, $this->userId, $this->remoteOnly, $this->sessionAal);
     }
 
     /** `service_role`, `authenticated` or `anon`, as row level security sees the caller. */
@@ -76,7 +78,23 @@ class Client
             return 'service_role';
         }
 
-        return $this->accessToken !== null ? 'authenticated' : 'anon';
+        return $this->accessToken !== null || $this->sessionAal !== null ? 'authenticated' : 'anon';
+    }
+
+    /** Whether this client is a hub session, signed in without a Supabase token (#602). */
+    public function hubSession(): bool
+    {
+        return $this->sessionAal !== null;
+    }
+
+    /** The caller's authenticator level, `aal1` or `aal2`: the hub session's, or the access token's claim. */
+    public function aal(): string
+    {
+        if ($this->sessionAal !== null) {
+            return $this->sessionAal;
+        }
+
+        return $this->accessToken !== null && (GoTrue::claims($this->accessToken)['aal'] ?? null) === 'aal2' ? 'aal2' : 'aal1';
     }
 
     /** The signed in user's id when the creator knew it. */
