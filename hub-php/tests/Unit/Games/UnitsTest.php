@@ -714,10 +714,10 @@ class UnitsTest extends TestCase
     public function test_the_random_side_hides_from_every_faction_list(): void
     {
         $this->serve(['game_faction' => [
-            ['key' => 'arm', 'name' => 'Arm'],
-            ['key' => 'random', 'name' => 'Random'],
-            ['key' => 'core', 'name' => 'Random'],
-            ['key' => 'random', 'name' => 'Trolls'],
+            ['id' => 1, 'key' => 'arm', 'name' => 'Arm'],
+            ['id' => 2, 'key' => 'random', 'name' => 'Random'],
+            ['id' => 3, 'key' => 'core', 'name' => 'Random'],
+            ['id' => 4, 'key' => 'random', 'name' => 'Trolls'],
         ]]);
 
         $this->assertSame([['key' => 'arm', 'name' => 'Arm']], Units::gameFactions($this->supabase, 'BA'));
