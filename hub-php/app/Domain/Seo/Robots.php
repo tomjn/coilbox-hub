@@ -12,7 +12,7 @@ final class Robots
     /**
      * Pages a crawler gains nothing from, or that are not for it. `/i/` is the
      * raw container an import link fetches, `/export` is the whole gallery as
-     * one file, and the edit pages need a sign in. A unit compared with another
+     * one file, the edit pages need a sign in, and a counted download link only redirects. A unit compared with another
      * is one page for every pair of units, a crawl with no end. A unit at a
      * past release is one page per unit per release, and each names the latest
      * unit page as its canonical.
@@ -29,6 +29,8 @@ final class Robots
         '/export',
         '/item/*/edit',
         '/games/*/edit',
+        '/map/*/download/',
+        '/games/*/download/',
         '/games/*/units/*/compare?with=',
         '/games/*/units/*@',
     ];

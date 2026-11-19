@@ -59,6 +59,7 @@ class MapsController extends Controller
         $ownershipTargets = Nav::current() !== null && ! $canEdit ? MapEdits::ownershipTargets($page) : [];
 
         return view('maps.show', $page + [
+            'slug' => $slug,
             'canEdit' => $canEdit,
             'ownershipTargets' => $ownershipTargets,
             'title' => $title,

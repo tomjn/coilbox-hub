@@ -75,7 +75,7 @@
                 </ul>
             @endif
 
-            <x-maps.downloads :downloads="Download::readDownloads($facts['downloads'] ?? [])" />
+            <x-maps.downloads :downloads="Download::readDownloads($facts['downloads'] ?? [])" :slug="$slug" />
 
             <x-maps.mirrors :links="$mirrors" />
 

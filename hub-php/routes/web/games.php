@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Downloads\DownloadRedirectController;
 use App\Http\Controllers\Games\ChangesController;
 use App\Http\Controllers\Games\GameEditController;
 use App\Http\Controllers\Games\GamesController;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/games', [GamesController::class, 'index']);
 Route::get('/games/{shortname}', [GamesController::class, 'show']);
+Route::get('/games/{shortname}/download/{n}', [DownloadRedirectController::class, 'game'])->whereNumber('n');
 Route::get('/games/{shortname}/units', [UnitsController::class, 'index']);
 Route::get('/games/{shortname}/units/{unit}', [UnitController::class, 'show']);
 Route::get('/games/{shortname}/units/{unit}/compare', [UnitController::class, 'compare']);
