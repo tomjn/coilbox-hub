@@ -11,11 +11,15 @@ The Next.js app in the repository root no longer serves visitors. On Vercel it o
 
 Locally, without `VERCEL` set, the Next app still serves every page. It is the reference the PHP port is checked against. Do not add features or restyle pages there. A Next.js "N" badge in the corner of a screenshot means you are looking at this app, not the live hub.
 
+## New data goes in MariaDB
+
+New tables, columns, views and functions go in the hub's MariaDB, as Laravel migrations in `hub-php/database/migrations`. A change to Supabase is only for data that has not moved yet, and needs the owner's agreement. `hub-php/AGENTS.md` has the details.
+
 ## Local services
 
-Local Supabase and the dev server stay running after a session ends unless you stop them. Left running, they use memory other projects on this machine need.
+Local Supabase, the hub's MariaDB and the dev server stay running after a session ends unless you stop them. Left running, they use memory other projects on this machine need.
 
-1. Start them only with `scripts/local-services.sh up`. Add `supabase` or `dev` to start one of them. A hook blocks `supabase start`, `bun dev` and the other direct forms.
+1. Start them only with `scripts/local-services.sh up`. Add `supabase`, `mariadb` or `dev` to start one of them. A hook blocks `supabase start`, `bun dev` and the other direct forms.
 2. Run `scripts/local-services.sh status` first. If something is already running, the script leaves it alone and `down` will not stop it.
 3. Run `scripts/local-services.sh down` before your final message. It stops only what `up` started. Do not use `pkill -f "next dev"`, which also kills dev servers in other projects.
 4. Only the lead session starts services. A subagent that needs them asks the lead, or uses what is already running.

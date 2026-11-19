@@ -2,7 +2,15 @@
 
 This folder is the hub rebuilt as a Laravel app. It replaces the Next.js app in the repository root. Since November 2026 that app only forwards `coilbox-hub.vercel.app` traffic here: pages redirect, and `/api/v1/*` and `/i/*` are proxied so installed copies of Coilbox keep working. It runs on a DigitalOcean droplet at `https://hub.coilbox.org`.
 
-For now it keeps Supabase for the database, sign in and the staging picture bucket. It talks to Supabase over HTTP, the same PostgREST and Auth endpoints supabase-js uses, so row level security and the database functions behave exactly as they do for the Next app. A later phase moves the rules out of Postgres and into this app, then moves the data to MariaDB. Do not start that work here.
+For now it keeps Supabase for most of the data, sign in and the staging picture bucket. It talks to Supabase over HTTP, the same PostgREST and Auth endpoints supabase-js uses, so row level security and the database functions behave exactly as they do for the Next app. Data moves to MariaDB one area at a time, each under its own issue.
+
+## New data goes in MariaDB
+
+New tables, columns, views and functions go in MariaDB, as Laravel migrations in `database/migrations`. MariaDB is the default database connection. Each deploy runs `php artisan migrate --force` before the new release goes live, so a migration must keep working with the release that is still live.
+
+Change Supabase only for data that has not moved yet, and only with the owner's agreement. Supabase schema stays in `supabase/migrations` until its area moves.
+
+Locally, `scripts/local-services.sh up mariadb` starts MariaDB on port 3307, and `deploy/env.example` points at it. Tests run on SQLite in memory locally and on MariaDB in CI, so write queries both accept.
 
 ## The Next app is the specification
 
