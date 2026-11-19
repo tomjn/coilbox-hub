@@ -27,6 +27,16 @@ class Supabase
         return new Client(self::url(), (string) config('hub.supabase.publishable_key'), $accessToken, self::timeout(), $userId);
     }
 
+    /**
+     * A signed in browser once sign in runs on the hub (#602): the account's
+     * id and authenticator level, and no Supabase token. Only the tables in
+     * MariaDB know who it is.
+     */
+    public static function forUser(string $userId, string $aal): Client
+    {
+        return new Client(self::url(), (string) config('hub.supabase.publishable_key'), null, self::timeout(), $userId, false, $aal);
+    }
+
     public static function admin(): Client
     {
         $key = (string) config('hub.supabase.service_role_key');

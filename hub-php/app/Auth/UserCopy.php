@@ -2,22 +2,29 @@
 
 namespace App\Auth;
 
+use App\Supabase\Local\SignInStore;
 use Closure;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Throwable;
 
 /**
  * Copies every Supabase Auth account and its linked providers into
  * `auth_user` and `auth_identity` (#602, part 3a), for `php artisan
  * users:copy`.
  *
- * Sign in still runs on Supabase, so the copy changes nothing a visitor sees.
- * It can run at any time and as often as needed: it updates accounts in place
+ * While sign in runs on Supabase the copy changes nothing a visitor sees. It
+ * can run at any time and as often as needed: it updates accounts in place
  * and removes accounts Supabase no longer has. Sign ins keep the copy current
- * between runs.
+ * between runs. {@see switch()} copies once more and moves the browser sign
+ * in to the hub (part 3b). After that the copy refuses to run, because it
+ * would remove the accounts made on the hub.
  */
 final class UserCopy
 {
+    /** `copy_hash` on an account made on the hub, which Supabase does not have. */
+    public const MADE_ON_HUB = 'made-on-hub';
+
     /** @param Closure(string): void $say */
     public function __construct(private readonly Closure $say) {}
 
@@ -63,6 +70,66 @@ final class UserCopy
         }
 
         return $after;
+    }
+
+    /**
+     * A fresh copy, then the browser sign in moves to the hub. Sign in starts
+     * are refused while the copy runs, so nobody signs up in between. If the
+     * copy fails, sign in stays on Supabase.
+     *
+     * @return array{supabase_users: int, supabase_identities: int, mariadb_users: int, mariadb_identities: int, to_add: int, to_remove: int}
+     */
+    public function switch(): array
+    {
+        SignInStore::set(SignInStore::FROZEN);
+        try {
+            $counts = $this->run();
+        } catch (Throwable $e) {
+            SignInStore::set(SignInStore::SUPABASE);
+            throw $e;
+        }
+        SignInStore::set(SignInStore::MARIADB);
+
+        return $counts;
+    }
+
+    /** Why a copy must not run now, or null. */
+    public static function blocksCopy(): ?string
+    {
+        return SignInStore::fresh() === SignInStore::SUPABASE
+            ? null
+            : 'Sign in runs on the hub, so a copy would remove the accounts made there. Run users:store supabase first.';
+    }
+
+    /**
+     * What has to happen before sign in can move: every area's rules in
+     * MariaDB, so a session with no Supabase token can still read and write,
+     * and each provider's app id and secret set.
+     *
+     * @return list<string>
+     */
+    public static function waitingForSwitch(): array
+    {
+        $waiting = [];
+        foreach (SignInStore::NEEDS as $area => $store) {
+            if ($store::fresh() !== SignInStore::MARIADB) {
+                $waiting[] = "Run {$area}:copy first.";
+            }
+        }
+        foreach (array_keys(GoTrue::PROVIDERS) as $provider) {
+            if (! HubSignIn::configured($provider)) {
+                $upper = strtoupper($provider);
+                $waiting[] = "Set {$upper}_CLIENT_ID and {$upper}_CLIENT_SECRET, then run php artisan config:cache.";
+            }
+        }
+
+        return $waiting;
+    }
+
+    /** How many accounts were made on the hub, which Supabase does not have. */
+    public static function madeOnHub(): int
+    {
+        return DB::table('auth_user')->where('copy_hash', self::MADE_ON_HUB)->count();
     }
 
     /**

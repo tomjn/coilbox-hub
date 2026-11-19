@@ -3,6 +3,7 @@
 namespace App\Supabase\Local;
 
 use App\Auth\GoTrue;
+use App\Auth\HubAccounts;
 use App\Supabase\Supabase;
 use Illuminate\Support\Facades\DB;
 
@@ -185,14 +186,16 @@ final class AssetTriggers
 
     /**
      * The uploader's display name, from whichever database holds profiles,
-     * and the name their sign in provider gave, from Supabase Auth.
+     * and the name their sign in provider gave, from whichever runs sign in.
      *
      * @return array{0: ?string, 1: ?string}
      */
     private static function uploaderNames(string $userId): array
     {
         $profile = Supabase::admin()->from('profile')->select('display_name')->eq('user_id', $userId)->maybeSingle();
-        $metadata = GoTrue::adminUserMetadata($userId) ?? [];
+        $metadata = SignInStore::state() === SignInStore::MARIADB
+            ? (HubAccounts::user(strtolower($userId))['user_metadata'] ?? [])
+            : (GoTrue::adminUserMetadata($userId) ?? []);
         $provider = null;
         foreach (['preferred_username', 'user_name', 'full_name', 'name'] as $key) {
             $value = $metadata[$key] ?? null;

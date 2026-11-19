@@ -16,6 +16,7 @@ use App\Supabase\Local\MapStore;
 use App\Supabase\Local\MirrorStore;
 use App\Supabase\Local\PictureStore;
 use App\Supabase\Local\Shadow;
+use App\Supabase\Local\SignInStore;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Foundation\Inspiring;
@@ -155,6 +156,11 @@ Artisan::command('games:store {state? : supabase, to go back}', function () {
 
         return 1;
     }
+    if (($blocked = SignInStore::blocksRollback()) !== null) {
+        $this->error($blocked);
+
+        return 1;
+    }
     if (MirrorStore::fresh() !== MirrorStore::SUPABASE) {
         $this->error('The mirrors read games from MariaDB. Run mirrors:store supabase first.');
 
@@ -215,6 +221,11 @@ Artisan::command('pictures:store {state? : supabase, to go back}', function () {
 
         return 1;
     }
+    if (($blocked = SignInStore::blocksRollback()) !== null) {
+        $this->error($blocked);
+
+        return 1;
+    }
     if (PictureStore::fresh() === PictureStore::MARIADB) {
         $this->warn('Pictures uploaded or moderated since the switch are only in MariaDB and on this disk, not in Supabase.');
     }
@@ -262,6 +273,11 @@ Artisan::command('maps:store {state? : supabase, to go back}', function () {
     }
     if ($state !== MapStore::SUPABASE) {
         $this->error('Only supabase can be set here. maps:copy switches to mariadb once the rows are copied.');
+
+        return 1;
+    }
+    if (($blocked = SignInStore::blocksRollback()) !== null) {
+        $this->error($blocked);
 
         return 1;
     }
@@ -325,6 +341,11 @@ Artisan::command('mirrors:store {state? : supabase, to go back}', function () {
 
         return 1;
     }
+    if (($blocked = SignInStore::blocksRollback()) !== null) {
+        $this->error($blocked);
+
+        return 1;
+    }
     if (MirrorStore::fresh() === MirrorStore::MARIADB) {
         $this->warn('Reports, uploads, removals and mirror changes made in MariaDB since the switch are not in Supabase.');
     }
@@ -378,6 +399,11 @@ Artisan::command('items:store {state? : supabase, to go back}', function () {
 
         return 1;
     }
+    if (($blocked = SignInStore::blocksRollback()) !== null) {
+        $this->error($blocked);
+
+        return 1;
+    }
     if (ItemStore::fresh() === ItemStore::MARIADB) {
         $this->warn('Items, reports, profiles and capabilities changed in MariaDB since the switch are not in Supabase.');
     }
@@ -389,11 +415,29 @@ Artisan::command('items:store {state? : supabase, to go back}', function () {
     return 0;
 })->purpose('Show which database published items, reports, profiles and capabilities are read from, or go back to Supabase');
 
-Artisan::command('users:copy {--dry-run : Show the counts and write nothing}', function () {
+Artisan::command('users:copy {--dry-run : Show the counts and write nothing} {--switch : Then run the browser sign in on the hub}', function () {
+    $switch = (bool) $this->option('switch');
     $copy = new UserCopy(fn (string $line) => $this->line($line));
+    $this->line('The browser sign in runs on '.(SignInStore::fresh() === SignInStore::MARIADB ? 'the hub' : 'Supabase').'.');
+    if (($blocked = UserCopy::blocksCopy()) !== null) {
+        $this->error($blocked);
+
+        return 1;
+    }
+    $waiting = $switch ? UserCopy::waitingForSwitch() : [];
 
     try {
-        $counts = $this->option('dry-run') ? $copy->counts() : $copy->run();
+        if ($this->option('dry-run')) {
+            $counts = $copy->counts();
+        } else {
+            if ($waiting !== []) {
+                $this->error('Sign in cannot move yet:');
+                array_map(fn (string $line) => $this->error('- '.$line), $waiting);
+
+                return 1;
+            }
+            $counts = $switch ? $copy->switch() : $copy->run();
+        }
     } catch (Throwable $e) {
         $this->error('The copy stopped: '.$e->getMessage());
 
@@ -403,11 +447,41 @@ Artisan::command('users:copy {--dry-run : Show the counts and write nothing}', f
         $counts['supabase_users'], $counts['mariadb_users'], $counts['supabase_identities'], $counts['mariadb_identities']));
     if ($this->option('dry-run')) {
         $this->line(sprintf('To add: %d accounts. To remove: %d accounts Supabase no longer has.', $counts['to_add'], $counts['to_remove']));
+        if ($switch) {
+            $this->line($waiting === [] ? 'Sign in can move to the hub.' : 'Sign in cannot move yet:');
+            array_map(fn (string $line) => $this->line('- '.$line), $waiting);
+        }
         $this->line('Dry run: nothing was written.');
+    } elseif ($switch) {
+        $this->line('The browser sign in now runs on the hub. Coilbox still signs in with Supabase.');
     }
 
     return 0;
-})->purpose('Copy Supabase Auth accounts and their sign in providers into MariaDB, keeping their ids. Sign in still runs on Supabase');
+})->purpose('Copy Supabase Auth accounts and their sign in providers into MariaDB, keeping their ids. With --switch, then run the browser sign in on the hub');
+
+Artisan::command('users:store {state? : supabase, to go back}', function () {
+    $state = $this->argument('state');
+    $where = fn () => SignInStore::fresh() === SignInStore::MARIADB ? 'the hub' : 'Supabase';
+    if ($state === null) {
+        $this->line('The browser sign in runs on '.$where().'.');
+
+        return 0;
+    }
+    if ($state !== SignInStore::SUPABASE) {
+        $this->error('Only supabase can be set here. users:copy --switch moves sign in to the hub once the accounts are copied.');
+
+        return 1;
+    }
+    if (SignInStore::fresh() === SignInStore::MARIADB) {
+        $made = UserCopy::madeOnHub();
+        $this->warn(sprintf('%d accounts were made on the hub since the switch. Supabase does not have them, so they cannot sign in until sign in moves back to the hub.', $made));
+        $this->warn('Providers linked or removed, and authenticator apps set up, on the hub are not in Supabase. Everybody signed in on the hub has to sign in again.');
+    }
+    SignInStore::set(SignInStore::SUPABASE);
+    $this->line('The browser sign in runs on Supabase.');
+
+    return 0;
+})->purpose('Show where the browser sign in runs, or go back to Supabase');
 
 Artisan::command('promotion:token', function () {
     $made = JobToken::make();

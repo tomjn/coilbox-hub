@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Auth\AuthUsers;
+use App\Auth\Factors;
 use App\Auth\GoTrue;
+use App\Auth\HubAccounts;
 use App\Auth\HubSession;
+use App\Auth\HubSignIn;
 use App\Domain\Account\AccountRules;
 use App\Supabase\Client;
 use App\Supabase\Local\ItemRules;
@@ -13,6 +16,7 @@ use App\Supabase\Local\PictureStore;
 use App\Supabase\Local\Values;
 use App\Supabase\SupabaseException;
 use App\Support\HubCache;
+use App\Support\Nav;
 use App\Support\Site;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,14 +46,12 @@ class AccountController
         if ($client === null || $userId === null) {
             return redirect('/publish');
         }
-        $token = (string) HubSession::accessToken();
-
         $published = (int) $client->from('item')->select('id', count: 'exact')->eq('author_id', $userId)->limit(1)->getWithCount()['count'];
         $name = $client->from('profile')->select('display_name')->eq('user_id', $userId)->maybeSingle()['display_name'] ?? null;
         if ($name === null) {
             abort(500, 'Could not read your display name. Reload the page to try again.');
         }
-        $user = GoTrue::user($token) ?? abort(500, 'Could not read your account. Reload the page to try again.');
+        $user = self::account() ?? abort(500, 'Could not read your account. Reload the page to try again.');
         $identities = $user['identities'] ?? [];
         if ($identities === []) {
             abort(500, 'Could not read how you sign in. Reload the page to try again.');
@@ -115,7 +117,14 @@ class AccountController
         // Asked first, so a deletion during the picture copy is refused rather than missed.
         $picturesLocal = PictureStore::writeTarget() === PictureStore::MARIADB;
         $itemsLocal = ItemStore::writeTarget() === ItemStore::MARIADB;
-        GoTrue::adminDeleteUser($userId);
+        try {
+            GoTrue::adminDeleteUser($userId);
+        } catch (SupabaseException $e) {
+            // Made on the hub after sign in moved there, so Supabase never had it.
+            if (! HubSession::onHub() || $e->status !== 404) {
+                throw $e;
+            }
+        }
         AuthUsers::forget($userId);
         if ($itemsLocal) {
             ItemRules::forgetAccount($userId);
@@ -135,15 +144,23 @@ class AccountController
     /** Starts linking another provider, `app/auth/link/route.ts`. */
     public function link(Request $request): RedirectResponse
     {
-        $token = HubSession::accessToken() ?? abort(redirect('/publish'));
+        HubSession::signedIn() || abort(redirect('/publish'));
         $provider = GoTrue::provider($request->input('provider'));
         if ($provider === null) {
             abort(400, 'Unknown sign in provider');
         }
-        $user = GoTrue::user($token);
+        $user = self::account();
         if ($user !== null && self::verifiedFactors($user) !== [] && HubSession::aal() !== 'aal2') {
             return redirect(self::stepUpPath('/account#sign-in-methods'));
         }
+        if (HubSession::onHub()) {
+            if (! HubSignIn::configured($provider)) {
+                return redirect('/account?link_failed='.$provider.'#sign-in-methods');
+            }
+
+            return HubSignIn::redirect($provider, '/account', HubSession::userId());
+        }
+        $token = (string) HubSession::accessToken();
         $pkce = GoTrue::pkcePair();
         session()->put('pkce', ['verifier' => $pkce['verifier'], 'next' => '/account', 'provider' => $provider, 'link' => true]);
         $redirectTo = Site::absolute('/auth/callback').'?'.http_build_query(['provider' => $provider, 'link' => 1]);
@@ -156,9 +173,9 @@ class AccountController
 
     public function unlink(Request $request): RedirectResponse
     {
-        $token = HubSession::accessToken() ?? abort(redirect('/publish'));
+        HubSession::signedIn() || abort(redirect('/publish'));
         $fail = fn (string $error) => redirect('/account#sign-in-methods')->with('unlink', ['error' => $error, 'identityId' => $request->input('identityId')]);
-        $user = GoTrue::user($token);
+        $user = self::account();
         if ($user === null) {
             return $fail('Could not read how you sign in. Try again.');
         }
@@ -173,8 +190,15 @@ class AccountController
         if (count($identities) <= 1) {
             return $fail(AccountRules::LAST_METHOD_REASON);
         }
+        if (HubSession::onHub()) {
+            if (! HubAccounts::unlink((string) HubSession::userId(), (string) $owned['identity_id'])) {
+                return $fail('Could not remove that way of signing in. Try again.');
+            }
+
+            return redirect('/account#sign-in-methods');
+        }
         try {
-            GoTrue::unlinkIdentity($token, (string) $owned['identity_id']);
+            GoTrue::unlinkIdentity((string) HubSession::accessToken(), (string) $owned['identity_id']);
         } catch (SupabaseException) {
             return $fail('Could not remove that way of signing in. Try again.');
         }
@@ -187,15 +211,23 @@ class AccountController
 
     public function startEnrolment(): RedirectResponse
     {
-        $token = HubSession::accessToken() ?? abort(redirect('/publish'));
+        HubSession::signedIn() || abort(redirect('/publish'));
         $fail = fn (string $error) => redirect('/account#second-factor')->with('enrol', ['error' => $error]);
-        $user = GoTrue::user($token);
+        $user = self::account();
         if ($user === null) {
             return $fail('Could not read your authenticators. Try again.');
         }
         if (self::verifiedFactors($user) !== [] && HubSession::aal() !== 'aal2') {
             return $fail(self::NEEDS_CODE_FIRST);
         }
+        if (HubSession::onHub()) {
+            $userId = (string) HubSession::userId();
+            $started = Factors::start($userId, Nav::current()['name'] ?? $userId);
+            session()->put('enrolment', ['factorId' => $started['factorId'], 'qrCode' => '', 'uri' => $started['uri'], 'secret' => $started['secret']]);
+
+            return redirect('/account#second-factor');
+        }
+        $token = (string) HubSession::accessToken();
         // A setup somebody abandoned would otherwise block a new one.
         foreach ($user['factors'] ?? [] as $factor) {
             if (($factor['status'] ?? '') === 'unverified') {
@@ -218,21 +250,30 @@ class AccountController
 
     public function confirmEnrolment(Request $request): RedirectResponse
     {
-        $token = HubSession::accessToken() ?? abort(redirect('/publish'));
+        HubSession::signedIn() || abort(redirect('/publish'));
         $fail = fn (string $error) => redirect('/account#second-factor')->with('confirm', ['error' => $error]);
         $code = AccountRules::readCode($request->input('code'));
         if ($code === null) {
             return $fail(self::CODE_UNREADABLE);
         }
-        $user = GoTrue::user($token);
+        $user = self::account();
         $pending = collect($user['factors'] ?? [])->first(fn ($factor) => ($factor['id'] ?? null) === $request->input('factorId') && ($factor['status'] ?? '') === 'unverified');
         if ($pending === null) {
             session()->forget('enrolment');
 
             return $fail('That setup has expired or finished already. Start again.');
         }
+        if (HubSession::onHub()) {
+            if (! Factors::confirm((string) HubSession::userId(), (string) $pending['id'], $code)) {
+                return $fail(self::CODE_REFUSED);
+            }
+            HubSession::upgrade();
+            session()->forget('enrolment');
+
+            return redirect('/account#second-factor')->with('confirm', ['done' => true, 'hub' => true]);
+        }
         try {
-            HubSession::replaceTokens(GoTrue::challengeAndVerify($token, (string) $pending['id'], $code));
+            HubSession::replaceTokens(GoTrue::challengeAndVerify((string) HubSession::accessToken(), (string) $pending['id'], $code));
         } catch (SupabaseException) {
             return $fail(self::CODE_REFUSED);
         }
@@ -243,20 +284,26 @@ class AccountController
 
     public function removeFactor(Request $request): RedirectResponse
     {
-        $token = HubSession::accessToken() ?? abort(redirect('/publish'));
+        HubSession::signedIn() || abort(redirect('/publish'));
         $fail = fn (string $error) => redirect('/account#second-factor')->with('remove', ['error' => $error, 'factorId' => $request->input('factorId')]);
         if (HubSession::aal() !== 'aal2') {
             return $fail(self::NEEDS_CODE_FIRST);
         }
-        $user = GoTrue::user($token);
+        $user = self::account();
         $owned = collect($user['factors'] ?? [])->firstWhere('id', $request->input('factorId'));
         if ($owned === null) {
             return $fail('That authenticator is not on your account.');
         }
-        try {
-            GoTrue::unenrol($token, (string) $owned['id']);
-        } catch (SupabaseException) {
-            return $fail('Could not remove that authenticator. Try again.');
+        if (HubSession::onHub()) {
+            if (! Factors::remove((string) HubSession::userId(), (string) $owned['id'])) {
+                return $fail('Could not remove that authenticator. Try again.');
+            }
+        } else {
+            try {
+                GoTrue::unenrol((string) HubSession::accessToken(), (string) $owned['id']);
+            } catch (SupabaseException) {
+                return $fail('Could not remove that authenticator. Try again.');
+            }
         }
         HubSession::refreshNav();
 
@@ -266,11 +313,11 @@ class AccountController
     public function verifyPage(Request $request): View|RedirectResponse
     {
         $next = SignInController::next($request->query('next'), null);
-        $token = HubSession::accessToken() ?? abort(redirect('/publish'));
+        HubSession::signedIn() || abort(redirect('/publish'));
         if (HubSession::aal() === 'aal2') {
             return redirect($next);
         }
-        $user = GoTrue::user($token);
+        $user = self::account();
         $factors = $user ? self::verifiedFactors($user) : [];
         if ($factors === []) {
             return redirect('/account');
@@ -281,13 +328,13 @@ class AccountController
 
     public function verify(Request $request): RedirectResponse
     {
-        $token = HubSession::accessToken() ?? abort(redirect('/publish'));
+        HubSession::signedIn() || abort(redirect('/publish'));
         $back = fn (string $error) => redirect()->back()->with('verify', ['error' => $error]);
         $code = AccountRules::readCode($request->input('code'));
         if ($code === null) {
             return $back(self::CODE_UNREADABLE);
         }
-        $user = GoTrue::user($token);
+        $user = self::account();
         $verified = $user ? self::verifiedFactors($user) : [];
         $named = $request->input('factorId');
         $chosen = $named
@@ -296,10 +343,17 @@ class AccountController
         if ($chosen === null) {
             return $back('Choose one of your authenticators.');
         }
-        try {
-            HubSession::replaceTokens(GoTrue::challengeAndVerify($token, (string) $chosen['id'], $code));
-        } catch (SupabaseException) {
-            return $back(self::CODE_REFUSED);
+        if (HubSession::onHub()) {
+            if (! Factors::check((string) HubSession::userId(), (string) $chosen['id'], $code)) {
+                return $back(self::CODE_REFUSED);
+            }
+            HubSession::upgrade();
+        } else {
+            try {
+                HubSession::replaceTokens(GoTrue::challengeAndVerify((string) HubSession::accessToken(), (string) $chosen['id'], $code));
+            } catch (SupabaseException) {
+                return $back(self::CODE_REFUSED);
+            }
         }
 
         return redirect(SignInController::next($request->input('next'), null));
@@ -308,6 +362,25 @@ class AccountController
     public static function stepUpPath(string $next): string
     {
         return '/account/verify?next='.rawurlencode($next);
+    }
+
+    /**
+     * The signed in account's providers and authenticators, from whichever
+     * runs sign in, in the shape Supabase Auth gave them. Null when signed
+     * out or Supabase no longer takes the token.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function account(): ?array
+    {
+        if (HubSession::onHub()) {
+            $userId = (string) HubSession::userId();
+
+            return ['id' => $userId, 'identities' => HubAccounts::identities($userId), 'factors' => Factors::all($userId)];
+        }
+        $token = HubSession::accessToken();
+
+        return $token === null ? null : GoTrue::user($token);
     }
 
     /**

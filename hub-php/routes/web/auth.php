@@ -1,5 +1,6 @@
 <?php
 
+use App\Auth\GoTrue;
 use App\Http\Controllers\Auth\AccountController;
 use App\Http\Controllers\Auth\SignInController;
 use App\Http\Controllers\Auth\UploadsController;
@@ -8,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/sign-in', [SignInController::class, 'page']);
 Route::post('/auth/signin', [SignInController::class, 'start']);
 Route::get('/auth/callback', [SignInController::class, 'callback']);
+Route::get('/auth/{provider}/callback', [SignInController::class, 'hubCallback'])->whereIn('provider', array_keys(GoTrue::PROVIDERS));
 Route::post('/auth/signout', [SignInController::class, 'signOut']);
 Route::post('/auth/link', [AccountController::class, 'link']);
 

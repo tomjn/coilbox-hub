@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Auth\AuthUsers;
+use App\Auth\UserCopy;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -265,5 +266,95 @@ class AuthUsersTest extends TestCase
 
         $this->assertSame(0, DB::table('auth_user')->count());
         $this->assertSame(0, DB::table('auth_identity')->count());
+    }
+
+    /** Every area in MariaDB and each provider's app set, as before the switch in production. */
+    private function readyToSwitch(): void
+    {
+        config([
+            'hub.games_store' => 'mariadb', 'hub.pictures_store' => 'mariadb', 'hub.maps_store' => 'mariadb',
+            'hub.mirrors_store' => 'mariadb', 'hub.items_store' => 'mariadb', 'hub.signin_store' => null,
+            'services.discord' => ['client_id' => 'd', 'client_secret' => 'd'],
+            'services.github' => ['client_id' => 'g', 'client_secret' => 'g'],
+            'services.twitch' => ['client_id' => 't', 'client_secret' => 't'],
+        ]);
+    }
+
+    public function test_the_switch_waits_for_every_area_and_each_provider(): void
+    {
+        config(['hub.signin_store' => null, 'hub.maps_store' => 'mariadb']);
+        $this->fakeAdmin(self::accounts());
+
+        $this->artisan('users:copy', ['--switch' => true])
+            ->expectsOutputToContain('Run games:copy first.')
+            ->expectsOutputToContain('Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET')
+            ->assertExitCode(1);
+
+        $this->assertSame(0, DB::table('auth_user')->count());
+        $this->assertNull(DB::table('data_move')->where('area', 'signin')->value('state'));
+    }
+
+    public function test_a_dry_run_of_the_switch_says_whether_it_can_go(): void
+    {
+        $this->readyToSwitch();
+        $this->fakeAdmin(self::accounts());
+
+        $this->artisan('users:copy', ['--switch' => true, '--dry-run' => true])
+            ->expectsOutput('Sign in can move to the hub.')
+            ->expectsOutput('Dry run: nothing was written.')
+            ->assertExitCode(0);
+
+        $this->assertSame(0, DB::table('auth_user')->count());
+        $this->assertNull(DB::table('data_move')->where('area', 'signin')->value('state'));
+    }
+
+    public function test_the_switch_copies_first_then_moves_sign_in_to_the_hub(): void
+    {
+        $this->readyToSwitch();
+        $this->seedGone();
+        $this->fakeAdmin(self::accounts());
+
+        $this->artisan('users:copy', ['--switch' => true])
+            ->expectsOutput('Added or updated 2 accounts, removed 1.')
+            ->expectsOutput('The browser sign in now runs on the hub. Coilbox still signs in with Supabase.')
+            ->assertExitCode(0);
+
+        $this->assertSame('mariadb', DB::table('data_move')->where('area', 'signin')->value('state'));
+        $this->assertSame([self::ALICE, self::BOB], DB::table('auth_user')->orderBy('id')->pluck('id')->all());
+
+        // Another copy would remove the accounts made on the hub since.
+        $this->artisan('users:copy')->expectsOutputToContain('Run users:store supabase first.')->assertExitCode(1);
+        // Going back on any area would leave hub sessions with no Supabase token.
+        $this->artisan('items:store', ['state' => 'supabase'])->expectsOutputToContain('Run users:store supabase first.')->assertExitCode(1);
+        $this->artisan('pictures:store', ['state' => 'supabase'])->expectsOutputToContain('Run users:store supabase first.')->assertExitCode(1);
+    }
+
+    public function test_a_failed_copy_leaves_sign_in_on_supabase(): void
+    {
+        $this->readyToSwitch();
+        Http::fake([self::URL.'/auth/v1/admin/users*' => Http::response(['msg' => 'down'], 500)]);
+
+        $this->artisan('users:copy', ['--switch' => true])->assertExitCode(1);
+
+        $this->assertSame('supabase', DB::table('data_move')->where('area', 'signin')->value('state'));
+    }
+
+    public function test_going_back_to_supabase_counts_the_accounts_it_does_not_have(): void
+    {
+        $this->readyToSwitch();
+        DB::table('data_move')->insert(['area' => 'signin', 'state' => 'mariadb', 'changed_at' => '2026-11-20 00:00:00.000000']);
+        DB::table('auth_user')->insert([
+            'id' => self::ALICE, 'app_metadata' => '{}', 'user_metadata' => '{}', 'is_anonymous' => false,
+            'created_at' => '2026-11-21 00:00:00.000000', 'copied_at' => '2026-11-21 00:00:00.000000', 'copy_hash' => UserCopy::MADE_ON_HUB,
+        ]);
+
+        $this->artisan('users:store')->expectsOutput('The browser sign in runs on the hub.')->assertExitCode(0);
+        $this->artisan('users:store', ['state' => 'supabase'])
+            ->expectsOutputToContain('1 accounts were made on the hub since the switch.')
+            ->expectsOutput('The browser sign in runs on Supabase.')
+            ->assertExitCode(0);
+
+        $this->assertSame('supabase', DB::table('data_move')->where('area', 'signin')->value('state'));
+        $this->artisan('users:store', ['state' => 'mariadb'])->assertExitCode(1);
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Auth\HubSession;
+
 /**
  * Who the header says is signed in, the PHP side of `hub_nav` in the Next app.
  *
@@ -16,6 +18,10 @@ final class Nav
     /** @return array{id: string, name: string|null, moderation: string}|null */
     public static function current(): ?array
     {
+        // A hub session whose account was deleted or banned, or one left from before going back to Supabase.
+        if (session()->has('hub') && ! HubSession::onHub()) {
+            return null;
+        }
         $nav = session('nav');
 
         return is_array($nav) && isset($nav['id']) ? $nav : null;

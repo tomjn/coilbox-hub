@@ -2,6 +2,8 @@
 
 namespace App\Auth;
 
+use App\Supabase\Local\LocalException;
+use App\Supabase\Local\SignInStore;
 use App\Supabase\Local\Values;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -30,10 +32,40 @@ final class AuthUsers
             return;
         }
         try {
+            if (SignInStore::fresh() === SignInStore::MARIADB) {
+                self::addMissing($user);
+
+                return;
+            }
             self::write($user);
-        } catch (QueryException $e) {
+        } catch (QueryException|LocalException $e) {
             report($e);
         }
+    }
+
+    /**
+     * Once the hub runs the browser sign in, its tables are the record and
+     * Supabase only signs Coilbox in (until #602 part 3c). A Supabase account
+     * the hub has not seen is added, with the providers nobody else holds.
+     * Nothing the hub holds is changed or moved to another account.
+     *
+     * @param  array<string, mixed>  $user
+     */
+    private static function addMissing(array $user): void
+    {
+        $record = self::record($user);
+        $identities = is_array($user['identities'] ?? null) ? self::identities($record['id'], $user['identities']) : [];
+        DB::transaction(function () use ($record, $identities) {
+            DB::table('auth_user')->insertOrIgnore([$record + ['copied_at' => Values::now(), 'copy_hash' => '']]);
+            foreach ($identities as $identity) {
+                $taken = DB::table('auth_identity')->where('id', $identity['id'])
+                    ->orWhere(fn ($query) => $query->where('provider', $identity['provider'])->where('provider_id', $identity['provider_id']))
+                    ->exists();
+                if (! $taken) {
+                    DB::table('auth_identity')->insert($identity);
+                }
+            }
+        });
     }
 
     /**

@@ -58,6 +58,10 @@ return [
     // have moved.
     'items_store' => env('HUB_ITEMS_STORE'),
 
+    // Where the browser sign in runs (#602): `supabase`, or `mariadb` once
+    // `php artisan users:copy --switch` has moved it to the hub.
+    'signin_store' => env('HUB_SIGNIN_STORE'),
+
     // The Coilbox desktop app's website.
     'coilbox_url' => 'https://coilbox.org/',
 ];

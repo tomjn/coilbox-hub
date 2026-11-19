@@ -3,13 +3,19 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Auth\GoTrue;
+use App\Auth\HubAccounts;
 use App\Auth\HubSession;
+use App\Auth\HubSignIn;
+use App\Supabase\Local\SignInStore;
 use App\Supabase\SupabaseException;
 use App\Support\Site;
+use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
+use Laravel\Socialite\Two\InvalidStateException;
+use RuntimeException;
 
 /** `app/auth/*` and `app/sign-in` in the Next app. */
 class SignInController
@@ -39,6 +45,18 @@ class SignInController
         $provider = GoTrue::provider((string) $field);
         if ($provider === null) {
             return response('Unknown sign in provider', 400);
+        }
+
+        $state = SignInStore::fresh();
+        if ($state === SignInStore::FROZEN) {
+            return response('Accounts are being moved. Try signing in again in a minute.', 503);
+        }
+        if ($state === SignInStore::MARIADB) {
+            if (! HubSignIn::configured($provider)) {
+                return response('Signing in with '.GoTrue::PROVIDERS[$provider].' is not set up yet.', 503);
+            }
+
+            return HubSignIn::redirect($provider, $next, null);
         }
 
         $pkce = GoTrue::pkcePair();
@@ -80,6 +98,58 @@ class SignInController
         }
 
         return redirect((string) $pending['next']);
+    }
+
+    /**
+     * Where a provider sends the browser back once the hub runs sign in,
+     * `/auth/<provider>/callback`. Socialite checks the `state` it kept in the
+     * session, so a callback this browser did not start is refused.
+     */
+    public function hubCallback(Request $request, string $provider): RedirectResponse
+    {
+        $pending = HubSignIn::pending($provider);
+        $linkTo = $pending['link'] ?? null;
+        $failed = $linkTo !== null
+            ? fn (?string $reason) => redirect('/account?link_failed='.$provider.($reason ? '&link_reason='.rawurlencode($reason) : '').'#sign-in-methods')
+            : fn (?string $reason) => redirect('/?error=sign_in_failed&provider='.$provider);
+        if ($pending === null) {
+            return redirect('/?error=no_code');
+        }
+        if (SignInStore::fresh() !== SignInStore::MARIADB || ! is_string($request->query('code'))) {
+            return $failed(is_string($request->query('error')) ? $request->query('error') : null);
+        }
+        try {
+            $profile = HubAccounts::profile($provider, HubSignIn::driver($provider)->user());
+        } catch (InvalidStateException) {
+            return $failed('bad_oauth_state');
+        } catch (GuzzleException|\JsonException|\ErrorException $e) {
+            report($e);
+
+            return $failed(null);
+        }
+        if ($profile['id'] === '') {
+            return $failed(null);
+        }
+
+        if ($linkTo !== null) {
+            // The account that started the link must still be the one signed in.
+            if (HubSession::userId() !== $linkTo) {
+                return $failed(null);
+            }
+
+            return ($reason = HubAccounts::link($linkTo, $profile)) === null
+                ? redirect('/account#sign-in-methods')
+                : $failed($reason);
+        }
+
+        try {
+            $userId = HubAccounts::signIn($profile);
+        } catch (RuntimeException) {
+            return $failed(null);
+        }
+        HubSession::startHub($userId);
+
+        return redirect($pending['next']);
     }
 
     public function signOut(): RedirectResponse
