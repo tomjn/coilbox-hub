@@ -12,7 +12,7 @@ final class Filter
 {
     private const OPERATORS = ['eq' => '=', 'neq' => '<>', 'gt' => '>', 'gte' => '>=', 'lt' => '<', 'lte' => '<=', 'like' => 'like', 'ilike' => 'ilike', 'is' => 'is', 'in' => 'in'];
 
-    /** Array and text search operators. Only the map views, worked out in PHP, take them. */
+    /** Array and text search operators. The map views take them, and `item` takes the array ones and a search. */
     public const VIEW_OPERATORS = ['cs', 'ov', 'fts', 'plfts', 'wfts'];
 
     /** @return array<string, mixed> */
@@ -86,6 +86,11 @@ final class Filter
     {
         $columns = Tables::columns($table);
         $column = (string) $filter['column'];
+        if ($table === 'item' && $column === 'search') {
+            ItemRules::search($where, $alias, (string) $filter['operator'], (string) $filter['value']);
+
+            return;
+        }
         if (! isset($columns[$column])) {
             throw new LocalException('column '.$table.'.'.$column.' does not exist', 400, '42703');
         }
@@ -115,6 +120,27 @@ final class Filter
             case 'ilike':
                 $wrapped = $where->getGrammar()->wrap($qualified);
                 $where->whereRaw('lower('.$wrapped.') like lower(?)', [str_replace('*', '%', $value)]);
+                break;
+            case 'cs':
+            case 'ov':
+                // A text[] stored as a JSON list: contains every value, or any.
+                if ($type !== 'json') {
+                    throw new LocalException('The local store does not support the "'.$filter['operator'].'" operator on '.$table.'.'.$column, 400, 'PGRST100');
+                }
+                $given = MapViews::arrayLiteral($value);
+                if ($filter['operator'] === 'cs') {
+                    foreach ($given as $item) {
+                        $where->whereJsonContains($qualified, $item);
+                    }
+                } elseif ($given === []) {
+                    $where->whereRaw('1 = 0');
+                } else {
+                    $where->where(function (Builder $any) use ($given, $qualified) {
+                        foreach ($given as $item) {
+                            $any->orWhereJsonContains($qualified, $item);
+                        }
+                    });
+                }
                 break;
             default:
                 if (! isset(self::OPERATORS[$filter['operator']])) {

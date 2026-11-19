@@ -7,9 +7,8 @@ use App\Supabase\Supabase;
 
 /**
  * Who is asking, as row level security would see them: the role, the user id
- * behind a token and whether they moderate. The last two are asked of
- * Supabase only when a rule needs them, because profiles and capabilities
- * have not moved yet.
+ * behind a token and whether they moderate. The last two are worked out only
+ * when a rule needs them. Who a token belongs to is asked of Supabase Auth.
  */
 final class Caller
 {
@@ -66,12 +65,13 @@ final class Caller
         return $this->userId;
     }
 
-    /** `public.is_moderator()` for this caller. */
+    /** `public.is_moderator()` for this caller, asked of whichever database holds the capabilities. */
     public function isModerator(): bool
     {
         if ($this->moderator === null) {
-            $this->moderator = $this->role() === 'authenticated'
-                && $this->client->remote()->rpc('is_moderator') === true;
+            $this->moderator = $this->role() === 'authenticated' && (ItemStore::state() === ItemStore::MARIADB
+                ? ItemFunctions::capabilityAccess($this, 'can_moderate') === 'granted'
+                : $this->client->remote()->rpc('is_moderator') === true);
         }
 
         return $this->moderator;

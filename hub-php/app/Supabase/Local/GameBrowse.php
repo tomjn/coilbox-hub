@@ -107,7 +107,7 @@ final class GameBrowse
     }
 
     /**
-     * Published items per game, read from Supabase's `item` as the caller.
+     * Published items per game, read from whichever database holds `item`, as the caller.
      *
      * @param  list<array<string, mixed>>  $games
      * @return array<string, int>
@@ -117,7 +117,7 @@ final class GameBrowse
         $shortnames = array_values(array_unique(array_column($games, 'shortname')));
         $counts = [];
         if ($shortnames !== []) {
-            $client = $caller->client->remote();
+            $client = $caller->client;
             $items = ReadAll::rows(fn () => $client->from('item')->select('game_key')
                 ->in('game_key', $shortnames)->is('deleted_at', null)->order('id'));
             if ($items === null) {

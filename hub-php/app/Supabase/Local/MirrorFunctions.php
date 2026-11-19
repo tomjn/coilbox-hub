@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  *
  * Game owners and map names are read from the local `game` and `map` tables,
  * so the mirrors move only after games and maps have (see `mirrors:copy`).
- * `is_moderator` stays in Supabase.
+ * `is_moderator` moves with the items (#601).
  */
 final class MirrorFunctions
 {

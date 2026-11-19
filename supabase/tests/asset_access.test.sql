@@ -238,11 +238,13 @@ select throws_ok(
   'and cannot record a finding at runtime, since one belongs in a reviewed migration'
 );
 
+-- It reads the capability table, to copy it into MariaDB (#601), and still
+-- cannot write it.
 select throws_ok(
-  $$select count(*) from public.user_capability$$,
+  $$insert into public.user_capability (user_id, capability) values (gen_random_uuid(), 'can_moderate')$$,
   '42501',
   null,
-  'the secret key does not read the capability table, so no route can grant anything'
+  'the secret key does not write the capability table, so no route can grant anything'
 );
 
 reset role;

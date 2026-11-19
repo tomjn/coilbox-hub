@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Supabase\Client;
+use App\Supabase\Local\Profiles;
 use App\Supabase\Supabase;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -47,6 +48,9 @@ final class Bearer
         if ($user === null) {
             return Api::error('That access token is not valid. Sign in again and use a fresh one.', 401);
         }
+
+        // An account that signed up in Coilbox and has not been here yet.
+        Profiles::seed($user);
 
         return new self($user, (string) $user['id'], Supabase::forToken($token, (string) $user['id']));
     }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Assets\PictureCopy;
+use App\Domain\Gallery\ItemCopy;
 use App\Domain\Games\CatalogueCopy;
 use App\Domain\Maps\MapCopy;
 use App\Domain\Mirrors\CatalogueStore;
@@ -8,6 +9,8 @@ use App\Domain\Mirrors\HubKeys;
 use App\Domain\Mirrors\MirrorCopy;
 use App\Domain\Promotion\JobToken;
 use App\Supabase\Local\GameStore;
+use App\Supabase\Local\ItemStore;
+use App\Supabase\Local\MapShadow;
 use App\Supabase\Local\MapStore;
 use App\Supabase\Local\MirrorStore;
 use App\Supabase\Local\PictureStore;
@@ -266,6 +269,11 @@ Artisan::command('maps:store {state? : supabase, to go back}', function () {
 
         return 1;
     }
+    if (ItemStore::fresh() !== ItemStore::SUPABASE) {
+        $this->error('Reports read maps from MariaDB. Run items:store supabase first.');
+
+        return 1;
+    }
     if (MapStore::fresh() === MapStore::MARIADB) {
         $this->warn('Writes made in MariaDB since the switch are not in Supabase, apart from map rows and source conflicts.');
     }
@@ -319,13 +327,66 @@ Artisan::command('mirrors:store {state? : supabase, to go back}', function () {
     if (MirrorStore::fresh() === MirrorStore::MARIADB) {
         $this->warn('Reports, uploads, removals and mirror changes made in MariaDB since the switch are not in Supabase.');
     }
-    // Supabase's archive functions read its game rows again.
+    // Supabase's archive functions read its game and map rows again.
     Shadow::pushAll();
+    MapShadow::pushAll();
     MirrorStore::set(MirrorStore::SUPABASE);
     $this->line('The hub reads the mirrors from supabase.');
 
     return 0;
 })->purpose('Show which database the hub mirrors are read from, or go back to Supabase');
+
+Artisan::command('items:copy {--dry-run : Show the row counts and write nothing}', function () {
+    $copy = new ItemCopy(
+        Supabase::admin()->remote(),
+        fn (string $line) => $this->line($line),
+        fn (int $seconds) => sleep($seconds),
+    );
+    $this->line('The hub reads published items from '.ItemStore::fresh().'.');
+    $waiting = ItemCopy::waitingFor();
+
+    try {
+        if ($this->option('dry-run')) {
+            foreach ($copy->counts() as $table => $count) {
+                $this->line(sprintf('%s: Supabase %d, MariaDB %d', $table, $count['supabase'], $count['mariadb']));
+            }
+            $this->line($waiting === null ? 'Maps are in MariaDB, so the copy can run.' : 'The copy would stop: '.$waiting);
+            $this->line('Dry run: nothing was written.');
+
+            return 0;
+        }
+        $copy->run();
+    } catch (Throwable $e) {
+        $this->error('The copy stopped: '.$e->getMessage());
+
+        return 1;
+    }
+
+    return 0;
+})->purpose('Copy published items, reports, profiles and moderator capabilities from Supabase into MariaDB and switch the hub to them');
+
+Artisan::command('items:store {state? : supabase, to go back}', function () {
+    $state = $this->argument('state');
+    if ($state === null) {
+        $this->line('The hub reads published items from '.ItemStore::fresh().'.');
+
+        return 0;
+    }
+    if ($state !== ItemStore::SUPABASE) {
+        $this->error('Only supabase can be set here. items:copy switches to mariadb once the rows are copied.');
+
+        return 1;
+    }
+    if (ItemStore::fresh() === ItemStore::MARIADB) {
+        $this->warn('Items, reports, profiles and capabilities changed in MariaDB since the switch are not in Supabase.');
+    }
+    // Reports in Supabase name maps by their Supabase rows, which were not kept in step meanwhile.
+    MapShadow::pushAll();
+    ItemStore::set(ItemStore::SUPABASE);
+    $this->line('The hub reads published items from supabase.');
+
+    return 0;
+})->purpose('Show which database published items, reports, profiles and capabilities are read from, or go back to Supabase');
 
 Artisan::command('promotion:token', function () {
     $made = JobToken::make();

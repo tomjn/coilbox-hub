@@ -176,7 +176,7 @@ final class AssetTriggers
         $update->execute();
     }
 
-    /** `user_capability` is still in Supabase, so the trigger's check is asked there. */
+    /** The trigger's check, asked of whichever database holds `user_capability`. */
     private static function mayReplaceAnyAsset(string $userId): bool
     {
         return Supabase::admin()->from('user_capability')->select('user_id')
@@ -184,8 +184,8 @@ final class AssetTriggers
     }
 
     /**
-     * The uploader's display name and the name their sign in provider gave,
-     * both still in Supabase.
+     * The uploader's display name, from whichever database holds profiles,
+     * and the name their sign in provider gave, from Supabase Auth.
      *
      * @return array{0: ?string, 1: ?string}
      */

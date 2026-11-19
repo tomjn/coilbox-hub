@@ -434,7 +434,7 @@ final class MapViews
     }
 
     /** A Postgres array literal, `{a,"b c"}`, as a list. @return list<string> */
-    private static function arrayLiteral(string $value): array
+    public static function arrayLiteral(string $value): array
     {
         if (! str_starts_with($value, '{') || ! str_ends_with($value, '}')) {
             throw new LocalException('malformed array literal: "'.$value.'"', 400, '22P02');

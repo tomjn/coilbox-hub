@@ -53,6 +53,11 @@ return [
     // switched by `php artisan mirrors:copy` once games and maps have moved.
     'mirrors_store' => env('HUB_MIRRORS_STORE'),
 
+    // The same for published items, reports, profiles and moderator
+    // capabilities (#601), switched by `php artisan items:copy` once maps
+    // have moved.
+    'items_store' => env('HUB_ITEMS_STORE'),
+
     // The Coilbox desktop app's website.
     'coilbox_url' => 'https://coilbox.org/',
 ];

@@ -488,11 +488,11 @@ class LocalMirrorsTest extends ModerationTestCase
         $this->artisan('games:store supabase')->expectsOutputToContain('Run mirrors:store supabase first.')->assertExitCode(1);
     }
 
-    public function test_going_back_pushes_every_game_to_supabase_first(): void
+    public function test_going_back_pushes_every_game_and_map_to_supabase_first(): void
     {
         config(['hub.mirrors_store' => null]);
         MirrorStore::set(MirrorStore::MARIADB);
-        $this->supabase(['POST /rest/v1/game' => self::reply([])]);
+        $this->supabase(['POST /rest/v1/game' => self::reply([]), 'POST /rest/v1/map?' => self::reply([])]);
 
         $this->artisan('mirrors:store supabase')->expectsOutputToContain('The hub reads the mirrors from supabase.')->assertExitCode(0);
 
@@ -500,6 +500,9 @@ class LocalMirrorsTest extends ModerationTestCase
         $pushed = array_values(array_filter($this->sent, fn (Request $r) => str_contains($r->url(), '/rest/v1/game')));
         $this->assertCount(1, $pushed);
         $this->assertSame(self::GAME, $pushed[0]->data()[0]['id']);
+        $maps = array_values(array_filter($this->sent, fn (Request $r) => str_contains($r->url(), '/rest/v1/map?')));
+        $this->assertCount(1, $maps);
+        $this->assertSame(self::MAP, $maps[0]->data()[0]['id']);
         $this->assertSame(null, MirrorCopy::waitingFor());
     }
 }

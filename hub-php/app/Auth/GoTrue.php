@@ -172,6 +172,33 @@ final class GoTrue
     }
 
     /**
+     * Every account Supabase Auth holds, with the service role key, read a
+     * page at a time.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function adminUsers(): array
+    {
+        $key = (string) config('hub.supabase.service_role_key');
+        $perPage = 1000;
+        $users = [];
+        for ($page = 1; ; $page++) {
+            $response = self::reach(fn () => Http::withHeaders(['apikey' => $key, 'Authorization' => 'Bearer '.$key])
+                ->acceptJson()->timeout(10)
+                ->get(Supabase::url().'/auth/v1/admin/users', ['page' => $page, 'per_page' => $perPage]));
+            $found = self::json($response, 'Could not list the accounts')['users'] ?? [];
+            if (! is_array($found)) {
+                throw new SupabaseException('Supabase Auth listed no accounts', 500);
+            }
+            // Until an empty page, in case Supabase gives fewer than asked.
+            if ($found === []) {
+                return $users;
+            }
+            array_push($users, ...array_values($found));
+        }
+    }
+
+    /**
      * Ends a browser's session at Supabase. Supabase refuses an expired access
      * token, so one near its end is refreshed first. Failure is ignored: the
      * local session is cleared either way.

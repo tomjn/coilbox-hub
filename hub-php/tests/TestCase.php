@@ -30,6 +30,7 @@ abstract class TestCase extends BaseTestCase
             'hub.pictures_store' => 'supabase',
             'hub.maps_store' => 'supabase',
             'hub.mirrors_store' => 'supabase',
+            'hub.items_store' => 'supabase',
         ]);
         // url() and Site::url() must agree on the made up origin above.
         URL::forceRootUrl('http://localhost');

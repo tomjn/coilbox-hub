@@ -6,6 +6,8 @@ use App\Auth\GoTrue;
 use App\Auth\HubSession;
 use App\Domain\Account\AccountRules;
 use App\Supabase\Client;
+use App\Supabase\Local\ItemRules;
+use App\Supabase\Local\ItemStore;
 use App\Supabase\Local\PictureStore;
 use App\Supabase\Local\Values;
 use App\Supabase\SupabaseException;
@@ -111,7 +113,11 @@ class AccountController
         }
         // Asked first, so a deletion during the picture copy is refused rather than missed.
         $picturesLocal = PictureStore::writeTarget() === PictureStore::MARIADB;
+        $itemsLocal = ItemStore::writeTarget() === ItemStore::MARIADB;
         GoTrue::adminDeleteUser($userId);
+        if ($itemsLocal) {
+            ItemRules::forgetAccount($userId);
+        }
         if ($picturesLocal) {
             // `asset.uploaded_by` references `auth.users` on delete set null,
             // and its update trigger moves `updated_at`. That foreign key
