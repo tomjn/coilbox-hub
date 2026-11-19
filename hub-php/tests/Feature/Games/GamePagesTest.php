@@ -97,6 +97,21 @@ class GamePagesTest extends TestCase
         Http::assertSent(fn (Request $r) => str_contains($r->url(), '/rest/v1/game_download_count') && str_contains(urldecode($r->url()), 'target_id=eq.game-ba'));
     }
 
+    public function test_the_game_page_is_cached_under_the_v2_key_with_its_id(): void
+    {
+        $this->fakeTables([
+            'game' => [['id' => 'game-ba'] + self::GAME],
+            'game_browse?select=faction_count' => [['faction_count' => 1, 'unit_count' => 40, 'item_count' => 1]],
+        ]);
+        \App\Domain\Games\Cached::gamePage('BA');
+
+        $held = \App\Support\HubCache::remember('games:page:v2:BA', [\App\Support\HubCache::GAMES], \App\Support\HubCache::WEEKS, fn () => 'not cached');
+        $this->assertSame('game-ba', $held['id']);
+        // The tag is unchanged, so a games write still reaches the entry.
+        \App\Support\HubCache::invalidate([\App\Support\HubCache::GAMES]);
+        $this->assertSame('reloaded', \App\Support\HubCache::remember('games:page:v2:BA', [\App\Support\HubCache::GAMES], \App\Support\HubCache::WEEKS, fn () => 'reloaded'));
+    }
+
     public function test_a_game_with_no_downloads_shows_no_downloads_line(): void
     {
         $this->fakeTables([

@@ -46,7 +46,8 @@ final class Cached
     /** One game's page, or null for a shortname nobody holds. */
     public static function gamePage(string $shortname): ?array
     {
-        return self::remember('games:page:'.$shortname, [HubCache::GAMES], function () use ($shortname) {
+        // v2: the page gained `id`. Bump when the shape changes, so a deploy does not serve week old entries without it.
+        return self::remember('games:page:v2:'.$shortname, [HubCache::GAMES], function () use ($shortname) {
             if (! Supabase::configured()) {
                 return null;
             }
