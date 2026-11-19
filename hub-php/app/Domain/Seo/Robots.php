@@ -33,14 +33,20 @@ final class Robots
         '/games/*/units/*@',
     ];
 
-    /** Crawlers that gather pages to train AI models. Each visit renders a page, and none send visitors back. */
-    public const AI_CRAWLERS = [
+    /**
+     * Crawlers kept off the whole site, because each visit renders a page and
+     * few or no visitors come back from them. Most gather pages to train AI
+     * models. Amzn-SearchBot feeds Alexa's answers, and loaded more unit pages
+     * than Googlebot in November 2026.
+     */
+    public const BLOCKED_CRAWLERS = [
         'GPTBot',
         'ClaudeBot',
         'CCBot',
         'Bytespider',
         'meta-externalagent',
         'Amazonbot',
+        'Amzn-SearchBot',
         'PerplexityBot',
     ];
 
@@ -52,7 +58,7 @@ final class Robots
             $lines[] = 'Disallow: '.$path;
         }
         $lines[] = '';
-        foreach (self::AI_CRAWLERS as $agent) {
+        foreach (self::BLOCKED_CRAWLERS as $agent) {
             $lines[] = 'User-Agent: '.$agent;
         }
         $lines[] = 'Disallow: /';
