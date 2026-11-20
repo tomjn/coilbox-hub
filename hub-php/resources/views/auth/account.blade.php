@@ -133,8 +133,12 @@
                         <div class="flex flex-col gap-4 rounded-md border border-neutral-800 p-4">
                             @if ($enrolment['qrCode'] !== '')
                                 <p class="text-sm text-neutral-400">Scan this with an authenticator app, then type the code it shows.</p>
-                                <img src="{{ $enrolment['qrCode'] }}" alt="QR code for your authenticator app" class="w-48 self-start rounded bg-white p-2">
-                                <p class="text-sm text-neutral-400">If you cannot scan it, type this key into the app instead:</p>
+                                <img src="{{ $enrolment['qrCode'] }}" alt="QR code for your authenticator app" class="w-56 self-start rounded bg-white">
+                                @isset($enrolment['uri'])
+                                    <p class="text-sm text-neutral-400">If you cannot scan it, <a href="{{ $enrolment['uri'] }}" class="text-neutral-300 underline underline-offset-4">open this link to add the hub</a> on the device with your authenticator app. Or type this key into the app, choosing a time based code:</p>
+                                @else
+                                    <p class="text-sm text-neutral-400">If you cannot scan it, type this key into the app instead:</p>
+                                @endisset
                             @else
                                 <p class="text-sm text-neutral-400">On the device with your authenticator app, <a href="{{ $enrolment['uri'] }}" class="text-neutral-300 underline underline-offset-4">open this link to add the hub</a>. Or type this key into the app, choosing a time based code:</p>
                             @endif
