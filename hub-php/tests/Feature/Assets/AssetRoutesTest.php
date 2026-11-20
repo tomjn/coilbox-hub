@@ -181,10 +181,45 @@ class AssetRoutesTest extends TestCase
         $this->assertSame(2, $this->readsAroundAnUpload(fn () => $this->upload()->assertStatus(201)));
     }
 
-    public function test_a_pending_upload_leaves_the_cached_pages_alone(): void
+    public function test_a_pending_upload_refreshes_the_pages_so_they_say_it_awaits_approval(): void
     {
         $this->supabase($this->world());
-        $this->assertSame(1, $this->readsAroundAnUpload(fn () => $this->upload()->assertStatus(201)));
+        $this->assertSame(2, $this->readsAroundAnUpload(fn () => $this->upload()->assertStatus(201)));
+    }
+
+    public function test_the_games_owner_publishes_its_pictures_as_a_bypass(): void
+    {
+        $this->supabase([
+            'GET /rest/v1/game?select=id&shortname=eq.BYAR&owner_user_id=eq.'.self::USER => self::counted(1),
+            ...$this->world(),
+        ]);
+        $this->upload()->assertStatus(201)->assertJson(['moderation' => 'approved']);
+
+        $insert = collect($this->sent)->first(fn (Request $r) => $r->method() === 'POST' && str_contains($r->url(), '/rest/v1/asset?'));
+        $this->assertSame(['approved', 'bypass'], [$insert->data()['moderation'], $insert->data()['approval_source']]);
+    }
+
+    public function test_somebody_who_does_not_own_the_game_waits_for_a_moderator(): void
+    {
+        $this->supabase([
+            'GET /rest/v1/game?select=id&shortname=eq.BYAR&owner_user_id=eq.'.self::USER => self::counted(0),
+            ...$this->world(),
+        ]);
+        $this->upload()->assertStatus(201)->assertJson(['moderation' => 'pending']);
+    }
+
+    public function test_a_map_picture_never_asks_who_owns_a_game(): void
+    {
+        $this->supabase($this->world());
+        $bytes = ImageAndCapsTest::webp(128, 128, true);
+        $declaration = json_encode([
+            'keyed_on' => 'map', 'map_name' => 'Comet Catcher', 'variant' => 'minimap', 'map_width' => 12, 'map_height' => 12,
+            'source_hash' => 'raw-abc', 'encode_profile' => 'webp-lossless-256', 'origin' => 'extracted',
+            'mime' => 'image/webp', 'bytes' => strlen($bytes), 'source_archive' => 'comet.sd7',
+        ]);
+
+        $this->upload($declaration, $bytes)->assertStatus(201)->assertJson(['moderation' => 'pending']);
+        $this->assertEmpty(collect($this->sent)->filter(fn (Request $r) => str_contains($r->url(), '/rest/v1/game?')));
     }
 
     public function test_a_replacement_refreshes_the_pages_that_drew_the_picture_it_replaced(): void

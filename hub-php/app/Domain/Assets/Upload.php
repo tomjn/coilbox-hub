@@ -188,6 +188,26 @@ final class Upload
         return false;
     }
 
+    /**
+     * Whether the uploader owns the game a unit or faction picture belongs to.
+     * The owner already publishes the game's logo and banner without review,
+     * so its unit pictures skip the queue too. A map belongs to no game. False
+     * when unanswerable.
+     *
+     * @param  array<string, string>  $identity
+     */
+    public static function ownsGame(Client $admin, string $userId, array $identity): bool
+    {
+        if ($identity['keyedOn'] === 'map') {
+            return false;
+        }
+
+        return (self::count(fn () => $admin->from('game')
+            ->select('id', 'exact')
+            ->eq('shortname', $identity['game'])
+            ->eq('owner_user_id', $userId)) ?? 0) > 0;
+    }
+
     /** `can_replace_any_asset` alone. A moderator does not get it by being one. */
     public static function mayReplaceAnyAsset(Client $user): bool
     {

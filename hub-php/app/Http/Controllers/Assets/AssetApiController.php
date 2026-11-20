@@ -186,7 +186,7 @@ class AssetApiController extends Controller
             return Api::error('The asset store would not accept that upload just now.', 502);
         }
 
-        $skipQueue = Upload::skipsQueue($auth->client);
+        $skipQueue = Upload::skipsQueue($auth->client) || Upload::ownsGame($admin, $auth->userId, $declaration['identity']);
 
         $assetId = Upload::write($admin, $auth->userId, $declaration, $hash, $check['path'], $image, $check['replacing'], $skipQueue);
         if ($assetId === null) {
@@ -199,11 +199,10 @@ class AssetApiController extends Controller
             UploadIp::record($admin, $assetId, UploadIp::clientIp($request));
         }
 
-        // An approved picture changes every cached page that draws it, and a
-        // replacement takes an approved row back to pending, which does too.
-        if ($skipQueue || $check['replacing'] !== null) {
-            HubCache::invalidate([HubCache::ASSETS]);
-        }
+        // Every upload changes the cached pages that draw it: an approved one
+        // shows, and a pending one turns a blank placeholder into one that says
+        // it is awaiting approval.
+        HubCache::invalidate([HubCache::ASSETS]);
 
         return Api::json(
             AssetUploadApi::body($skipQueue ? 'approved' : 'pending'),
