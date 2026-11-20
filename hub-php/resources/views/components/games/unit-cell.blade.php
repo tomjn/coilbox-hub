@@ -8,7 +8,7 @@
         <span class="flex h-16 w-full items-center justify-center">
             @if ($picture['from'] === 'placeholder')
                 {{-- Square and quiet: the cell prints the name below. --}}
-                <x-assets.placeholder :of="['name' => $picture['name'], 'keyedOn' => $picture['keyedOn'], 'footprint' => null]" quiet class="size-16" />
+                <x-assets.placeholder :of="['name' => $picture['name'], 'keyedOn' => $picture['keyedOn'], 'footprint' => null, 'pending' => $picture['pending'] ?? false]" quiet class="size-16" />
             @else
                 <img src="{{ $picture['url'] }}" alt="Buildpic of {{ $label }}" width="64" height="64" @unless ($eager) loading="lazy" @endunless decoding="async" class="max-h-16 w-auto object-contain"/>
             @endif

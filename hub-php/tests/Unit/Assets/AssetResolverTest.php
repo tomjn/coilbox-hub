@@ -136,11 +136,11 @@ class AssetResolverTest extends TestCase
     public function test_no_row_draws_a_placeholder(): void
     {
         $this->assertSame(
-            ['from' => 'placeholder', 'name' => 'armsolar', 'keyedOn' => 'unit', 'footprint' => ['width' => 4, 'height' => 4]],
+            ['from' => 'placeholder', 'name' => 'armsolar', 'keyedOn' => 'unit', 'footprint' => ['width' => 4, 'height' => 4], 'pending' => false],
             AssetResolver::resolveAsset($this->buildpic(), [], ['width' => 4, 'height' => 4]),
         );
         $this->assertSame(
-            ['from' => 'placeholder', 'name' => 'Comet Catcher Remake 1.8', 'keyedOn' => 'map', 'footprint' => null],
+            ['from' => 'placeholder', 'name' => 'Comet Catcher Remake 1.8', 'keyedOn' => 'map', 'footprint' => null, 'pending' => false],
             AssetResolver::resolveAsset($this->minimap(), []),
         );
     }
@@ -233,8 +233,11 @@ class AssetResolverTest extends TestCase
         $this->fake([$this->unitRow(), $this->mapRow()]);
         $held = AssetResolver::fetchHeldAssets(Supabase::anon(), [$this->buildpic(), $this->minimap()]);
 
-        $this->assertCount(1, $this->queries);
+        // The second asks, with the secret key, which of them are in the queue.
+        $this->assertCount(2, $this->queries);
         $this->assertSame('eq.approved', $this->queries[0]['moderation']);
+        $this->assertSame('eq.pending', $this->queries[1]['moderation']);
+        $this->assertSame('game,unit_name,map_name,variant', str_replace(' ', '', $this->queries[1]['select']));
         $this->assertStringStartsWith('(and(game.eq."bar",unit_name.eq."armsolar",variant.eq."buildpic"),', $this->queries[0]['or']);
         $this->assertEquals(
             ['bytes_missing_at', 'game', 'height', 'map_name', 'moderation', 'path', 'tier', 'unit_name', 'variant', 'width', 'world_height_max', 'world_height_min'],
@@ -277,11 +280,36 @@ class AssetResolverTest extends TestCase
         $this->assertNull(AssetResolver::servable($held, $this->minimap())['world_height_min']);
     }
 
-    public function test_a_pending_row_never_comes_back_from_the_query(): void
+    public function test_a_pending_row_comes_back_as_pending_and_nothing_else(): void
     {
         $this->fake([$this->unitRow(['moderation' => 'pending'])]);
         $held = AssetResolver::fetchHeldAssets(Supabase::anon(), [$this->buildpic()]);
-        $this->assertSame([], $held);
+        $this->assertSame([Have::identityKey($this->buildpic()) => ['moderation' => 'pending']], $held);
+
+        $resolved = AssetResolver::resolveAsset($this->buildpic(), $held);
+        $this->assertSame('placeholder', $resolved['from']);
+        $this->assertTrue($resolved['pending']);
+        $this->assertStringNotContainsString('abc.webp', json_encode($resolved));
+        // A queued buildpic would stand in for a render, so the render waits on it too.
+        $this->assertTrue(AssetResolver::resolveAsset($this->render(), $held)['pending']);
+        $this->assertFalse(AssetResolver::resolveAsset($this->minimap(), $held)['pending']);
+    }
+
+    public function test_without_the_secret_key_there_is_no_pending_query(): void
+    {
+        config(['hub.supabase.service_role_key' => null]);
+        $this->fake([$this->unitRow(['moderation' => 'pending'])]);
+        $this->assertSame([], AssetResolver::fetchHeldAssets(Supabase::anon(), [$this->buildpic()]));
+        $this->assertCount(1, $this->queries);
+    }
+
+    public function test_a_games_pending_unit_pictures_are_marked(): void
+    {
+        $this->fake([$this->unitRow(), $this->unitRow(['variant' => 'render:270', 'moderation' => 'pending'])]);
+        $held = AssetResolver::fetchGameUnitPictures(Supabase::anon(), 'bar');
+
+        $this->assertSame('approved', $held[Have::identityKey($this->buildpic())]['moderation']);
+        $this->assertSame(['moderation' => 'pending'], $held[Have::identityKey($this->render())]);
     }
 
     public function test_asking_for_nothing_costs_no_query(): void
@@ -296,7 +324,8 @@ class AssetResolverTest extends TestCase
         $this->fake([]);
         $identities = array_map(fn ($i) => AssetResolver::map('Map '.$i), range(0, 119));
         AssetResolver::fetchHeldAssets(Supabase::anon(), $identities);
-        $this->assertCount(3, $this->queries);
+        // Three chunks, each asked once for approved rows and once for pending ones.
+        $this->assertCount(6, $this->queries);
     }
 
     public function test_a_query_that_errors_draws_placeholders(): void

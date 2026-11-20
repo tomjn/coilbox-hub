@@ -863,7 +863,8 @@ class UnitsTest extends TestCase
 
         Units::unitRenders($this->supabase, 'BA', 'armcom');
 
-        $this->assertCount(1, $this->sentUrls());
+        // One for approved pictures and one for those in the queue.
+        $this->assertCount(2, $this->sentUrls());
     }
 
     public function test_an_angle_the_hub_holds_is_served_and_one_it_does_not_is_a_placeholder(): void

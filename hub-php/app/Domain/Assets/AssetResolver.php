@@ -4,6 +4,7 @@ namespace App\Domain\Assets;
 
 use App\Domain\Games\ReadAll;
 use App\Supabase\Client;
+use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 
 /**
@@ -31,7 +32,7 @@ use App\Supabase\SupabaseException;
  *     ['from' => 'static'|'bucket', 'url' => string, 'served' => identity,
  *      'substituted' => bool, 'width' => int, 'height' => int]
  *     ['from' => 'placeholder', 'name' => string, 'keyedOn' => string,
- *      'footprint' => ['width' => n, 'height' => n]|null]
+ *      'footprint' => ['width' => n, 'height' => n]|null, 'pending' => bool]
  *
  * `served` is whose bytes these are, which differs from what was asked for
  * when `substituted` is true. Use it for alt text. A placeholder array is
@@ -51,6 +52,10 @@ use App\Supabase\SupabaseException;
  * Row level security shows `anon` approved rows only, {@see fetchHeldAssets()}
  * filters on `moderation` anyway, and {@see resolveAsset()} drops anything not
  * approved before it looks at the tier.
+ *
+ * A picture still in the queue is held as `['moderation' => 'pending']` and
+ * nothing else, read with the secret key, so the placeholder can say it is
+ * awaiting approval without the page learning where the bytes are.
  */
 final class AssetResolver
 {
@@ -66,6 +71,9 @@ final class AssetResolver
      * placeholder through this class.
      */
     private const SERVE_COLUMNS = 'game, unit_name, map_name, variant, tier, path, width, height, moderation, world_height_min, world_height_max, bytes_missing_at';
+
+    /** Enough of a queued row to know whose picture it is, and no more. */
+    private const PENDING_COLUMNS = 'game, unit_name, map_name, variant';
 
     /** A buildpic is a three quarter icon, so the angled render is the nearest stand in. */
     private const PORTRAIT_PREFERENCE = ['angled', 'front', 'side', 'top'];
@@ -201,6 +209,24 @@ final class AssetResolver
             $held = array_merge($held, self::heldRows($rows));
         }
 
+        $admin = self::admin();
+        if ($admin === null) {
+            return $held;
+        }
+        foreach (Have::queryChunks($wanted) as $chunk) {
+            try {
+                $pending = $admin->from('asset')
+                    ->select(self::PENDING_COLUMNS)
+                    ->eq('moderation', 'pending')
+                    ->is('bytes_missing_at', null)
+                    ->or(implode(',', array_map(Have::identityFilter(...), $chunk)))
+                    ->get();
+            } catch (SupabaseException) {
+                continue;
+            }
+            $held = self::withPending($held, $pending);
+        }
+
         return $held;
     }
 
@@ -227,7 +253,22 @@ final class AssetResolver
             ->is('bytes_missing_at', null)
             ->order('id'));
 
-        return $rows === null ? null : self::heldRows($rows);
+        if ($rows === null) {
+            return null;
+        }
+        $held = self::heldRows($rows);
+
+        $admin = self::admin();
+        $pending = $admin === null ? null : ReadAll::rows(fn () => $admin->from('asset')
+            ->select(self::PENDING_COLUMNS)
+            ->eq('moderation', 'pending')
+            ->eq('game', $game)
+            ->not('unit_name', 'is', null)
+            ->in('variant', $variants)
+            ->is('bytes_missing_at', null)
+            ->order('id'));
+
+        return $pending === null ? $held : self::withPending($held, $pending);
     }
 
     /**
@@ -271,7 +312,12 @@ final class AssetResolver
             }
         }
 
-        return ['from' => 'placeholder', ...Placeholder::missingPicture($identity, $footprint)];
+        $pending = false;
+        foreach ([$identity, ...self::substituteIdentities($identity)] as $waiting) {
+            $pending = $pending || ($held[Have::identityKey($waiting)]['moderation'] ?? null) === 'pending';
+        }
+
+        return ['from' => 'placeholder', ...Placeholder::missingPicture($identity, $footprint, $pending)];
     }
 
     /**
@@ -318,6 +364,33 @@ final class AssetResolver
         }
 
         return $held;
+    }
+
+    /**
+     * Marks the queued rows as pending. An identity has one row, so an
+     * approved one is never overwritten, but the guard costs nothing.
+     *
+     * @param  array<string, array<string, mixed>>  $held
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, array<string, mixed>>
+     */
+    private static function withPending(array $held, array $rows): array
+    {
+        foreach ($rows as $row) {
+            $held[Have::identityKey(Have::rowIdentity($row))] ??= ['moderation' => 'pending'];
+        }
+
+        return $held;
+    }
+
+    /** The secret key client, or null where it is not set, which only costs the pending hint. */
+    private static function admin(): ?Client
+    {
+        try {
+            return Supabase::admin();
+        } catch (SupabaseException) {
+            return null;
+        }
     }
 
     /** The vocabulary's angles in portrait order. A stable sort, so a new angle lands last. @return list<string> */
