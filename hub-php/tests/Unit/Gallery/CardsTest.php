@@ -443,7 +443,8 @@ class CardsTest extends TestCase
         ]);
 
         $this->assertCount(1, $pictures);
-        $this->assertCount(1, $this->urls('/rest/v1/asset'));
+        // One for approved pictures and one for those in the queue.
+        $this->assertCount(2, $this->urls('/rest/v1/asset'));
     }
 
     // projectCountLine (no Next test, covered here for the PHP helper)

@@ -22,13 +22,14 @@ final class Placeholder
     private const MOST_ELONGATED = 8;
 
     /**
-     * Everything needed to draw a picture that does not exist.
+     * Everything needed to draw a picture that does not exist. `$pending`
+     * when one has been uploaded and is waiting for a moderator.
      *
      * @param  array<string, string>  $identity
      * @param  array{width: int|float, height: int|float}|null  $footprint
-     * @return array{name: string, keyedOn: string, footprint: array{width: int|float, height: int|float}|null}
+     * @return array{name: string, keyedOn: string, footprint: array{width: int|float, height: int|float}|null, pending: bool}
      */
-    public static function missingPicture(array $identity, ?array $footprint): array
+    public static function missingPicture(array $identity, ?array $footprint, bool $pending = false): array
     {
         $name = match ($identity['keyedOn']) {
             'unit' => $identity['unitName'],
@@ -36,7 +37,7 @@ final class Placeholder
             'map' => $identity['mapName'],
         };
 
-        return ['name' => $name, 'keyedOn' => $identity['keyedOn'], 'footprint' => $footprint];
+        return ['name' => $name, 'keyedOn' => $identity['keyedOn'], 'footprint' => $footprint, 'pending' => $pending];
     }
 
     /**
@@ -98,13 +99,39 @@ final class Placeholder
     public static function label(array $picture): string
     {
         $measure = self::measure($picture);
+        $none = self::pending($picture)
+            ? 'The picture of '.$picture['name'].' is awaiting approval'
+            : 'No picture of '.$picture['name'].' yet';
         if ($measure === null) {
-            return 'No picture of '.$picture['name'].' yet';
+            return $none;
         }
 
         return $picture['keyedOn'] === 'unit'
-            ? 'No picture of '.$picture['name'].' yet, which stands on '.$measure
-            : 'No picture of '.$picture['name'].' yet, a '.$measure.' map';
+            ? $none.', which stands on '.$measure
+            : $none.', a '.$measure.' map';
+    }
+
+    /**
+     * The caption under the drawing.
+     *
+     * @param  array{name: string, keyedOn: string, footprint: array{width: int|float, height: int|float}|null, pending?: bool}  $picture
+     */
+    public static function caption(array $picture): string
+    {
+        $measure = self::measure($picture);
+        $state = self::pending($picture) ? 'awaiting approval' : 'no picture yet';
+
+        return $measure !== null ? $measure.', '.$state : ucfirst($state);
+    }
+
+    /**
+     * Callers that build the array by hand may leave `pending` out.
+     *
+     * @param  array<string, mixed>  $picture
+     */
+    public static function pending(array $picture): bool
+    {
+        return ($picture['pending'] ?? false) === true;
     }
 
     /** A number as JavaScript prints it, `50` or `33.333333333333336`, for the SVG attributes. */

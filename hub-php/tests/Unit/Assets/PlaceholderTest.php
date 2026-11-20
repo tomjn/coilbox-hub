@@ -23,11 +23,11 @@ class PlaceholderTest extends TestCase
     public function test_a_placeholder_is_named_for_what_it_is_of(): void
     {
         $this->assertSame(
-            ['name' => 'armsolar', 'keyedOn' => 'unit', 'footprint' => ['width' => 4, 'height' => 4]],
+            ['name' => 'armsolar', 'keyedOn' => 'unit', 'footprint' => ['width' => 4, 'height' => 4], 'pending' => false],
             Placeholder::missingPicture($this->unit(), ['width' => 4, 'height' => 4]),
         );
         $this->assertSame(
-            ['name' => 'Comet Catcher Remake 1.8', 'keyedOn' => 'map', 'footprint' => null],
+            ['name' => 'Comet Catcher Remake 1.8', 'keyedOn' => 'map', 'footprint' => null, 'pending' => false],
             Placeholder::missingPicture($this->map(), null),
         );
         $this->assertSame('armada', Placeholder::missingPicture(AssetResolver::faction('bar', 'armada'), null)['name']);
@@ -76,6 +76,30 @@ class PlaceholderTest extends TestCase
             Placeholder::label(Placeholder::missingPicture($this->map(), ['width' => 12, 'height' => 12])),
         );
         $this->assertSame('No picture of Comet Catcher Remake 1.8 yet', Placeholder::label(Placeholder::missingPicture($this->map(), null)));
+    }
+
+    public function test_a_picture_in_the_queue_says_it_is_awaiting_approval(): void
+    {
+        $unit = Placeholder::missingPicture($this->unit(), ['width' => 4, 'height' => 4], true);
+        $this->assertSame('The picture of armsolar is awaiting approval, which stands on 4 by 4 build squares', Placeholder::label($unit));
+        $this->assertSame('4 by 4 build squares, awaiting approval', Placeholder::caption($unit));
+        $this->assertSame('Awaiting approval', Placeholder::caption(Placeholder::missingPicture($this->map(), null, true)));
+        $this->assertSame('No picture yet', Placeholder::caption(Placeholder::missingPicture($this->map(), null)));
+        // A hand built array with no `pending` is a plain placeholder.
+        $this->assertFalse(Placeholder::pending(['name' => 'armsolar', 'keyedOn' => 'unit', 'footprint' => null]));
+    }
+
+    public function test_the_component_draws_an_hourglass_only_for_a_picture_in_the_queue(): void
+    {
+        $pending = Blade::render('<x-assets.placeholder :of="$of" />', ['of' => Placeholder::missingPicture($this->unit(), ['width' => 4, 'height' => 2], true)]);
+        $this->assertStringContainsString('<title>The picture of armsolar is awaiting approval, which stands on 4 by 2 build squares</title>', $pending);
+        // 40 percent of the shorter side, centred in the 100 by 50 box.
+        $this->assertStringContainsString('<svg x="40" y="15" width="20" height="20" viewBox="0 0 24 24"', $pending);
+        $this->assertStringContainsString('4 by 2 build squares, awaiting approval', $pending);
+
+        $plain = Blade::render('<x-assets.placeholder :of="$of" />', ['of' => Placeholder::missingPicture($this->unit(), ['width' => 4, 'height' => 2])]);
+        $this->assertStringNotContainsString('<title>', $plain);
+        $this->assertStringNotContainsString('viewBox="0 0 24 24"', $plain);
     }
 
     public function test_numbers_print_the_way_javascript_prints_them(): void
