@@ -62,6 +62,23 @@ return [
     // `php artisan users:copy --switch` has moved it to the hub.
     'signin_store' => env('HUB_SIGNIN_STORE'),
 
+    // Where Coilbox signs in and gets its tokens (#602, part 3c): `supabase`,
+    // or `mariadb` once `php artisan tokens:store mariadb` has moved it to
+    // the hub.
+    'tokens_store' => env('HUB_TOKENS_STORE'),
+
+    // The hub's own tokens for Coilbox, matching what Supabase gave it in
+    // supabase/config.toml: `jwt_expiry` for access tokens, and
+    // `refresh_token_reuse_interval` for how long a spent refresh token still
+    // works. Refresh tokens do not expire, but change on every use. A sign in
+    // has as long as Supabase's PKCE flow state, 300 seconds in GoTrue's
+    // `defaultFlowStateExpiryDuration`, to come back and swap its code.
+    'tokens' => [
+        'access_seconds' => (int) env('HUB_ACCESS_TOKEN_SECONDS', 3600),
+        'refresh_reuse_seconds' => (int) env('HUB_REFRESH_REUSE_SECONDS', 10),
+        'sign_in_seconds' => (int) env('HUB_SIGN_IN_SECONDS', 300),
+    ],
+
     // The Coilbox desktop app's website.
     'coilbox_url' => 'https://coilbox.org/',
 ];

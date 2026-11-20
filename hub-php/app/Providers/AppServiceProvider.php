@@ -35,6 +35,13 @@ class AppServiceProvider extends ServiceProvider
             return $limit->response(fn (Request $request, array $headers) => Api::error('Too many sign in requests from this address. Try again in a few minutes.', 429)->withHeaders($headers));
         });
 
+        // Starting a Coilbox sign in, which stores it until the person comes
+        // back. The same limit as swapping its code.
+        RateLimiter::for('auth-authorize', function (Request $request) {
+            return Limit::perMinutes(5, 30)->by('authorize|'.$request->ip())
+                ->response(fn (Request $request, array $headers) => Api::error('Too many sign in requests from this address. Try again in a few minutes.', 429)->withHeaders($headers));
+        });
+
         // Codes from an authenticator app, per account so a stolen provider
         // account cannot keep guessing. `token_verifications` under
         // [auth.rate_limit] in supabase/config.toml, Supabase's own limit.
