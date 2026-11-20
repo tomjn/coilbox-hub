@@ -92,6 +92,7 @@ class HubTokensTest extends TestCase
         $this->authorize('discord', ['redirect_to' => 'http://127.0.0.1@evil.example:80/cb'])->assertStatus(400);
         $this->authorize('discord', ['code_challenge' => 'short'])->assertStatus(400);
         $this->authorize('discord', ['code_challenge_method' => 'md5'])->assertStatus(400);
+        $this->authorize('discord', ['code_challenge_method' => 'plain'])->assertStatus(400)->assertJsonPath('msg', 'code_challenge_method must be s256');
         $this->authorize('google')->assertStatus(400)->assertExactJson(['code' => 400, 'error_code' => 'validation_failed', 'msg' => 'Unsupported provider: provider is not enabled']);
         config(['services.twitch' => ['client_id' => null, 'client_secret' => null]]);
         $this->authorize('twitch')->assertStatus(400);
@@ -184,17 +185,20 @@ class HubTokensTest extends TestCase
         $this->getJson('/api/v1/profile', ['Authorization' => 'Bearer '.$third['access_token']])->assertStatus(401);
     }
 
-    public function test_a_spent_refresh_token_works_again_while_its_answer_was_never_used(): void
+    public function test_an_old_copy_of_a_spent_refresh_token_ends_the_session_even_before_its_replacement_is_used(): void
     {
         $first = $this->signedIn();
-        $lost = $this->refresh($first['refresh_token'])->assertOk()->json();
-        $this->travel(60)->seconds();
+        // The owner refreshes, then closes Coilbox before using the new token.
+        $owners = $this->refresh($first['refresh_token'])->assertOk()->json();
+        $this->travel(11)->seconds();
 
-        $again = $this->refresh($first['refresh_token'])->assertOk()->json();
+        // Somebody with an old copy of the first token gets nothing.
+        $this->refresh($first['refresh_token'])->assertStatus(400)->assertJsonPath('error_code', 'refresh_token_already_used');
 
-        $this->refresh($again['refresh_token'])->assertOk();
-        // The answer that never arrived no longer works.
-        $this->refresh($lost['refresh_token'])->assertStatus(400)->assertJsonPath('error_code', 'refresh_token_not_found');
+        // The session is over for everybody, so nobody holds it quietly.
+        $this->refresh($owners['refresh_token'])->assertStatus(400)->assertJsonPath('error_code', 'refresh_token_not_found');
+        $this->getJson('/api/v1/profile', ['Authorization' => 'Bearer '.$owners['access_token']])->assertStatus(401);
+        $this->assertSame(0, DB::table('auth_refresh_token')->count());
     }
 
     public function test_a_hub_refresh_token_the_hub_does_not_know_is_refused_without_asking_supabase(): void

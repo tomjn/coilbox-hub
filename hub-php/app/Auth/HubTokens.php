@@ -56,9 +56,10 @@ final class HubTokens
 
     /**
      * Swaps a hub refresh token for new tokens. A spent one still works for
-     * `hub.tokens.refresh_reuse_seconds` after it was used, or while the
-     * token it was swapped for has not been used, which is a client that
-     * never got the answer. Used any later, it ends the session.
+     * `hub.tokens.refresh_reuse_seconds` after it was used, for two
+     * refreshes sent at once. Used any later, it ends the session, because
+     * somebody else may hold a copy. A client that lost the answer signs in
+     * again.
      *
      * @return array{0: int, 1: array<string, mixed>}|null status and body, or null when the hub never issued this token
      */
@@ -75,13 +76,9 @@ final class HubTokens
             if ($row->revoked_at === null) {
                 DB::table('auth_refresh_token')->where('id', $row->id)->update(['revoked_at' => Values::now()]);
             } elseif (! self::inGrace($row)) {
-                if (DB::table('auth_refresh_token')->where('parent_id', $row->id)->whereNotNull('revoked_at')->exists()) {
-                    self::end((string) $row->session_id);
+                self::end((string) $row->session_id);
 
-                    return self::refusal(400, 'refresh_token_already_used', 'Invalid Refresh Token: Already Used');
-                }
-                // The answer to this token's last use never arrived, so its replacement goes.
-                DB::table('auth_refresh_token')->where('parent_id', $row->id)->delete();
+                return self::refusal(400, 'refresh_token_already_used', 'Invalid Refresh Token: Already Used');
             }
             // Access tokens this session no longer needs.
             PersonalAccessToken::query()->where('name', $row->session_id)->where('expires_at', '<', now())->delete();
