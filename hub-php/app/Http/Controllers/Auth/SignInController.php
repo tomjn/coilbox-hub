@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Auth\CoilboxSignIn;
 use App\Auth\GoTrue;
 use App\Auth\HubAccounts;
 use App\Auth\HubSession;
@@ -107,6 +108,10 @@ class SignInController
      */
     public function hubCallback(Request $request, string $provider): RedirectResponse
     {
+        // A Coilbox sign in, which the browser session knows nothing about.
+        if (CoilboxSignIn::owns($request->query('state'))) {
+            return CoilboxSignIn::finish($request, $provider);
+        }
         $pending = HubSignIn::pending($provider);
         $linkTo = $pending['link'] ?? null;
         $failed = $linkTo !== null

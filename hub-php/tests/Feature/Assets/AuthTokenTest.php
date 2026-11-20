@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Assets;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -10,6 +11,9 @@ use Tests\TestCase;
 /** Coilbox signing in and refreshing through the hub instead of Supabase. */
 class AuthTokenTest extends TestCase
 {
+    // The hub's own tokens are looked for first (#602, part 3c).
+    use RefreshDatabase;
+
     private const URL = 'https://sb.test';
 
     private const SESSION = [

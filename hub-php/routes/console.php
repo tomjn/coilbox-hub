@@ -1,6 +1,8 @@
 <?php
 
+use App\Auth\GoTrue;
 use App\Auth\HubAccounts;
+use App\Auth\HubSignIn;
 use App\Auth\UserCopy;
 use App\Domain\Assets\PictureCopy;
 use App\Domain\Gallery\ItemCopy;
@@ -18,6 +20,7 @@ use App\Supabase\Local\MirrorStore;
 use App\Supabase\Local\PictureStore;
 use App\Supabase\Local\Shadow;
 use App\Supabase\Local\SignInStore;
+use App\Supabase\Local\TokenStore;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Foundation\Inspiring;
@@ -484,6 +487,11 @@ Artisan::command('users:store {state? : supabase, to go back}', function () {
 
         return 1;
     }
+    if (TokenStore::fresh() === TokenStore::MARIADB) {
+        $this->error('Coilbox signs in on the hub. Run tokens:store supabase first.');
+
+        return 1;
+    }
     if (SignInStore::fresh() === SignInStore::MARIADB) {
         $made = UserCopy::madeOnHub();
         $this->warn(sprintf('%d accounts were made on the hub since the switch. Supabase does not have them, so signing in through Supabase gives each of those people a new, empty account.', $made));
@@ -526,10 +534,74 @@ Artisan::command('users:ban {user : The account id, or its email} {--until= : Wh
     HubAccounts::ban($userId, $until);
     $this->line($until === null
         ? 'The ban is lifted.'
-        : 'Banned until '.$until.' UTC. Their browser session ends on its next request. Coilbox signs in with Supabase until #602 part 3c, so ban them in Supabase too.');
+        : 'Banned until '.$until.' UTC. Their browser session and hub tokens stop working on their next request. Copies of Coilbox that still sign in with Supabase keep working, so ban them in Supabase too.');
 
     return 0;
 })->purpose('Ban an account from signing in on the hub, or lift a ban, once the hub runs sign in');
+
+Artisan::command('tokens:store {state? : mariadb, to have the hub sign Coilbox in, or supabase, to go back} {--dry-run : Say what would change and write nothing}', function () {
+    $state = $this->argument('state');
+    $where = fn () => TokenStore::fresh() === TokenStore::MARIADB ? 'the hub' : 'Supabase';
+    if ($state === null) {
+        $this->line('Coilbox signs in with '.$where().'.');
+        $this->line(sprintf('Hub sign ins in use: %d.', DB::table('auth_refresh_token')->whereNull('revoked_at')->count()));
+
+        return 0;
+    }
+    if (! in_array($state, [TokenStore::MARIADB, TokenStore::SUPABASE], true)) {
+        $this->error('Give mariadb or supabase.');
+
+        return 1;
+    }
+    if (($fixed = TokenStore::fixedMessage()) !== null) {
+        $this->error($fixed);
+
+        return 1;
+    }
+    if ($state === TokenStore::MARIADB) {
+        if (SignInStore::fresh() !== SignInStore::MARIADB) {
+            $this->error('The browser sign in runs on Supabase. Run users:copy --switch first.');
+
+            return 1;
+        }
+        $missing = array_values(array_filter(array_keys(GoTrue::PROVIDERS), fn (string $provider) => ! HubSignIn::configured($provider)));
+        if ($missing !== []) {
+            $this->error('Set the client id and secret for: '.implode(', ', $missing).'.');
+
+            return 1;
+        }
+    }
+    $this->line('Coilbox signs in with '.$where().'.');
+    if ($this->option('dry-run')) {
+        $this->line('Would have Coilbox sign in with '.($state === TokenStore::MARIADB ? 'the hub' : 'Supabase').'.');
+        $this->line('Dry run: nothing was written.');
+
+        return 0;
+    }
+    TokenStore::set($state);
+    $this->line($state === TokenStore::MARIADB
+        ? 'Coilbox now signs in with the hub. Supabase tokens it holds keep working, and each is swapped for the hub\'s at its next refresh.'
+        : 'Coilbox now signs in with Supabase. Tokens the hub already issued keep working.');
+
+    return 0;
+})->purpose('Show where Coilbox signs in and gets its tokens, or switch it between the hub and Supabase');
+
+Artisan::command('users:duplicates', function () {
+    // Made when somebody signed in to Coilbox through Supabase after the
+    // browser sign in moved, with a provider a hub account already held. The
+    // hub added the Supabase account without the provider.
+    $rows = DB::table('auth_user')->where('copy_hash', '')
+        ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('auth_identity')->whereColumn('auth_identity.user_id', 'auth_user.id'))
+        ->orderBy('created_at')->get(['id', 'email', 'created_at']);
+    $this->line(sprintf('Accounts with no provider, added from Coilbox after the browser sign in moved: %d.', $rows->count()));
+    foreach ($rows as $row) {
+        $same = $row->email === null ? [] : DB::table('auth_user')->where('id', '!=', $row->id)
+            ->whereRaw('lower(email) = ?', [mb_strtolower((string) $row->email)])->pluck('id')->all();
+        $this->line(sprintf('%s  %s  made %s  same email: %s', $row->id, $row->email ?? 'no email', $row->created_at, $same === [] ? 'none' : implode(', ', $same)));
+    }
+
+    return 0;
+})->purpose('List the second accounts made by signing in to Coilbox through Supabase after the browser sign in moved. Writes nothing');
 
 Artisan::command('promotion:token', function () {
     $made = JobToken::make();
