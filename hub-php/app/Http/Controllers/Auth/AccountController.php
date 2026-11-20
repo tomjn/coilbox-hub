@@ -8,6 +8,7 @@ use App\Auth\GoTrue;
 use App\Auth\HubAccounts;
 use App\Auth\HubSession;
 use App\Auth\HubSignIn;
+use App\Auth\QrCode;
 use App\Domain\Account\AccountRules;
 use App\Supabase\Client;
 use App\Supabase\Local\ItemRules;
@@ -223,7 +224,7 @@ class AccountController
         if (HubSession::onHub()) {
             $userId = (string) HubSession::userId();
             $started = Factors::start($userId, Nav::current()['name'] ?? $userId);
-            session()->put('enrolment', ['factorId' => $started['factorId'], 'qrCode' => '', 'uri' => $started['uri'], 'secret' => $started['secret']]);
+            session()->put('enrolment', ['factorId' => $started['factorId'], 'qrCode' => QrCode::dataUri($started['uri']), 'uri' => $started['uri'], 'secret' => $started['secret']]);
 
             return redirect('/account#second-factor');
         }

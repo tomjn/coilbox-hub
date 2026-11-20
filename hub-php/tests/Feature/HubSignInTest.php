@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Auth\AuthUsers;
 use App\Auth\Factors;
+use App\Auth\QrCode;
 use App\Auth\Totp;
 use App\Supabase\Local\Caller;
 use App\Supabase\Local\ItemFunctions;
@@ -349,6 +350,24 @@ class HubSignInTest extends TestCase
         $this->post('/account/verify', ['factorId' => $factorId, 'code' => self::codeFor($enrolment['secret']), 'next' => '/moderation'])->assertRedirect('/moderation');
         $this->assertSame('aal2', session('hub.aal'));
         $this->assertSame('granted', session('nav.moderation'));
+    }
+
+    public function test_setting_up_an_authenticator_shows_a_qr_code_and_keeps_the_link_and_key(): void
+    {
+        $this->account(self::ALICE, 'alice@example.test', [['github', '1']]);
+        DB::table('profile')->insert(['user_id' => self::ALICE, 'display_name' => 'Alice', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('user_capability')->insert(['user_id' => self::ALICE, 'capability' => 'can_moderate', 'granted_at' => now()]);
+
+        $this->asAlice()->post('/account/factor/start')->assertRedirect('/account#second-factor');
+        $enrolment = session('enrolment');
+
+        $this->assertSame(QrCode::dataUri($enrolment['uri']), $enrolment['qrCode']);
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $enrolment['qrCode']);
+
+        $this->get('/account')->assertOk()
+            ->assertSee('src="'.$enrolment['qrCode'].'"', false)
+            ->assertSee('href="'.e($enrolment['uri']).'"', false)
+            ->assertSee($enrolment['secret']);
     }
 
     public function test_removing_an_authenticator_needs_a_code_this_session(): void
