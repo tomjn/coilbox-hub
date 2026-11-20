@@ -9,6 +9,7 @@
         "php": "^8.3",
         "bacon/bacon-qr-code": "^3.1",
         "laravel/framework": "^13.17",
+        "laravel/sanctum": "^4.5",
         "laravel/socialite": "^5.33",
         "laravel/tinker": "^3.0",
         "socialiteproviders/discord": "^4.2"
