@@ -59,8 +59,12 @@ final class CoilboxSignIn
         if (! is_string($redirectTo) || ! self::loopback($redirectTo)) {
             return HubTokens::refusal(400, 'validation_failed', 'redirect_to must be http://127.0.0.1 on some port.');
         }
-        if (! is_string($challenge) || ! is_string($method) || ! in_array(strtolower($method), ['s256', 'plain'], true)) {
+        if (! is_string($challenge) || ! is_string($method) || $challenge === '' || $method === '') {
             return HubTokens::refusal(400, 'validation_failed', 'PKCE flow requires code_challenge_method and code_challenge');
+        }
+        // Coilbox always sends S256. `plain` would hand the verifier to anybody who sees the address.
+        if (strtolower($method) !== 's256') {
+            return HubTokens::refusal(400, 'validation_failed', 'code_challenge_method must be s256');
         }
         if (! preg_match(self::CHALLENGE, $challenge)) {
             return HubTokens::refusal(400, 'validation_failed', 'code challenge has to be between 43 and 128 characters, made of letters, digits, hyphens, periods, underscores and tildes');
@@ -82,7 +86,7 @@ final class CoilboxSignIn
             'provider' => $provider,
             'redirect_to' => $redirectTo,
             'code_challenge' => $challenge,
-            'code_challenge_method' => strtolower($method),
+            'code_challenge_method' => 's256',
             'user_id' => null,
             'created_at' => $now,
         ]);
@@ -162,9 +166,7 @@ final class CoilboxSignIn
         if (Values::stored($row->created_at) < self::oldest()) {
             return HubTokens::refusal(422, 'flow_state_expired', 'invalid flow state, flow state has expired');
         }
-        $expected = $row->code_challenge_method === 's256'
-            ? rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=')
-            : $verifier;
+        $expected = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
         if (! hash_equals((string) $row->code_challenge, $expected)) {
             return HubTokens::refusal(400, 'bad_code_verifier', 'code challenge does not match previously saved code verifier');
         }
