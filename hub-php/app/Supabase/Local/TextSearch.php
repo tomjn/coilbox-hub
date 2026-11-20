@@ -29,7 +29,9 @@ final class TextSearch
     ];
 
     /**
-     * A document as Postgres would index it: lexeme => positions.
+     * A document as Postgres would index it: lexeme => positions. A word the
+     * stemmer changed is also kept as typed, after a NUL byte no lexeme holds,
+     * so prefix matching finds `runni` in running when the stem is only `run`.
      *
      * @param  list<string|null>  $parts  joined as `||` joins tsvectors, positions running on
      * @return array<string, list<int>>
@@ -40,8 +42,11 @@ final class TextSearch
         $offset = 0;
         foreach ($parts as $part) {
             $last = 0;
-            foreach (self::lexemes((string) $part) as [$lexeme, $position]) {
+            foreach (self::words((string) $part) as [$lexeme, $position, $word]) {
                 $vector[$lexeme][] = $offset + $position;
+                if ($word !== null) {
+                    $vector["\0".$word][] = $offset + $position;
+                }
                 $last = max($last, $position);
             }
             $offset += $last;
@@ -52,8 +57,9 @@ final class TextSearch
 
     /**
      * Whether a document matches what a reader typed, as `@@
-     * websearch_to_tsquery`. A query with nothing searchable in it, only stop
-     * words say, matches nothing.
+     * websearch_to_tsquery`, except that a word outside quotes also matches
+     * the words it starts, as `:*` does, so `perse` finds Persepolis. A query
+     * with nothing searchable in it, only stop words say, matches nothing.
      *
      * @param  array<string, list<int>>  $vector
      */
@@ -71,6 +77,16 @@ final class TextSearch
      * @return list<array{0: string, 1: int}>
      */
     public static function lexemes(string $text): array
+    {
+        return array_map(fn (array $word) => [$word[0], $word[1]], self::words($text));
+    }
+
+    /**
+     * As `lexemes()`, with each word the stemmer changed as typed, else null.
+     *
+     * @return list<array{0: string, 1: int, 2: string|null}>
+     */
+    private static function words(string $text): array
     {
         $w = '[\p{L}\p{N}]';
         preg_match_all(
@@ -109,9 +125,10 @@ final class TextSearch
         $out = [];
         foreach ($tokens as $position => [$token, $stems]) {
             if (! $stems) {
-                $out[] = [$token, $position + 1];
+                $out[] = [$token, $position + 1, null];
             } elseif (! in_array($token, self::STOP_WORDS, true)) {
-                $out[] = [EnglishStemmer::stem($token), $position + 1];
+                $stem = EnglishStemmer::stem($token);
+                $out[] = [$stem, $position + 1, $stem === $token ? null : $token];
             }
         }
 
@@ -142,7 +159,8 @@ final class TextSearch
     /**
      * `websearch_to_tsquery`: words are ANDed, `or` between two words ORs
      * them, a leading `-` negates, and quotes make a phrase. Anything else is
-     * a separator. Null when nothing searchable is left.
+     * a separator. Words outside quotes match as prefixes. Null when nothing
+     * searchable is left.
      *
      * @return array<string, mixed>|null
      */
@@ -158,9 +176,9 @@ final class TextSearch
                 continue;
             }
             if ($match[1] !== '' || ! isset($match[3])) {
-                $node = self::phrase($match[1]);
+                $node = self::phrase($match[1], false);
             } else {
-                $node = self::phrase($match[3]);
+                $node = self::phrase($match[3], true);
                 if ($node !== null && $match[2] === '-') {
                     $node = ['not' => $node];
                 }
@@ -181,15 +199,15 @@ final class TextSearch
     }
 
     /** @return array<string, mixed>|null */
-    private static function phrase(string $text): ?array
+    private static function phrase(string $text, bool $prefix): ?array
     {
-        $lexemes = self::lexemes($text);
-        if ($lexemes === []) {
+        $words = self::words($text);
+        if ($words === []) {
             return null;
         }
-        $first = $lexemes[0][1];
+        $first = $words[0][1];
 
-        return ['phrase' => array_map(fn (array $item) => [$item[0], $item[1] - $first], $lexemes)];
+        return ['phrase' => array_map(fn (array $item) => [$item[0], $item[1] - $first, $item[2]], $words), 'prefix' => $prefix];
     }
 
     /**
@@ -219,11 +237,12 @@ final class TextSearch
         if (isset($node['not'])) {
             return ! self::evaluate($node['not'], $vector);
         }
-        [$head, $start] = $node['phrase'][0];
-        foreach ($vector[$head] ?? [] as $position) {
+        $prefix = $node['prefix'];
+        [$head, $start, $headWord] = $node['phrase'][0];
+        foreach (self::positions($vector, $head, $headWord, $prefix) as $position) {
             $found = true;
-            foreach ($node['phrase'] as [$lexeme, $gap]) {
-                if (! in_array($position - $start + $gap, $vector[$lexeme] ?? [], true)) {
+            foreach ($node['phrase'] as [$lexeme, $gap, $word]) {
+                if (! in_array($position - $start + $gap, self::positions($vector, $lexeme, $word, $prefix), true)) {
                     $found = false;
                     break;
                 }
@@ -234,5 +253,28 @@ final class TextSearch
         }
 
         return false;
+    }
+
+    /**
+     * Where a lexeme is in a document. With `$prefix`, where any lexeme starts
+     * with it, or any word the stemmer changed starts with the word as typed.
+     *
+     * @param  array<string, list<int>>  $vector
+     * @return list<int>
+     */
+    private static function positions(array $vector, string $lexeme, ?string $word, bool $prefix): array
+    {
+        if (! $prefix) {
+            return $vector[$lexeme] ?? [];
+        }
+        $positions = [];
+        foreach ($vector as $held => $at) {
+            $held = (string) $held;
+            if (str_starts_with($held, $lexeme) || str_starts_with($held, "\0".($word ?? $lexeme))) {
+                array_push($positions, ...$at);
+            }
+        }
+
+        return $positions;
     }
 }

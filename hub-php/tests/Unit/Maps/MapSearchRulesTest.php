@@ -85,14 +85,39 @@ class MapSearchRulesTest extends TestCase
         $vector = TextSearch::vector(['All That Glitters v2.2', 'All That Glitters v2.2', 'Search for the gold in this desolated red desert', 'Beherith']);
         $this->assertTrue(TextSearch::matches($vector, 'glittering'));
         $this->assertTrue(TextSearch::matches($vector, 'v2.2'));
-        $this->assertFalse(TextSearch::matches($vector, 'v2'));
+        $this->assertFalse(TextSearch::matches($vector, 'v3'));
         $this->assertTrue(TextSearch::matches($vector, '"red desert"'));
         $this->assertFalse(TextSearch::matches($vector, '"desert red"'));
         $this->assertTrue(TextSearch::matches($vector, 'snow or desert'));
         $this->assertFalse(TextSearch::matches($vector, 'gold -beherith'));
         $this->assertTrue(TextSearch::matches($vector, 'gold -water'));
+        // A word still being typed matches the words it starts.
+        $this->assertTrue(TextSearch::matches($vector, 'glit'));
+        $this->assertTrue(TextSearch::matches($vector, 'v2'));
+        $this->assertTrue(TextSearch::matches($vector, 'des red'));
+        $this->assertFalse(TextSearch::matches($vector, 'gold -beh'));
+        $this->assertFalse(TextSearch::matches($vector, 'litters'));
+        // A quoted phrase still wants whole words.
+        $this->assertFalse(TextSearch::matches($vector, '"red des"'));
         // Nothing searchable left matches nothing.
         $this->assertFalse(TextSearch::matches($vector, 'the'));
         $this->assertFalse(TextSearch::matches($vector, ''));
+    }
+
+    public function test_partial_words_match_where_the_stemmer_would_not(): void
+    {
+        $vector = TextSearch::vector(['Persepolis 1.2', null, 'An ancient city', 'Someone']);
+        foreach (['p', 'pers', 'perse', 'persep', 'persepoli', 'persepolis', 'PERSE', 'anc'] as $typed) {
+            $this->assertTrue(TextSearch::matches($vector, $typed), $typed);
+        }
+        $this->assertFalse(TextSearch::matches($vector, 'persia'));
+
+        // The stem of running is run, so runni only matches the word as typed.
+        $vector = TextSearch::vector(['Running generation', null, '', '']);
+        foreach (['runni', 'runnin', 'running', 'generati', 'generation'] as $typed) {
+            $this->assertTrue(TextSearch::matches($vector, $typed), $typed);
+        }
+        $this->assertFalse(TextSearch::matches($vector, 'runner'));
+        $this->assertSame(['run' => [1], "\0running" => [1], 'generat' => [2], "\0generation" => [2]], $vector);
     }
 }
