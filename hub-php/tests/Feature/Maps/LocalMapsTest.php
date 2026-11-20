@@ -216,6 +216,7 @@ class LocalMapsTest extends ModerationTestCase
         $this->starts(self::DUNE, 8);
 
         $this->get('/maps?author=%5BBAR%5D+Beherith')->assertOk()->assertSee('/map/comet', false)->assertDontSee('/map/dune', false);
+        $this->get('/maps?q=isl')->assertOk()->assertSee('/map/comet', false)->assertDontSee('/map/dune', false);
         $this->get('/maps?q=island')->assertOk()->assertSee('/map/comet', false)->assertDontSee('/map/dune', false);
         $this->get('/maps?q=run+-frozen')->assertOk()->assertSee('/map/dune', false)->assertDontSee('/map/comet', false);
         $this->get('/maps?tag=water+map')->assertOk()->assertSee('/map/comet', false)->assertDontSee('/map/dune', false);
