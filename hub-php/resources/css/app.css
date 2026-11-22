@@ -91,6 +91,62 @@ body {
     font-family: var(--font-sans);
 }
 
+/* Markdown written on the hub, such as a faction's description. Tailwind's
+   reset strips headings, lists and links bare, so they get their look back here. */
+@layer components {
+    .markdown {
+        @apply flex max-w-prose flex-col gap-3 text-neutral-300;
+    }
+    .markdown :where(h1, h2, h3, h4, h5, h6) {
+        @apply pt-2 font-semibold text-neutral-100;
+    }
+    .markdown :where(h1) {
+        @apply text-xl;
+    }
+    .markdown :where(h2) {
+        @apply text-lg;
+    }
+    .markdown :where(a) {
+        @apply text-neutral-100 underline underline-offset-2 hover:text-white;
+    }
+    .markdown :where(strong) {
+        @apply font-semibold text-neutral-100;
+    }
+    .markdown :where(ul) {
+        @apply list-disc pl-6;
+    }
+    .markdown :where(ol) {
+        @apply list-decimal pl-6;
+    }
+    .markdown :where(li + li) {
+        @apply mt-1;
+    }
+    .markdown :where(blockquote) {
+        @apply border-l-2 border-neutral-700 pl-4 text-neutral-400;
+    }
+    .markdown :where(code) {
+        @apply rounded bg-neutral-900 px-1 font-mono text-sm;
+    }
+    .markdown :where(pre) {
+        @apply overflow-x-auto rounded-md bg-neutral-900 p-3;
+    }
+    .markdown :where(pre code) {
+        @apply bg-transparent p-0;
+    }
+    .markdown :where(hr) {
+        @apply border-neutral-800;
+    }
+    .markdown :where(img) {
+        @apply max-w-full rounded-md;
+    }
+    .markdown :where(table) {
+        @apply border-collapse text-sm;
+    }
+    .markdown :where(th, td) {
+        @apply border border-neutral-800 px-2 py-1 text-left;
+    }
+}
+
 #main-content:focus {
     outline: none;
 }

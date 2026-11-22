@@ -96,6 +96,14 @@ class GameEditController extends ModerationController
         ), self::page($shortname));
     }
 
+    public function factionText(Request $request, string $shortname): RedirectResponse
+    {
+        return $this->answer($request, GameEdits::editFactionText(
+            HubSession::client(), HubSession::userId(), $shortname,
+            self::text($request, 'faction_key'), self::text($request, 'faction_tagline'), self::text($request, 'faction_description'),
+        ), self::page($shortname));
+    }
+
     public function downloads(Request $request, string $shortname): RedirectResponse
     {
         return $this->answer($request, GameEdits::editDownloadSources(

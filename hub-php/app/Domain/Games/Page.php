@@ -3,6 +3,7 @@
 namespace App\Domain\Games;
 
 use App\Supabase\Client;
+use App\Supabase\Local\GameStore;
 use App\Supabase\SupabaseException;
 
 /**
@@ -20,7 +21,7 @@ final class Page
      * The page is an array with the keys `shortname`, `display_name`,
      * `description`, `links`, `conquest_factions`, `faction_count`,
      * `unit_count`, `item_count`, `factions` (alphabetical, Random left out,
-     * each `key, name, logo_path`), `release` (the version most recently
+     * each `key, name, logo_path, tagline, description`), `release` (the version most recently
      * reported, or null), `owner_user_id`, `hidden_at`, the `logo_`, `banner_`
      * and `card_` columns (`_path`, `_hash`, `_staged_tier`), `downloads`,
      * `base_game`, `base` (a related game or null) and `mutators`.
@@ -34,6 +35,9 @@ final class Page
         // public.game because they are queries and not stored values, which
         // 20260821120000_game_browse.sql argues at length. The embeds ride the
         // foreign keys the catalog tables already declare.
+        // Supabase's copy of the catalogue has no faction text, and asking it
+        // for a column it lacks fails the whole read.
+        $factionColumns = GameStore::local() ? 'key,name,logo_path,tagline,description' : 'key,name,logo_path';
         try {
             $held = $supabase
                 ->from('game')
@@ -42,7 +46,7 @@ final class Page
                     'logo_path,logo_hash,logo_staged_tier,banner_path,banner_hash,banner_staged_tier,'.
                     'card_path,card_hash,card_staged_tier,'.
                     'game_download_source(kind,value,asset,filename,sort_order),'.
-                    'game_faction(key,name,logo_path),'.
+                    'game_faction('.$factionColumns.'),'.
                     'game_version(version,last_seen_at)',
                 )
                 ->eq('shortname', $shortname)
@@ -71,6 +75,7 @@ final class Page
             $held['game_faction'] ?? [],
             fn (array $faction) => ! Factions::isRandomFaction($faction),
         ));
+        $factions = array_map(fn (array $faction) => $faction + ['tagline' => null, 'description' => null], $factions);
         $factions = self::withLiveLogos($supabase, $held['shortname'], $factions);
 
         return [

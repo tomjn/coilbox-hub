@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
+@use('App\Domain\Games\GameEdits')
 @use('App\Domain\Games\ImageUpload')
+@use('App\Supabase\Local\GameStore')
 @use('App\Support\Ui')
 
 {{-- app/games/[shortname]/edit/page.tsx. One form per kind of write, so a
@@ -107,6 +109,37 @@
                 </div>
             </form>
         </section>
+
+        @if (GameStore::local() && $page['factions'] !== [])
+            <section class="{{ $section }}">
+                <h2 class="{{ $heading }}">Faction descriptions</h2>
+                <p class="text-sm text-neutral-400">The tagline is one line under the faction&apos;s name. The description shows on the faction&apos;s units page and in Coilbox, and takes Markdown: headings, lists, links, tables and so on. HTML shows as plain text.</p>
+                @foreach ($page['factions'] as $i => $faction)
+                    @php
+                        // A refused save refills only the faction it was for.
+                        $mine = old('faction_key') === $faction['key'];
+                    @endphp
+                    <form method="post" action="{{ $base }}/faction-text" class="flex flex-col gap-3 rounded-md border border-neutral-800 p-4">
+                        @csrf
+                        <input type="hidden" name="_form" value="faction-{{ $faction['key'] }}">
+                        <input type="hidden" name="faction_key" value="{{ $faction['key'] }}">
+                        <h3 class="font-medium text-neutral-100">{{ $faction['name'] }}</h3>
+                        <div class="flex flex-col gap-1.5">
+                            <label for="faction-{{ $i }}-tagline" class="{{ $label }}">Tagline</label>
+                            <input id="faction-{{ $i }}-tagline" name="faction_tagline" value="{{ $mine ? old('faction_tagline') : ($faction['tagline'] ?? '') }}" maxlength="{{ GameEdits::TAGLINE_MAX }}" class="{{ Ui::FIELD }}">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label for="faction-{{ $i }}-description" class="{{ $label }}">Description</label>
+                            <textarea id="faction-{{ $i }}-description" name="faction_description" maxlength="{{ GameEdits::FACTION_DESCRIPTION_MAX }}" rows="6" class="{{ Ui::FIELD }} font-mono text-sm">{{ $mine ? old('faction_description') : ($faction['description'] ?? '') }}</textarea>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button type="submit" class="{{ Ui::button('ghost', 'base', 'self-start') }}">Save {{ $faction['name'] }}</button>
+                            <x-games.form-answer :form="'faction-'.$faction['key']" />
+                        </div>
+                    </form>
+                @endforeach
+            </section>
+        @endif
 
         <section class="{{ $section }}">
             <h2 class="{{ $heading }}">Visibility</h2>
