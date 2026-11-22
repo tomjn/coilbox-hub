@@ -27,6 +27,7 @@ final class Policies
      */
     private const GRANTS = [
         'game' => ['update' => ['display_name', 'description', 'links', 'conquest_factions']],
+        'game_faction' => ['update' => ['tagline', 'description']],
         'game_unit' => ['update' => ['snippet']],
         'game_download_source' => ['insert' => ['*'], 'delete' => ['*']],
         'game_ownership_request' => [
@@ -223,7 +224,7 @@ final class Policies
         self::read($caller, $query, $table, $alias);
         match ($table) {
             'game' => self::ownerOrModerator($caller, $query, $alias.'.id'),
-            'game_unit', 'game_download_source' => self::ownerOrModerator($caller, $query, $alias.'.game_id'),
+            'game_faction', 'game_unit', 'game_download_source' => self::ownerOrModerator($caller, $query, $alias.'.game_id'),
             'game_ownership_request', 'map_ownership_request' => $caller->isModerator() ? null : $query->whereRaw('1 = 0'),
             'map_download_source' => self::mapEditor($caller, $query, $alias.'.map_id'),
             // `item_update_own` and `item_withdraw_moderators`. Only the author deletes.
@@ -252,7 +253,7 @@ final class Policies
             'report' => $command === 'insert' || $caller->isModerator(),
             'profile' => $command === 'update' && $caller->userId() !== null && ($row['user_id'] ?? null) === $caller->userId(),
             'game' => self::ownsGame($caller, (string) $row['id']) || $caller->isModerator(),
-            'game_unit', 'game_download_source' => self::ownsGame($caller, (string) $row['game_id']) || $caller->isModerator(),
+            'game_faction', 'game_unit', 'game_download_source' => self::ownsGame($caller, (string) $row['game_id']) || $caller->isModerator(),
             'game_ownership_request', 'map_ownership_request' => array_key_exists('id', $row) && $row['id'] !== null
                 ? $caller->isModerator()
                 : ($row['requested_by'] ?? null) === $caller->userId() && ($row['state'] ?? null) === 'open',

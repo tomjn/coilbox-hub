@@ -27,6 +27,7 @@ Route::get('/games/{shortname}/changes', [ChangesController::class, 'show']);
 Route::get('/games/{shortname}/edit', [GameEditController::class, 'edit']);
 Route::post('/games/{shortname}/edit/details', [GameEditController::class, 'details']);
 Route::post('/games/{shortname}/edit/factions', [GameEditController::class, 'factions']);
+Route::post('/games/{shortname}/edit/faction-text', [GameEditController::class, 'factionText']);
 Route::post('/games/{shortname}/edit/downloads', [GameEditController::class, 'downloads']);
 Route::post('/games/{shortname}/edit/image', [GameEditController::class, 'image']);
 Route::post('/games/{shortname}/edit/image/remove', [GameEditController::class, 'removeImage']);

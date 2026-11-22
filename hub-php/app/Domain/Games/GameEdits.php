@@ -43,6 +43,14 @@ final class GameEdits
         'notSent' => 'The form did not reach the hub. Reload the page and try again.',
     ];
 
+    public const FACTION_TEXT_MESSAGES = [
+        'saved' => 'Faction saved.',
+        'signedOut' => 'You are signed out. Sign in, then save your changes again.',
+        'notAllowed' => 'You can no longer change this game. Only its owner or a moderator can describe its factions.',
+        'notSaved' => 'The faction could not be saved. Try again in a few minutes.',
+        'notSent' => 'The form did not reach the hub. Reload the page and try again.',
+    ];
+
     public const DOWNLOADS_MESSAGES = [
         'saved' => 'Downloads saved.',
         'signedOut' => 'You are signed out. Sign in, then save your changes again.',
@@ -59,8 +67,54 @@ final class GameEdits
         'notSent' => 'The form did not reach the hub. Reload the page and try again.',
     ];
 
+    /** The longest faction tagline, the same as a faction's name. */
+    public const TAGLINE_MAX = 256;
+
+    /** The longest faction description, the same as a game's. */
+    public const FACTION_DESCRIPTION_MAX = 4000;
+
     /** The most links and conquest factions a game keeps. */
     public const MAX_ROWS = 12;
+
+    /**
+     * A faction's tagline and Markdown description. The tagline is one line,
+     * so line breaks in it become spaces. Blank clears either field.
+     *
+     * @return array{ok: bool, message: string}
+     */
+    public static function editFactionText(?Client $session, ?string $userId, string $shortname, string $key, string $tagline, string $description): array
+    {
+        $messages = self::FACTION_TEXT_MESSAGES;
+        if ($shortname === '' || $key === '') {
+            return self::no($messages['notSent']);
+        }
+        if ($session === null || $userId === null) {
+            return self::no($messages['signedOut']);
+        }
+        $game = Editor::editableGame($session, $userId, $shortname);
+        if ($game === null) {
+            return self::no($messages['notAllowed']);
+        }
+        $tagline = trim((string) preg_replace('/\s+/u', ' ', $tagline));
+        $description = trim((string) preg_replace('/\r\n?/', "\n", $description));
+        try {
+            $rows = $session->from('game_faction')->update([
+                'tagline' => self::orNull(mb_substr($tagline, 0, self::TAGLINE_MAX)),
+                'description' => self::orNull(trim(mb_substr($description, 0, self::FACTION_DESCRIPTION_MAX))),
+            ])->eq('game_id', $game['id'])->eq('key', $key)->select('key')->get();
+        } catch (SupabaseException $e) {
+            Log::error("editFactionText: {$shortname} {$key} was not updated", ['error' => $e->getMessage()]);
+
+            return self::no($messages['notSaved']);
+        }
+        // No row: the faction is gone, or a policy filtered it out.
+        if ($rows === []) {
+            return self::no($messages['notAllowed']);
+        }
+        HubCache::invalidate([HubCache::GAMES]);
+
+        return ['ok' => true, 'message' => $messages['saved']];
+    }
 
     /**
      * Ask to own a game. The policy refuses a second open ask and a forged

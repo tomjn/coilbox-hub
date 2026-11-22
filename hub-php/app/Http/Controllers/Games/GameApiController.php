@@ -6,6 +6,7 @@ use App\Domain\Assets\ImageHeader;
 use App\Domain\Assets\Staging;
 use App\Domain\Downloads\Downloads;
 use App\Domain\Games\Editor;
+use App\Domain\Games\FactionList;
 use App\Domain\Games\GameBranding;
 use App\Domain\Games\GameFacts;
 use App\Domain\Games\GameList;
@@ -54,6 +55,26 @@ class GameApiController extends Controller
         }
 
         return Api::json(GameList::body($listing['games'], $releases));
+    }
+
+    /**
+     * One game's sides, with the tagline and Markdown description its owner
+     * wrote for each. A failed read is a 503, as for the listing.
+     */
+    public function factions(string $shortname): JsonResponse
+    {
+        try {
+            $loaded = FactionList::load(Supabase::anon(), $shortname);
+        } catch (SupabaseException $e) {
+            Log::error("GET /api/v1/games/{$shortname}/factions: the factions could not be read", ['error' => $e->getMessage()]);
+
+            return Api::error('The factions could not be read just now.', 503);
+        }
+        if ($loaded === null) {
+            return Api::error('No such game.', 404);
+        }
+
+        return Api::json(FactionList::body($loaded));
     }
 
     /**

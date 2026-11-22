@@ -1,5 +1,6 @@
 @extends('layouts.app', ['title' => $title, 'description' => $description])
 
+@use('App\Support\Markdown')
 @use('App\Support\Ui')
 
 @section('content')
@@ -19,6 +20,17 @@
         <div class="flex flex-col gap-4 border-b border-neutral-900 pb-6">
             @if (count($game['factions']) > 1)
                 <x-games.faction-toggles :options="$factionOptions" />
+            @endif
+            @if ($chosenFaction && (($chosenFaction['tagline'] ?? null) || ($chosenFaction['description'] ?? null)))
+                <section class="flex flex-col gap-2" aria-labelledby="faction-about">
+                    <h2 id="faction-about" class="text-lg font-semibold text-neutral-100">{{ $chosenFaction['name'] }}</h2>
+                    @if ($chosenFaction['tagline'] ?? null)
+                        <p class="text-neutral-400">{{ $chosenFaction['tagline'] }}</p>
+                    @endif
+                    @if ($chosenFaction['description'] ?? null)
+                        <div class="markdown">{!! Markdown::html($chosenFaction['description']) !!}</div>
+                    @endif
+                </section>
             @endif
             <form action="/games/{{ $shortname }}/units" class="flex flex-wrap items-end gap-3">
                 <div class="flex min-w-48 flex-1 flex-col gap-1.5">

@@ -45,7 +45,11 @@ class UnitsController extends Controller
         // Faction as toggles, each a link carrying the other filters. Choosing a
         // side restarts paging.
         $factionOptions = [['key' => '', 'label' => 'All factions', 'href' => $href($base), 'active' => $filters['faction'] === null]];
+        $chosenFaction = null;
         foreach ($game['factions'] as $faction) {
+            if ($filters['faction'] === $faction['key']) {
+                $chosenFaction = $faction;
+            }
             $factionOptions[] = [
                 'key' => $faction['key'],
                 'label' => $faction['name'],
@@ -77,6 +81,7 @@ class UnitsController extends Controller
             'filters' => $filters,
             'retiredHeld' => Cached::retiredUnitsHeld($shortname),
             'factionOptions' => $factionOptions,
+            'chosenFaction' => $chosenFaction,
             'grid' => $grid,
             'pages' => $pages,
         ]);

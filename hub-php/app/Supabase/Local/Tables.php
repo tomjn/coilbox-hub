@@ -61,7 +61,7 @@ final class Tables
         ],
         'game_faction' => [
             'id' => 'int', 'game_id' => 'uuid', 'key' => 'text', 'name' => 'text', 'logo_path' => 'text',
-            'logo_hash' => 'text',
+            'logo_hash' => 'text', 'tagline' => 'text', 'description' => 'text',
         ],
         'game_unit' => [
             'id' => 'int', 'game_id' => 'uuid', 'unit_name' => 'text', 'full_name' => 'text',
@@ -362,7 +362,10 @@ final class Tables
             'base_game' => [1, 64],
         ],
         'game_version' => ['version' => [1, 64]],
-        'game_faction' => ['key' => [1, 128], 'name' => [1, 256], 'logo_path' => [1, 512], 'logo_hash' => [1, 128]],
+        'game_faction' => [
+            'key' => [1, 128], 'name' => [1, 256], 'logo_path' => [1, 512], 'logo_hash' => [1, 128],
+            'tagline' => [1, 256], 'description' => [1, 4000],
+        ],
         'game_unit' => [
             'unit_name' => [1, 128], 'full_name' => [1, 256], 'faction_key' => [1, 128], 'facts_digest' => [1, 128],
             'source_version' => [1, 64],

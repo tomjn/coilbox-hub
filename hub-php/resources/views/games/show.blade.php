@@ -91,7 +91,12 @@
                                 @elseif ($factionSlots)
                                     <span aria-hidden="true" class="{{ $slot }} flex items-center justify-center bg-neutral-900"><x-icon name="games" class="w-5 text-neutral-600" /></span>
                                 @endif
-                                <span class="min-w-0 break-words font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">{{ $faction['name'] }}</span>
+                                <span class="flex min-w-0 flex-col">
+                                    <span class="break-words font-medium text-neutral-100 transition-colors group-hover:text-white group-active:text-white">{{ $faction['name'] }}</span>
+                                    @if ($faction['tagline'] ?? null)
+                                        <span class="break-words text-sm text-neutral-400">{{ $faction['tagline'] }}</span>
+                                    @endif
+                                </span>
                             </a>
                         </li>
                     @endforeach
