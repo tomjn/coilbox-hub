@@ -5,6 +5,7 @@ namespace Tests\Unit\Profile;
 use App\Domain\Gallery\GalleryQuery;
 use App\Domain\Profile\Contributions;
 use App\Supabase\Supabase;
+use App\Support\HubCache;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -236,6 +237,17 @@ class ContributionsTest extends TestCase
             $this->assertSame((string) $limit, $query['limit'], $table);
         }
         $this->assertSame(3, Contributions::RECENT_ITEMS);
+    }
+
+    public function test_a_profile_cached_before_profiles_listed_ownership_is_not_served(): void
+    {
+        HubCache::remember('profile:'.self::ACCOUNT, [HubCache::ITEMS, HubCache::MAPS, HubCache::GAMES, HubCache::ASSETS], HubCache::HOURS, fn () => ['name' => 'Old', 'items' => ['count' => 1, 'recent' => [['id' => 'i1']]]]);
+        $this->fakeTables($this->held());
+
+        $profile = Contributions::cached(self::ACCOUNT);
+
+        $this->assertSame('Zyx Contributor', $profile['name']);
+        $this->assertArrayHasKey('cards', $profile['items']);
     }
 
     public function test_pictures_are_counted_without_fetching_rows(): void

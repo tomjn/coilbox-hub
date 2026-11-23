@@ -26,12 +26,12 @@
         $clauses[] = 'owns '.implode(' and ', $facts);
     }
     if ($pictures['count'] > 0) {
-        $clauses[] = 'had <span class="font-medium text-neutral-100">'.$n($pictures['count']).' '.($pictures['count'] === 1 ? 'picture' : 'pictures').'</span> approved';
+        $clauses[] = 'has had <span class="font-medium text-neutral-100">'.$n($pictures['count']).' '.($pictures['count'] === 1 ? 'picture' : 'pictures').'</span> approved';
     }
     if ($items['count'] > 0) {
-        $clauses[] = 'published '.$jump('#gallery', $n($items['count']).' '.($items['count'] === 1 ? 'thing' : 'things')).' in the gallery';
+        $clauses[] = 'has published '.$jump('#gallery', $n($items['count']).' '.($items['count'] === 1 ? 'thing' : 'things')).' in the gallery';
     }
-    $summary = $clauses === [] ? e($name).' has not added anything to the hub yet.' : e($name).' has '.$and($clauses).'.';
+    $summary = $clauses === [] ? e($name).' has not added anything to the hub yet.' : e($name).' '.$and($clauses).'.';
 
     $sectionHead = 'flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1';
     $count = 'ml-1.5 font-normal tabular-nums text-neutral-400';

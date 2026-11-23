@@ -40,7 +40,8 @@ final class Contributions
     /** @return array<string, mixed>|null */
     public static function cached(string $userId): ?array
     {
-        return HubCache::remember('profile:'.$userId, [HubCache::ITEMS, HubCache::MAPS, HubCache::GAMES, HubCache::ASSETS], HubCache::HOURS, function () use ($userId) {
+        // v2 lists owned maps and games and carries gallery card data. A v1 entry lacks both.
+        return HubCache::remember('profile:v2:'.$userId, [HubCache::ITEMS, HubCache::MAPS, HubCache::GAMES, HubCache::ASSETS], HubCache::HOURS, function () use ($userId) {
             return Supabase::configured() ? self::load(Supabase::anon(), Supabase::admin(), $userId) : null;
         });
     }
