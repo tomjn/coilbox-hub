@@ -98,12 +98,12 @@ class ContributionsTest extends TestCase
     }
 
     /** A `map_browse` row, the catalog card. */
-    private function card(string $id, string $name): array
+    private function card(string $id, string $name, string $createdAt = '2026-10-01T10:00:00+00:00'): array
     {
         return [
             'id' => $id, 'map_name' => $name, 'slug' => strtolower(str_replace(' ', '-', $name)), 'display_name' => null, 'map_version' => null,
             'width_elmos' => 8192, 'height_elmos' => 8192, 'tags' => [], 'start_positions' => 2, 'author_keys' => [], 'author_names' => [],
-            'featured_at' => null, 'mirror_urls' => [],
+            'featured_at' => null, 'mirror_urls' => [], 'created_at' => $createdAt,
         ];
     }
 
@@ -146,7 +146,7 @@ class ContributionsTest extends TestCase
             'maps' => ['count' => 0, 'recent' => [], 'pictures' => []],
             'pictures' => ['count' => 0],
             'games' => ['count' => 0, 'recent' => []],
-            'items' => ['count' => 0, 'recent' => []],
+            'items' => ['count' => 0, 'recent' => [], 'cards' => ['pictures' => [], 'shapes' => [], 'counts' => [], 'titles' => []]],
         ], $this->load($this->held()));
     }
 
@@ -155,11 +155,11 @@ class ContributionsTest extends TestCase
         $other = 'c0000000-0000-0000-0000-000000000002';
         $profile = $this->load($this->held([
             'map' => [
-                ['id' => 'm1', 'map_name' => 'Zyx One', 'submitted_by' => self::ACCOUNT],
-                ['id' => 'm2', 'map_name' => 'Zyx Two', 'submitted_by' => self::ACCOUNT],
-                ['id' => 'm3', 'map_name' => 'Other', 'submitted_by' => $other],
+                ['id' => 'm1', 'map_name' => 'Zyx One', 'owner_user_id' => self::ACCOUNT],
+                ['id' => 'm2', 'map_name' => 'Zyx Two', 'owner_user_id' => self::ACCOUNT],
+                ['id' => 'm3', 'map_name' => 'Other', 'owner_user_id' => $other],
             ],
-            'map_browse' => [$this->card('m2', 'Zyx Two'), $this->card('m1', 'Zyx One')],
+            'map_browse' => [$this->card('m2', 'Zyx Two', '2026-10-01T10:00:00+00:00'), $this->card('m1', 'Zyx One', '2026-10-02T10:00:00+00:00')],
             'asset' => [
                 ['uploaded_by' => self::ACCOUNT],
                 ['uploaded_by' => self::ACCOUNT],
@@ -167,8 +167,8 @@ class ContributionsTest extends TestCase
                 ['uploaded_by' => $other],
             ],
             'game' => [
-                ['shortname' => 'ZYX', 'display_name' => 'Zyx Game', 'submitted_by' => self::ACCOUNT],
-                ['shortname' => 'OTHER', 'display_name' => null, 'submitted_by' => $other],
+                ['shortname' => 'ZYX', 'display_name' => 'Zyx Game', 'owner_user_id' => self::ACCOUNT],
+                ['shortname' => 'OTHER', 'display_name' => null, 'owner_user_id' => $other],
             ],
             'item' => [
                 ['id' => 'i1', 'title' => 'Zyx item', 'kind' => 'lobby', 'mode' => null, 'created_at' => '2026-11-01T10:00:00+00:00', 'author_id' => self::ACCOUNT],
@@ -177,20 +177,20 @@ class ContributionsTest extends TestCase
         ]));
 
         $this->assertSame(2, $profile['maps']['count']);
-        // Newest first, as the map table answered, whatever order the cards came back in.
+        // Newest first, whatever order the cards came back in.
         $this->assertSame(['zyx-one', 'zyx-two'], array_column($profile['maps']['recent'], 'slug'));
         $this->assertSame(['Zyx One', 'Zyx Two'], array_keys($profile['maps']['pictures']));
         $this->assertSame(3, $profile['pictures']['count']);
         $this->assertSame(['count' => 1, 'recent' => [['shortname' => 'ZYX', 'label' => 'Zyx Game', 'logo' => null]]], $profile['games']);
-        $this->assertSame(['count' => 1, 'recent' => [[
-            'id' => 'i1', 'title' => 'Zyx item', 'kind' => 'lobby', 'mode' => null, 'created_at' => '2026-11-01T10:00:00+00:00',
-        ]]], $profile['items']);
+        $this->assertSame(1, $profile['items']['count']);
+        $this->assertSame(['i1'], array_column($profile['items']['recent'], 'id'));
+        $this->assertSame(['i1' => ['title' => 'Zyx item', 'tail' => null]], $profile['items']['cards']['titles']);
     }
 
     public function test_a_game_with_no_display_name_is_listed_by_its_short_name(): void
     {
         $profile = $this->load($this->held([
-            'game' => [['shortname' => 'ZYX', 'display_name' => null, 'submitted_by' => self::ACCOUNT]],
+            'game' => [['shortname' => 'ZYX', 'display_name' => null, 'owner_user_id' => self::ACCOUNT]],
         ]));
 
         $this->assertSame([['shortname' => 'ZYX', 'label' => 'ZYX', 'logo' => null]], $profile['games']['recent']);
@@ -201,8 +201,8 @@ class ContributionsTest extends TestCase
         $profile = $this->load($this->held([
             'asset_licence' => [self::BLANKET, self::DENIED],
             'map' => [
-                ['id' => 'm1', 'map_name' => 'Zyx Fine', 'submitted_by' => self::ACCOUNT],
-                ['id' => 'm2', 'map_name' => 'Zyx Taken Down', 'submitted_by' => self::ACCOUNT],
+                ['id' => 'm1', 'map_name' => 'Zyx Fine', 'owner_user_id' => self::ACCOUNT],
+                ['id' => 'm2', 'map_name' => 'Zyx Taken Down', 'owner_user_id' => self::ACCOUNT],
             ],
             'map_browse' => [$this->card('m1', 'Zyx Fine'), $this->card('m2', 'Zyx Taken Down')],
         ]));
@@ -223,17 +223,19 @@ class ContributionsTest extends TestCase
         Contributions::load(Supabase::anon(), Supabase::admin(), self::ACCOUNT);
     }
 
-    public function test_recent_lists_are_newest_first_and_stop_at_the_gallery_page_size(): void
+    public function test_recent_lists_are_newest_first_and_stop_at_their_limit(): void
     {
         $this->load($this->held());
 
-        foreach (['map', 'game', 'item'] as $table) {
+        // Maps are merged from two reads and sorted here, which LocalMapsTest covers.
+        foreach (['game' => GalleryQuery::PAGE_SIZE, 'item' => Contributions::RECENT_ITEMS] as $table => $limit) {
             $own = $this->requestsTo($table);
             $this->assertCount(1, $own, $table);
             parse_str(parse_url($own[0]->url(), PHP_URL_QUERY), $query);
             $this->assertSame('created_at.desc', $query['order'], $table);
-            $this->assertSame((string) GalleryQuery::PAGE_SIZE, $query['limit'], $table);
+            $this->assertSame((string) $limit, $query['limit'], $table);
         }
+        $this->assertSame(3, Contributions::RECENT_ITEMS);
     }
 
     public function test_pictures_are_counted_without_fetching_rows(): void

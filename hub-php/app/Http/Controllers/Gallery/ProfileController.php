@@ -8,6 +8,7 @@ use App\Domain\Profile\Author;
 use App\Domain\Profile\Contributions;
 use App\Http\Controllers\Controller;
 use App\Supabase\Supabase;
+use App\Support\Site;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
 
@@ -36,6 +37,7 @@ class ProfileController extends Controller
             // Read here, not in Contributions::cached, so a new award shows straight away.
             'points' => CommunityPoints::total($accountId),
             'own' => HubSession::userId() === $accountId,
+            'origin' => Site::importOrigin(),
         ]);
     }
 }

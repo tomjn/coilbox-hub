@@ -2,8 +2,11 @@
 
 namespace App\Domain\Profile;
 
+use App\Domain\Gallery\Cards;
 use App\Domain\Gallery\GalleryQuery;
 use App\Domain\Games\GameArt;
+use App\Domain\Maps\Authors;
+use App\Domain\Maps\Have;
 use App\Domain\Maps\Listing;
 use App\Domain\Maps\Lookup;
 use App\Supabase\Client;
@@ -21,6 +24,9 @@ use RuntimeException;
  */
 final class Contributions
 {
+    /** Gallery cards shown on a profile, newest first. One row of the gallery's grid. */
+    public const RECENT_ITEMS = 3;
+
     private const UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D';
 
     /** A profile address's id, lower cased, or null when it is not a UUID. */
@@ -42,7 +48,7 @@ final class Contributions
     /**
      * Null when the account has no display name, which is no public profile.
      *
-     * @return array{name: string, maps: array{count: int, recent: list<array{slug: string, label: string}>}, pictures: array{count: int}, games: array{count: int, recent: list<array{shortname: string, label: string}>}, items: array{count: int, recent: list<array{id: string, title: string}>}}|null
+     * @return array{name: string, maps: array{count: int, recent: list<array{slug: string, label: string}>}, pictures: array{count: int}, games: array{count: int, recent: list<array{shortname: string, label: string}>}, items: array{count: int, recent: list<array<string, mixed>>, cards: array<string, mixed>}}|null
      */
     public static function load(Client $anon, Client $admin, string $userId): ?array
     {
@@ -56,24 +62,21 @@ final class Contributions
             throw new RuntimeException('The licence gate could not be read.');
         }
 
-        $maps = Lookup::applyListingRule(
-            $anon->from('map')->select('id', 'exact')->eq('submitted_by', $userId),
-            $rule,
-        )->order('created_at', ascending: false)->limit(GalleryQuery::PAGE_SIZE)->getWithCount();
-        $cards = self::mapCards($anon, array_map(fn ($row) => (string) $row['id'], $maps['rows']));
+        $maps = self::ownedMaps($anon, $admin, $userId, $rule);
+        $cards = $maps['recent'];
 
         $pictures = $anon->from('asset')->select('id', 'exact', head: true)->eq('uploaded_by', $userId)->getWithCount();
 
-        $games = $anon->from('game')->select('shortname,display_name,logo_path,logo_hash,logo_staged_tier', 'exact')->eq('submitted_by', $userId)
+        $games = $anon->from('game')->select('shortname,display_name,logo_path,logo_hash,logo_staged_tier', 'exact')->eq('owner_user_id', $userId)
             ->order('created_at', ascending: false)->limit(GalleryQuery::PAGE_SIZE)->getWithCount();
 
-        $items = $anon->from('item')->select('id,title,kind,mode,created_at', 'exact')->eq('author_id', $userId)
-            ->order('created_at', ascending: false)->limit(GalleryQuery::PAGE_SIZE)->getWithCount();
+        $items = $anon->from('item')->select(GalleryQuery::ITEM_SUMMARY_COLUMNS, 'exact')->eq('author_id', $userId)
+            ->order('created_at', ascending: false)->limit(self::RECENT_ITEMS)->getWithCount();
 
         return [
             'name' => $name,
             'maps' => [
-                'count' => $maps['count'] ?? 0,
+                'count' => $maps['count'],
                 'recent' => $cards,
                 'pictures' => Listing::pictures($anon, $cards),
             ],
@@ -84,29 +87,65 @@ final class Contributions
             ],
             'items' => [
                 'count' => $items['count'] ?? 0,
-                'recent' => array_map(fn ($row) => [
-                    'id' => $row['id'], 'title' => $row['title'], 'kind' => $row['kind'], 'mode' => $row['mode'] ?? null, 'created_at' => $row['created_at'],
-                ], $items['rows']),
+                'recent' => $items['rows'],
+                'cards' => Cards::forPage($anon, $items['rows']),
             ],
         ];
     }
 
     /**
-     * The catalog's card for each map, newest first as the ids are given.
+     * The maps this account owns, as `can_edit_map` decides: each map a
+     * moderator made theirs, and every map credited to an author they own.
+     * A map owned both ways counts once. The newest come first.
      *
-     * @param  list<string>  $ids
-     * @return list<array<string, mixed>>
+     * @param  array{kind: string, names: list<string>}  $rule
+     * @return array{count: int, recent: list<array<string, mixed>>}
      */
-    private static function mapCards(Client $anon, array $ids): array
+    private static function ownedMaps(Client $anon, Client $admin, string $userId, array $rule): array
     {
-        if ($ids === []) {
-            return [];
-        }
-        $byId = [];
-        foreach ($anon->from('map_browse')->select(Listing::SUMMARY_COLUMNS)->in('id', $ids)->get() as $map) {
-            $byId[(string) $map['id']] = $map;
+        $columns = Listing::SUMMARY_COLUMNS.',created_at';
+        $keys = self::ownedAuthorKeys($anon, $admin, $userId);
+
+        $byAuthor = ['rows' => [], 'count' => 0];
+        if ($keys !== []) {
+            $byAuthor = Lookup::applyListingRule($anon->from('map_browse')->select($columns, 'exact')->overlaps('author_keys', $keys), $rule)
+                ->order('created_at', ascending: false)->limit(GalleryQuery::PAGE_SIZE)->getWithCount();
         }
 
-        return array_values(array_filter(array_map(fn (string $id) => $byId[$id] ?? null, $ids)));
+        $ids = array_map(fn ($row) => (string) $row['id'], $anon->from('map')->select('id')->eq('owner_user_id', $userId)->get());
+        $single = [];
+        foreach (array_chunk($ids, Have::NAMES_PER_QUERY) as $chunk) {
+            foreach (Lookup::applyListingRule($anon->from('map_browse')->select($columns)->in('id', $chunk), $rule)->get() as $map) {
+                if (array_intersect($map['author_keys'] ?? [], $keys) === []) {
+                    $single[] = $map;
+                }
+            }
+        }
+
+        $recent = [...$byAuthor['rows'], ...$single];
+        usort($recent, fn (array $a, array $b) => strtotime((string) $b['created_at']) <=> strtotime((string) $a['created_at']));
+
+        return ['count' => ($byAuthor['count'] ?? 0) + count($single), 'recent' => array_slice($recent, 0, GalleryQuery::PAGE_SIZE)];
+    }
+
+    /**
+     * The author keys this account owns, after any merge, so they match
+     * `map_browse.author_keys`. Read with the secret key, since a browser
+     * cannot read `author_owner`.
+     *
+     * @return list<string>
+     */
+    private static function ownedAuthorKeys(Client $anon, Client $admin, string $userId): array
+    {
+        $keys = array_map(fn ($row) => (string) $row['key'], $admin->from('author_owner')->select('key')->eq('user_id', $userId)->get());
+        if ($keys === []) {
+            return [];
+        }
+        $aliases = [];
+        foreach ($anon->from('author_alias')->select('from_key,to_key')->in('from_key', $keys)->get() as $alias) {
+            $aliases[(string) $alias['from_key']] = (string) $alias['to_key'];
+        }
+
+        return array_values(array_unique(array_map(fn (string $key) => Authors::resolve($key, $aliases), $keys)));
     }
 }
