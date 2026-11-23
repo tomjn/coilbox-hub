@@ -4,8 +4,8 @@ namespace Tests\Feature\Gallery;
 
 use App\Domain\Points\CommunityPoints;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\Concerns\StartsWithNoPoints;
 use Illuminate\Support\Facades\DB;
+use Tests\Concerns\StartsWithNoPoints;
 use Tests\Feature\Moderation\ModerationTestCase;
 
 /** The caller's community points, served to Coilbox and shown on their own profile. */
@@ -86,22 +86,57 @@ class PointsTest extends ModerationTestCase
         CommunityPoints::award(self::OWNER, CommunityPoints::ITEM, 'item-1');
         CommunityPoints::award(self::OWNER, CommunityPoints::REPORT, 'report-1');
 
-        $this->as(self::OWNER)->get('/profile/'.self::OWNER)->assertOk()->assertSee('25')->assertSee('community points');
+        $this->as(self::OWNER)->get('/profile/Owner')->assertOk()->assertSee('25')->assertSee('community points')->assertSee('Change your name');
     }
 
-    public function test_another_account_does_not_see_the_points(): void
+    public function test_another_account_sees_the_points_but_not_the_rename_link(): void
     {
         $this->auth(self::STRANGER);
         CommunityPoints::award(self::OWNER, CommunityPoints::ITEM, 'item-1');
 
-        $this->as(self::STRANGER)->get('/profile/'.self::OWNER)->assertOk()->assertDontSee('community points');
+        $this->as(self::STRANGER)->get('/profile/Owner')->assertOk()->assertSee('20')->assertSee('community points')->assertDontSee('Change your name');
     }
 
-    public function test_a_signed_out_visitor_does_not_see_the_points(): void
+    public function test_a_signed_out_visitor_sees_the_points(): void
     {
         $this->auth();
         CommunityPoints::award(self::OWNER, CommunityPoints::ITEM, 'item-1');
 
-        $this->get('/profile/'.self::OWNER)->assertOk()->assertDontSee('community points');
+        $this->get('/profile/Owner')->assertOk()->assertSee('20')->assertSee('community points');
+    }
+
+    public function test_a_profile_is_found_by_name_whatever_the_capitals(): void
+    {
+        $this->auth();
+
+        $this->get('/profile/oWnEr')->assertRedirect('/profile/Owner');
+        $this->get('/profile/Owner')->assertOk()->assertSee('Owner has not added anything to the hub yet.');
+    }
+
+    public function test_an_id_address_sends_the_browser_to_the_name(): void
+    {
+        $this->auth();
+
+        $this->get('/profile/'.self::OWNER)->assertRedirect('/profile/Owner');
+        $this->get('/profile/'.strtoupper(self::OWNER))->assertRedirect('/profile/Owner');
+    }
+
+    public function test_a_name_nobody_has_is_not_found(): void
+    {
+        $this->auth();
+
+        $this->get('/profile/Nobody')->assertNotFound();
+        // A wildcard in the address is a letter, not a pattern.
+        $this->get('/profile/Own%25')->assertNotFound();
+        $this->get('/profile/_wner')->assertNotFound();
+    }
+
+    public function test_a_name_with_a_space_is_found_and_linked_encoded(): void
+    {
+        $this->auth();
+        DB::table('profile')->where('user_id', self::OWNER)->update(['display_name' => 'The Owner']);
+
+        $this->get('/profile/'.self::OWNER)->assertRedirect('/profile/The%20Owner');
+        $this->get('/profile/The%20Owner')->assertOk()->assertSee('The Owner');
     }
 }
