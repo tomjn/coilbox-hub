@@ -51,6 +51,11 @@ final class CommunityPoints
         if ($userId === null) {
             return;
         }
+        if (! isset(self::POINTS[$kind])) {
+            report(new \InvalidArgumentException("Unknown community point kind: $kind"));
+
+            return;
+        }
         try {
             // The first text on a field pays one account, whoever adds it.
             if ($kind === self::FIRST_TEXT && DB::table('community_point')->where('kind', $kind)->where('subject', $subject)->exists()) {

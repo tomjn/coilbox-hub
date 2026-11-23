@@ -5,7 +5,7 @@ namespace Tests\Unit\Points;
 use App\Domain\Points\CommunityPoints;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\QueryException;
 use Tests\TestCase;
 
 class CommunityPointsTest extends TestCase
@@ -61,11 +61,19 @@ class CommunityPointsTest extends TestCase
 
     public function test_a_failed_write_does_not_throw(): void
     {
-        Schema::drop('community_point');
+        // A mock instead of dropping the table, because DDL commits on MariaDB.
+        DB::shouldReceive('table')->andThrow(new QueryException('sqlite', 'select 1', [], new \Exception('boom')));
 
         CommunityPoints::award(self::A, CommunityPoints::ITEM, 'i1');
         CommunityPoints::revoke(CommunityPoints::ITEM, 'i1');
 
-        $this->assertFalse(Schema::hasTable('community_point'));
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_an_unknown_kind_earns_nothing_and_does_not_throw(): void
+    {
+        CommunityPoints::award(self::A, 'nonsense', 'x1');
+
+        $this->assertSame(0, DB::table('community_point')->count());
     }
 }
