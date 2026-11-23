@@ -26,6 +26,50 @@
             <p role="{{ $state['ok'] ? 'status' : 'alert' }}" class="text-sm {{ $state['ok'] ? 'text-green-400' : 'text-red-400' }}">{{ $state['message'] }}</p>
         @endif
 
+        <section class="flex flex-col gap-4" aria-labelledby="mirrors-requests">
+            <h2 id="mirrors-requests" class="text-sm uppercase tracking-wide text-neutral-400">Requests</h2>
+            @if ($requests === null)
+                <p role="alert" class="rounded-md border border-red-950 bg-card p-6 text-sm text-red-300">The requests could not be read. Reload the page to try again.</p>
+            @elseif ($requests === [])
+                <p class="rounded-md border border-neutral-800 bg-card p-6 text-sm text-neutral-400">No mirrors are waiting to be added.</p>
+            @else
+                <ul class="flex flex-col gap-4">
+                    @foreach ($requests as $r)
+                        <li class="{{ $card }}">
+                            <h3 class="text-lg font-medium">{{ $r['name'] }}</h3>
+                            <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
+                                <dt class="text-neutral-400">ID</dt>
+                                <dd class="break-all font-mono">{{ $r['mirror_id'] }}</dd>
+                                <dt class="text-neutral-400">Address</dt>
+                                <dd class="break-all"><a href="{{ $r['base_url'] }}" class="text-neutral-300 underline underline-offset-4 hover:text-neutral-100 active:text-neutral-100">{{ $r['base_url'] }}</a></dd>
+                                <dt class="text-neutral-400">Public key</dt>
+                                <dd class="break-all font-mono">{{ $r['public_key'] }}</dd>
+                                <dt class="text-neutral-400">Asked by</dt>
+                                <dd>{{ $r['requester'] ?? 'An account with no profile name' }} <span class="break-all font-mono text-neutral-500">{{ $r['requested_by'] }}</span></dd>
+                                <dt class="text-neutral-400">Asked</dt>
+                                <dd><x-ui.date-time :value="$r['requested_at']" /></dd>
+                                <dt class="text-neutral-400">Key proved</dt>
+                                <dd><x-ui.date-time :value="$r['checked_at']" /></dd>
+                            </dl>
+                            <div class="flex flex-wrap gap-3">
+                                <form method="post" action="/moderation/mirrors/requests/approve">
+                                    @csrf
+                                    <input type="hidden" name="public_key" value="{{ $r['public_key'] }}">
+                                    <button type="submit" class="{{ Ui::button('primary') }}">Approve {{ $r['name'] }}</button>
+                                </form>
+                                <form method="post" action="/moderation/mirrors/requests/reject">
+                                    @csrf
+                                    <input type="hidden" name="public_key" value="{{ $r['public_key'] }}">
+                                    <button type="submit" class="{{ Ui::button('destructive') }}">Reject {{ $r['name'] }}</button>
+                                </form>
+                            </div>
+                            <p class="text-sm text-neutral-400">Approving asks the mirror to prove its key again first.</p>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </section>
+
         @if ($error)
             <p role="alert" class="rounded-md border border-red-950 bg-card p-6 text-sm text-red-300">The mirrors could not be read. Reload the page to try again.</p>
         @else
@@ -68,6 +112,11 @@
                                     <dt class="text-neutral-400">Added</dt>
                                     <dd><x-ui.date-time :value="$m['created_at']" /></dd>
                                 </dl>
+                                <form method="post" action="/moderation/mirrors/check">
+                                    @csrf
+                                    <input type="hidden" name="mirror_id" value="{{ $m['id'] }}">
+                                    <button type="submit" class="{{ Ui::button() }}">Check the key of {{ $m['name'] }}</button>
+                                </form>
                                 @if ($m['enabled'])
                                     <details class="text-sm">
                                         <summary class="cursor-pointer text-neutral-400 hover:text-neutral-200">Remove {{ $m['name'] }}</summary>
@@ -101,7 +150,7 @@
 
             <section class="flex flex-col gap-4 border-t border-neutral-900 pt-6" aria-labelledby="mirrors-add">
                 <h2 id="mirrors-add" class="text-sm uppercase tracking-wide text-neutral-400">Add a mirror</h2>
-                <p class="text-sm text-neutral-400">Ask the operator for their mirror's ID, address and public key. They make the key with <code>php bin/keygen.php</code> in the mirror repository, and the ID must match the one in their mirror's config. A new mirror gets no downloads until its first report passes the hub's check.</p>
+                <p class="text-sm text-neutral-400">Operators normally ask through their mirror's <code>setup.php</code> page, and their request shows above. Use this form only for a mirror set up by hand. The ID and key must match the ones in the mirror's config. A new mirror gets no downloads until its first report passes the hub's check.</p>
                 <div class="flex flex-col gap-1.5 text-sm">
                     <p class="text-neutral-400">Send the operator the hub's public key. They add it to <code>hub_keys</code> in their mirror's config.</p>
                     @if ($hubKey === null)

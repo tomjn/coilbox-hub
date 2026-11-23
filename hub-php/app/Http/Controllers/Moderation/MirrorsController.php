@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Moderation;
 
 use App\Domain\Mirrors\B64;
 use App\Domain\Mirrors\HubKeys;
+use App\Domain\Mirrors\Identity;
+use App\Domain\Mirrors\MirrorRequests;
 use App\Domain\Mirrors\Registry;
 use App\Domain\Moderation\Access;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -21,10 +24,16 @@ class MirrorsController extends ModerationController
         }
         $data = Registry::list($supabase);
         $keys = HubKeys::fromConfig();
+        try {
+            $requests = MirrorRequests::pending();
+        } catch (QueryException) {
+            $requests = null;
+        }
 
         return view('moderation.mirrors', [
             'error' => $data === null,
             'mirrors' => $data['mirrors'] ?? [],
+            'requests' => $requests,
             'seq' => $data['seq'] ?? null,
             // What an operator puts in hub_keys. The next key too while one is being rotated in.
             'hubKey' => $keys === null ? null : B64::encode($keys->publicKey()),
@@ -68,6 +77,43 @@ class MirrorsController extends ModerationController
             return $this->back('/moderation/mirrors');
         }
         $state = Registry::enable($supabase, (string) $request->input('mirror_id', ''));
+
+        return redirect()->back(fallback: '/moderation/mirrors')->with('mirrorsState', $state);
+    }
+
+    /** Asks a mirror on the hub to prove it holds the key on record. */
+    public function check(Request $request): RedirectResponse
+    {
+        $supabase = Access::moderatorClient();
+        if ($supabase === null) {
+            return $this->back('/moderation/mirrors');
+        }
+        $id = (string) $request->input('mirror_id', '');
+        $mirror = collect(Registry::list($supabase)['mirrors'] ?? [])->firstWhere('id', $id);
+        $state = $mirror === null
+            ? ['ok' => false, 'message' => 'That mirror no longer exists.']
+            : MirrorRequests::checkMirror($mirror, app(Identity::class));
+
+        return redirect()->back(fallback: '/moderation/mirrors')->with('mirrorsState', $state);
+    }
+
+    public function approve(Request $request): RedirectResponse
+    {
+        $supabase = Access::moderatorClient();
+        if ($supabase === null) {
+            return $this->back('/moderation/mirrors');
+        }
+        $state = MirrorRequests::approve($supabase, (string) $request->input('public_key', ''), app(Identity::class));
+
+        return redirect()->back(fallback: '/moderation/mirrors')->with('mirrorsState', $state);
+    }
+
+    public function reject(Request $request): RedirectResponse
+    {
+        if (Access::moderatorClient() === null) {
+            return $this->back('/moderation/mirrors');
+        }
+        $state = MirrorRequests::reject((string) $request->input('public_key', ''));
 
         return redirect()->back(fallback: '/moderation/mirrors')->with('mirrorsState', $state);
     }
