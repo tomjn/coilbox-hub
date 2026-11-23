@@ -24,6 +24,24 @@ class DownloadRedirectController extends Controller
         return $this->send('map', (string) $page['mapName'], Download::readDownloads($page['facts']['downloads'] ?? []), $n, $request);
     }
 
+    /**
+     * A map card's download button. A random hub mirror copy, so no one mirror
+     * carries every download. Only a hub mirror copy carries a hash. With none
+     * left since the listing was drawn, the map page says where else to look.
+     */
+    public function mapMirror(Request $request, string $slug): RedirectResponse
+    {
+        $page = MapPage::cached($slug);
+        abort_if($page === null, 404);
+
+        $copies = array_values(array_filter(Download::readDownloads($page['facts']['downloads'] ?? []), fn (array $d) => isset($d['sha256'])));
+        if ($copies === []) {
+            return redirect('/map/'.rawurlencode($slug));
+        }
+
+        return $this->send('map', (string) $page['mapName'], $copies, array_rand($copies), $request);
+    }
+
     public function game(Request $request, string $shortname, int $n): RedirectResponse
     {
         $page = Cached::gamePage($shortname);

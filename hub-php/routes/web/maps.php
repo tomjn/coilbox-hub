@@ -13,6 +13,7 @@ Route::get('/maps/filtered', [MapsController::class, 'index']);
 Route::get('/map/{slug}', [MapsController::class, 'show']);
 // Counted, then sent on to the file.
 Route::get('/map/{slug}/download/{n}', [DownloadRedirectController::class, 'map'])->whereNumber('n');
+Route::get('/map/{slug}/mirror', [DownloadRedirectController::class, 'mapMirror']);
 Route::post('/map/{slug}/report', [MapReportController::class, 'store']);
 
 // A map's owner, an owner of one of its authors, or a moderator. Each write

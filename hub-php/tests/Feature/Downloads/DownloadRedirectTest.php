@@ -56,9 +56,16 @@ class DownloadRedirectTest extends TestCase
             'downloads' => [
                 ['kind' => 'url', 'value' => 'https://owner.test/comet.sd7', 'filename' => 'comet.sd7'],
                 ['kind' => 'github', 'value' => 'owner/comet'],
+                ...$this->mirrorCopies,
             ],
         ];
     }
+
+    /** The hub mirrors' copies, which `map_facts` puts after the owner's downloads. */
+    private array $mirrorCopies = [
+        ['kind' => 'url', 'value' => 'https://one.test/maps/comet.sd7', 'filename' => 'comet.sd7', 'sha256' => 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+        ['kind' => 'url', 'value' => 'https://two.test/maps/comet.sd7', 'filename' => 'comet.sd7', 'sha256' => 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+    ];
 
     private function game(): array
     {
@@ -89,9 +96,33 @@ class DownloadRedirectTest extends TestCase
         $this->get('/map/comet/download/1')->assertRedirect('https://github.com/owner/comet/releases');
     }
 
+    public function test_a_map_mirror_download_goes_to_one_of_its_mirrors_and_counts(): void
+    {
+        $location = $this->get('/map/comet/mirror')->assertStatus(302)->headers->get('Location');
+        $this->assertContains($location, ['https://one.test/maps/comet.sd7', 'https://two.test/maps/comet.sd7']);
+        $this->assertSame([['map', self::MAP_ID, 1]], $this->counted());
+    }
+
+    public function test_a_map_mirror_download_spreads_across_the_mirrors(): void
+    {
+        $seen = [];
+        for ($i = 0; $i < 50; $i++) {
+            $seen[$this->get('/map/comet/mirror')->headers->get('Location')] = true;
+        }
+        $this->assertCount(2, $seen);
+    }
+
+    public function test_a_map_mirror_download_with_no_mirror_copy_goes_to_the_map_page_uncounted(): void
+    {
+        $this->mirrorCopies = [];
+        $this->get('/map/comet/mirror')->assertRedirect('/map/comet');
+        $this->assertSame([], $this->counted());
+        $this->get('/map/nothing/mirror')->assertNotFound();
+    }
+
     public function test_a_map_download_past_the_end_or_for_an_unknown_map_is_not_found(): void
     {
-        $this->get('/map/comet/download/2')->assertNotFound();
+        $this->get('/map/comet/download/4')->assertNotFound();
         $this->assertSame([], $this->counted());
         $this->get('/map/nothing/download/0')->assertNotFound();
     }
