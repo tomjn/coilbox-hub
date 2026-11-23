@@ -138,6 +138,14 @@ class LocalItemsTest extends ModerationTestCase
         $this->assertSame([], $this->dataRequests());
     }
 
+    public function test_the_author_on_a_card_and_an_item_page_links_to_their_profile(): void
+    {
+        $this->supabase();
+
+        $this->get('/gallery')->assertOk()->assertSee('href="/profile/'.self::OWNER.'"', false);
+        $this->get('/item/'.self::ITEM)->assertOk()->assertSee('href="/profile/'.self::OWNER.'"', false);
+    }
+
     public function test_search_tags_and_facets_filter_as_postgres_did(): void
     {
         $this->supabase();

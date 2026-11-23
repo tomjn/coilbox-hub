@@ -94,7 +94,7 @@
         @endif
 
         <dl class="grid grid-cols-2 gap-6 border-t border-neutral-900 pt-6 sm:grid-cols-4">
-            <div class="flex flex-col gap-1"><dt class="{{ $dt }}">Published by</dt><dd class="text-sm text-neutral-100"><a href="/gallery?author={{ rawurlencode($item['author_name']) }}" class="{{ $link }}">{{ $item['author_name'] }}</a></dd></div>
+            <div class="flex flex-col gap-1"><dt class="{{ $dt }}">Published by</dt><dd class="text-sm text-neutral-100"><a href="{{ $item['author_id'] !== null ? '/profile/'.$item['author_id'] : '/gallery?author='.rawurlencode($item['author_name']) }}" class="{{ $link }}">{{ $item['author_name'] }}</a></dd></div>
             <div class="flex flex-col gap-1"><dt class="{{ $dt }}">Published</dt><dd class="text-sm text-neutral-100"><x-ui.date-time :value="$item['created_at']" /></dd></div>
             @if ($item['import_count'] > 0)
                 {{-- Zero is left out (#51): only recent Coilbox releases send the ping. --}}
