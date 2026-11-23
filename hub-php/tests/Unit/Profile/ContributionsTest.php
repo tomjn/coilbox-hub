@@ -97,6 +97,16 @@ class ContributionsTest extends TestCase
         });
     }
 
+    /** A `map_browse` row, the catalog card. */
+    private function card(string $id, string $name): array
+    {
+        return [
+            'id' => $id, 'map_name' => $name, 'slug' => strtolower(str_replace(' ', '-', $name)), 'display_name' => null, 'map_version' => null,
+            'width_elmos' => 8192, 'height_elmos' => 8192, 'tags' => [], 'start_positions' => 2, 'author_keys' => [], 'author_names' => [],
+            'featured_at' => null, 'mirror_urls' => [],
+        ];
+    }
+
     private function load(array $tables): ?array
     {
         $this->fakeTables($tables);
@@ -133,7 +143,7 @@ class ContributionsTest extends TestCase
     {
         $this->assertSame([
             'name' => 'Zyx Contributor',
-            'maps' => ['count' => 0, 'recent' => []],
+            'maps' => ['count' => 0, 'recent' => [], 'pictures' => []],
             'pictures' => ['count' => 0],
             'games' => ['count' => 0, 'recent' => []],
             'items' => ['count' => 0, 'recent' => []],
@@ -145,10 +155,11 @@ class ContributionsTest extends TestCase
         $other = 'c0000000-0000-0000-0000-000000000002';
         $profile = $this->load($this->held([
             'map' => [
-                ['map_name' => 'Zyx One', 'slug' => 'zyx-one', 'display_name' => 'Zyx One Remake', 'submitted_by' => self::ACCOUNT],
-                ['map_name' => 'Zyx Two', 'slug' => 'zyx-two', 'display_name' => null, 'submitted_by' => self::ACCOUNT],
-                ['map_name' => 'Other', 'slug' => 'other', 'display_name' => null, 'submitted_by' => $other],
+                ['id' => 'm1', 'map_name' => 'Zyx One', 'submitted_by' => self::ACCOUNT],
+                ['id' => 'm2', 'map_name' => 'Zyx Two', 'submitted_by' => self::ACCOUNT],
+                ['id' => 'm3', 'map_name' => 'Other', 'submitted_by' => $other],
             ],
+            'map_browse' => [$this->card('m2', 'Zyx Two'), $this->card('m1', 'Zyx One')],
             'asset' => [
                 ['uploaded_by' => self::ACCOUNT],
                 ['uploaded_by' => self::ACCOUNT],
@@ -160,19 +171,20 @@ class ContributionsTest extends TestCase
                 ['shortname' => 'OTHER', 'display_name' => null, 'submitted_by' => $other],
             ],
             'item' => [
-                ['id' => 'i1', 'title' => 'Zyx item', 'author_id' => self::ACCOUNT],
+                ['id' => 'i1', 'title' => 'Zyx item', 'kind' => 'lobby', 'mode' => null, 'created_at' => '2026-11-01T10:00:00+00:00', 'author_id' => self::ACCOUNT],
                 ['id' => 'i2', 'title' => 'Other item', 'author_id' => $other],
             ],
         ]));
 
         $this->assertSame(2, $profile['maps']['count']);
-        $this->assertSame([
-            ['slug' => 'zyx-one', 'label' => 'Zyx One Remake'],
-            ['slug' => 'zyx-two', 'label' => 'Zyx Two'],
-        ], $profile['maps']['recent']);
+        // Newest first, as the map table answered, whatever order the cards came back in.
+        $this->assertSame(['zyx-one', 'zyx-two'], array_column($profile['maps']['recent'], 'slug'));
+        $this->assertSame(['Zyx One', 'Zyx Two'], array_keys($profile['maps']['pictures']));
         $this->assertSame(3, $profile['pictures']['count']);
-        $this->assertSame(['count' => 1, 'recent' => [['shortname' => 'ZYX', 'label' => 'Zyx Game']]], $profile['games']);
-        $this->assertSame(['count' => 1, 'recent' => [['id' => 'i1', 'title' => 'Zyx item']]], $profile['items']);
+        $this->assertSame(['count' => 1, 'recent' => [['shortname' => 'ZYX', 'label' => 'Zyx Game', 'logo' => null]]], $profile['games']);
+        $this->assertSame(['count' => 1, 'recent' => [[
+            'id' => 'i1', 'title' => 'Zyx item', 'kind' => 'lobby', 'mode' => null, 'created_at' => '2026-11-01T10:00:00+00:00',
+        ]]], $profile['items']);
     }
 
     public function test_a_game_with_no_display_name_is_listed_by_its_short_name(): void
@@ -181,7 +193,7 @@ class ContributionsTest extends TestCase
             'game' => [['shortname' => 'ZYX', 'display_name' => null, 'submitted_by' => self::ACCOUNT]],
         ]));
 
-        $this->assertSame([['shortname' => 'ZYX', 'label' => 'ZYX']], $profile['games']['recent']);
+        $this->assertSame([['shortname' => 'ZYX', 'label' => 'ZYX', 'logo' => null]], $profile['games']['recent']);
     }
 
     public function test_a_map_the_licence_gate_refuses_is_neither_counted_nor_listed(): void
@@ -189,13 +201,14 @@ class ContributionsTest extends TestCase
         $profile = $this->load($this->held([
             'asset_licence' => [self::BLANKET, self::DENIED],
             'map' => [
-                ['map_name' => 'Zyx Fine', 'slug' => 'zyx-fine', 'display_name' => null, 'submitted_by' => self::ACCOUNT],
-                ['map_name' => 'Zyx Taken Down', 'slug' => 'zyx-taken-down', 'display_name' => null, 'submitted_by' => self::ACCOUNT],
+                ['id' => 'm1', 'map_name' => 'Zyx Fine', 'submitted_by' => self::ACCOUNT],
+                ['id' => 'm2', 'map_name' => 'Zyx Taken Down', 'submitted_by' => self::ACCOUNT],
             ],
+            'map_browse' => [$this->card('m1', 'Zyx Fine'), $this->card('m2', 'Zyx Taken Down')],
         ]));
 
         $this->assertSame(1, $profile['maps']['count']);
-        $this->assertSame([['slug' => 'zyx-fine', 'label' => 'Zyx Fine']], $profile['maps']['recent']);
+        $this->assertSame(['zyx-fine'], array_column($profile['maps']['recent'], 'slug'));
     }
 
     public function test_an_unreadable_licence_gate_fails_the_page_rather_than_listing_every_map(): void
