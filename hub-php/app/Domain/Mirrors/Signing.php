@@ -13,6 +13,8 @@ final class Signing
 
     public const CTX_REPORT = "coilbox-mirror/report/v1\n";
 
+    public const CTX_IDENTITY = "coilbox-mirror/identity/v1\n";
+
     /** Returns the raw 64 byte signature. */
     public static function sign(string $ctx, string $msg, string $secretKey): string
     {

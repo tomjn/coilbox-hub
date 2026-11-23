@@ -136,11 +136,13 @@ The hub signs upload tokens and the mirror catalogue with one Ed25519 key. The s
 3. Add the secret to `/srv/www/hub.coilbox.org/shared/.env` as `HUB_MIRROR_SECRET_KEY=<secret_key value>`.
 4. Load it. `release.sh` caches config, so editing `.env` alone changes nothing. In `/srv/www/hub.coilbox.org/current` run `php artisan config:cache`, then `sudo systemctl reload php8.4-fpm`.
 5. Run `php artisan mirrors:catalogue`. It prints `catalogue seq N` when the key works.
-6. Give the public key to each mirror operator. They add it to `hub_keys` in their mirror's config.
+6. The hub publishes the public key at `/api/v1/mirrors/hub-key`. A new mirror's `setup.php` writes the production key in for the operator, so a new key also needs a mirror release with it in `src/HubDefaults.php`.
 
 ### Add or remove a mirror
 
-A moderator adds, removes or switches on a mirror at `/moderation/mirrors`. The operator sends their mirror's ID, address and public key. The page also shows each mirror's health.
+An operator sets up their mirror with its `setup.php` page, then follows the link it gives to `/mirrors/new` while signed in to the hub. The hub asks the mirror to sign a challenge, and stores the request only when it proves its key. A moderator approves or rejects the request at `/moderation/mirrors`. Approval checks the key again.
+
+The same page removes or switches on a mirror, checks any mirror's key on demand, and shows each mirror's health. Its add form is for mirrors set up by hand.
 
 ### Keep a sealed copy
 
@@ -157,4 +159,5 @@ A mirror trusts every key it has ever seen the hub endorse, and it never forgets
 5. Run `php artisan mirrors:status`. If it says `waiting for`, the listed mirrors have not yet synced a catalogue that carries the new key. Run it again later. A mirror that stays listed for good may be switched off in the database, because only enabled mirrors count.
 6. When it says `safe to switch keys`, edit `shared/.env`. Put the new secret in `HUB_MIRROR_SECRET_KEY` and delete the `HUB_MIRROR_NEXT_SECRET_KEY` line.
 7. Run `php artisan config:cache` in `current`, then `sudo systemctl reload php8.4-fpm`, then `php artisan mirrors:catalogue`.
+8. Put the new public key in `src/HubDefaults.php` in the mirror repository and release it, so new mirrors trust it.
 8. Give the new secret to the second trusted person in place of the old copy.

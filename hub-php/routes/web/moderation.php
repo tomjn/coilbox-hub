@@ -65,5 +65,8 @@ Route::get('/moderation/mirrors', [MirrorsController::class, 'index']);
 Route::post('/moderation/mirrors/add', [MirrorsController::class, 'add']);
 Route::post('/moderation/mirrors/remove', [MirrorsController::class, 'remove']);
 Route::post('/moderation/mirrors/enable', [MirrorsController::class, 'enable']);
+Route::post('/moderation/mirrors/check', [MirrorsController::class, 'check']);
+Route::post('/moderation/mirrors/requests/approve', [MirrorsController::class, 'approve']);
+Route::post('/moderation/mirrors/requests/reject', [MirrorsController::class, 'reject']);
 
 Route::get('/ops', [OpsController::class, 'show']);

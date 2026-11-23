@@ -3,13 +3,19 @@
 namespace Tests\Feature\Moderation;
 
 use App\Domain\Mirrors\B64;
+use App\Domain\Mirrors\Identity;
 use App\Support\HubCache;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Tests\Feature\Mirrors\MirrorRequestsTest;
 
 /** `/moderation/mirrors`, listing the hub's mirrors, adding one and removing one. */
 class MirrorsTest extends ModerationTestCase
 {
+    use RefreshDatabase;
+
     private const KEY = 'B17CkPdtRVPSfwdwz9CenRCdM6QSUBFMarO-10NppNY';
 
     private static function mirror(array $overrides = []): array
@@ -48,8 +54,14 @@ class MirrorsTest extends ModerationTestCase
         $this->signedIn()->post('/moderation/mirrors/add', ['id' => 'x', 'name' => 'X', 'base_url' => 'https://x.test', 'public_key' => self::KEY]);
         $this->signedIn()->post('/moderation/mirrors/remove', ['mirror_id' => 'jj-darkstars']);
         $this->signedIn()->post('/moderation/mirrors/enable', ['mirror_id' => 'jj-darkstars']);
+        $this->insertRequest();
+        $this->signedIn()->post('/moderation/mirrors/requests/approve', ['public_key' => self::KEY]);
+        $this->signedIn()->post('/moderation/mirrors/requests/reject', ['public_key' => self::KEY]);
+        $this->signedIn()->post('/moderation/mirrors/check', ['mirror_id' => 'jj-darkstars']);
 
         $this->assertSame([], $this->sentWrites());
+        $this->assertSame(1, DB::table('mirror_request')->count());
+        $this->assertFalse(collect($this->sent)->contains(fn (Request $r) => str_contains($r->url(), 'identity.php')));
     }
 
     public function test_the_page_shows_each_mirror_with_its_health(): void
@@ -163,5 +175,83 @@ class MirrorsTest extends ModerationTestCase
         $this->signedIn()->from('/moderation/mirrors')
             ->post('/moderation/mirrors/remove', ['mirror_id' => 'jj-darkstars'])
             ->assertSessionHas('mirrorsState', ['ok' => false, 'message' => 'It could not be removed just now. Try again.']);
+    }
+
+    private function insertRequest(string $key = self::KEY): void
+    {
+        DB::table('mirror_request')->insert([
+            'public_key' => $key, 'mirror_id' => 'new-mirror', 'name' => 'New Mirror', 'base_url' => MirrorRequestsTest::URL,
+            'requested_by' => MirrorRequestsTest::USER, 'requested_at' => '2026-11-23 10:00:00', 'checked_at' => '2026-11-23 10:00:00',
+        ]);
+    }
+
+    public function test_the_page_lists_requests_with_who_asked(): void
+    {
+        $this->supabase(['POST /rpc/moderation_mirrors' => self::reply(['seq' => 1, 'mirrors' => [self::mirror()]])]);
+        $this->insertRequest();
+        DB::table('profile')->insert(['user_id' => MirrorRequestsTest::USER, 'display_name' => 'Operator', 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->signedIn()->get('/moderation/mirrors')
+            ->assertOk()
+            ->assertSeeInOrder(['Requests', 'New Mirror', 'new-mirror', MirrorRequestsTest::URL, self::KEY, 'Operator', 'Approve New Mirror', 'Reject New Mirror'])
+            ->assertSee('Check the key of jj.darkstars.co.uk');
+    }
+
+    public function test_the_page_says_when_there_are_no_requests(): void
+    {
+        $this->supabase(['POST /rpc/moderation_mirrors' => self::reply(['seq' => 1, 'mirrors' => []])]);
+
+        $this->signedIn()->get('/moderation/mirrors')->assertSee('No mirrors are waiting to be added.');
+    }
+
+    public function test_approving_proves_the_key_then_adds_the_mirror(): void
+    {
+        $secret = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
+        $key = B64::encode(sodium_crypto_sign_publickey_from_secretkey($secret));
+        $this->app->instance(Identity::class, MirrorRequestsTest::identity());
+        $this->supabase([
+            'identity.php' => MirrorRequestsTest::identityAnswer($secret, 'new-mirror'),
+            'POST /rpc/moderation_add_mirror' => self::reply('added'),
+        ]);
+        $this->insertRequest($key);
+
+        $this->signedIn()->from('/moderation/mirrors')
+            ->post('/moderation/mirrors/requests/approve', ['public_key' => $key])
+            ->assertRedirect('/moderation/mirrors')
+            ->assertSessionHas('mirrorsState.ok', true);
+
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/rpc/moderation_add_mirror') && $r['p_public_key'] === $key);
+        $this->assertSame(0, DB::table('mirror_request')->count());
+    }
+
+    public function test_rejecting_removes_the_request(): void
+    {
+        $this->supabase();
+        $this->insertRequest();
+
+        $this->signedIn()->from('/moderation/mirrors')
+            ->post('/moderation/mirrors/requests/reject', ['public_key' => self::KEY])
+            ->assertSessionHas('mirrorsState', ['ok' => true, 'message' => 'Request rejected.']);
+
+        $this->assertSame(0, DB::table('mirror_request')->count());
+    }
+
+    public function test_checking_a_key_reports_the_result(): void
+    {
+        $secret = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
+        $this->app->instance(Identity::class, MirrorRequestsTest::identity());
+        $mirror = self::mirror(['base_url' => MirrorRequestsTest::URL, 'public_key' => B64::encode(sodium_crypto_sign_publickey_from_secretkey($secret))]);
+        $this->supabase([
+            'POST /rpc/moderation_mirrors' => self::reply(['seq' => 1, 'mirrors' => [$mirror]]),
+            'identity.php' => MirrorRequestsTest::identityAnswer($secret, 'jj-darkstars'),
+        ]);
+
+        $this->signedIn()->from('/moderation/mirrors')
+            ->post('/moderation/mirrors/check', ['mirror_id' => 'jj-darkstars'])
+            ->assertSessionHas('mirrorsState', ['ok' => true, 'message' => 'The mirror proved it holds the key the hub has for it.']);
+
+        $this->signedIn()->from('/moderation/mirrors')
+            ->post('/moderation/mirrors/check', ['mirror_id' => 'gone'])
+            ->assertSessionHas('mirrorsState.ok', false);
     }
 }
