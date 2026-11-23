@@ -100,12 +100,13 @@ class FactsPointsTest extends ModerationTestCase
     public function test_clearing_a_map_revokes_its_rows(): void
     {
         $this->submitMap(self::FIRST, $this->map());
-        $this->submitMap(self::SECOND, $this->map(2, 'd2'));
+        $this->assertSame(5, CommunityPoints::total(self::FIRST));
         $id = (string) DB::table('map')->value('id');
         DB::table('map_source_conflict')->insert(['map_id' => $id, 'source_archive' => 'a', 'held_source_hash' => 'h', 'reported_source_hash' => 'x', 'at' => '2026-10-01 10:00:00.000000']);
 
         $this->assertTrue(Supabase::admin()->rpc('clear_map_facts', ['p_map_id' => $id]));
 
+        $this->assertSame(0, CommunityPoints::total(self::FIRST));
         $this->assertSame(0, DB::table('community_point')->where('kind', CommunityPoints::MAP)->count());
     }
 }
