@@ -75,13 +75,14 @@ final class AccountRules
 
     /**
      * @param  list<array<string, mixed>>  $identities
-     * @return array<string, string> Provider id to label, for the providers not linked yet.
+     * @param  array<string, string>  $offered  Provider id to label, from {@see HubSignIn::offered()}.
+     * @return array<string, string> Provider id to label, for the offered providers not linked yet.
      */
-    public static function linkableProviders(array $identities): array
+    public static function linkableProviders(array $identities, array $offered): array
     {
         $linked = array_column($identities, 'provider');
 
-        return array_filter(HubSignIn::offered(), fn ($label, $id) => ! in_array($id, $linked, true), ARRAY_FILTER_USE_BOTH);
+        return array_filter($offered, fn ($label, $id) => ! in_array($id, $linked, true), ARRAY_FILTER_USE_BOTH);
     }
 
     public static function linkFailureMessage(string $provider, ?string $reason): string

@@ -71,7 +71,7 @@ class AccountController
             'name' => $name,
             'published' => $published,
             'methods' => AccountRules::signInMethods($identities),
-            'linkable' => AccountRules::linkableProviders($identities),
+            'linkable' => AccountRules::linkableProviders($identities, HubSignIn::offered()),
             'authenticators' => $authenticators,
             'verified' => $verified,
             'access' => $access,

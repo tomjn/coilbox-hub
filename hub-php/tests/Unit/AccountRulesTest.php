@@ -46,7 +46,8 @@ class AccountRulesTest extends TestCase
 
     public function test_only_providers_not_yet_linked_are_offered(): void
     {
-        $this->assertSame(['github' => 'GitHub', 'twitch' => 'Twitch'], AccountRules::linkableProviders([['provider' => 'discord']]));
+        $offered = ['discord' => 'Discord', 'github' => 'GitHub', 'twitch' => 'Twitch'];
+        $this->assertSame(['github' => 'GitHub', 'twitch' => 'Twitch'], AccountRules::linkableProviders([['provider' => 'discord']], $offered));
     }
 
     public function test_a_code_is_digits_with_spaces_removed(): void
