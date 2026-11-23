@@ -1,5 +1,6 @@
 @extends('layouts.app', ['title' => 'Users - Moderation'])
 @use('App\Domain\Moderation\Accounts')
+@use('App\Domain\Profile\Author')
 @use('App\Support\Ui')
 @php
     $input = 'rounded-md border border-neutral-800 bg-black px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-400 focus-visible:border-neutral-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400';
@@ -27,7 +28,12 @@
                 @foreach ($accounts as $account)
                     <li class="flex flex-col gap-2 rounded-md border border-neutral-800 bg-card p-4 text-sm">
                         <div class="flex flex-wrap items-baseline justify-between gap-3">
-                            <span class="font-medium text-neutral-100">{{ $account['display_name'] === '' ? 'Unknown' : $account['display_name'] }}</span>
+                            {{-- An account with no name has no profile page. --}}
+                            @if ($account['display_name'] === '')
+                                <span class="font-medium text-neutral-100">Unknown</span>
+                            @else
+                                <a href="{{ Author::profileHref($account['id'], $account['display_name']) }}" class="font-medium text-neutral-100 underline-offset-4 hover:underline active:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400">{{ $account['display_name'] }}</a>
+                            @endif
                             <span class="text-sm text-neutral-400"><x-ui.date-time :value="$account['created_at']" /></span>
                         </div>
                         <p class="font-mono text-sm text-neutral-400">{{ $account['id'] }}</p>
