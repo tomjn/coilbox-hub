@@ -2,12 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Points\CommunityPoints;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AccountTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const URL = 'https://project.supabase.test';
 
     protected function setUp(): void
@@ -110,6 +114,18 @@ class AccountTest extends TestCase
         Http::assertSent(fn (Request $r) => $r->method() === 'DELETE'
             && str_ends_with($r->url(), '/auth/v1/admin/users/user-1')
             && $r->header('Authorization')[0] === 'Bearer service-key');
+    }
+
+    public function test_deleting_the_account_removes_its_community_points(): void
+    {
+        $this->fakeUser([]);
+        CommunityPoints::award('user-1', CommunityPoints::ITEM, 'i1');
+        CommunityPoints::award('user-2', CommunityPoints::ITEM, 'i2');
+
+        $this->signedIn()->post('/account/delete', ['confirm' => 'Tom'])->assertRedirect('/?deleted=1');
+
+        $this->assertSame(0, CommunityPoints::total('user-1'));
+        $this->assertSame(20, CommunityPoints::total('user-2'));
     }
 
     public function test_signed_out_visitors_go_to_publish(): void

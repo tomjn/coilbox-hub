@@ -32,6 +32,18 @@ class CommunityPointsTest extends TestCase
         $this->assertSame(20, CommunityPoints::total(self::A));
     }
 
+    public function test_forget_removes_only_that_accounts_rows(): void
+    {
+        CommunityPoints::award(self::A, CommunityPoints::ITEM, 'i1');
+        CommunityPoints::award(self::A, CommunityPoints::MAP, 'm1');
+        CommunityPoints::award(self::B, CommunityPoints::ITEM, 'i2');
+
+        CommunityPoints::forget(self::A);
+
+        $this->assertSame(0, CommunityPoints::total(self::A));
+        $this->assertSame(20, CommunityPoints::total(self::B));
+    }
+
     public function test_revoke_removes_every_holders_row(): void
     {
         CommunityPoints::award(self::A, CommunityPoints::GAME_OWNER, 'g1');

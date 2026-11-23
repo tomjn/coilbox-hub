@@ -98,6 +98,16 @@ final class CommunityPoints
         }
     }
 
+    /** Drops every row an account holds when it is deleted. Failures are reported and swallowed. */
+    public static function forget(string $userId): void
+    {
+        try {
+            DB::table('community_point')->where('user_id', $userId)->delete();
+        } catch (QueryException $e) {
+            report($e);
+        }
+    }
+
     public static function total(string $userId): int
     {
         return (int) DB::table('community_point')->where('user_id', $userId)->sum('points');
