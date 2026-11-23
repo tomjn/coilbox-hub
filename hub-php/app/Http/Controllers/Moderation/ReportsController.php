@@ -76,8 +76,10 @@ class ReportsController extends ModerationController
         try {
             $handled = $supabase->from('report')->update(['handled_at' => $now, 'handled_by' => $userId, 'outcome' => $outcome])
                 ->eq('id', $id)->select('id,reporter_id')->get();
-            if ($outcome === 'upheld' && $handled !== []) {
-                CommunityPoints::award($handled[0]['reporter_id'] ?? null, CommunityPoints::REPORT, $id);
+            // A moderator does not earn points for upholding their own report.
+            $reporter = $handled[0]['reporter_id'] ?? null;
+            if ($outcome === 'upheld' && $handled !== [] && $reporter !== $userId) {
+                CommunityPoints::award($reporter, CommunityPoints::REPORT, $id);
             }
         } catch (SupabaseException $e) {
             report($e);

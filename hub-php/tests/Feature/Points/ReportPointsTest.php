@@ -118,6 +118,16 @@ class ReportPointsTest extends ModerationTestCase
         $this->assertSame(0, DB::table('community_point')->count());
     }
 
+    public function test_a_moderator_earns_nothing_for_upholding_their_own_report(): void
+    {
+        $this->seedReport(self::MAP_REPORT, self::MODERATOR, true);
+
+        $this->act(['report_id' => self::MAP_REPORT, 'outcome' => 'upheld']);
+
+        $this->assertSame('upheld', DB::table('report')->where('id', self::MAP_REPORT)->value('outcome'));
+        $this->assertSame(0, CommunityPoints::total(self::MODERATOR));
+    }
+
     public function test_acting_on_a_missing_report_awards_nothing(): void
     {
         $this->act(['report_id' => self::MAP_REPORT, 'outcome' => 'upheld']);
