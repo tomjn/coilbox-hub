@@ -32,6 +32,7 @@ Route::get('/moderation/maps', [MapsController::class, 'index']);
 Route::post('/moderation/maps/clear', [MapsController::class, 'clear']);
 Route::post('/moderation/maps/tags', [MapsController::class, 'tags']);
 Route::post('/moderation/maps/feature', [MapsController::class, 'feature']);
+Route::post('/moderation/maps/decide-ownership', [MapsController::class, 'decideOwnership']);
 Route::get('/moderation/maps/{slug}', [MapsController::class, 'show']);
 
 Route::get('/moderation/map-packs', [MapPacksController::class, 'index']);
@@ -51,7 +52,6 @@ Route::get('/moderation/users', [UsersController::class, 'index']);
 
 Route::get('/moderation/games', [GamesController::class, 'index']);
 Route::post('/moderation/games/decide', [GamesController::class, 'decide']);
-Route::post('/moderation/games/decide-map', [GamesController::class, 'decideMap']);
 Route::post('/moderation/games/visibility', [GamesController::class, 'visibility']);
 Route::post('/moderation/games/version-visibility', [GamesController::class, 'versionVisibility']);
 Route::post('/moderation/games/feature', [GamesController::class, 'feature']);

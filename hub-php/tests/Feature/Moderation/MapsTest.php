@@ -5,6 +5,7 @@ namespace Tests\Feature\Moderation;
 use App\Domain\Moderation\MapModeration;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 
 /**
  * The map moderation pages and their writes. The feature cases are ported
@@ -14,7 +15,7 @@ class MapsTest extends ModerationTestCase
 {
     private const MAP_ID = '0f8fad5b-0007-4000-8000-000000000042';
 
-    private function feature(array $form, mixed $update = null, bool $moderator = true): \Illuminate\Testing\TestResponse
+    private function feature(array $form, mixed $update = null, bool $moderator = true): TestResponse
     {
         $this->supabase(['PATCH /rest/v1/map?' => $update ?? self::reply([['id' => self::MAP_ID]])], moderator: $moderator);
 
@@ -114,6 +115,22 @@ class MapsTest extends ModerationTestCase
         $this->assertStringContainsString('>Isis</a>', $html);
         $this->assertMatchesRegularExpression('#href="/moderation/maps"\s+aria-current="page"#', $html);
         Http::assertSent(fn (Request $r) => str_contains(urldecode($r->url()), 'map_name=ilike.%comet\_%'));
+    }
+
+    public function test_map_ownership_requests_are_decided_on_the_maps_page_not_the_games_page(): void
+    {
+        $this->supabase([
+            'GET /rest/v1/map_ownership_request' => self::reply([
+                ['id' => 1, 'note' => 'its me', 'created_at' => '2026-11-23T15:00:00Z', 'requested_by_name' => 'AF', 'author_key' => 'af', 'map' => null],
+                ['id' => 2, 'note' => null, 'created_at' => '2026-11-23T15:01:00Z', 'requested_by_name' => 'AF', 'author_key' => null, 'map' => ['slug' => 'mipmip8', 'map_name' => 'mipmip8 1.0']],
+            ]),
+        ]);
+
+        $this->signedIn()->get('/moderation/maps')->assertOk()
+            ->assertSee('Every map by af')
+            ->assertSee('href="/map/mipmip8"', false)
+            ->assertSee('action="/moderation/maps/decide-ownership"', false);
+        $this->signedIn()->get('/moderation/games')->assertOk()->assertDontSee('Every map by af');
     }
 
     public function test_one_map_shows_its_curated_tags_for_editing_and_its_derived_tags_read_only(): void

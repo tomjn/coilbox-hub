@@ -35,6 +35,41 @@
             @endif
         @endif
 
+        <section class="flex flex-col gap-3 border-t border-neutral-900 pt-6" aria-labelledby="mod-map-owners">
+            <h2 id="mod-map-owners" class="text-sm uppercase tracking-wide text-neutral-400">Ownership requests</h2>
+            <p class="text-sm text-neutral-400">People asking to own a map or every map by an author. An owner can say where a map can be downloaded, and their profile lists it. Approving an author covers every map credited to that author, now and later, and replaces any owner the author had.</p>
+            @if (session('mapOwnerError'))
+                <p role="alert" class="text-sm text-red-400">{{ session('mapOwnerError') }}</p>
+            @endif
+            @if ($ownershipQueue === [])
+                <p class="text-sm text-neutral-400">Nobody is asking right now.</p>
+            @else
+                <ul class="flex flex-col gap-4">
+                    @foreach ($ownershipQueue as $request)
+                        <li class="flex flex-col gap-3 rounded-md border border-neutral-900 p-4">
+                            <div class="flex flex-col gap-1">
+                                @if ($request['map'])
+                                    <a href="/map/{{ $request['map']['slug'] }}" class="font-medium text-neutral-100 underline-offset-4 hover:underline active:underline">{{ $request['map']['map_name'] }}</a>
+                                @else
+                                    <a href="/maps?author={{ rawurlencode($request['author_key']) }}" class="font-medium text-neutral-100 underline-offset-4 hover:underline active:underline">Every map by {{ $request['author_key'] }}</a>
+                                @endif
+                                <p class="text-sm text-neutral-400">{{ $request['requested_by_name'] }}, <x-ui.date-time :value="$request['created_at']" /></p>
+                                @if ($request['note'])
+                                    <p class="text-sm text-neutral-300">{{ $request['note'] }}</p>
+                                @endif
+                            </div>
+                            <form method="post" action="/moderation/maps/decide-ownership" class="flex gap-2">
+                                @csrf
+                                <input type="hidden" name="request_id" value="{{ $request['id'] }}">
+                                <button type="submit" name="approve" value="true" class="{{ Ui::button('ghost', 'md') }}">Approve</button>
+                                <button type="submit" name="approve" value="false" class="{{ Ui::button('quiet', 'md') }}">Decline</button>
+                            </form>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </section>
+
         <h2 class="text-sm text-neutral-400">Maps two clients disagree about, the most reported first. Two installs holding different bytes under one name is a corrupt or modified install rather than a new release. Forget what the hub holds only when the stored facts are the odd one out.</h2>
 
         @if ($conflicts === [])
