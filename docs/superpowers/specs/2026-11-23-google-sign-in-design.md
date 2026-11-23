@@ -20,10 +20,9 @@ Opening Google sign in to everyone means publishing the app in Google Cloud, whi
 
 ## Which providers are offered
 
-A new method, `HubSignIn::offered()`, answers the provider ids to offer, in the order of `GoTrue::PROVIDERS`:
+A new method, `HubSignIn::offered()`, answers the providers in `GoTrue::PROVIDERS` whose client ID and secret are both set (`HubSignIn::configured()`), in that order.
 
-- When `SignInStore::state()` is `mariadb`, every provider whose client ID and secret are both set (`HubSignIn::configured()`).
-- Otherwise, Discord, GitHub and Twitch. On the Supabase route, Supabase holds the secrets, so the hub cannot check them. Google is left out because Supabase does not offer it.
+Every account has been copied out of Supabase and production signs in on the hub's route, so the rule does not look at `SignInStore`. If sign in were rolled back to Supabase, Google would be offered there and fail, which is accepted.
 
 These read from it instead of `GoTrue::PROVIDERS`:
 
@@ -31,7 +30,7 @@ These read from it instead of `GoTrue::PROVIDERS`:
 - `providers` in `/api/v1/auth`, `app/Domain/Assets/AuthDiscovery.php`
 - the providers the account page offers to link, `AccountRules.php:83`
 
-`UserCopy.php:119`, which copies accounts out of Supabase, keeps looping over `GoTrue::PROVIDERS`. Supabase has no Google identities, so Google adds nothing to the copy.
+`UserCopy.php:119`, which copied accounts out of Supabase, keeps looping over `GoTrue::PROVIDERS`. Supabase has no Google identities, so Google changes nothing there.
 
 `GoTrue::PROVIDERS` stays the full list of providers the hub knows, with their display names. Callbacks and unlinking still accept any provider in it, so someone with a Google identity can still see and unlink it if Google is later switched off.
 
@@ -62,7 +61,6 @@ Hub feature tests, following the existing provider tests and the faked Guzzle cl
 - A Google account with an unverified email gets a new account and does not join.
 - Linking Google from the account page adds it to the signed in account.
 - With Google's ID or secret missing, the sign in page and `/api/v1/auth` leave Google out. The same holds for an existing provider, to cover the change of rule.
-- On the Supabase route, the offered list is Discord, GitHub and Twitch, whatever the hub's secrets.
 
 App tests in `ProviderLogo` or the existing `AccountControl` and `hubPage` tests, checking the Google button's name and look.
 
