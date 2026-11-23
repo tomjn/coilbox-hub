@@ -296,6 +296,11 @@ class AssetRoutesTest extends TestCase
 
     public function test_auth_discovery(): void
     {
+        config([
+            'services.discord' => ['client_id' => 'discord-id', 'client_secret' => 'discord-secret'],
+            'services.github' => ['client_id' => 'github-id', 'client_secret' => 'github-secret'],
+            'services.twitch' => ['client_id' => 'twitch-id', 'client_secret' => 'twitch-secret'],
+        ]);
         $this->getJson('/api/v1/auth')->assertOk()
             ->assertHeader('Cache-Control', 'max-age=86400, public, s-maxage=86400')
             ->assertJsonPath('format', 'coilbox-hub-auth')

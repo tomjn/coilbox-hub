@@ -2,7 +2,7 @@
 
 namespace App\Domain\Assets;
 
-use App\Auth\GoTrue;
+use App\Auth\HubSignIn;
 use App\Supabase\Supabase;
 
 /**
@@ -47,7 +47,7 @@ final class AuthDiscovery
             'publishable_key' => (string) config('hub.supabase.publishable_key'),
             'asset_vocabulary' => self::digest('asset-vocabulary.json'),
             'map_catalog' => self::digest('map-catalog.json'),
-            'providers' => array_keys(GoTrue::PROVIDERS),
+            'providers' => array_keys(HubSignIn::offered()),
             'email_password' => self::EMAIL_PASSWORD_ENABLED,
             'endpoints' => self::ENDPOINTS,
         ];

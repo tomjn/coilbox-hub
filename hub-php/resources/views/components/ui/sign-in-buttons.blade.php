@@ -10,7 +10,7 @@
     ];
 @endphp
 <div class="flex flex-wrap gap-3">
-    @foreach (\App\Auth\GoTrue::PROVIDERS as $id => $label)
+    @foreach (\App\Auth\HubSignIn::offered() as $id => $label)
         <form action="/auth/signin" method="post">
             @csrf
             <input type="hidden" name="next" value="{{ $next }}">

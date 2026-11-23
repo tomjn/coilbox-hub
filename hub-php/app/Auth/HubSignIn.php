@@ -42,6 +42,18 @@ final class HubSignIn
             && (string) config("services.{$provider}.client_secret") !== '';
     }
 
+    /**
+     * The providers to offer, id to label, in the order of
+     * {@see GoTrue::PROVIDERS}. A provider whose app is not set up here is
+     * left out, so nobody is shown a button that cannot work.
+     *
+     * @return array<string, string>
+     */
+    public static function offered(): array
+    {
+        return array_filter(GoTrue::PROVIDERS, fn (string $id) => self::configured($id), ARRAY_FILTER_USE_KEY);
+    }
+
     public static function driver(string $provider): AbstractProvider
     {
         $config = [

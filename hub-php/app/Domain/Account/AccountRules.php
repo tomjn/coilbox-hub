@@ -3,6 +3,7 @@
 namespace App\Domain\Account;
 
 use App\Auth\GoTrue;
+use App\Auth\HubSignIn;
 
 /** lib/account/displayName.ts, confirmDeletion.ts and signInMethods.ts. */
 final class AccountRules
@@ -80,7 +81,7 @@ final class AccountRules
     {
         $linked = array_column($identities, 'provider');
 
-        return array_filter(GoTrue::PROVIDERS, fn ($label, $id) => ! in_array($id, $linked, true), ARRAY_FILTER_USE_BOTH);
+        return array_filter(HubSignIn::offered(), fn ($label, $id) => ! in_array($id, $linked, true), ARRAY_FILTER_USE_BOTH);
     }
 
     public static function linkFailureMessage(string $provider, ?string $reason): string

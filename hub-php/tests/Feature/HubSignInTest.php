@@ -108,6 +108,30 @@ class HubSignInTest extends TestCase
         $this->post('/auth/signin', ['provider' => 'github'])->assertStatus(503);
     }
 
+    public function test_a_provider_without_its_app_set_up_is_not_offered(): void
+    {
+        config([
+            'hub.supabase.url' => 'https://sb.test',
+            'hub.supabase.publishable_key' => 'sb_publishable_test',
+            'services.twitch' => ['client_id' => null, 'client_secret' => null],
+        ]);
+
+        $this->get('/sign-in')->assertOk()->assertSee('Sign in with GitHub')->assertDontSee('Sign in with Twitch');
+        $this->getJson('/api/v1/auth')->assertOk()->assertJsonPath('providers', ['discord', 'github']);
+    }
+
+    public function test_a_linked_provider_that_is_no_longer_set_up_can_still_be_unlinked_but_not_linked_again(): void
+    {
+        $this->account(self::ALICE, 'alice@example.test', [['github', '1'], ['twitch', '2']]);
+        DB::table('profile')->insert(['user_id' => self::ALICE, 'display_name' => 'Alice', 'created_at' => now(), 'updated_at' => now()]);
+        config([
+            'services.twitch' => ['client_id' => null, 'client_secret' => null],
+            'services.discord' => ['client_id' => null, 'client_secret' => null],
+        ]);
+
+        $this->asAlice()->get('/account')->assertOk()->assertSee('Twitch')->assertDontSee('Link Discord');
+    }
+
     #[DataProvider('providers')]
     public function test_a_returning_identity_signs_in_to_its_existing_account(string $provider): void
     {
