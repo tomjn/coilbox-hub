@@ -67,6 +67,31 @@ final class MirrorSources
     }
 
     /**
+     * Every listed upload of one game, newest first, each copy carrying the
+     * upload's version and id so the game page can group them. The API keeps
+     * {@see games()}, which offers only the newest.
+     *
+     * @return list<array{kind: string, value: string, sha256: string, filename: string, version: string, archive: string}>
+     */
+    public static function gameUploads(string $gameId): array
+    {
+        $listed = DB::table('archive')->where('kind', 'game')->where('state', 'listed')->where('game_id', $gameId)
+            ->orderByDesc('listed_at')->orderBy('id')->get(['id', 'game_id as internal_name', 'filename', 'sha256', 'version'])->all();
+        // In mirror order across every upload, so put back in upload order by hash.
+        $copies = self::copies($listed, 'games')[$gameId] ?? [];
+        $out = [];
+        foreach ($listed as $archive) {
+            foreach ($copies as $copy) {
+                if ($copy['sha256'] === (string) $archive->sha256) {
+                    $out[] = $copy + ['version' => (string) $archive->version, 'archive' => (string) $archive->id];
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Map name => when its newest listed archive was listed (stored form) and
      * the mirror URLs of that archive, for maps with a listed archive. Every
      * such map when `$names` is null. The same answer {@see MapArchives}

@@ -4,6 +4,8 @@ namespace App\Domain\Games;
 
 use App\Supabase\Client;
 use App\Supabase\Local\GameStore;
+use App\Supabase\Local\MirrorSources;
+use App\Supabase\Local\MirrorStore;
 use App\Supabase\SupabaseException;
 
 /**
@@ -101,7 +103,7 @@ final class Page
             'card_path' => $held['card_path'] ?? null,
             'card_hash' => $held['card_hash'] ?? null,
             'card_staged_tier' => $held['card_staged_tier'] ?? null,
-            'downloads' => Download::readDownloads($held['game_download_source'] ?? null),
+            'downloads' => [...Download::readDownloads($held['game_download_source'] ?? null), ...self::mirrorCopies($supabase, $held['id'] ?? null)],
             'base_game' => $held['base_game'] ?? null,
             'base' => $base,
             'mutators' => $mutators,
@@ -144,5 +146,60 @@ final class Page
         }
 
         return array_map(fn (array $faction) => ['logo_path' => $newest[$faction['key']] ?? null] + $faction, $factions);
+    }
+
+    /**
+     * The game's uploads on the healthy hub mirrors, newest upload first.
+     * Supabase's function knows only the newest upload. A failed read leaves
+     * the page without them rather than without the page.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function mirrorCopies(Client $supabase, ?string $gameId): array
+    {
+        if ($gameId === null) {
+            return [];
+        }
+        try {
+            $copies = MirrorStore::local()
+                ? MirrorSources::gameUploads($gameId)
+                : $supabase->remote()->rpc('game_mirror_sources', ['p_game_id' => $gameId]);
+        } catch (SupabaseException) {
+            return [];
+        }
+
+        return is_array($copies) ? array_values(array_filter(
+            $copies,
+            fn ($copy) => is_array($copy) && ($copy['kind'] ?? null) === 'url' && is_string($copy['value'] ?? null) && is_string($copy['filename'] ?? null),
+        )) : [];
+    }
+
+    /**
+     * The download list split for the page, keyed by each entry's place in
+     * `$downloads`, which the counted redirect needs. `current` holds the
+     * owner's sources and the newest upload's copies. `older` holds each
+     * older upload with its copies.
+     *
+     * @param  list<array<string, mixed>>  $downloads
+     * @return array{current: array<int, array<string, mixed>>, older: list<array{version: string, filename: string, copies: array<int, array<string, mixed>>}>}
+     */
+    public static function byUpload(array $downloads): array
+    {
+        $current = [];
+        $older = [];
+        $newest = null;
+        foreach ($downloads as $i => $download) {
+            $archive = $download['archive'] ?? null;
+            $newest ??= $archive;
+            if ($archive === null || $archive === $newest) {
+                $current[$i] = $download;
+
+                continue;
+            }
+            $older[$archive] ??= ['version' => (string) ($download['version'] ?? ''), 'filename' => (string) $download['filename'], 'copies' => []];
+            $older[$archive]['copies'][$i] = $download;
+        }
+
+        return ['current' => $current, 'older' => array_values($older)];
     }
 }

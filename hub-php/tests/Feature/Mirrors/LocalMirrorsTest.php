@@ -382,6 +382,43 @@ class LocalMirrorsTest extends ModerationTestCase
         $this->assertSame([], $this->mirrorRequests());
     }
 
+    public function test_a_game_page_offers_its_newest_upload_from_each_mirror_and_lists_older_ones(): void
+    {
+        DB::table('mirror')->insert([
+            'id' => 'second', 'name' => 'second.test', 'base_url' => 'https://second.test',
+            'public_key' => self::fixtureKeys()['mirror_public_key'], 'enabled' => true, 'healthy' => true,
+            'created_at' => '2026-11-17 12:00:00.000000',
+        ]);
+        $older = 'dddddddd-0000-4000-8000-000000000002';
+        $newer = 'dddddddd-0000-4000-8000-000000000003';
+        $game = ['kind' => 'game', 'internal_name' => 'Beyond All Reason', 'shortname' => 'bar', 'game_id' => self::GAME];
+        $this->archive($game + ['id' => $older, 'sha256' => str_repeat('b', 64), 'filename' => 'bar-1.sdz', 'version' => '1']);
+        $this->archive($game + [
+            'id' => $newer, 'sha256' => str_repeat('c', 64), 'filename' => 'bar-2.sdz', 'version' => '2',
+            'listed_at' => '2026-11-19 10:00:00.000000',
+        ]);
+        $this->held($older);
+        $this->held($newer);
+        // The page counts the game's items, and production reads those from MariaDB too.
+        config(['hub.items_store' => 'mariadb']);
+        DB::table('archive_mirror')->insert([
+            'archive_id' => $newer, 'mirror_id' => 'second',
+            'first_seen_at' => '2026-11-19 10:00:00.000000', 'last_seen_at' => '2026-11-19 10:00:00.000000',
+        ]);
+        $this->supabase();
+
+        $this->get('/games/bar')->assertOk()->assertSeeInOrder([
+            '/games/bar/download/0', 'Download bar-2.sdz from mirror.test',
+            '/games/bar/download/1', 'Download bar-2.sdz from second.test',
+            'Older versions', 'Version 1', '/games/bar/download/2', 'bar-1.sdz from mirror.test',
+        ], false);
+
+        $this->get('/games/bar/download/0')->assertRedirect('https://mirror.test/games/bar-2.sdz');
+        $this->get('/games/bar/download/1')->assertRedirect('https://second.test/games/bar-2.sdz');
+        $this->get('/games/bar/download/2')->assertRedirect('https://mirror.test/games/bar-1.sdz');
+        $this->get('/games/bar/download/3')->assertNotFound();
+    }
+
     public function test_the_map_mirror_status_is_for_its_editors_only(): void
     {
         $this->archive();
