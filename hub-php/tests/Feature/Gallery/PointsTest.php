@@ -4,6 +4,7 @@ namespace Tests\Feature\Gallery;
 
 use App\Domain\Points\CommunityPoints;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\StartsWithNoPoints;
 use Illuminate\Support\Facades\DB;
 use Tests\Feature\Moderation\ModerationTestCase;
 
@@ -11,6 +12,7 @@ use Tests\Feature\Moderation\ModerationTestCase;
 class PointsTest extends ModerationTestCase
 {
     use RefreshDatabase;
+    use StartsWithNoPoints;
 
     private const OWNER = 'aaaaaaaa-0000-4000-8000-00000000000a';
 

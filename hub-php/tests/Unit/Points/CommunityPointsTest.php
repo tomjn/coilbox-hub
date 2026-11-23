@@ -4,6 +4,7 @@ namespace Tests\Unit\Points;
 
 use App\Domain\Points\CommunityPoints;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\StartsWithNoPoints;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\QueryException;
 use Tests\TestCase;
@@ -11,6 +12,7 @@ use Tests\TestCase;
 class CommunityPointsTest extends TestCase
 {
     use RefreshDatabase;
+    use StartsWithNoPoints;
 
     private const A = 'aaaaaaaa-0000-0000-0000-000000000001';
 

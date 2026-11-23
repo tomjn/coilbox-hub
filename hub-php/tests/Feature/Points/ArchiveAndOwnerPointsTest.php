@@ -4,6 +4,7 @@ namespace Tests\Feature\Points;
 
 use App\Domain\Points\CommunityPoints;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\StartsWithNoPoints;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\Feature\Moderation\ModerationTestCase;
@@ -14,6 +15,7 @@ class ArchiveAndOwnerPointsTest extends ModerationTestCase
 {
     use MirrorFixtures;
     use RefreshDatabase;
+    use StartsWithNoPoints;
 
     private const USER = '11111111-1111-1111-1111-111111111111';
 

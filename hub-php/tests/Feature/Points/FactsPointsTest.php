@@ -5,6 +5,7 @@ namespace Tests\Feature\Points;
 use App\Domain\Points\CommunityPoints;
 use App\Supabase\Supabase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\StartsWithNoPoints;
 use Illuminate\Support\Facades\DB;
 use Tests\Feature\Moderation\ModerationTestCase;
 
@@ -12,6 +13,7 @@ use Tests\Feature\Moderation\ModerationTestCase;
 class FactsPointsTest extends ModerationTestCase
 {
     use RefreshDatabase;
+    use StartsWithNoPoints;
 
     private const FIRST = '11111111-1111-1111-1111-111111111111';
 

@@ -5,6 +5,7 @@ namespace Tests\Feature\Points;
 use App\Domain\Container\Container;
 use App\Domain\Points\CommunityPoints;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\StartsWithNoPoints;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -12,6 +13,7 @@ use Tests\TestCase;
 class BackfillTest extends TestCase
 {
     use RefreshDatabase;
+    use StartsWithNoPoints;
 
     private const OWNER = '11111111-1111-1111-1111-111111111111';
 

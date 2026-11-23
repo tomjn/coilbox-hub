@@ -8,6 +8,7 @@ use App\Supabase\Client;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\StartsWithNoPoints;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -18,6 +19,7 @@ use Tests\TestCase;
 class FirstTextPointsTest extends TestCase
 {
     use RefreshDatabase;
+    use StartsWithNoPoints;
     use SeedsGameCatalogue;
 
     protected function setUp(): void

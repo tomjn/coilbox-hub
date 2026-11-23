@@ -8,6 +8,7 @@ use App\Domain\Points\CommunityPoints;
 use App\Supabase\Local\Values;
 use App\Supabase\Supabase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\StartsWithNoPoints;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\Feature\Moderation\ModerationTestCase;
@@ -16,6 +17,7 @@ use Tests\Feature\Moderation\ModerationTestCase;
 class PicturePointsTest extends ModerationTestCase
 {
     use RefreshDatabase;
+    use StartsWithNoPoints;
 
     private const UPLOADER = '11111111-1111-1111-1111-111111111111';
 

@@ -5,6 +5,7 @@ namespace Tests\Feature\Points;
 use App\Domain\Container\Container;
 use App\Domain\Points\CommunityPoints;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\StartsWithNoPoints;
 use Illuminate\Support\Facades\DB;
 use Tests\Feature\Moderation\ModerationTestCase;
 
@@ -12,6 +13,7 @@ use Tests\Feature\Moderation\ModerationTestCase;
 class ReportPointsTest extends ModerationTestCase
 {
     use RefreshDatabase;
+    use StartsWithNoPoints;
 
     private const REPORTER = 'aaaaaaaa-0000-4000-8000-00000000000a';
 
