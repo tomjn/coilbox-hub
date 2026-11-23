@@ -6,6 +6,7 @@ use App\Auth\GoTrue;
 use App\Auth\HubSession;
 use App\Domain\Gallery\Labels;
 use App\Domain\Gallery\Publisher;
+use App\Domain\Points\CommunityPoints;
 use App\Http\Controllers\Controller;
 use App\Supabase\Supabase;
 use App\Support\HubCache;
@@ -73,6 +74,7 @@ class PublishController extends Controller
         // cached, so without this a new item would not show for an hour.
         HubCache::invalidate([HubCache::ITEMS]);
         $id = (string) $outcome['item']['id'];
+        CommunityPoints::award($userId, CommunityPoints::ITEM, $id);
 
         return redirect('/publish')->with('publish', [
             'publishedId' => $id,

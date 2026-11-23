@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Publish;
 
 use App\Auth\HubSession;
 use App\Domain\Gallery\ItemPage;
+use App\Domain\Points\CommunityPoints;
 use App\Http\Controllers\Controller;
 use App\Supabase\SupabaseException;
 use App\Support\HubCache;
@@ -94,6 +95,7 @@ class EditController extends Controller
                 $supabase->from('item')
                     ->update(['deleted_at' => $withdrawn ? now()->utc()->format('Y-m-d\TH:i:s.v\Z') : null])
                     ->eq('id', $id)->execute();
+                $this->settlePoints($supabase, $id, $withdrawn);
             } catch (SupabaseException $e) {
                 report($e);
             }
@@ -103,6 +105,18 @@ class EditController extends Controller
 
         // The public page says nothing found for a withdrawn item, to its author too.
         return redirect($withdrawn ? '/item/'.$id.'/withdrawn' : '/item/'.$id);
+    }
+
+    /** The item's points follow whether it is live. The author is read back because a restore is the author's, not a moderator's. */
+    private function settlePoints(\App\Supabase\Client $supabase, string $id, bool $withdrawn): void
+    {
+        if ($withdrawn) {
+            CommunityPoints::revoke(CommunityPoints::ITEM, $id);
+
+            return;
+        }
+        $item = $supabase->from('item')->select('author_id')->eq('id', $id)->maybeSingle();
+        CommunityPoints::award($item['author_id'] ?? null, CommunityPoints::ITEM, $id);
     }
 
     /** @return list<string> Lower case, trimmed, no blanks, at most eight. */

@@ -9,6 +9,7 @@ use App\Domain\Gallery\ApiPublish;
 use App\Domain\Gallery\GalleryQuery;
 use App\Domain\Gallery\Publisher;
 use App\Domain\Gallery\SearchParams;
+use App\Domain\Points\CommunityPoints;
 use App\Http\Controllers\Controller;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
@@ -100,6 +101,8 @@ class ItemsApiController extends Controller
         if (! $outcome['ok']) {
             return Api::error($outcome['reason'], ApiPublish::statusForFailure($outcome['status']));
         }
+
+        CommunityPoints::award($auth->userId, CommunityPoints::ITEM, (string) $outcome['item']['id']);
 
         // The same listings the publish form marks stale.
         HubCache::invalidate([HubCache::ITEMS]);

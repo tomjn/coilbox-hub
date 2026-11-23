@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Moderation;
 use App\Auth\HubSession;
 use App\Domain\Moderation\Access;
 use App\Domain\Moderation\Meters;
+use App\Domain\Points\CommunityPoints;
 use App\Supabase\SupabaseException;
 use App\Support\HubCache;
 use Illuminate\Http\RedirectResponse;
@@ -63,6 +64,7 @@ class ReportsController extends ModerationController
         if ($itemId !== '' && $request->input('withdraw') === 'true') {
             try {
                 $supabase->from('item')->update(['deleted_at' => $now])->eq('id', $itemId)->execute();
+                CommunityPoints::revoke(CommunityPoints::ITEM, $itemId);
             } catch (SupabaseException $e) {
                 report($e);
             }
