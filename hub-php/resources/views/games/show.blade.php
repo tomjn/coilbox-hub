@@ -8,6 +8,7 @@
 @use('App\Domain\Games\Download')
 @use('App\Domain\Games\Js')
 @use('App\Domain\Games\Labels')
+@use('App\Domain\Games\Page')
 @use('App\Domain\Games\RichText')
 @use('App\Support\Ui')
 
@@ -51,18 +52,35 @@
                 </dl>
             @endif
             @if ($page['downloads'] !== [])
+                @php $uploads = Page::byUpload($page['downloads']); @endphp
                 {{-- In the order to try them, the order coilbox walks them. A
-                     rapid tag is text, because there is nowhere for it to go. --}}
+                     rapid tag is text, because there is nowhere for it to go.
+                     A mirror copy names its file and host, as on map pages. --}}
                 <ul class="flex flex-wrap items-center gap-3">
-                    @foreach ($page['downloads'] as $i => $download)
+                    @foreach ($uploads['current'] as $i => $download)
                         @php $href = Download::downloadHref($download); @endphp
                         @if ($href === null)
                             <li class="text-sm text-neutral-400">Install with rapid: <code class="rounded bg-neutral-900 px-2 py-1 font-mono text-neutral-200">{{ $download['value'] }}</code></li>
                         @else
-                            <li class="text-sm"><a href="/games/{{ $page['shortname'] }}/download/{{ $i }}" rel="nofollow noreferrer" class="{{ $control }}">{{ $download['kind'] === 'github' ? 'Releases on GitHub' : 'Download this game' }}</a></li>
+                            <li class="text-sm"><a href="/games/{{ $page['shortname'] }}/download/{{ $i }}" rel="nofollow noreferrer" class="{{ $control }}">{{ match (true) { $download['kind'] === 'github' => 'Releases on GitHub', isset($download['sha256']) => 'Download '.$download['filename'].' from '.parse_url($download['value'], PHP_URL_HOST), default => 'Download this game' } }}</a></li>
                         @endif
                     @endforeach
                 </ul>
+                @if ($uploads['older'] !== [])
+                    <details class="text-sm text-neutral-400">
+                        <summary class="cursor-pointer text-neutral-300 hover:text-white">Older versions</summary>
+                        <ul class="mt-2 flex flex-col gap-2">
+                            @foreach ($uploads['older'] as $upload)
+                                <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                    <span class="text-neutral-200">{{ $upload['version'] !== '' ? 'Version '.$upload['version'] : $upload['filename'] }}</span>
+                                    @foreach ($upload['copies'] as $i => $copy)
+                                        <a href="/games/{{ $page['shortname'] }}/download/{{ $i }}" rel="nofollow noreferrer" class="{{ $link }}">{{ $copy['filename'] }} from {{ parse_url($copy['value'], PHP_URL_HOST) }}</a>
+                                    @endforeach
+                                </li>
+                            @endforeach
+                        </ul>
+                    </details>
+                @endif
             @endif
             @if ($ownerControls)
                 {{-- The pen and the hide switch, for the owner or a moderator. --}}

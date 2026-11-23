@@ -48,8 +48,8 @@ final class Cached
     /** One game's page, or null for a shortname nobody holds. */
     public static function gamePage(string $shortname): ?array
     {
-        // v3: factions gained `tagline` and `description`. Bump when the shape changes, so a deploy does not serve week old entries without them.
-        return self::remember('games:page:v3:'.$shortname, [HubCache::GAMES, HubCache::DOWNLOADS], function () use ($shortname) {
+        // v4: downloads gained the hub mirrors' copies. Bump when the shape changes, so a deploy does not serve week old entries without them.
+        return self::remember('games:page:v4:'.$shortname, [HubCache::GAMES, HubCache::DOWNLOADS], function () use ($shortname) {
             if (! Supabase::configured()) {
                 return null;
             }
