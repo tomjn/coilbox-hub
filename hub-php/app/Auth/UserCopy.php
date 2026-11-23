@@ -25,6 +25,9 @@ final class UserCopy
     /** `copy_hash` on an account made on the hub, which Supabase does not have. */
     public const MADE_ON_HUB = 'made-on-hub';
 
+    /** The providers Supabase signed people in with, which the hub has to take over before the switch. */
+    private const SUPABASE_PROVIDERS = ['discord', 'github', 'twitch'];
+
     /** @param Closure(string): void $say */
     public function __construct(private readonly Closure $say) {}
 
@@ -104,7 +107,8 @@ final class UserCopy
     /**
      * What has to happen before sign in can move: every area's rules in
      * MariaDB, so a session with no Supabase token can still read and write,
-     * and each provider's app id and secret set.
+     * and the app id and secret set for each provider Supabase signed people
+     * in with.
      *
      * @return list<string>
      */
@@ -116,7 +120,7 @@ final class UserCopy
                 $waiting[] = "Run {$area}:copy first.";
             }
         }
-        foreach (array_keys(GoTrue::PROVIDERS) as $provider) {
+        foreach (self::SUPABASE_PROVIDERS as $provider) {
             if (! HubSignIn::configured($provider)) {
                 $upper = strtoupper($provider);
                 $waiting[] = "Set {$upper}_CLIENT_ID and {$upper}_CLIENT_SECRET, then run php artisan config:cache.";

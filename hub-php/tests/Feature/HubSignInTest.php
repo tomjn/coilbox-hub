@@ -50,6 +50,7 @@ class HubSignInTest extends TestCase
             'services.discord' => ['client_id' => 'discord-id', 'client_secret' => 'discord-secret'],
             'services.github' => ['client_id' => 'github-id', 'client_secret' => 'github-secret'],
             'services.twitch' => ['client_id' => 'twitch-id', 'client_secret' => 'twitch-secret'],
+            'services.google' => ['client_id' => 'google-id', 'client_secret' => 'google-secret'],
         ]);
         $this->withoutMiddleware(ValidateCsrfToken::class);
         DB::table('auth_user')->delete();
@@ -58,7 +59,7 @@ class HubSignInTest extends TestCase
     /** @return array<string, array{string}> */
     public static function providers(): array
     {
-        return ['discord' => ['discord'], 'github' => ['github'], 'twitch' => ['twitch']];
+        return ['discord' => ['discord'], 'github' => ['github'], 'google' => ['google'], 'twitch' => ['twitch']];
     }
 
     /** @return array<string, array{string, string}> */
@@ -67,6 +68,7 @@ class HubSignInTest extends TestCase
         return [
             'discord' => ['discord', 'https://discord.com/api/oauth2/authorize'],
             'github' => ['github', 'https://github.com/login/oauth/authorize'],
+            'google' => ['google', 'https://accounts.google.com/o/oauth2/auth'],
             'twitch' => ['twitch', 'https://id.twitch.tv/oauth2/authorize'],
         ];
     }
@@ -117,7 +119,15 @@ class HubSignInTest extends TestCase
         ]);
 
         $this->get('/sign-in')->assertOk()->assertSee('Sign in with GitHub')->assertDontSee('Sign in with Twitch');
-        $this->getJson('/api/v1/auth')->assertOk()->assertJsonPath('providers', ['discord', 'github']);
+        $this->getJson('/api/v1/auth')->assertOk()->assertJsonPath('providers', ['discord', 'github', 'google']);
+    }
+
+    public function test_the_google_button_has_googles_mark_on_white(): void
+    {
+        $this->get('/sign-in')->assertOk()
+            ->assertSee('Sign in with Google')
+            ->assertSee('fill="#4285F4"', false)
+            ->assertSee('bg-white', false);
     }
 
     public function test_a_linked_provider_that_is_no_longer_set_up_can_still_be_unlinked_but_not_linked_again(): void
@@ -229,6 +239,38 @@ class HubSignInTest extends TestCase
         $this->assertNull(DB::table('auth_user')->where('id', session('hub.user_id'))->value('email_confirmed_at'));
     }
 
+    public function test_an_unverified_google_email_does_not_join_an_account(): void
+    {
+        $this->account(self::ALICE, 'alice@example.test', [['github', '1']]);
+
+        $this->signInWith('google', ['email' => 'alice@example.test', 'verified' => false])->assertRedirect('/');
+
+        $this->assertNotSame(self::ALICE, session('hub.user_id'));
+        $this->assertSame(2, DB::table('auth_user')->count());
+        $this->assertNull(DB::table('auth_user')->where('id', session('hub.user_id'))->value('email_confirmed_at'));
+    }
+
+    public function test_a_google_identity_keeps_the_names_and_picture_supabase_would_have(): void
+    {
+        $this->signInWith('google', ['email' => 'new@example.test'])->assertRedirect('/');
+
+        $data = json_decode(DB::table('auth_identity')->where('provider', 'google')->value('identity_data'), true);
+        $this->assertSame('https://accounts.google.com', $data['iss']);
+        $this->assertSame('Pat Person', $data['name']);
+        $this->assertSame('Pat Person', $data['full_name']);
+        $this->assertSame('https://lh3.example.test/p', $data['avatar_url']);
+        $this->assertTrue($data['email_verified']);
+    }
+
+    public function test_a_google_account_with_no_name_still_signs_in(): void
+    {
+        $this->signInWith('google', ['email' => 'quiet@example.test', 'name' => null])->assertRedirect('/');
+
+        $userId = session('hub.user_id');
+        $this->assertNotNull($userId);
+        $this->assertNotSame('', (string) DB::table('profile')->where('user_id', $userId)->value('display_name'));
+    }
+
     public function test_an_email_two_accounts_share_joins_neither(): void
     {
         $this->account(self::ALICE, 'same@example.test', [['github', '1']]);
@@ -312,6 +354,18 @@ class HubSignInTest extends TestCase
 
         $this->assertSame(self::PROVIDER_ID, DB::table('auth_identity')->where('user_id', self::ALICE)->where('provider', 'twitch')->value('provider_id'));
         $this->assertEqualsCanonicalizing(['github', 'twitch'], json_decode(DB::table('auth_user')->where('id', self::ALICE)->value('app_metadata'), true)['providers']);
+        $this->assertSame(self::ALICE, session('hub.user_id'));
+    }
+
+    public function test_linking_adds_google_to_the_signed_in_account(): void
+    {
+        $this->account(self::ALICE, 'alice@example.test', [['github', '1']]);
+
+        $state = $this->stateFrom($this->asAlice()->post('/auth/link', ['provider' => 'google']));
+        $this->fakeProvider('google', ['email' => 'other@example.test']);
+        $this->get('/auth/google/callback?code=c&state='.$state)->assertRedirect('/account#sign-in-methods');
+
+        $this->assertSame(self::PROVIDER_ID, DB::table('auth_identity')->where('user_id', self::ALICE)->where('provider', 'google')->value('provider_id'));
         $this->assertSame(self::ALICE, session('hub.user_id'));
     }
 
@@ -553,6 +607,12 @@ class HubSignInTest extends TestCase
             ],
             'discord' => [$token,
                 self::reply(['id' => self::PROVIDER_ID, 'username' => 'Pat Person', 'discriminator' => '0', 'global_name' => 'Pat', 'avatar' => null, 'email' => $email, 'verified' => $person['verified'] ?? true]),
+            ],
+            'google' => [$token,
+                self::reply(array_filter([
+                    'sub' => self::PROVIDER_ID, 'name' => $person['name'] ?? 'Pat Person', 'picture' => 'https://lh3.example.test/p',
+                    'email' => $email, 'email_verified' => $person['verified'] ?? true,
+                ], fn ($value) => $value !== null)),
             ],
             'twitch' => [$token,
                 self::reply(['data' => [['id' => self::PROVIDER_ID, 'login' => 'pat', 'display_name' => 'Pat Person', 'profile_image_url' => 'https://img.example.test/p', 'email' => $email]]]),

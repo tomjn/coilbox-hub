@@ -48,6 +48,7 @@ class HubTokensTest extends TestCase
             'services.discord' => ['client_id' => 'discord-id', 'client_secret' => 'discord-secret'],
             'services.github' => ['client_id' => 'github-id', 'client_secret' => 'github-secret'],
             'services.twitch' => ['client_id' => 'twitch-id', 'client_secret' => 'twitch-secret'],
+            'services.google' => ['client_id' => 'google-id', 'client_secret' => 'google-secret'],
         ]);
         DB::table('auth_user')->delete();
         $this->account(self::ALICE, 'alice@example.test', [['github', self::PROVIDER_ID]]);
@@ -60,6 +61,7 @@ class HubTokensTest extends TestCase
         return [
             'discord' => ['discord', 'https://discord.com/api/oauth2/authorize'],
             'github' => ['github', 'https://github.com/login/oauth/authorize'],
+            'google' => ['google', 'https://accounts.google.com/o/oauth2/auth'],
             'twitch' => ['twitch', 'https://id.twitch.tv/oauth2/authorize'],
         ];
     }
@@ -93,7 +95,7 @@ class HubTokensTest extends TestCase
         $this->authorize('discord', ['code_challenge' => 'short'])->assertStatus(400);
         $this->authorize('discord', ['code_challenge_method' => 'md5'])->assertStatus(400);
         $this->authorize('discord', ['code_challenge_method' => 'plain'])->assertStatus(400)->assertJsonPath('msg', 'code_challenge_method must be s256');
-        $this->authorize('google')->assertStatus(400)->assertExactJson(['code' => 400, 'error_code' => 'validation_failed', 'msg' => 'Unsupported provider: provider is not enabled']);
+        $this->authorize('gitlab')->assertStatus(400)->assertExactJson(['code' => 400, 'error_code' => 'validation_failed', 'msg' => 'Unsupported provider: provider is not enabled']);
         config(['services.twitch' => ['client_id' => null, 'client_secret' => null]]);
         $this->authorize('twitch')->assertStatus(400);
         $this->assertSame(0, DB::table('auth_sign_in')->count());

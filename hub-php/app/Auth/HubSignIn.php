@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\AbstractProvider;
 use Laravel\Socialite\Two\GithubProvider;
+use Laravel\Socialite\Two\GoogleProvider;
 use Laravel\Socialite\Two\TwitchProvider;
 use SocialiteProviders\Discord\Provider as DiscordProvider;
 
@@ -25,6 +26,7 @@ final class HubSignIn
     private const CLASSES = [
         'discord' => DiscordProvider::class,
         'github' => GithubProvider::class,
+        'google' => GoogleProvider::class,
         'twitch' => TwitchProvider::class,
     ];
 

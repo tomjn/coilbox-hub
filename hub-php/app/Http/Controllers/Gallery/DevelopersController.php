@@ -129,7 +129,7 @@ class DevelopersController extends Controller
             'publishable_key' => 'sb_publishable_PLACEHOLDER',
             'asset_vocabulary' => self::ASSET_VOCABULARY_DIGEST,
             'map_catalog' => self::MAP_CATALOG_DIGEST,
-            'providers' => ['discord', 'github', 'twitch'],
+            'providers' => ['discord', 'github', 'google', 'twitch'],
             'email_password' => AuthDiscovery::EMAIL_PASSWORD_ENABLED,
             'endpoints' => AuthDiscovery::ENDPOINTS,
         ];
