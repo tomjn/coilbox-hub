@@ -4,6 +4,7 @@ namespace App\Supabase\Local;
 
 use App\Auth\GoTrue;
 use App\Auth\HubAccounts;
+use App\Domain\Points\PicturePoints;
 use App\Supabase\Supabase;
 use Illuminate\Support\Facades\DB;
 
@@ -64,6 +65,7 @@ final class AssetTriggers
             self::recordWithdrawal($old, $new);
         }
         self::syncFactionLogo($old, $new);
+        PicturePoints::changed($old, $new);
     }
 
     /**
