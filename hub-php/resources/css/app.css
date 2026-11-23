@@ -53,6 +53,7 @@
        default dark theme, so the two sites' headers match. */
     --nav: #dfdfd6;
     --brand: #a8b1ff;
+    --points: #fbbf24;
     /* The same theme's secondary text and hero buttons, for the homepage. */
     --muted: #98989f;
     --button: #3e63dd;
@@ -75,6 +76,7 @@
     --color-card: var(--card);
     --color-nav: var(--nav);
     --color-brand: var(--brand);
+    --color-points: var(--points);
     --color-muted: var(--muted);
     --color-button: var(--button);
     --color-button-hover: var(--button-hover);

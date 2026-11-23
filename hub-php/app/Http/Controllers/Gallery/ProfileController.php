@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Gallery;
 
+use App\Auth\HubSession;
+use App\Domain\Points\CommunityPoints;
 use App\Domain\Profile\Contributions;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Response;
@@ -21,6 +23,8 @@ class ProfileController extends Controller
             'title' => $contributions['name'],
             'accountId' => $accountId,
             'contributions' => $contributions,
+            // Read here, not in Contributions::cached, because that cache is shared and the total is private.
+            'points' => HubSession::userId() === $accountId ? CommunityPoints::total($accountId) : null,
         ]);
     }
 }

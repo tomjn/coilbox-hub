@@ -22,6 +22,9 @@
     <x-ui.art-backdrop drawing="games" :strength="0.09" />
     <div class="relative z-10 mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-12">
         <h1 class="break-words text-3xl font-semibold tracking-tight">{{ $contributions['name'] }}</h1>
+        @if ($points !== null)
+            <p class="mt-1 text-sm"><span class="font-semibold text-points">{{ number_format($points) }}</span> community points</p>
+        @endif
         <div class="flex flex-col gap-8">
             @foreach ($sections as $section)
                 <section class="flex flex-col gap-3 border-t border-neutral-900 pt-6">
