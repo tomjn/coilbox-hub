@@ -7,8 +7,9 @@
     use App\Domain\Gallery\Labels;
     $cardTitle = $title ?? ['title' => $item['title'], 'tail' => null];
     $countLine = $counts !== null ? Cards::projectCountLine($counts) : '';
+    // By id, because `author_name` is a snapshot and the account may have been renamed since.
     $authorHref = $item['author_id'] !== null
-        ? GalleryQuery::filterHref($filters, ['author' => [], 'account' => [$item['author_id']]])
+        ? '/profile/'.$item['author_id']
         : GalleryQuery::filterHref($filters, ['author' => [$item['author_name']]]);
 @endphp
 <article class="flex h-full flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5">
