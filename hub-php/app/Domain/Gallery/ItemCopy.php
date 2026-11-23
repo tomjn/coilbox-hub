@@ -119,7 +119,7 @@ final class ItemCopy
 
     private function copy(string $table, string $key): int
     {
-        $types = Tables::columns($table);
+        $types = array_diff_key(Tables::columns($table), array_flip(Tables::MARIADB_ONLY[$table] ?? []));
         foreach ($this->supabase->rowsKeepingObjects($table, 'select=*&limit=1') as $sample) {
             $unknown = array_diff(array_keys($sample), array_keys($types), ['search']);
             if ($unknown !== []) {
