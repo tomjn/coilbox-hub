@@ -116,6 +116,9 @@ class PagesTest extends ModerationTestCase
         $html = $this->signedIn()->get('/moderation/users?q=+user+&page=2')->assertOk()->getContent();
 
         $this->assertStringContainsString('Unknown', $html);
+        // A named account links to its profile. The one with no name has no profile to link to.
+        $this->assertStringContainsString('href="/profile/User%201"', $html);
+        $this->assertStringNotContainsString('href="/profile/00000000-0000-4000-8000-000000000000"', $html);
         $this->assertStringContainsString('moderator, can_mystery', $html);
         $this->assertStringContainsString('href="/moderation/users?q=user"', $html);
         $this->assertStringContainsString('href="/moderation/users?q=user&amp;page=3"', $html);

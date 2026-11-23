@@ -3,6 +3,8 @@
 namespace App\Domain\Profile;
 
 use App\Domain\Gallery\GalleryQuery;
+use App\Domain\Games\GameArt;
+use App\Domain\Maps\Listing;
 use App\Domain\Maps\Lookup;
 use App\Supabase\Client;
 use App\Supabase\Supabase;
@@ -55,33 +57,56 @@ final class Contributions
         }
 
         $maps = Lookup::applyListingRule(
-            $anon->from('map')->select('slug,map_name,display_name', 'exact')->eq('submitted_by', $userId),
+            $anon->from('map')->select('id', 'exact')->eq('submitted_by', $userId),
             $rule,
         )->order('created_at', ascending: false)->limit(GalleryQuery::PAGE_SIZE)->getWithCount();
+        $cards = self::mapCards($anon, array_map(fn ($row) => (string) $row['id'], $maps['rows']));
 
         $pictures = $anon->from('asset')->select('id', 'exact', head: true)->eq('uploaded_by', $userId)->getWithCount();
 
-        $games = $anon->from('game')->select('shortname,display_name', 'exact')->eq('submitted_by', $userId)
+        $games = $anon->from('game')->select('shortname,display_name,logo_path,logo_hash,logo_staged_tier', 'exact')->eq('submitted_by', $userId)
             ->order('created_at', ascending: false)->limit(GalleryQuery::PAGE_SIZE)->getWithCount();
 
-        $items = $anon->from('item')->select('id,title', 'exact')->eq('author_id', $userId)
+        $items = $anon->from('item')->select('id,title,kind,mode,created_at', 'exact')->eq('author_id', $userId)
             ->order('created_at', ascending: false)->limit(GalleryQuery::PAGE_SIZE)->getWithCount();
 
         return [
             'name' => $name,
             'maps' => [
                 'count' => $maps['count'] ?? 0,
-                'recent' => array_map(fn ($row) => ['slug' => $row['slug'], 'label' => $row['display_name'] ?? $row['map_name']], $maps['rows']),
+                'recent' => $cards,
+                'pictures' => Listing::pictures($anon, $cards),
             ],
             'pictures' => ['count' => $pictures['count'] ?? 0],
             'games' => [
                 'count' => $games['count'] ?? 0,
-                'recent' => array_map(fn ($row) => ['shortname' => $row['shortname'], 'label' => $row['display_name'] ?? $row['shortname']], $games['rows']),
+                'recent' => array_map(fn ($row) => ['shortname' => $row['shortname'], 'label' => $row['display_name'] ?? $row['shortname'], 'logo' => GameArt::fromRow($row, 'logo')], $games['rows']),
             ],
             'items' => [
                 'count' => $items['count'] ?? 0,
-                'recent' => array_map(fn ($row) => ['id' => $row['id'], 'title' => $row['title']], $items['rows']),
+                'recent' => array_map(fn ($row) => [
+                    'id' => $row['id'], 'title' => $row['title'], 'kind' => $row['kind'], 'mode' => $row['mode'] ?? null, 'created_at' => $row['created_at'],
+                ], $items['rows']),
             ],
         ];
+    }
+
+    /**
+     * The catalog's card for each map, newest first as the ids are given.
+     *
+     * @param  list<string>  $ids
+     * @return list<array<string, mixed>>
+     */
+    private static function mapCards(Client $anon, array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $byId = [];
+        foreach ($anon->from('map_browse')->select(Listing::SUMMARY_COLUMNS)->in('id', $ids)->get() as $map) {
+            $byId[(string) $map['id']] = $map;
+        }
+
+        return array_values(array_filter(array_map(fn (string $id) => $byId[$id] ?? null, $ids)));
     }
 }

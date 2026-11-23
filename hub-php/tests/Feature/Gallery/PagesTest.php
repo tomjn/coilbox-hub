@@ -72,12 +72,14 @@ class PagesTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_a_profile_address_that_is_not_a_uuid_is_a_404(): void
+    public function test_a_profile_address_naming_nobody_is_a_404_after_one_name_lookup(): void
     {
         Http::fake();
 
-        $this->get('/profile/not-a-uuid')->assertNotFound();
-        Http::assertNothingSent();
+        $this->get('/profile/not-a-name')->assertNotFound();
+        $urls = Http::recorded()->map(fn ($pair) => $pair[0]->url())->all();
+        $this->assertCount(1, $urls);
+        $this->assertStringContainsString('/rest/v1/profile?', $urls[0]);
     }
 
     public function test_an_item_page_is_a_404_when_postgrest_returns_nothing(): void
