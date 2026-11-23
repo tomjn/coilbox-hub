@@ -19,6 +19,8 @@ class ArchiveAndOwnerPointsTest extends ModerationTestCase
 
     private const OTHER = '22222222-2222-2222-2222-222222222222';
 
+    private const GAME = 'bbbbbbbb-0000-4000-8000-000000000001';
+
     private const ARCHIVE = 'dddddddd-0000-4000-8000-000000000001';
 
     /** The first hash the fixture report holds. */
@@ -100,13 +102,11 @@ class ArchiveAndOwnerPointsTest extends ModerationTestCase
         $this->assertSame(0, CommunityPoints::total(self::OTHER));
     }
 
-    public function test_removing_the_archive_takes_the_points_back(): void
+    public function test_the_uploader_withdrawing_the_archive_takes_the_points_back(): void
     {
-        $this->archive();
+        $this->archive(['uploader' => self::MODERATOR]);
         $this->report();
-        $this->supabase(moderator: false);
-        DB::table('archive')->where('id', self::ARCHIVE)->update(['uploader' => self::MODERATOR]);
-        DB::table('community_point')->update(['user_id' => self::MODERATOR]);
+        $this->assertSame(20, CommunityPoints::total(self::MODERATOR));
 
         $this->signedIn()->post('/account/uploads/withdraw', ['archive_id' => self::ARCHIVE]);
 
@@ -118,46 +118,75 @@ class ArchiveAndOwnerPointsTest extends ModerationTestCase
     {
         $this->archive();
         $this->report();
-        $this->supabase();
+        $this->assertSame(20, CommunityPoints::total(self::USER));
 
         $this->signedIn()->post('/moderation/archives/remove', ['archive_id' => self::ARCHIVE, 'reason' => 'broken']);
 
+        $this->assertSame('removed', DB::table('archive')->where('id', self::ARCHIVE)->value('state'));
         $this->assertSame(0, CommunityPoints::total(self::USER));
     }
 
-    /** @param array<string, mixed> $request */
-    private function decide(array $request, bool $approve): void
+    private function game(string $owner): void
     {
-        // The Supabase fake below stands in for the game tables.
-        config(['hub.games_store' => 'supabase']);
-        $this->supabase([
-            'GET /rest/v1/game_ownership_request' => self::reply([$request + ['game_id' => 'g1', 'state' => 'open', 'game' => ['shortname' => 'BA']]]),
-            'PATCH /rest/v1/game_ownership_request' => self::reply([]),
-            'PATCH /rest/v1/game?' => self::reply([]),
+        DB::table('game')->insert([
+            'id' => self::GAME, 'shortname' => 'bar', 'display_name' => 'Beyond All Reason', 'links' => '[]', 'conquest_factions' => '[]',
+            'owner_user_id' => $owner, 'created_at' => '2026-10-01 10:00:00.000000', 'updated_at' => '2026-10-01 10:00:00.000000',
         ]);
-        $this->signedIn()->post('/moderation/games/decide', ['request_id' => '3', 'approve' => $approve ? 'true' : 'false']);
+    }
+
+    private function ask(int $id, string $by): void
+    {
+        DB::table('game_ownership_request')->insert([
+            'id' => $id, 'game_id' => self::GAME, 'requested_by' => $by, 'requested_by_name' => 'Requester',
+            'state' => 'open', 'created_at' => '2026-11-20 10:00:00.000000',
+        ]);
+    }
+
+    private function decide(int $id, bool $approve): void
+    {
+        // Only the moderator check goes to Supabase.
+        $this->supabase();
+        $this->signedIn()->post('/moderation/games/decide', ['request_id' => (string) $id, 'approve' => $approve ? 'true' : 'false']);
     }
 
     public function test_approving_an_ownership_request_gives_100(): void
     {
-        $this->decide(['requested_by' => self::USER], true);
+        $this->game(self::OTHER);
+        $this->ask(1, self::USER);
 
+        $this->decide(1, true);
+
+        $this->assertSame(self::USER, DB::table('game')->where('id', self::GAME)->value('owner_user_id'));
         $this->assertSame(100, CommunityPoints::total(self::USER));
     }
 
     public function test_approving_a_second_request_moves_the_100(): void
     {
-        $this->decide(['requested_by' => self::USER], true);
-        $this->decide(['requested_by' => self::OTHER], true);
+        $this->game(self::OTHER);
+        $this->ask(1, self::USER);
+        $this->ask(2, self::OTHER);
 
+        $this->decide(1, true);
+        $this->decide(2, true);
+
+        $this->assertSame(self::OTHER, DB::table('game')->where('id', self::GAME)->value('owner_user_id'));
         $this->assertSame(0, CommunityPoints::total(self::USER));
         $this->assertSame(100, CommunityPoints::total(self::OTHER));
     }
 
-    public function test_a_declined_request_gives_nothing(): void
+    public function test_a_declined_request_leaves_the_owners_100_alone(): void
     {
-        $this->decide(['requested_by' => self::USER], false);
+        $this->game(self::OTHER);
+        $this->ask(1, self::USER);
+        $this->ask(2, self::OTHER);
+        $this->decide(2, true);
+        $this->assertSame(100, CommunityPoints::total(self::OTHER));
 
-        $this->assertSame(0, DB::table('community_point')->count());
+        $this->decide(1, false);
+
+        $this->assertSame('declined', DB::table('game_ownership_request')->where('id', 1)->value('state'));
+        $this->assertSame(self::OTHER, DB::table('game')->where('id', self::GAME)->value('owner_user_id'));
+        $this->assertSame(100, CommunityPoints::total(self::OTHER));
+        $this->assertSame(0, CommunityPoints::total(self::USER));
     }
 }
