@@ -63,8 +63,10 @@ class ReportsController extends ModerationController
 
         if ($itemId !== '' && $request->input('withdraw') === 'true') {
             try {
-                $supabase->from('item')->update(['deleted_at' => $now])->eq('id', $itemId)->execute();
-                CommunityPoints::revoke(CommunityPoints::ITEM, $itemId);
+                $changed = $supabase->from('item')->update(['deleted_at' => $now])->eq('id', $itemId)->select('id')->get();
+                if ($changed !== []) {
+                    CommunityPoints::revoke(CommunityPoints::ITEM, $itemId);
+                }
             } catch (SupabaseException $e) {
                 report($e);
             }

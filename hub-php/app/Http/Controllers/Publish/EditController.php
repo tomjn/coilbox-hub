@@ -92,10 +92,13 @@ class EditController extends Controller
         $supabase = HubSession::client();
         if ($supabase !== null) {
             try {
-                $supabase->from('item')
+                $changed = $supabase->from('item')
                     ->update(['deleted_at' => $withdrawn ? now()->utc()->format('Y-m-d\TH:i:s.v\Z') : null])
-                    ->eq('id', $id)->execute();
-                $this->settlePoints($supabase, $id, $withdrawn);
+                    ->eq('id', $id)->select('id')->get();
+                // The policy matches no row for somebody else's item and does not throw.
+                if ($changed !== []) {
+                    $this->settlePoints($supabase, $id, $withdrawn);
+                }
             } catch (SupabaseException $e) {
                 report($e);
             }

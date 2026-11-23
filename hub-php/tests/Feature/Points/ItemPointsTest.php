@@ -98,6 +98,20 @@ class ItemPointsTest extends ModerationTestCase
         $this->assertSame(20, CommunityPoints::total(self::OWNER));
     }
 
+    public function test_somebody_else_cannot_withdraw_an_item_or_take_its_points(): void
+    {
+        $this->auth();
+        $id = $this->publishOnTheSite();
+        $stranger = 'bbbbbbbb-0000-4000-8000-00000000000b';
+        DB::table('profile')->insert(['user_id' => $stranger, 'display_name' => 'Stranger', 'created_at' => '2026-10-01 10:00:00.000000', 'updated_at' => '2026-10-01 10:00:00.000000']);
+        $this->auth($stranger);
+
+        $this->as($stranger)->post('/item/'.$id.'/withdraw', ['withdrawn' => 'true'])->assertRedirect();
+
+        $this->assertNull(DB::table('item')->where('id', $id)->value('deleted_at'));
+        $this->assertSame(20, CommunityPoints::total(self::OWNER));
+    }
+
     public function test_a_moderator_withdrawing_an_item_takes_the_points_back(): void
     {
         $this->auth(self::MODERATOR);
