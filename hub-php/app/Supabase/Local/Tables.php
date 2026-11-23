@@ -211,6 +211,7 @@ final class Tables
         'report' => [
             'id' => 'uuid', 'item_id' => 'uuid', 'reporter_id' => 'uuid', 'reason' => 'text', 'created_at' => 'ts',
             'handled_at' => 'ts', 'handled_by' => 'uuid', 'map_id' => 'uuid', 'kind' => 'text',
+            'outcome' => 'text',
         ],
         'profile' => ['user_id' => 'uuid', 'display_name' => 'text', 'created_at' => 'ts', 'updated_at' => 'ts'],
         'user_capability' => ['user_id' => 'uuid', 'capability' => 'text', 'granted_at' => 'ts', 'granted_by' => 'uuid'],

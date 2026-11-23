@@ -32,11 +32,20 @@
                             </div>
                             <p class="text-sm uppercase tracking-wide text-neutral-400">Map: {{ Report::KINDS[$r['kind']] ?? 'Unknown kind' }}</p>
                             <p class="whitespace-pre-wrap text-sm text-neutral-400">{{ $r['reason'] }}</p>
-                            <form method="post" action="/moderation/reports">
-                                @csrf
-                                <input type="hidden" name="report_id" value="{{ $r['id'] }}">
-                                <button type="submit" class="{{ Ui::button() }}">Mark handled</button>
-                            </form>
+                            <div class="flex gap-3">
+                                <form method="post" action="/moderation/reports">
+                                    @csrf
+                                    <input type="hidden" name="report_id" value="{{ $r['id'] }}">
+                                    <input type="hidden" name="outcome" value="upheld">
+                                    <button type="submit" class="{{ Ui::button() }}">Uphold</button>
+                                </form>
+                                <form method="post" action="/moderation/reports">
+                                    @csrf
+                                    <input type="hidden" name="report_id" value="{{ $r['id'] }}">
+                                    <input type="hidden" name="outcome" value="dismissed">
+                                    <button type="submit" class="rounded-md px-4 py-2 text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">Dismiss</button>
+                                </form>
+                            </div>
                         </li>
                     @else
                         <li class="{{ $card }}">
@@ -59,6 +68,7 @@
                                     @csrf
                                     <input type="hidden" name="report_id" value="{{ $r['id'] }}">
                                     <input type="hidden" name="item_id" value="{{ $r['item_id'] }}">
+                                    <input type="hidden" name="outcome" value="dismissed">
                                     <button type="submit" class="rounded-md px-4 py-2 text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">Leave it</button>
                                 </form>
                             </div>

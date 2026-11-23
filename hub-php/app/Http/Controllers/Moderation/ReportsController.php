@@ -71,8 +71,14 @@ class ReportsController extends ModerationController
                 report($e);
             }
         }
+        // Withdrawing is upholding. Anything but an explicit upheld is a dismissal.
+        $outcome = $request->input('withdraw') === 'true' || $request->input('outcome') === 'upheld' ? 'upheld' : 'dismissed';
         try {
-            $supabase->from('report')->update(['handled_at' => $now, 'handled_by' => $userId])->eq('id', $id)->execute();
+            $handled = $supabase->from('report')->update(['handled_at' => $now, 'handled_by' => $userId, 'outcome' => $outcome])
+                ->eq('id', $id)->select('id,reporter_id')->get();
+            if ($outcome === 'upheld' && $handled !== []) {
+                CommunityPoints::award($handled[0]['reporter_id'] ?? null, CommunityPoints::REPORT, $id);
+            }
         } catch (SupabaseException $e) {
             report($e);
         }
