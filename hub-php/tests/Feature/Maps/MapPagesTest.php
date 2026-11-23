@@ -144,7 +144,7 @@ class MapPagesTest extends TestCase
             ->assertDontSee('>medium</a>', false)
             ->assertSee('Page 1 of 1, 1 map')
             ->assertSee('>Clear</a>', false)
-            ->assertDontSee('data-mirror-urls', false);
+            ->assertDontSee('href="/map/comet/mirror"', false);
     }
 
     public function test_a_map_a_mirror_holds_gets_a_download_button(): void
@@ -157,8 +157,9 @@ class MapPagesTest extends TestCase
         ]];
 
         $this->get('/maps?size=medium')->assertOk()
-            // The first mirror without a script. listing.js picks one at random on click.
-            ->assertSee('href="https://one.example/maps/comet.sd7" rel="noreferrer" data-mirror-urls="[&quot;https:\/\/one.example\/maps\/comet.sd7&quot;,&quot;https:\/\/two.example\/maps\/comet.sd7&quot;]"', false)
+            // Through the counter, which picks a mirror at random.
+            ->assertSee('href="/map/comet/mirror" rel="nofollow noreferrer"', false)
+            ->assertDontSee('one.example', false)
             ->assertSee('Download<span class="sr-only"> Comet Catcher Remake 1.8</span>', false);
     }
 
