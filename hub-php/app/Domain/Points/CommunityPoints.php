@@ -73,6 +73,21 @@ final class CommunityPoints
         }
     }
 
+    /**
+     * The subject of a first text award. `$factionKey` is null for a game
+     * field. A faction key too long to fit the 255 character subject column
+     * is replaced by its hash.
+     */
+    public static function firstTextSubject(string $gameId, ?string $factionKey, string $field): string
+    {
+        if ($factionKey === null) {
+            return "game:{$gameId}:{$field}";
+        }
+        $subject = "faction:{$gameId}:{$factionKey}:{$field}";
+
+        return strlen($subject) > 255 ? "faction:{$gameId}:".sha1($factionKey).":{$field}" : $subject;
+    }
+
     /** Takes the points back from whoever holds them. Failures are reported and swallowed. */
     public static function revoke(string $kind, string $subject): void
     {

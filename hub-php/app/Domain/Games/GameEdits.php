@@ -4,6 +4,7 @@ namespace App\Domain\Games;
 
 use App\Domain\Assets\ImageHeader;
 use App\Domain\Assets\Staging;
+use App\Domain\Points\CommunityPoints;
 use App\Supabase\Client;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
@@ -97,11 +98,13 @@ final class GameEdits
         }
         $tagline = trim((string) preg_replace('/\s+/u', ' ', $tagline));
         $description = trim((string) preg_replace('/\r\n?/', "\n", $description));
+        $values = [
+            'tagline' => self::orNull(mb_substr($tagline, 0, self::TAGLINE_MAX)),
+            'description' => self::orNull(trim(mb_substr($description, 0, self::FACTION_DESCRIPTION_MAX))),
+        ];
         try {
-            $rows = $session->from('game_faction')->update([
-                'tagline' => self::orNull(mb_substr($tagline, 0, self::TAGLINE_MAX)),
-                'description' => self::orNull(trim(mb_substr($description, 0, self::FACTION_DESCRIPTION_MAX))),
-            ])->eq('game_id', $game['id'])->eq('key', $key)->select('key')->get();
+            $held = $session->from('game_faction')->select('tagline,description')->eq('game_id', $game['id'])->eq('key', $key)->maybeSingle();
+            $rows = $session->from('game_faction')->update($values)->eq('game_id', $game['id'])->eq('key', $key)->select('key')->get();
         } catch (SupabaseException $e) {
             Log::error("editFactionText: {$shortname} {$key} was not updated", ['error' => $e->getMessage()]);
 
@@ -111,9 +114,20 @@ final class GameEdits
         if ($rows === []) {
             return self::no($messages['notAllowed']);
         }
+        foreach ($values as $field => $value) {
+            self::awardFirstText($userId, CommunityPoints::firstTextSubject($game['id'], $key, $field), $held[$field] ?? null, $value);
+        }
         HubCache::invalidate([HubCache::GAMES]);
 
         return ['ok' => true, 'message' => $messages['saved']];
+    }
+
+    /** Pays the first text in a field, when it was empty before and is not now. */
+    private static function awardFirstText(string $userId, string $subject, ?string $held, ?string $new): void
+    {
+        if (trim((string) $held) === '' && trim((string) $new) !== '') {
+            CommunityPoints::award($userId, CommunityPoints::FIRST_TEXT, $subject);
+        }
     }
 
     /**
@@ -437,10 +451,15 @@ final class GameEdits
         if ($session === null || $userId === null) {
             return self::no($messages['signedOut']);
         }
-        if (Editor::editableGame($session, $userId, $shortname) === null) {
+        $game = Editor::editableGame($session, $userId, $shortname);
+        if ($game === null) {
             return self::no($messages['notAllowed']);
         }
         try {
+            // Only the words form carries a description, and only it can earn first text points.
+            $held = array_key_exists('description', $values)
+                ? $session->from('game')->select('description')->eq('shortname', $shortname)->maybeSingle()
+                : null;
             $rows = $session->from('game')->update($values)->eq('shortname', $shortname)->select('shortname')->get();
         } catch (SupabaseException $e) {
             Log::error("{$action}: {$shortname} was not updated", ['error' => $e->getMessage()]);
@@ -449,6 +468,9 @@ final class GameEdits
         }
         if ($rows === []) {
             return self::no($messages['notAllowed']);
+        }
+        if ($held !== null) {
+            self::awardFirstText($userId, CommunityPoints::firstTextSubject($game['id'], null, 'description'), $held['description'] ?? null, $values['description']);
         }
         HubCache::invalidate([HubCache::GAMES]);
 
