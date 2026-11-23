@@ -25,8 +25,8 @@ final class UserCopy
     /** `copy_hash` on an account made on the hub, which Supabase does not have. */
     public const MADE_ON_HUB = 'made-on-hub';
 
-    /** The providers Supabase signed people in with, which the hub has to take over before the switch. */
-    private const SUPABASE_PROVIDERS = ['discord', 'github', 'twitch'];
+    /** The providers Supabase signed people in with, which the hub has to take over before sign in or Coilbox's tokens move to it. */
+    public const SUPABASE_PROVIDERS = ['discord', 'github', 'twitch'];
 
     /** @param Closure(string): void $say */
     public function __construct(private readonly Closure $say) {}

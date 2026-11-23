@@ -1,6 +1,5 @@
 <?php
 
-use App\Auth\GoTrue;
 use App\Auth\HubAccounts;
 use App\Auth\HubSignIn;
 use App\Auth\UserCopy;
@@ -564,7 +563,7 @@ Artisan::command('tokens:store {state? : mariadb, to have the hub sign Coilbox i
 
             return 1;
         }
-        $missing = array_values(array_filter(array_keys(GoTrue::PROVIDERS), fn (string $provider) => ! HubSignIn::configured($provider)));
+        $missing = array_values(array_filter(UserCopy::SUPABASE_PROVIDERS, fn (string $provider) => ! HubSignIn::configured($provider)));
         if ($missing !== []) {
             $this->error('Set the client id and secret for: '.implode(', ', $missing).'.');
 

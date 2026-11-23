@@ -344,6 +344,13 @@ class HubTokensTest extends TestCase
         $this->assertSame('supabase', DB::table('data_move')->where('area', 'tokens')->value('state'));
     }
 
+    public function test_tokens_store_does_not_wait_for_google_which_supabase_never_had(): void
+    {
+        config(['hub.tokens_store' => null, 'hub.signin_store' => 'mariadb', 'services.google' => ['client_id' => null, 'client_secret' => null]]);
+
+        $this->artisan('tokens:store mariadb --dry-run')->expectsOutputToContain('Dry run')->assertExitCode(0);
+    }
+
     /** @param array<string, string> $override */
     private function authorize(string $provider, array $override = []): TestResponse
     {
