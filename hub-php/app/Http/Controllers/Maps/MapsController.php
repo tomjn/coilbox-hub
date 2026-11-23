@@ -54,10 +54,11 @@ class MapsController extends Controller
         $description = implode(' - ', array_filter([$measures, $facts['description'] ?? null]));
 
         // Decided per visitor, outside the cached page. A signed out visitor
-        // costs no database call. Someone who can already edit is not asked
-        // whether they want to own it.
+        // costs no database call. Someone who can edit because they own it is
+        // not asked whether they want to own it. A moderator can edit every
+        // map, so is still asked, or they could never claim their own.
         $canEdit = Nav::current() !== null && MapEdits::canEdit(HubSession::client(), (string) $page['mapId']);
-        $ownershipTargets = Nav::current() !== null && ! $canEdit ? MapEdits::ownershipTargets($page) : [];
+        $ownershipTargets = Nav::current() !== null && (! $canEdit || Nav::moderates()) ? MapEdits::ownershipTargets($page) : [];
 
         return view('maps.show', $page + [
             'slug' => $slug,

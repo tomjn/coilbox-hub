@@ -118,6 +118,15 @@ class MapEditTest extends TestCase
             ->assertDontSee('Did you make this map?');
     }
 
+    public function test_a_moderator_can_edit_every_map_and_is_still_offered_ownership_of_their_own(): void
+    {
+        $this->canEdit = true;
+        $this->signedIn('granted')->get('/map/comet')->assertOk()
+            ->assertSee('href="/map/comet/edit"', false)
+            ->assertSee('Did you make this map?')
+            ->assertSee('value="author:beherith"', false);
+    }
+
     public function test_a_signed_in_stranger_is_offered_the_map_and_each_unowned_author(): void
     {
         $this->signedIn()->get('/map/comet')->assertOk()
