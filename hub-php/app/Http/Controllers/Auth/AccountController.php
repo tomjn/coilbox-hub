@@ -10,6 +10,7 @@ use App\Auth\HubSession;
 use App\Auth\HubSignIn;
 use App\Auth\QrCode;
 use App\Domain\Account\AccountRules;
+use App\Domain\Points\CommunityPoints;
 use App\Supabase\Client;
 use App\Supabase\Local\ItemRules;
 use App\Supabase\Local\ItemStore;
@@ -127,6 +128,8 @@ class AccountController
             }
         }
         AuthUsers::forget($userId);
+        // Always in MariaDB, whatever the store settings say.
+        CommunityPoints::forget($userId);
         if ($itemsLocal) {
             ItemRules::forgetAccount($userId);
         }

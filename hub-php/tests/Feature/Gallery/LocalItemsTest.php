@@ -476,6 +476,12 @@ class LocalItemsTest extends ModerationTestCase
             ItemRules::jsonbText(json_decode(DB::table('item')->value('container'))));
         $this->assertSame('2026-10-01 10:00:00.250000', DB::table('user_capability')->value('granted_at'));
         $this->assertSame(self::MAP, DB::table('report')->value('map_id'));
+        // Supabase has no `report.outcome`, so selecting it would fail the copy.
+        $reportSelects = array_values(array_filter($this->sent, fn (Request $r) => str_contains($r->url(), '/rest/v1/report?') && str_contains(urldecode($r->url()), 'select=id,')));
+        $this->assertNotSame([], $reportSelects);
+        foreach ($reportSelects as $r) {
+            $this->assertStringNotContainsString('outcome', $r->url());
+        }
 
         $this->artisan('items:copy')->expectsOutputToContain('already reads published items from MariaDB')->assertExitCode(1);
         config(['hub.mirrors_store' => 'supabase']);

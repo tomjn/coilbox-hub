@@ -34,6 +34,9 @@ final class Tables
     /** Published items, reports, profiles and capabilities (#601), with the `item_facet` view. They move on their own switch. */
     public const ITEMS = ['item', 'report', 'profile', 'user_capability', 'item_facet'];
 
+    /** Columns real Supabase does not have, so a copy from it must not select them. @var array<string, list<string>> */
+    public const MARIADB_ONLY = ['report' => ['outcome']];
+
     /** Views worked out by {@see MapViews}. Read only. */
     public const MAP_VIEWS = ['map_browse', 'map_listing', 'map_pack_entry', 'author_spelling', 'author_display_name', 'author_map_count'];
 
@@ -211,6 +214,7 @@ final class Tables
         'report' => [
             'id' => 'uuid', 'item_id' => 'uuid', 'reporter_id' => 'uuid', 'reason' => 'text', 'created_at' => 'ts',
             'handled_at' => 'ts', 'handled_by' => 'uuid', 'map_id' => 'uuid', 'kind' => 'text',
+            'outcome' => 'text',
         ],
         'profile' => ['user_id' => 'uuid', 'display_name' => 'text', 'created_at' => 'ts', 'updated_at' => 'ts'],
         'user_capability' => ['user_id' => 'uuid', 'capability' => 'text', 'granted_at' => 'ts', 'granted_by' => 'uuid'],

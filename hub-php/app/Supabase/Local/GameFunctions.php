@@ -2,6 +2,7 @@
 
 namespace App\Supabase\Local;
 
+use App\Domain\Points\CommunityPoints;
 use App\Supabase\Client;
 use Illuminate\Support\Facades\DB;
 use stdClass;
@@ -67,6 +68,7 @@ final class GameFunctions
             $now = Values::now();
             $shortname = self::text($submission, 'shortname');
             $game = $shortname === null ? null : DB::table('game')->where('shortname', $shortname)->lockForUpdate()->first();
+            $isNew = $game === null;
             if ($game === null) {
                 // The first report of a shortname creates the game.
                 $startUnits = is_array($submission->start_units ?? null) ? self::texts($submission->start_units) : null;
@@ -103,6 +105,7 @@ final class GameFunctions
 
             // The release. last_seen_at moves on every report.
             $version = DB::table('game_version')->where('game_id', $gameId)->where('version', $release)->lockForUpdate()->first();
+            $isNew = $isNew || $version === null;
             if ($version === null) {
                 Writes::insert($caller, 'game_version', Writes::complete($caller, 'game_version', ['game_id' => $gameId, 'version' => $release], $now));
             } else {
@@ -133,6 +136,12 @@ final class GameFunctions
                 if (! $refused) {
                     DB::table('game_version')->where('game_id', $gameId)->where('version', $release)->update(['reported_in_full' => true]);
                 }
+            }
+
+            // Factions are always accepted, so only units can show new facts.
+            $reported = array_filter($units, fn (array $unit) => in_array($unit['outcome'], ['accepted', 'recorded'], true));
+            if ($isNew || $reported !== []) {
+                CommunityPoints::award($submittedBy, CommunityPoints::GAME_FACTS, $gameId.':'.$release);
             }
 
             return $results;

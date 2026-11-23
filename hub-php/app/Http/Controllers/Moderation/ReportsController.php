@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Moderation;
 use App\Auth\HubSession;
 use App\Domain\Moderation\Access;
 use App\Domain\Moderation\Meters;
+use App\Domain\Points\CommunityPoints;
 use App\Supabase\SupabaseException;
 use App\Support\HubCache;
 use Illuminate\Http\RedirectResponse;
@@ -62,13 +63,24 @@ class ReportsController extends ModerationController
 
         if ($itemId !== '' && $request->input('withdraw') === 'true') {
             try {
-                $supabase->from('item')->update(['deleted_at' => $now])->eq('id', $itemId)->execute();
+                $changed = $supabase->from('item')->update(['deleted_at' => $now])->eq('id', $itemId)->select('id')->get();
+                if ($changed !== []) {
+                    CommunityPoints::revoke(CommunityPoints::ITEM, $itemId);
+                }
             } catch (SupabaseException $e) {
                 report($e);
             }
         }
+        // Withdrawing is upholding. Anything but an explicit upheld is a dismissal.
+        $outcome = $request->input('withdraw') === 'true' || $request->input('outcome') === 'upheld' ? 'upheld' : 'dismissed';
         try {
-            $supabase->from('report')->update(['handled_at' => $now, 'handled_by' => $userId])->eq('id', $id)->execute();
+            $handled = $supabase->from('report')->update(['handled_at' => $now, 'handled_by' => $userId, 'outcome' => $outcome])
+                ->eq('id', $id)->select('id,reporter_id')->get();
+            // A moderator does not earn points for upholding their own report.
+            $reporter = $handled[0]['reporter_id'] ?? null;
+            if ($outcome === 'upheld' && $handled !== [] && $reporter !== $userId) {
+                CommunityPoints::award($reporter, CommunityPoints::REPORT, $id);
+            }
         } catch (SupabaseException $e) {
             report($e);
         }

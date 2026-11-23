@@ -3,6 +3,7 @@
 namespace App\Supabase\Local;
 
 use App\Domain\Maps\Authors;
+use App\Domain\Points\CommunityPoints;
 use App\Supabase\Client;
 use App\Supabase\SupabaseException;
 use Illuminate\Database\QueryException;
@@ -295,6 +296,7 @@ final class MapFunctions
         if ($outcome === 'stored' || $outcome === 'replaced') {
             self::replaceDetails($id, $entry);
             MapShadow::pushMaps([$id]);
+            CommunityPoints::award($submittedBy, CommunityPoints::MAP, $id);
         }
 
         return $outcome;
@@ -442,6 +444,7 @@ final class MapFunctions
             }
             DB::table('map_source_conflict')->where('map_id', $mapId)->delete();
             DB::table('map')->where('id', $mapId)->delete();
+            CommunityPoints::revoke(CommunityPoints::MAP, $mapId);
             MapShadow::clear($mapId);
 
             return true;

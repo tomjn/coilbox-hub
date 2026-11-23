@@ -2,6 +2,7 @@
 
 namespace App\Supabase\Local;
 
+use App\Domain\Points\CommunityPoints;
 use App\Supabase\Client;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -181,10 +182,12 @@ final class MirrorFunctions
             ]);
 
             $listing = ['state' => 'listed', 'listed_at' => $now, 'reserved_until' => null];
-            $listed = self::touch(
-                DB::table('archive')->where('state', 'uploading')->where('upload_mirror_id', $mirrorId)->whereIn('sha256', $held),
-                $listing, $now,
-            );
+            $uploading = DB::table('archive')->where('state', 'uploading')->where('upload_mirror_id', $mirrorId)->whereIn('sha256', $held);
+            $uploaders = (clone $uploading)->lockForUpdate()->get(['id', 'uploader']);
+            $listed = self::touch($uploading, $listing, $now);
+            foreach ($uploaders as $row) {
+                CommunityPoints::award($row->uploader, CommunityPoints::ARCHIVE, $row->id);
+            }
 
             // After the live uploads, so an upload in progress wins over an old
             // one. The newest failed row for each hash is the one tried, and one
@@ -199,9 +202,13 @@ final class MirrorFunctions
                 }
                 $tried[$row->sha256] = true;
                 try {
-                    $revived += DB::transaction(fn () => self::touch(
+                    $done = DB::transaction(fn () => self::touch(
                         DB::table('archive')->where('id', $row->id)->where('state', 'failed'), $listing, $now,
                     ));
+                    $revived += $done;
+                    if ($done === 1) {
+                        CommunityPoints::award(DB::table('archive')->where('id', $row->id)->value('uploader'), CommunityPoints::ARCHIVE, $row->id);
+                    }
                 } catch (\Illuminate\Database\UniqueConstraintViolationException) {
                     // Something else took its hash, name or name and version.
                 }
