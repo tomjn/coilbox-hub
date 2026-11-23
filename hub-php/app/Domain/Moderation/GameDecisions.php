@@ -3,6 +3,7 @@
 namespace App\Domain\Moderation;
 
 use App\Domain\Games\Editor;
+use App\Domain\Points\CommunityPoints;
 use App\Supabase\Client;
 use App\Supabase\SupabaseException;
 use App\Support\HubCache;
@@ -84,6 +85,9 @@ final class GameDecisions
         if ($approve) {
             try {
                 $admin->from('game')->update(['owner_user_id' => $request['requested_by']])->eq('id', $request['game_id'])->execute();
+                // Ownership pays one account at a time, so the old owner's points go first.
+                CommunityPoints::revoke(CommunityPoints::GAME_OWNER, (string) $request['game_id']);
+                CommunityPoints::award($request['requested_by'], CommunityPoints::GAME_OWNER, (string) $request['game_id']);
             } catch (SupabaseException) {
             }
         }

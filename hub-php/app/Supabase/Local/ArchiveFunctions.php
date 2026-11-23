@@ -2,6 +2,7 @@
 
 namespace App\Supabase\Local;
 
+use App\Domain\Points\CommunityPoints;
 use App\Supabase\Supabase;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -183,6 +184,7 @@ final class ArchiveFunctions
                 'state' => 'removed', 'removed_at' => $now, 'removal_reason' => $reason, 'removal_note' => $note, 'removed_by' => $user,
             ], $now);
             self::handle($id, $user, 'removed', $now);
+            CommunityPoints::revoke(CommunityPoints::ARCHIVE, $id);
 
             return 'removed';
         });
