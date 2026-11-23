@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Mirrors\CatalogueController;
+use App\Http\Controllers\Mirrors\HubKeyController;
 use App\Http\Controllers\Mirrors\MismatchController;
 use App\Http\Controllers\Mirrors\ReportController;
 use App\Http\Controllers\Mirrors\UploadController;
@@ -11,6 +12,9 @@ Route::get('catalogue.sig', [CatalogueController::class, 'sig']);
 
 Route::options('catalogue', [CatalogueController::class, 'preflight']);
 Route::options('catalogue.sig', [CatalogueController::class, 'preflight']);
+
+Route::get('mirrors/hub-key', [HubKeyController::class, 'show']);
+Route::options('mirrors/hub-key', [HubKeyController::class, 'preflight']);
 
 Route::post('mirrors/report', [ReportController::class, 'store']);
 Route::options('mirrors/report', [ReportController::class, 'preflight']);
