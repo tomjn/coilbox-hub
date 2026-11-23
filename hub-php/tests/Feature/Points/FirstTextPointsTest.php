@@ -4,10 +4,13 @@ namespace Tests\Feature\Points;
 
 use App\Domain\Games\GameEdits;
 use App\Domain\Points\CommunityPoints;
+use App\Supabase\Client;
 use App\Supabase\Supabase;
+use App\Supabase\SupabaseException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Concerns\SeedsGameCatalogue;
 use Tests\TestCase;
 
@@ -123,5 +126,62 @@ class FirstTextPointsTest extends TestCase
         $this->assertLessThanOrEqual(255, strlen($subject));
         $this->assertSame('faction:'.self::GAME.':arm:tagline', CommunityPoints::firstTextSubject(self::GAME, 'arm', 'tagline'));
         $this->assertSame('game:'.self::GAME.':description', CommunityPoints::firstTextSubject(self::GAME, null, 'description'));
+    }
+
+    public function test_details_saved_with_the_description_unchanged_give_nothing(): void
+    {
+        DB::table('game')->where('id', self::GAME)->update(['description' => 'Held']);
+        GameEdits::editGameDetails(Supabase::forToken('token', self::OWNER), self::OWNER, 'BA', 'New name', 'Held', [], []);
+        $this->assertSame(0, DB::table('community_point')->count());
+
+        DB::table('game')->where('id', self::GAME)->update(['description' => null]);
+        GameEdits::editGameDetails(Supabase::forToken('token', self::OWNER), self::OWNER, 'BA', 'Newer name', '', [], []);
+        $this->assertSame(0, DB::table('community_point')->count());
+    }
+
+    /** A client whose reads of the held text throw, or answer with no row. */
+    private function clientWithBrokenReads(bool $throws): Client
+    {
+        return new class($throws, self::OWNER) extends Client
+        {
+            public function __construct(private bool $throws, string $userId)
+            {
+                parent::__construct('https://sb.test', 'pk', 'token', 5, $userId);
+            }
+
+            public function rest(string $method, string $table, string $query, mixed $body, array $headers): array
+            {
+                if ($method === 'GET' && (str_contains($query, 'select=description') || str_contains($query, 'select=tagline'))) {
+                    if ($this->throws) {
+                        throw new SupabaseException('read refused', 500);
+                    }
+
+                    return ['rows' => [], 'count' => null];
+                }
+
+                return parent::rest($method, $table, $query, $body, $headers);
+            }
+        };
+    }
+
+    /** @return array<string, array{bool}> */
+    public static function brokenReads(): array
+    {
+        return ['the read throws' => [true], 'the read finds no row' => [false]];
+    }
+
+    #[DataProvider('brokenReads')]
+    public function test_a_broken_read_of_the_held_text_still_saves_and_gives_nothing(bool $throws): void
+    {
+        DB::table('game')->where('id', self::GAME)->update(['description' => 'Held']);
+        DB::table('game_faction')->where('id', 1)->update(['tagline' => 'Held', 'description' => 'Held']);
+        $client = $this->clientWithBrokenReads($throws);
+
+        $this->assertTrue(GameEdits::editGameDetails($client, self::OWNER, 'BA', 'Balanced Annihilation', 'Changed', [], [])['ok']);
+        $this->assertTrue(GameEdits::editFactionText($client, self::OWNER, 'BA', 'arm', 'Tag', 'Words')['ok']);
+
+        $this->assertSame('Changed', DB::table('game')->where('id', self::GAME)->value('description'));
+        $this->assertSame('Words', DB::table('game_faction')->where('id', 1)->value('description'));
+        $this->assertSame(0, DB::table('community_point')->count());
     }
 }

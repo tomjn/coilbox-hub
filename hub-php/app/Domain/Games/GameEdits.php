@@ -102,8 +102,8 @@ final class GameEdits
             'tagline' => self::orNull(mb_substr($tagline, 0, self::TAGLINE_MAX)),
             'description' => self::orNull(trim(mb_substr($description, 0, self::FACTION_DESCRIPTION_MAX))),
         ];
+        $held = self::heldRow(fn () => $session->from('game_faction')->select('tagline,description')->eq('game_id', $game['id'])->eq('key', $key)->maybeSingle());
         try {
-            $held = $session->from('game_faction')->select('tagline,description')->eq('game_id', $game['id'])->eq('key', $key)->maybeSingle();
             $rows = $session->from('game_faction')->update($values)->eq('game_id', $game['id'])->eq('key', $key)->select('key')->get();
         } catch (SupabaseException $e) {
             Log::error("editFactionText: {$shortname} {$key} was not updated", ['error' => $e->getMessage()]);
@@ -114,12 +114,32 @@ final class GameEdits
         if ($rows === []) {
             return self::no($messages['notAllowed']);
         }
-        foreach ($values as $field => $value) {
-            self::awardFirstText($userId, CommunityPoints::firstTextSubject($game['id'], $key, $field), $held[$field] ?? null, $value);
+        if ($held !== null) {
+            foreach ($values as $field => $value) {
+                self::awardFirstText($userId, CommunityPoints::firstTextSubject($game['id'], $key, $field), $held[$field] ?? null, $value);
+            }
         }
         HubCache::invalidate([HubCache::GAMES]);
 
         return ['ok' => true, 'message' => $messages['saved']];
+    }
+
+    /**
+     * The text held before an edit. A failed or empty read gives null, which
+     * skips the award, because points must never fail the save they follow.
+     *
+     * @param  callable(): ?array<string, mixed>  $read
+     * @return ?array<string, mixed>
+     */
+    private static function heldRow(callable $read): ?array
+    {
+        try {
+            return $read();
+        } catch (SupabaseException $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     /** Pays the first text in a field, when it was empty before and is not now. */
@@ -455,11 +475,11 @@ final class GameEdits
         if ($game === null) {
             return self::no($messages['notAllowed']);
         }
+        // Only the words form carries a description, and only it can earn first text points.
+        $held = array_key_exists('description', $values)
+            ? self::heldRow(fn () => $session->from('game')->select('description')->eq('shortname', $shortname)->maybeSingle())
+            : null;
         try {
-            // Only the words form carries a description, and only it can earn first text points.
-            $held = array_key_exists('description', $values)
-                ? $session->from('game')->select('description')->eq('shortname', $shortname)->maybeSingle()
-                : null;
             $rows = $session->from('game')->update($values)->eq('shortname', $shortname)->select('shortname')->get();
         } catch (SupabaseException $e) {
             Log::error("{$action}: {$shortname} was not updated", ['error' => $e->getMessage()]);
