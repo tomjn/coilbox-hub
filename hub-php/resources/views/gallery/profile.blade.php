@@ -40,6 +40,13 @@
     $shown = fn (array $kind) => $kind['count'] > count($kind['recent']) ? 'Newest '.count($kind['recent']).' of '.$n($kind['count']) : null;
 @endphp
 
+@if ($items['recent'] !== [])
+    {{-- Draws the challenge and blueprint card previews, as on the gallery. --}}
+    @push('head')
+        @vite('resources/js/gallery/index.ts')
+    @endpush
+@endif
+
 @section('content')
 <main id="main-content" tabindex="-1" class="relative flex-1">
     <x-ui.art-backdrop drawing="games" :strength="0.09" />
