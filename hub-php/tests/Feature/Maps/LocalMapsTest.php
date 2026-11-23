@@ -3,6 +3,7 @@
 namespace Tests\Feature\Maps;
 
 use App\Domain\Moderation\MapOwnership;
+use App\Domain\Profile\Contributions;
 use App\Supabase\Local\MapStore;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
@@ -255,6 +256,42 @@ class LocalMapsTest extends ModerationTestCase
         $this->assertSame('The Beherith', Supabase::anon()->from('author_map_count')->select('name')->eq('key', 'beherith')->maybeSingle()['name']);
         $this->assertSame([['key' => 'beherith']], Supabase::anon()->from('author_map_count')->select('key')->ilike('key', '*BEH*')->get());
         $this->assertSame([], $this->mapRequests());
+    }
+
+    public function test_a_profile_lists_the_maps_and_games_the_account_owns_not_the_ones_it_sent(): void
+    {
+        $this->supabase([
+            'GET /rest/v1/profile' => self::reply([['user_id' => self::USER, 'display_name' => 'Zyx Owner']]),
+            'GET /rest/v1/asset_licence' => self::reply([['all_maps' => true, 'map_name' => null, 'redistribute_extracted' => 'allowed', 'redistribute_rendered' => 'allowed']]),
+            'GET /rest/v1/map_browse' => self::reply([]),
+            'GET /rest/v1/game' => fn (Request $r) => self::reply(str_contains(urldecode($r->url()), 'owner_user_id=eq.'.self::USER)
+                ? [['shortname' => 'ZYX', 'display_name' => 'Zyx Game']] : [], 200, ['Content-Range' => '0-0/1']),
+            '/rest/v1/asset?' => self::reply([]),
+            'GET /rest/v1/item' => self::reply([]),
+        ]);
+        $both = 'aaaaaaaa-0000-4000-8000-000000000003';
+        $sent = 'aaaaaaaa-0000-4000-8000-000000000004';
+        // Credited under a spelling a moderator merged into the name this account owns.
+        $this->map(self::COMET, 'Comet 1.0', 'comet', ['created_at' => '2026-10-03 10:00:00.000000']);
+        $this->credit(self::COMET, [['Beh', 'beh']]);
+        // Owned on its own.
+        $this->map(self::DUNE, 'Dune 1.0', 'dune', ['owner_user_id' => self::USER, 'created_at' => '2026-10-02 10:00:00.000000']);
+        $this->credit(self::DUNE, [['IceXuick', 'icexuick']]);
+        // Owned both ways, so counted once.
+        $this->map($both, 'Both 1.0', 'both', ['owner_user_id' => self::USER, 'created_at' => '2026-10-01 10:00:00.000000']);
+        $this->credit($both, [['Beherith', 'beherith']]);
+        // Only sent to the hub by this account.
+        $this->map($sent, 'Sent 1.0', 'sent', ['submitted_by' => self::USER, 'created_at' => '2026-10-04 10:00:00.000000']);
+        $this->credit($sent, [['Somebody', 'somebody']]);
+        DB::table('author_alias')->insert(['from_key' => 'beh', 'to_key' => 'beherith', 'set_at' => '2026-10-01 10:00:00.000000']);
+        DB::table('author_owner')->insert(['key' => 'beherith', 'user_id' => self::USER, 'created_at' => '2026-10-01 10:00:00.000000']);
+
+        $profile = Contributions::load(Supabase::anon(), Supabase::admin(), self::USER);
+
+        $this->assertSame(3, $profile['maps']['count']);
+        $this->assertSame(['comet', 'dune', 'both'], array_column($profile['maps']['recent'], 'slug'));
+        $this->assertSame(['count' => 1, 'recent' => [['shortname' => 'ZYX', 'label' => 'Zyx Game', 'logo' => null]]], $profile['games']);
+        $this->assertSame([], array_filter($this->mapRequests('#/rest/v1/game\?#'), fn (Request $r) => str_contains(urldecode($r->url()), 'submitted_by')));
     }
 
     public function test_download_sources_follow_who_may_edit_the_map(): void

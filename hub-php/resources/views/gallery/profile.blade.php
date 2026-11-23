@@ -1,9 +1,11 @@
 @extends('layouts.app')
 
 {{-- One account's public profile: a sentence that sums up what they have added, then the newest of each kind. --}}
-@use('App\Domain\Gallery\Labels')
+@use('App\Domain\Gallery\Filters')
 @php
     ['name' => $name, 'maps' => $maps, 'pictures' => $pictures, 'games' => $games, 'items' => $items] = $contributions;
+    // A card's tag and kind links land on the gallery filtered to this account.
+    $galleryFilters = new Filters(account: [$accountId]);
     $n = fn (int $count) => number_format($count);
     $jump = fn (string $href, string $text) => '<a href="'.$href.'" class="font-medium text-neutral-100 underline decoration-neutral-600 underline-offset-4 hover:decoration-neutral-300 active:decoration-neutral-300">'.e($text).'</a>';
     $and = function (array $parts): string {
@@ -21,7 +23,7 @@
     }
     $clauses = [];
     if ($facts !== []) {
-        $clauses[] = 'sent the facts for '.implode(' and ', $facts);
+        $clauses[] = 'owns '.implode(' and ', $facts);
     }
     if ($pictures['count'] > 0) {
         $clauses[] = 'had <span class="font-medium text-neutral-100">'.$n($pictures['count']).' '.($pictures['count'] === 1 ? 'picture' : 'pictures').'</span> approved';
@@ -51,6 +53,9 @@
                     <a href="/account" class="text-neutral-300 underline underline-offset-4 hover:text-neutral-100 active:text-neutral-100">Change your name</a>
                 @endif
             </p>
+            @if ($own)
+                <p class="text-sm text-neutral-400">Maps and games show here once a moderator agrees you made them. To ask, open the map or game page and choose &ldquo;Did you make this map?&rdquo; or &ldquo;Are you this game&rsquo;s author?&rdquo; near the bottom. Claiming a map&rsquo;s author claims every map credited to them.</p>
+            @endif
         </header>
 
         @if ($items['recent'] !== [])
@@ -59,14 +64,14 @@
                     <h2 id="gallery-heading" class="text-xl font-semibold">Gallery<span class="{{ $count }}">{{ $n($items['count']) }}</span></h2>
                     <a href="/gallery?account={{ $accountId }}" class="{{ $more }}">See everything they have published</a>
                 </div>
-                <ul class="divide-y divide-neutral-800 rounded-md border border-neutral-800 bg-card">
+                <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     @foreach ($items['recent'] as $item)
-                        <li class="relative flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-neutral-900/60 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-neutral-300">
-                            {{-- A fixed slot, because some kinds have no icon and their titles must still line up. --}}
-                            <span class="flex w-4 shrink-0 justify-center text-neutral-400"><x-gallery.kind-icon :kind="$item['kind']" :mode="$item['mode']" class="w-4" /></span>
-                            <a href="/item/{{ $item['id'] }}" class="min-w-0 flex-1 truncate text-neutral-100 after:absolute after:inset-0 focus-visible:outline-none">{{ $item['title'] }}</a>
-                            <span class="hidden shrink-0 text-neutral-400 sm:inline">{{ Labels::item($item['kind'], $item['mode']) }}</span>
-                            <span class="w-24 shrink-0 text-right text-neutral-400"><x-ui.date-time :value="$item['created_at']" /></span>
+                        <li>
+                            <x-gallery.item-card :item="$item" :filters="$galleryFilters" :origin="$origin"
+                                :picture="$item['map_name'] ? ($items['cards']['pictures'][$item['map_name']] ?? null) : null"
+                                :shape="$items['cards']['shapes'][$item['id']] ?? null"
+                                :counts="$items['cards']['counts'][$item['id']] ?? null"
+                                :title="$items['cards']['titles'][$item['id']] ?? null" />
                         </li>
                     @endforeach
                 </ul>
@@ -98,7 +103,6 @@
                     <h2 id="maps-heading" class="text-xl font-semibold">Maps<span class="{{ $count }}">{{ $n($maps['count']) }}</span></h2>
                     @if ($shown($maps))<span class="{{ $aside }}">{{ $shown($maps) }}</span>@endif
                 </div>
-                <p class="-mt-1 text-sm text-neutral-400">{{ $name }} sent the facts for these maps. The mapper is credited on each map's own page.</p>
                 <ul class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(200px,calc(50%_-_8px)),1fr))]">
                     @foreach ($maps['recent'] as $index => $map)
                         @if (isset($maps['pictures'][$map['map_name']]))
