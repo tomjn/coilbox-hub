@@ -6,6 +6,11 @@ use App\Domain\Links\LinkCards;
 use App\Domain\Links\Network;
 use App\Domain\Links\Reply;
 use App\Domain\Links\SafeFetch;
+use Illuminate\Cache\ArrayStore;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
+use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -269,6 +274,44 @@ class LinkCardApiTest extends TestCase
         $this->assertSame('image/png', $response->headers->get('Content-Type'));
         $this->assertSame(base64_decode(self::PNG), $response->getContent());
         $this->assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+    }
+
+    public function test_a_picture_is_fetched_once_for_everybody_who_loads_it(): void
+    {
+        $image = 'https://example.com/p.png';
+        $this->network->replies = [$image => new Reply(200, ['content-type' => 'image/png'], base64_decode(self::PNG))];
+
+        $this->get(LinkCards::imageUrl($image))->assertOk();
+        $this->get(LinkCards::imageUrl($image))->assertOk();
+
+        $this->assertCount(1, $this->network->connections);
+    }
+
+    public function test_a_request_that_waits_too_long_for_another_fetch_gets_no_card_and_caches_nothing(): void
+    {
+        $this->network->replies = ['https://example.com/post' => self::html('<title>Fetched later</title>')];
+        // A store whose first lock another request already holds.
+        $busy = Mockery::mock(Lock::class);
+        $busy->shouldReceive('block')->andThrow(new LockTimeoutException);
+        $store = new class($busy) extends ArrayStore
+        {
+            public function __construct(private ?Lock $busy) {}
+
+            public function lock($name, $seconds = 0, $owner = null)
+            {
+                [$lock, $this->busy] = [$this->busy, null];
+
+                return $lock ?? parent::lock($name, $seconds, $owner);
+            }
+        };
+        Cache::extend('busy-once', fn () => Cache::repository($store));
+        config(['cache.stores.busy-once' => ['driver' => 'busy-once'], 'cache.default' => 'busy-once']);
+
+        $this->assertNull($this->card('https://example.com/post'));
+        $this->assertSame([], $this->network->connections);
+
+        $this->assertSame('Fetched later', $this->card('https://example.com/post')['title']);
+        $this->assertCount(1, $this->network->connections);
     }
 
     public function test_the_picture_endpoint_refuses_what_is_not_a_picture(): void
