@@ -13,6 +13,11 @@ Route::get('/auth/{provider}/callback', [SignInController::class, 'hubCallback']
 Route::post('/auth/signout', [SignInController::class, 'signOut']);
 Route::post('/auth/link', [AccountController::class, 'link']);
 
+Route::view('/privacy', 'auth.privacy', [
+    'title' => 'Privacy',
+    'description' => 'What Coilbox Hub keeps about you, why, and how to have it removed.',
+]);
+
 Route::get('/account', [AccountController::class, 'show']);
 Route::post('/account/rename', [AccountController::class, 'rename']);
 Route::post('/account/delete', [AccountController::class, 'delete']);
