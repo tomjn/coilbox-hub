@@ -64,7 +64,7 @@ class LocalPicturesTest extends ModerationTestCase
     /** @return list<Request> requests that reached Supabase's picture tables or storage */
     private function pictureRequests(): array
     {
-        return array_values(array_filter($this->sent, fn (Request $r) => preg_match('#/rest/v1/(asset|staged_object)|/storage/v1/|/rpc/(approve_assets|reject_asset|return_asset|account_asset_bytes)#', $r->url()) === 1));
+        return array_values(array_filter($this->sent, fn (Request $r) => preg_match('#/rest/v1/(asset|staged_object)|/storage/v1/|/rpc/(approve_assets|reject_asset|return_asset)#', $r->url()) === 1));
     }
 
     public function test_an_upload_lands_on_the_disk_and_in_mariadb_without_asking_supabase_for_pictures(): void
@@ -103,7 +103,6 @@ class LocalPicturesTest extends ModerationTestCase
         $this->supabase([
             'GET /auth/v1/user' => self::reply(['id' => self::UPLOADER]),
             'POST /rpc/has_capability' => self::reply(false),
-            'POST /rpc/account_asset_bytes' => self::reply(0),
             'GET /rest/v1/asset' => Http::response('[]', 200, ['Content-Range' => '*/0']),
         ]);
         $bytes = ImageAndCapsTest::webp(128, 128, true);
@@ -264,7 +263,6 @@ class LocalPicturesTest extends ModerationTestCase
         $this->stage('games/BYAR/logo.webp', 'logo');
         $admin = Supabase::admin();
 
-        $this->assertSame(80, $admin->rpc('account_asset_bytes', ['account' => self::UPLOADER]));
         $this->assertSame(15, $admin->rpc('staged_pictures_bucket_bytes'));
         $this->assertSame([
             ['tier' => 'bucket', 'variant' => 'buildpic', 'objects' => 2, 'bytes' => 80],

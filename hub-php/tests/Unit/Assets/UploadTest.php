@@ -50,10 +50,10 @@ class UploadTest extends TestCase
         return [...['id' => 'held', 'source_hash' => 'raw-old', 'source_archive' => 'byar_1.1.sdz', 'uploaded_by' => self::USER, 'moderation' => 'approved', 'tier' => 'bucket', 'bytes' => 4096, 'bytes_missing_at' => null], ...$over];
     }
 
-    /** @param array{existing?: array|null, unitRenders?: int, accountBytes?: int, recent?: int, factionExists?: bool, broken?: string, capabilities?: list<string>} $world */
+    /** @param array{existing?: array|null, unitRenders?: int, recent?: int, factionExists?: bool, broken?: string, capabilities?: list<string>} $world */
     private function fake(array $world = []): void
     {
-        $world = [...['existing' => null, 'unitRenders' => 0, 'accountBytes' => 0, 'recent' => 0, 'factionExists' => true, 'broken' => null, 'capabilities' => []], ...$world];
+        $world = [...['existing' => null, 'unitRenders' => 0, 'recent' => 0, 'factionExists' => true, 'broken' => null, 'capabilities' => []], ...$world];
 
         // A fresh factory, so a second world in one test replaces the first rather than queueing behind it.
         Http::swap(new Factory);
@@ -62,9 +62,6 @@ class UploadTest extends TestCase
             $this->asked[] = $request->method().' '.$url;
             $count = fn (int $n) => Http::response($n > 0 ? [['id' => 'x']] : [], 200, ['Content-Range' => ($n > 0 ? '0-0' : '*').'/'.$n]);
 
-            if (str_contains($url, '/rpc/account_asset_bytes')) {
-                return $world['broken'] === 'bytes' ? Http::response(['message' => 'down'], 500) : Http::response(json_encode($world['accountBytes']), 200, ['Content-Type' => 'application/json']);
-            }
             if (str_contains($url, '/rpc/has_capability')) {
                 return Http::response(json_encode(in_array($request->data()['capability'], $world['capabilities'], true)), 200, ['Content-Type' => 'application/json']);
             }
@@ -191,19 +188,6 @@ class UploadTest extends TestCase
         $this->assertNotEmpty(array_filter($this->asked, fn ($u) => str_contains($u, 'variant=like.render:%') && str_contains($u, 'unit_name=eq.armsolar')));
     }
 
-    public function test_the_account_quota(): void
-    {
-        $quota = Upload::ACCOUNT_STORAGE_QUOTA_BYTES;
-        $this->assertTrue($this->check(['accountBytes' => $quota - 4096])['ok']);
-        $this->assertSame('413 That upload would put this account over its 67108864 byte storage quota.', $this->refusal($this->check(['accountBytes' => $quota - 4095])));
-        // A replacement is charged the difference.
-        $this->assertTrue($this->check(['accountBytes' => $quota, 'existing' => $this->held()])['ok']);
-        // A promoted row is not in the total, so replacing one is charged the whole object.
-        $this->assertSame(413, $this->check(['accountBytes' => $quota, 'existing' => $this->held(['tier' => 'static'])])['status']);
-        // A takeover is charged the whole object.
-        $this->assertSame(413, $this->check(['accountBytes' => $quota, 'existing' => $this->held(['uploaded_by' => 'other'])], [], fn () => true)['status']);
-    }
-
     public function test_the_hourly_limit(): void
     {
         $this->assertTrue($this->check(['recent' => 499])['ok']);
@@ -216,15 +200,14 @@ class UploadTest extends TestCase
 
     public function test_a_quota_that_cannot_be_read_refuses(): void
     {
-        $this->assertSame('503 The upload quotas could not be read just now. Try again shortly.', $this->refusal($this->check(['broken' => 'bytes'])));
         $this->assertSame('503 The upload quotas could not be read just now. Try again shortly.', $this->refusal($this->check(['broken' => 'identity'])));
     }
 
     public function test_two_limits_always_report_the_same_one(): void
     {
-        $world = ['unitRenders' => 8, 'accountBytes' => Upload::ACCOUNT_STORAGE_QUOTA_BYTES, 'recent' => 500];
+        $world = ['unitRenders' => 8, 'recent' => 500];
         $this->assertSame(409, $this->check($world, ['identity' => AssetResolver::unit('BYAR', 'armsolar', 'render:1')])['status']);
-        $this->assertSame(413, $this->check($world)['status']);
+        $this->assertSame(429, $this->check($world)['status']);
     }
 
     public function test_faction_logos(): void

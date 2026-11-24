@@ -75,7 +75,6 @@ class AssetRoutesTest extends TestCase
         return [
             'GET /auth/v1/user' => self::reply(['id' => self::USER]),
             'POST /rpc/has_capability' => fn (Request $r) => self::reply(in_array($r->data()['capability'], $overrides['capabilities'] ?? [], true)),
-            'POST /rpc/account_asset_bytes' => self::reply(0),
             'GET /rest/v1/asset?select=id,source_hash' => self::reply(isset($overrides['existing']) ? [$overrides['existing']] : []),
             'GET /rest/v1/asset?select=id&uploaded_by' => self::counted($overrides['recent'] ?? 0),
             'GET /rest/v1/asset?select=id' => self::counted(0),

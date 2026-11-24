@@ -103,7 +103,7 @@ class AssetApiController extends Controller
      * 4. the bytes received are the length declared
      * 5. the image header, against the caps for its class
      * 6. the hash of the bytes, which is where they land
-     * 7. MIME, size, path, identity and the three quotas
+     * 7. MIME, size, path, identity and the two upload limits
      *
      * 201 for a new row, 200 for a replacement. The answer never says where the
      * bytes went, because the uploader is who a modified client is.

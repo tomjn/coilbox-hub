@@ -26,7 +26,6 @@ final class PictureFunctions
         'return_asset' => ['authenticated'],
         'acknowledge_source_conflict' => ['authenticated'],
         'approved_source_conflicts' => ['authenticated'],
-        'account_asset_bytes' => ['service_role'],
         'asset_storage_usage' => ['service_role'],
         'staged_pictures_bucket_bytes' => ['service_role'],
         'unclaimed_staged_objects' => ['service_role'],
@@ -38,7 +37,7 @@ final class PictureFunctions
     ];
 
     private const READS = [
-        'approved_source_conflicts', 'account_asset_bytes', 'asset_storage_usage', 'staged_pictures_bucket_bytes',
+        'approved_source_conflicts', 'asset_storage_usage', 'staged_pictures_bucket_bytes',
         'unclaimed_staged_objects',
     ];
 
@@ -69,8 +68,6 @@ final class PictureFunctions
             'return_asset' => self::return($caller, (string) ($args['asset_id'] ?? '')),
             'acknowledge_source_conflict' => self::acknowledge($caller, (int) ($args['p_conflict_id'] ?? 0)),
             'approved_source_conflicts' => self::approvedConflicts($caller, $args['p_limit'] ?? null),
-            'account_asset_bytes' => (int) DB::table('asset')->where('uploaded_by', (string) ($args['account'] ?? ''))
-                ->where('tier', 'bucket')->sum('bytes'),
             'asset_storage_usage' => array_map(fn ($row) => [
                 'tier' => $row->tier, 'variant' => $row->variant, 'objects' => (int) $row->objects, 'bytes' => (int) $row->bytes,
             ], DB::table('asset')->select('tier', 'variant')->selectRaw('count(*) as objects, coalesce(sum(bytes), 0) as bytes')
