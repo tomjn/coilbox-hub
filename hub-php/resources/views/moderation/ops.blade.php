@@ -20,7 +20,7 @@
     $promotionRows = [
         ['label' => 'Waiting for review', 'value' => $figure($p['pending'])],
         ['label' => 'Waiting for Coilbox to upload again', 'value' => $figure($p['missing']),
-            'detail' => $p['missing'] ? 'Their bytes were lost with the old staging store. Pages and promotion skip them, and Coilbox uploads each one into the bucket the next time it offers that picture.' : null],
+            'detail' => $p['missing'] ? 'Their bytes were lost with the old staging store. Pages and promotion skip them, and Coilbox uploads each one again the next time it offers that picture.' : null],
         ['label' => 'Approved, in the '.Promotion::AGE_DAYS.' day hold', 'value' => $figure($p['waiting'])],
         ['label' => 'Due to move now', 'value' => $figure($p['due']),
             'detail' => $p['dueSince'] ? ($p['stalled']
@@ -28,7 +28,7 @@
                 : 'Due since '.$stamp($p['dueSince']).' UTC. The next daily run moves it.') : null,
             'alarm' => $p['stalled']],
         ['label' => 'Staging copies still to delete', 'value' => $figure($p['leftover'])],
-        ['label' => 'Bucket deletions stuck', 'value' => $figure($stuckDeletions),
+        ['label' => 'Staged deletions stuck', 'value' => $figure($stuckDeletions),
             'detail' => $stuckDeletions > 0 ? 'Reserved for deletion more than '.Orphans::ABANDONED_RESERVATION_MINUTES.' minutes ago, so the run that reserved them has died. The next sweep finishes the delete.' : null,
             'alarm' => $stuckDeletions > 0],
         ['label' => 'Promoted in the last 30 days', 'value' => $figure($p['promotedRecently'])],
@@ -45,7 +45,7 @@
         <header class="flex flex-wrap items-end justify-between gap-4">
             <div>
                 <h1 class="text-3xl font-semibold tracking-tight">Allowances</h1>
-                <p class="mt-2 max-w-[70ch] text-sm text-neutral-400">What the hub holds and serves, against the free plan allowances. The daily sweep fails on purpose once a counted meter passes {{ $alertPercent }}%.</p>
+                <p class="mt-2 max-w-[70ch] text-sm text-neutral-400">What the hub holds and serves, against the limits of the droplet, GitHub Pages, Supabase and Vercel. The daily sweep fails on purpose once a counted meter passes {{ $alertPercent }}%.</p>
             </div>
             <p class="text-sm text-neutral-400">Read {{ $stamp($report['at']) }} UTC</p>
         </header>
@@ -53,7 +53,7 @@
         <div class="grid items-start gap-6 lg:grid-cols-2">
             <section class="{{ $card }}" aria-labelledby="promotion">
                 <h2 id="promotion" class="text-lg font-semibold tracking-tight">Promotion</h2>
-                <p class="mt-2 max-w-[70ch] text-sm text-neutral-400">Approved pictures move out of the staging bucket and into the durable tier. The bucket only stays small while this keeps moving.</p>
+                <p class="mt-2 max-w-[70ch] text-sm text-neutral-400">Approved pictures move out of staging and onto GitHub Pages, in coilbox-assets. Staging only stays small while this keeps moving.</p>
                 <dl class="mt-4 flex flex-col">
                     @foreach ($promotionRows as $row)
                         @php $alarm = $row['alarm'] ?? false; @endphp
@@ -71,7 +71,7 @@
             </section>
             <section class="{{ $card }}" aria-labelledby="swept">
                 <h2 id="swept" class="text-lg font-semibold tracking-tight">Waiting to be swept</h2>
-                <p class="mt-2 mb-4 max-w-[70ch] text-sm text-neutral-400">Bucket objects no row points at: bytes superseded by a newer archive, and uploads whose row was never written. The daily sweep deletes them.</p>
+                <p class="mt-2 mb-4 max-w-[70ch] text-sm text-neutral-400">Staged objects no row points at: bytes superseded by a newer archive, and uploads whose row was never written. The daily sweep deletes them.</p>
                 @if ($swept['objects'] === 0)
                     <p class="text-sm text-neutral-400">Nothing unclaimed.</p>
                 @else
@@ -139,7 +139,7 @@
 
         <div class="grid items-start gap-6 lg:grid-cols-2">
             <section class="{{ $card }}" aria-labelledby="durable">
-                <h2 id="durable" class="text-lg font-semibold tracking-tight">Durable tier by class</h2>
+                <h2 id="durable" class="text-lg font-semibold tracking-tight">GitHub Pages by class</h2>
                 <p class="mt-2 mb-4 max-w-[70ch] text-sm text-neutral-400">Not one total. Buildpics are negligible and the map corpus is fixed at about 3,575, so renders are the only class that can move, and a total that is growing does not say which one did.</p>
                 @if ($report['durable'] === [])
                     <p class="text-sm text-neutral-400">Nothing promoted yet.</p>

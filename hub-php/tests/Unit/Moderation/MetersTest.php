@@ -75,7 +75,7 @@ class MetersTest extends TestCase
             ['tier' => 'orphan', 'variant' => 'superseded', 'objects' => 1, 'bytes' => 4096],
         ]);
 
-        $this->assertSame(200000, self::meter($report, 'Durable tier')['used']);
+        $this->assertSame(200000, self::meter($report, 'GitHub Pages published size')['used']);
         $this->assertSame([['name' => 'minimap', 'objects' => 5, 'bytes' => 200000]], $report['durable']);
         $this->assertSame('2026-08-14T12:00:00.000Z', $report['at']);
     }
