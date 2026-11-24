@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Auth\HubSession;
+use App\Domain\Links\CurlNetwork;
+use App\Domain\Links\Network;
 use App\Support\Api;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -16,7 +18,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(Network::class, CurlNetwork::class);
     }
 
     /**
@@ -49,6 +51,19 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(5, 30)
                 ->by('code|'.(HubSession::userId() ?? $request->ip()))
                 ->response(fn (Request $request, array $headers) => response('Too many codes tried. Wait a few minutes, then try the newest code.', 429, $headers));
+        });
+
+        // Link cards for Coilbox chat (#654). A cached card costs nothing, so
+        // the limit is there to stop one address making the hub fetch pages
+        // for it. A message can carry a few links, each with a picture, so
+        // pictures get the larger limit.
+        RateLimiter::for('link-card', function (Request $request) {
+            return Limit::perMinute(60)->by('link-card|'.$request->ip())
+                ->response(fn (Request $request, array $headers) => Api::error('Too many link previews from this address. Try again in a minute.', 429)->withHeaders($headers));
+        });
+        RateLimiter::for('link-image', function (Request $request) {
+            return Limit::perMinute(240)->by('link-image|'.$request->ip())
+                ->response(fn (Request $request, array $headers) => Api::error('Too many link pictures from this address. Try again in a minute.', 429)->withHeaders($headers));
         });
     }
 }
