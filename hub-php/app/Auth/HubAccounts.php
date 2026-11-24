@@ -36,9 +36,11 @@ final class HubAccounts
         $id = (string) $user->getId();
         $email = is_string($user->getEmail()) && $user->getEmail() !== '' ? $user->getEmail() : null;
         // GitHub's answer only carries the primary address when it is
-        // verified. Twitch only gives out verified addresses. Discord says.
+        // verified. Twitch only gives out verified addresses. Discord and
+        // Google say.
         $verified = $email !== null && match ($provider) {
             'discord' => ($raw['verified'] ?? false) === true,
+            'google' => ($raw['email_verified'] ?? false) === true,
             default => true,
         };
         $avatar = $user->getAvatar();
@@ -55,6 +57,11 @@ final class HubAccounts
                 'name' => $user->getNickname(),
                 'full_name' => $raw['username'] ?? $user->getName(),
                 'custom_claims' => ['global_name' => $raw['global_name'] ?? null],
+            ],
+            'google' => [
+                'iss' => 'https://accounts.google.com',
+                'name' => $user->getName(),
+                'full_name' => $user->getName(),
             ],
             'twitch' => [
                 'iss' => 'https://api.twitch.tv/helix',

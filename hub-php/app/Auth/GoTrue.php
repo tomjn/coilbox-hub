@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Http;
 final class GoTrue
 {
     /** The OAuth providers switched on in supabase/config.toml, in the order offered. */
-    public const PROVIDERS = ['discord' => 'Discord', 'github' => 'GitHub', 'twitch' => 'Twitch'];
+    public const PROVIDERS = ['discord' => 'Discord', 'github' => 'GitHub', 'google' => 'Google', 'twitch' => 'Twitch'];
 
     /** Takes request input as it comes, which can be an array from a crafted query. */
     public static function provider(mixed $value): ?string

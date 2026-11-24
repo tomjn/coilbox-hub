@@ -62,6 +62,7 @@ class PublishTest extends TestCase
     public function test_a_signed_out_visitor_sees_the_sign_in_panel(): void
     {
         Http::fake();
+        config(['services.discord' => ['client_id' => 'discord-id', 'client_secret' => 'discord-secret']]);
 
         $this->get('/publish')
             ->assertOk()

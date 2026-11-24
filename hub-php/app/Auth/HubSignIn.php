@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\AbstractProvider;
 use Laravel\Socialite\Two\GithubProvider;
+use Laravel\Socialite\Two\GoogleProvider;
 use Laravel\Socialite\Two\TwitchProvider;
 use SocialiteProviders\Discord\Provider as DiscordProvider;
 
@@ -25,6 +26,7 @@ final class HubSignIn
     private const CLASSES = [
         'discord' => DiscordProvider::class,
         'github' => GithubProvider::class,
+        'google' => GoogleProvider::class,
         'twitch' => TwitchProvider::class,
     ];
 
@@ -40,6 +42,18 @@ final class HubSignIn
     {
         return (string) config("services.{$provider}.client_id") !== ''
             && (string) config("services.{$provider}.client_secret") !== '';
+    }
+
+    /**
+     * The providers to offer, id to label, in the order of
+     * {@see GoTrue::PROVIDERS}. A provider whose app is not set up here is
+     * left out, so nobody is shown a button that cannot work.
+     *
+     * @return array<string, string>
+     */
+    public static function offered(): array
+    {
+        return array_filter(GoTrue::PROVIDERS, fn (string $id) => self::configured($id), ARRAY_FILTER_USE_KEY);
     }
 
     public static function driver(string $provider): AbstractProvider
