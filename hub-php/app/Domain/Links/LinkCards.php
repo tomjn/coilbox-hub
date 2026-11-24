@@ -4,6 +4,9 @@ namespace App\Domain\Links;
 
 use App\Support\HubCache;
 use App\Support\Site;
+use Closure;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Preview cards for links posted in Coilbox chat (#654). The hub fetches the
@@ -23,6 +26,14 @@ final class LinkCards
 
     public const IMAGE_BYTES = 3 * 1024 * 1024;
 
+    /** Pictures are bigger than cards, so they are kept for less time. */
+    public const IMAGE_SECONDS = 600;
+
+    /** The slowest card: four page hops and four oEmbed hops, each up to {@see CurlNetwork::TOTAL_SECONDS}. */
+    public const LOCK_SECONDS = 8 * CurlNetwork::TOTAL_SECONDS;
+
+    public const WAIT_SECONDS = 10;
+
     public const TYPES = ['video', 'photo', 'rich', 'link'];
 
     /** Formats Coilbox can draw. SVG is left out because it can carry script. */
@@ -40,7 +51,28 @@ final class LinkCards
     {
         $url = self::withoutFragment(trim($url));
 
-        return HubCache::remember('link-card:'.$url, [], HubCache::HOURS, fn () => $this->build($url));
+        return self::shared('link-card:'.$url, HubCache::HOURS, fn () => $this->build($url));
+    }
+
+    /**
+     * Cached, and loaded by one request at a time. Everybody in a channel
+     * asks for a new link's card and picture at once, so without the lock
+     * each of them would miss the cache and fetch it. A request that waits
+     * longer than {@see WAIT_SECONDS} gets null, which is not cached.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $load
+     * @return T|null
+     */
+    private static function shared(string $key, int $seconds, Closure $load): mixed
+    {
+        try {
+            return HubCache::remember($key, [], $seconds, fn () => Cache::lock('lock:'.$key, self::LOCK_SECONDS)
+                ->block(self::WAIT_SECONDS, fn () => HubCache::remember($key, [], $seconds, $load)));
+        } catch (LockTimeoutException) {
+            return null;
+        }
     }
 
     /** @return array{url: string, type: ?string, site_name: ?string, title: string, description: ?string, image: ?string}|null */
@@ -131,6 +163,12 @@ final class LinkCards
      * @return array{bytes: string, type: string}|null
      */
     public function image(string $url): ?array
+    {
+        return self::shared('link-image:'.$url, self::IMAGE_SECONDS, fn () => $this->fetchImage($url));
+    }
+
+    /** @return array{bytes: string, type: string}|null */
+    private function fetchImage(string $url): ?array
     {
         $fetched = $this->fetch->get($url, 'image/*', self::IMAGE_BYTES);
         if ($fetched === null || $fetched['reply']->truncated) {
