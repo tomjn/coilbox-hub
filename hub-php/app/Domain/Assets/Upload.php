@@ -25,9 +25,6 @@ final class Upload
         return Asset::vocabulary()['maxObjectBytes'];
     }
 
-    /** A sixteenth of the 1 GB staging bucket, per account. Promoted rows have left the bucket and do not count. */
-    public const ACCOUNT_STORAGE_QUOTA_BYTES = 64 * 1024 * 1024;
-
     /** Renders are the one class that grows without bound (units times angles), so they are capped per unit. */
     public const UNIT_RENDER_CEILING = 8;
 
@@ -98,7 +95,6 @@ final class Upload
 
         $since = now()->utc()->subHour()->format('Y-m-d\TH:i:s.v\Z');
 
-        // The Next app issues these four together and reads them in this order.
         $existing = self::fetchExisting($admin, $identity);
         $isRender = $identity['keyedOn'] === 'unit' && str_starts_with($identity['variant'], Asset::unitRenderVariantPrefix());
         $unitRenders = $isRender
@@ -108,11 +104,6 @@ final class Upload
                 ->eq('unit_name', $identity['unitName'])
                 ->like('variant', Asset::unitRenderVariantPrefix().'%'))
             : 0;
-        try {
-            $accountBytes = $admin->rpc('account_asset_bytes', ['account' => $userId]);
-        } catch (SupabaseException) {
-            $accountBytes = null;
-        }
         $recent = self::count(fn () => self::recentUploads($admin, $userId, $identity, $since));
 
         if ($existing === false) {
@@ -150,16 +141,6 @@ final class Upload
         // A replacement stores no new render.
         if ($unitRenders + ($replacing !== null ? 0 : 1) > self::UNIT_RENDER_CEILING) {
             return ['ok' => false, 'error' => 'That unit already has '.$unitRenders.' stored renders, which is the ceiling of '.self::UNIT_RENDER_CEILING.'.', 'status' => 409];
-        }
-
-        if (! is_int($accountBytes) && ! is_float($accountBytes)) {
-            return self::QUOTA_UNAVAILABLE;
-        }
-        // The superseded row's bytes come off the total, except on a takeover, where they were never this
-        // account's, and for a promoted row, which the total no longer counts.
-        $superseded = $replacing !== null && ! $takingOver && $replacing['tier'] === 'bucket' ? $replacing['bytes'] : 0;
-        if ($accountBytes - $superseded + $bytes > self::ACCOUNT_STORAGE_QUOTA_BYTES) {
-            return ['ok' => false, 'error' => 'That upload would put this account over its '.self::ACCOUNT_STORAGE_QUOTA_BYTES.' byte storage quota.', 'status' => 413];
         }
 
         if ($recent === null) {

@@ -109,16 +109,17 @@ final class Meters
                     'basis' => 'dashboard',
                     'used' => null,
                     'allowance' => self::VERCEL_FAST_DATA_TRANSFER_ALLOWANCE_BYTES,
-                    'note' => 'Everything the site serves, including every view of a staged picture, since those '
-                        .'come through /assets/staged/ rather than straight from a store. Measured by the '
-                        .'platform and not exposed to the application. Read it off the project dashboard.',
+                    'note' => 'Only older copies of Coilbox still come through coilbox-hub.vercel.app. Vercel '
+                        .'redirects their page requests and passes /api/v1/ and /i/ through to the hub, so every '
+                        .'one of those responses counts here. Not exposed to the application. Read it off the '
+                        .'project dashboard.',
                 ],
                 [
-                    'name' => 'Durable tier published size',
+                    'name' => 'GitHub Pages published size',
                     'basis' => 'estimated',
                     'used' => $static,
                     'allowance' => self::PAGES_PUBLISHED_ALLOWANCE_BYTES,
-                    'note' => 'Summed from the rows that say they are on the durable tier. An estimate of the '
+                    'note' => 'Summed from the rows promoted to coilbox-assets on GitHub Pages. An estimate of the '
                         .'published site rather than a measurement of it: the site also holds the atlas, the '
                         .'notice and anything committed by hand, and git objects are not row bytes. See the '
                         .'breakdown by class.',
@@ -159,8 +160,7 @@ final class Meters
                 'allowance' => self::SUPABASE_EGRESS_ALLOWANCE_BYTES,
                 'note' => '5 GB cached and 5 GB uncached, shared by the database, auth and storage across the '
                     .'whole organisation and not just this project. /assets/staged/ reads a staged picture '
-                    ."out of the bucket whenever Vercel's CDN has no copy, which includes the first view "
-                    .'after every deployment, and the CDN answers the rest. Not exposed to the '
+                    .'out of the bucket every time a browser has no copy of it. Not exposed to the '
                     .'application. Read it off the project dashboard.',
             ],
         ];
