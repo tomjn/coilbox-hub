@@ -84,7 +84,7 @@ Changes to `archive`:
 
 Changes to `mirror`:
 
-- Add `holds_engines`, boolean, default false. Set from each mirror report.
+- Add `takes_engines`, boolean, default false. Set from each mirror report.
 
 The note goes in the existing `description` column.
 
@@ -110,7 +110,7 @@ A new "Engine uploaders" list in `/moderation`:
 4. The note's length is within the limit.
 5. The duplicate rules above.
 
-The hub picks a mirror only from those that are enabled, healthy and have `holds_engines` set. If none qualify, it refuses with a message saying no mirror takes engines yet.
+The hub picks a mirror only from those that are enabled, healthy and have `takes_engines` set. If none qualify, it refuses with a message saying no mirror takes engines yet.
 
 ### Catalogue
 
@@ -122,7 +122,7 @@ Engine removals go in the existing `removed` list. An old mirror only deletes re
 
 ### Mirror reports and health
 
-- Reports may carry `"kinds": ["map", "game", "engine"]`. The hub sets `holds_engines` when `engine` is present and clears it when it is absent.
+- Reports may carry `"kinds": ["map", "game", "engine"]`. The hub sets `takes_engines` when `engine` is present and clears it when it is absent.
 - `HealthCheck` uses the `engines/` folder for engine archives.
 
 ### `GET /api/v1/engines?platform=…`
@@ -183,7 +183,7 @@ Both pages use `'robots' => 'noindex'`. Neither appears in the nav or `App\Domai
 
 ## Testing
 
-- Hub: PHPUnit tests for the grant and its moderation list, each upload rule, the uniqueness rule across platforms, maps and games still refused on name and version, mirror choice by `holds_engines`, the catalogue `engines` list, `kinds` in reports, the engines API, `can_upload_engines`, both pages with `noindex`, absence from the sitemap, note editing and withdrawal.
+- Hub: PHPUnit tests for the grant and its moderation list, each upload rule, the uniqueness rule across platforms, maps and games still refused on name and version, mirror choice by `takes_engines`, the catalogue `engines` list, `kinds` in reports, the engines API, `can_upload_engines`, both pages with `noindex`, absence from the sitemap, note editing and withdrawal.
 - Mirror: PHPUnit tests for the engine kind, a bad engine entry dropped while maps still sync, and `kinds` in reports.
 - Coilbox: tests in that repository, covered by its own plan.
 - End to end: run the hub locally with two mirrors that take engines, upload a test engine, wait for both mirrors to hold it, withdraw it, and confirm both delete it. Then confirm a third mirror on the current release keeps syncing maps throughout.
