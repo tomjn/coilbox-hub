@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Moderation\ArchivesController;
 use App\Http\Controllers\Moderation\AuthorsController;
+use App\Http\Controllers\Moderation\EngineUploadersController;
 use App\Http\Controllers\Moderation\GamesController;
 use App\Http\Controllers\Moderation\MapPacksController;
 use App\Http\Controllers\Moderation\MapsController;
@@ -68,5 +69,9 @@ Route::post('/moderation/mirrors/enable', [MirrorsController::class, 'enable']);
 Route::post('/moderation/mirrors/check', [MirrorsController::class, 'check']);
 Route::post('/moderation/mirrors/requests/approve', [MirrorsController::class, 'approve']);
 Route::post('/moderation/mirrors/requests/reject', [MirrorsController::class, 'reject']);
+
+Route::get('/moderation/engines', [EngineUploadersController::class, 'index']);
+Route::post('/moderation/engines/grant', [EngineUploadersController::class, 'grant']);
+Route::post('/moderation/engines/revoke', [EngineUploadersController::class, 'revoke']);
 
 Route::get('/ops', [OpsController::class, 'show']);
