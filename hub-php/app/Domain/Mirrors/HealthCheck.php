@@ -23,7 +23,7 @@ final class HealthCheck
                 return Http::withoutRedirecting()->get($base.'/listing.json')->status() === 200;
             }
 
-            $folder = $candidate['kind'] === 'game' ? 'games' : 'maps';
+            $folder = ['game' => 'games', 'engine' => 'engines'][$candidate['kind']] ?? 'maps';
             $response = Http::withoutRedirecting()->head($base.'/'.$folder.'/'.rawurlencode($candidate['filename']));
 
             return $response->status() === 200

@@ -72,6 +72,18 @@ final class Report
             }
         }
 
+        if (array_key_exists('kinds', $payload)) {
+            $kinds = $payload['kinds'];
+            if (! is_array($kinds) || ! array_is_list($kinds)) {
+                return false;
+            }
+            foreach ($kinds as $kind) {
+                if (! is_string($kind)) {
+                    return false;
+                }
+            }
+        }
+
         $held = $payload['held'] ?? null;
         if (! is_array($held) || ! array_is_list($held)) {
             return false;

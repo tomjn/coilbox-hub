@@ -58,6 +58,24 @@ class ReportTest extends TestCase
         $this->assertTrue(Report::validate($payload));
     }
 
+    public function test_kinds_must_be_a_list_of_strings_or_missing(): void
+    {
+        $payload = $this->syncPayload();
+        $this->assertTrue(Report::validate($payload));
+
+        $payload['kinds'] = ['map', 'game', 'engine'];
+        $this->assertTrue(Report::validate($payload));
+
+        $payload['kinds'] = 'engine';
+        $this->assertFalse(Report::validate($payload));
+
+        $payload['kinds'] = [1];
+        $this->assertFalse(Report::validate($payload));
+
+        $payload['kinds'] = ['a' => 'engine'];
+        $this->assertFalse(Report::validate($payload));
+    }
+
     public function test_padded_base64_payload_is_bad_request(): void
     {
         // A payload of 3n+1 bytes encodes to padding with the standard alphabet.
