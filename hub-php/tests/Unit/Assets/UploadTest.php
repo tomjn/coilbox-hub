@@ -190,8 +190,8 @@ class UploadTest extends TestCase
 
     public function test_the_hourly_limit(): void
     {
-        $this->assertTrue($this->check(['recent' => 499])['ok']);
-        $this->assertSame('429 Too many uploads for that subject in the last hour, which is capped at 500. Try again later.', $this->refusal($this->check(['recent' => 500])));
+        $this->assertTrue($this->check(['recent' => 4999])['ok']);
+        $this->assertSame('429 Too many uploads for that subject in the last hour, which is capped at 5000. Try again later.', $this->refusal($this->check(['recent' => 5000])));
 
         $this->fake();
         Upload::check(Supabase::admin(), self::USER, $this->declaration(), self::HASH);
@@ -205,7 +205,7 @@ class UploadTest extends TestCase
 
     public function test_two_limits_always_report_the_same_one(): void
     {
-        $world = ['unitRenders' => 8, 'recent' => 500];
+        $world = ['unitRenders' => 8, 'recent' => 5000];
         $this->assertSame(409, $this->check($world, ['identity' => AssetResolver::unit('BYAR', 'armsolar', 'render:1')])['status']);
         $this->assertSame(429, $this->check($world)['status']);
     }
@@ -248,7 +248,7 @@ class UploadTest extends TestCase
 
         $this->assertSame(409, $this->check(['existing' => $this->held(['uploaded_by' => 'other', 'moderation' => 'rejected'])], [], $may)['status']);
         $this->assertSame(409, $this->check(['existing' => $this->held(['uploaded_by' => 'other', 'source_hash' => 'raw-abc'])], [], $may)['status']);
-        $this->assertSame(429, $this->check(['existing' => $this->held(['uploaded_by' => 'other']), 'recent' => 500], [], $may)['status']);
+        $this->assertSame(429, $this->check(['existing' => $this->held(['uploaded_by' => 'other']), 'recent' => 5000], [], $may)['status']);
     }
 
     public function test_capabilities(): void

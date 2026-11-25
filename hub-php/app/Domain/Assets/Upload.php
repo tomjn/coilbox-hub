@@ -33,7 +33,7 @@ final class Upload
      * subject is a game for a unit, a game's logos for a faction, and maps as a
      * whole for a map. Insurance against a looping client.
      */
-    public const SUBJECT_UPLOADS_PER_HOUR = 500;
+    public const SUBJECT_UPLOADS_PER_HOUR = 5000;
 
     private const EXISTING_COLUMNS = 'id, source_hash, source_archive, uploaded_by, moderation, tier, bytes, bytes_missing_at';
 
