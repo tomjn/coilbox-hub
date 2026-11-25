@@ -103,7 +103,7 @@ class LocalMirrorsTest extends ModerationTestCase
     {
         DB::table('mirror')->update(['healthy' => false]);
         $this->archive(['state' => 'uploading', 'listed_at' => null, 'reserved_until' => '2099-01-01 00:00:00.000000']);
-        $this->supabase(['HEAD mirror.test/maps/' => Http::response('', 200, ['Content-Length' => '43'])]);
+        $this->supabase(['HEAD mirror.test/maps/' => Http::response('', 200, ['Content-Length' => '43']), 'GET mirror.test/engines/' => Http::response('', 200)]);
 
         $this->report()->assertOk()->assertExactJson(['ok' => true]);
 
@@ -267,7 +267,7 @@ class LocalMirrorsTest extends ModerationTestCase
 
     public function test_the_moderation_page_shows_a_mirror_health_after_its_report(): void
     {
-        $this->supabase(['HEAD mirror.test' => Http::response('', 200, ['Content-Length' => '43'])]);
+        $this->supabase(['HEAD mirror.test' => Http::response('', 200, ['Content-Length' => '43']), 'GET mirror.test/engines/' => Http::response('', 200)]);
         $this->archive(['state' => 'uploading', 'listed_at' => null, 'reserved_until' => '2099-01-01 00:00:00.000000']);
         DB::table('mirror')->update(['healthy' => false]);
         $this->report()->assertOk();

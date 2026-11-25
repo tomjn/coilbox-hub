@@ -48,7 +48,7 @@ final class Reports
             }
 
             $check = is_array($result['check'] ?? null) ? $result['check'] : null;
-            $healthy = HealthCheck::check((string) $mirror['base_url'], $check);
+            $healthy = HealthCheck::check((string) $mirror['base_url'], $check, in_array('engine', $payload['kinds'] ?? [], true));
             $healthChanged = $admin->rpc('set_mirror_health', ['p_mirror' => $opened['mirror'], 'p_healthy' => $healthy]) === true;
 
             // Map and game pages are cached for a week. Their download lists

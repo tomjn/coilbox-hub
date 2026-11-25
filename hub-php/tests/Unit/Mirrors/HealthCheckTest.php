@@ -74,6 +74,41 @@ class HealthCheckTest extends TestCase
         Http::assertSent(fn (Request $r) => $r->method() === 'HEAD' && $r->url() === 'https://m.test/engines/recoil_2026.09.03_arm64-macos.7z');
     }
 
+    public function test_a_mirror_taking_engines_needs_the_engines_folder(): void
+    {
+        Http::fake([
+            self::BASE.'/engines/' => Http::sequence()
+                ->push('', 404)
+                ->push('', 301, ['Location' => 'https://elsewhere.example/engines/'])
+                ->push('<html></html>', 200),
+            self::BASE.'/listing.json' => Http::response('{}', 200),
+        ]);
+
+        $this->assertFalse(HealthCheck::check(self::BASE, null, true));
+        $this->assertFalse(HealthCheck::check(self::BASE, null, true));
+        $this->assertTrue(HealthCheck::check(self::BASE, null, true));
+        Http::assertSent(fn (Request $r) => $r->method() === 'GET' && $r->url() === self::BASE.'/engines/');
+    }
+
+    public function test_a_mirror_taking_engines_still_needs_the_candidate_to_pass(): void
+    {
+        Http::fake([
+            self::BASE.'/engines/' => Http::response('<html></html>', 200),
+            self::BASE.'/maps/*' => Http::response('', 404),
+        ]);
+
+        $this->assertFalse(HealthCheck::check(self::BASE, $this->candidate(), true));
+    }
+
+    public function test_a_mirror_not_taking_engines_is_not_asked_for_the_folder(): void
+    {
+        Http::fake(['*' => Http::response('', 200, ['Content-Length' => '43'])]);
+
+        $this->assertTrue(HealthCheck::check(self::BASE, $this->candidate()));
+        $this->assertTrue(HealthCheck::check(self::BASE, null, false));
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/engines/'));
+    }
+
     public function test_no_candidate_checks_listing_json(): void
     {
         Http::fake([self::BASE.'/listing.json' => Http::sequence()->push('{}', 200)->push('', 500)]);
