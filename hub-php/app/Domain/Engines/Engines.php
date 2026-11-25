@@ -10,4 +10,9 @@ final class Engines
     public const NOTE_MAX = 1000;
 
     public const WARNING = 'Unofficial test build. Not made or supported by the Recoil team. It may crash, desync in multiplayer or damage your settings. Use it only if you know why you want it.';
+
+    public static function pagePath(string $version, string $platform): string
+    {
+        return '/engines/'.rawurlencode($version).'/'.rawurlencode($platform);
+    }
 }

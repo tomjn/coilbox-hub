@@ -2,6 +2,7 @@
 
 namespace App\Supabase\Local;
 
+use App\Domain\Engines\EngineUploaders;
 use App\Domain\Points\CommunityPoints;
 use App\Supabase\Supabase;
 use Carbon\CarbonImmutable;
@@ -38,6 +39,7 @@ final class ArchiveFunctions
             $reservedUntil = $until->format('Y-m-d H:i:s.u');
             $epoch = (int) round((float) $until->format('U.u'));
             $fact = fn (string $key) => isset($facts[$key]) ? (string) $facts[$key] : null;
+            $engine = $fact('kind') === 'engine';
 
             // Lapsed reservations free their hash, filename and name.
             MirrorFunctions::touch(DB::table('archive')->where('state', 'uploading')->where('reserved_until', '<', $now), ['state' => 'failed'], $now);
@@ -47,13 +49,18 @@ final class ArchiveFunctions
                 ->where('sha256', $fact('sha256'))->where('filename', $fact('filename'))->where('kind', $fact('kind'))
                 ->where('size', (int) ($facts['size'] ?? 0))->first();
             if ($row !== null) {
-                $mirror = self::healthyMirror($row->upload_mirror_id) ?? self::healthyMirror(null);
+                $mirror = self::healthyMirror($row->upload_mirror_id, $engine) ?? self::healthyMirror(null, $engine);
                 if ($mirror === null) {
-                    return ['outcome' => 'refused', 'reason' => 'no_mirror'];
+                    return ['outcome' => 'refused', 'reason' => $engine ? 'no_engine_mirror' : 'no_mirror'];
                 }
                 MirrorFunctions::touch(DB::table('archive')->where('id', $row->id), ['reserved_until' => $reservedUntil, 'upload_mirror_id' => $mirror->id], $now);
 
                 return ['id' => $row->id, 'outcome' => 'reissued', 'base_url' => $mirror->base_url, 'mirror_id' => $mirror->id, 'reserved_until' => $epoch];
+            }
+
+            // An engine comes from a moderator or someone a moderator has allowed.
+            if ($engine && ! $moderator && ! EngineUploaders::has($user)) {
+                return ['outcome' => 'refused', 'reason' => 'not_engine_uploader'];
             }
 
             // A game archive belongs to the game with exactly this shortname.
@@ -77,9 +84,9 @@ final class ArchiveFunctions
                 return ['outcome' => 'refused', 'reason' => 'duplicate'] + $duplicate;
             }
 
-            $mirror = self::healthyMirror(null);
+            $mirror = self::healthyMirror(null, $engine);
             if ($mirror === null) {
-                return ['outcome' => 'refused', 'reason' => 'no_mirror'];
+                return ['outcome' => 'refused', 'reason' => $engine ? 'no_engine_mirror' : 'no_mirror'];
             }
 
             $id = (string) \Illuminate\Support\Str::uuid();
@@ -87,7 +94,7 @@ final class ArchiveFunctions
                 DB::transaction(fn () => DB::table('archive')->insert([
                     'id' => $id, 'sha256' => $fact('sha256'), 'filename' => $fact('filename'),
                     'filename_lower' => mb_strtolower((string) $fact('filename')), 'kind' => $fact('kind'),
-                    'internal_name' => $fact('internal_name'), 'version' => $fact('version'), 'shortname' => $fact('shortname'),
+                    'internal_name' => $fact('internal_name'), 'version' => $fact('version'), 'platform' => $fact('platform') ?? '', 'shortname' => $fact('shortname'),
                     'author' => $fact('author'), 'description' => $fact('description'), 'size' => (int) ($facts['size'] ?? 0),
                     'uploader' => $user, 'state' => 'uploading', 'game_id' => $game?->id, 'upload_mirror_id' => $mirror->id,
                     'reserved_until' => $reservedUntil, 'created_at' => $now, 'updated_at' => $now,
@@ -445,10 +452,13 @@ final class ArchiveFunctions
         return $names;
     }
 
-    /** An enabled, healthy mirror: this one when it qualifies, otherwise any at random. */
-    private static function healthyMirror(?string $id): ?object
+    /** An enabled, healthy mirror, one that takes engines when `$engine`: this one when it qualifies, otherwise any at random. */
+    private static function healthyMirror(?string $id, bool $engine): ?object
     {
         $query = DB::table('mirror')->where('enabled', true)->where('healthy', true);
+        if ($engine) {
+            $query->where('takes_engines', true);
+        }
         if ($id !== null) {
             return $query->where('id', $id)->first();
         }
@@ -471,7 +481,7 @@ final class ArchiveFunctions
             'sha256' => (clone $live)->where('sha256', (string) ($facts['sha256'] ?? '')),
             'filename' => (clone $live)->where('filename_lower', mb_strtolower((string) ($facts['filename'] ?? ''))),
             'name_version' => (clone $live)->where('internal_name', (string) ($facts['internal_name'] ?? ''))
-                ->where('version', (string) ($facts['version'] ?? '')),
+                ->where('version', (string) ($facts['version'] ?? ''))->where('platform', (string) ($facts['platform'] ?? '')),
         ];
         foreach ($checks as $check => $query) {
             $found = $query->first();
@@ -479,6 +489,7 @@ final class ArchiveFunctions
                 return ['check' => $check, 'existing' => Values::jsonbKeys([
                     'id' => $found->id, 'filename' => $found->filename, 'kind' => $found->kind, 'state' => $found->state,
                     'internal_name' => $found->internal_name, 'shortname' => $found->shortname,
+                    'version' => $found->version, 'platform' => $found->platform,
                 ])];
             }
         }

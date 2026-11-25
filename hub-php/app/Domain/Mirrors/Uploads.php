@@ -2,6 +2,7 @@
 
 namespace App\Domain\Mirrors;
 
+use App\Domain\Engines\Engines;
 use App\Support\Bearer;
 use App\Support\Site;
 use App\Supabase\Client;
@@ -150,6 +151,12 @@ final class Uploads
         if ($reason === 'no_mirror') {
             return self::fail(503, 'No mirror can take an upload just now.', 'no_mirror');
         }
+        if ($reason === 'not_engine_uploader') {
+            return self::fail(403, "You can't upload engines. Ask a moderator for the engine uploader grant.", 'not_engine_uploader');
+        }
+        if ($reason === 'no_engine_mirror') {
+            return self::fail(503, 'No mirror takes engines yet.', 'no_engine_mirror');
+        }
         if ($reason === 'duplicate') {
             $existing = is_array($result['existing'] ?? null) ? $result['existing'] : [];
 
@@ -184,6 +191,13 @@ final class Uploads
             $shortname = $existing['shortname'] ?? null;
 
             return is_string($shortname) ? Site::absolute('/games/'.rawurlencode($shortname)) : null;
+        }
+
+        if (($existing['kind'] ?? null) === 'engine') {
+            $version = $existing['version'] ?? null;
+            $platform = $existing['platform'] ?? null;
+
+            return is_string($version) && is_string($platform) ? Site::absolute(Engines::pagePath($version, $platform)) : null;
         }
 
         $name = $existing['internal_name'] ?? null;
