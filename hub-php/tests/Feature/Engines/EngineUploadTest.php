@@ -188,6 +188,28 @@ class EngineUploadTest extends ModerationTestCase
         ])->assertStatus(403)->assertJsonPath('reason', 'not_engine_uploader');
     }
 
+    public function test_a_revoked_grant_stops_a_reissued_token(): void
+    {
+        $this->grant();
+        $this->fakeUploader();
+        $this->upload()->assertCreated();
+
+        EngineUploaders::revoke(self::USER);
+
+        $this->upload()->assertStatus(403)->assertJsonPath('reason', 'not_engine_uploader');
+    }
+
+    public function test_a_reissue_needs_a_mirror_that_takes_engines(): void
+    {
+        $this->grant();
+        $this->fakeUploader();
+        $this->upload()->assertCreated();
+
+        DB::table('mirror')->update(['takes_engines' => false]);
+
+        $this->upload()->assertStatus(503)->assertJsonPath('reason', 'no_engine_mirror');
+    }
+
     public function test_grants_are_listed_newest_first_and_repeats_are_reported(): void
     {
         $this->assertFalse(EngineUploaders::has(self::USER));

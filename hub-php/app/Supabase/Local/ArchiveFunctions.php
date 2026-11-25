@@ -44,6 +44,11 @@ final class ArchiveFunctions
             // Lapsed reservations free their hash, filename and name.
             MirrorFunctions::touch(DB::table('archive')->where('state', 'uploading')->where('reserved_until', '<', $now), ['state' => 'failed'], $now);
 
+            // An engine comes from a moderator or someone a moderator has allowed, even when asking again for a token.
+            if ($engine && ! $moderator && ! EngineUploaders::has($user)) {
+                return ['outcome' => 'refused', 'reason' => 'not_engine_uploader'];
+            }
+
             // Asking again for a token: the same uploader, the same facts, still reserved.
             $row = $user === null ? null : DB::table('archive')->where('uploader', $user)->where('state', 'uploading')
                 ->where('sha256', $fact('sha256'))->where('filename', $fact('filename'))->where('kind', $fact('kind'))
@@ -56,11 +61,6 @@ final class ArchiveFunctions
                 MirrorFunctions::touch(DB::table('archive')->where('id', $row->id), ['reserved_until' => $reservedUntil, 'upload_mirror_id' => $mirror->id], $now);
 
                 return ['id' => $row->id, 'outcome' => 'reissued', 'base_url' => $mirror->base_url, 'mirror_id' => $mirror->id, 'reserved_until' => $epoch];
-            }
-
-            // An engine comes from a moderator or someone a moderator has allowed.
-            if ($engine && ! $moderator && ! EngineUploaders::has($user)) {
-                return ['outcome' => 'refused', 'reason' => 'not_engine_uploader'];
             }
 
             // A game archive belongs to the game with exactly this shortname.
