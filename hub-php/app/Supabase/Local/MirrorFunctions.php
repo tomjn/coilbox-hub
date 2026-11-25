@@ -172,10 +172,12 @@ final class MirrorFunctions
                 return ['outcome' => 'stale'];
             }
             $held = array_values(array_unique(array_map('strval', is_array($payload['held'] ?? null) ? $payload['held'] : [])));
+            $kinds = is_array($payload['kinds'] ?? null) ? $payload['kinds'] : [];
             $number = fn (string $key) => isset($payload[$key]) ? (int) $payload[$key] : null;
 
             DB::table('mirror')->where('id', $mirrorId)->update([
                 'last_report_at' => $now,
+                'takes_engines' => in_array('engine', $kinds, true),
                 'last_report_sent_at' => $sentAt,
                 'last_catalogue_seq' => $number('catalogue_seq'),
                 'last_catalogue_generated_at' => $number('catalogue_generated_at'),
@@ -183,10 +185,13 @@ final class MirrorFunctions
 
             $listing = ['state' => 'listed', 'listed_at' => $now, 'reserved_until' => null];
             $uploading = DB::table('archive')->where('state', 'uploading')->where('upload_mirror_id', $mirrorId)->whereIn('sha256', $held);
-            $uploaders = (clone $uploading)->lockForUpdate()->get(['id', 'uploader']);
+            $uploaders = (clone $uploading)->lockForUpdate()->get(['id', 'uploader', 'kind']);
             $listed = self::touch($uploading, $listing, $now);
             foreach ($uploaders as $row) {
-                CommunityPoints::award($row->uploader, CommunityPoints::ARCHIVE, $row->id);
+                // Engines are unofficial test builds, so listing one earns nothing.
+                if ($row->kind !== 'engine') {
+                    CommunityPoints::award($row->uploader, CommunityPoints::ARCHIVE, $row->id);
+                }
             }
 
             // After the live uploads, so an upload in progress wins over an old
@@ -194,7 +199,7 @@ final class MirrorFunctions
             // that would clash with a row since is skipped.
             $revived = 0;
             $failed = DB::table('archive')->where('state', 'failed')->where('upload_mirror_id', $mirrorId)->whereIn('sha256', $held)
-                ->orderBy('sha256')->orderByDesc('created_at')->orderBy('id')->get(['id', 'sha256']);
+                ->orderBy('sha256')->orderByDesc('created_at')->orderBy('id')->get(['id', 'sha256', 'kind']);
             $tried = [];
             foreach ($failed as $row) {
                 if (isset($tried[$row->sha256])) {
@@ -206,7 +211,7 @@ final class MirrorFunctions
                         DB::table('archive')->where('id', $row->id)->where('state', 'failed'), $listing, $now,
                     ));
                     $revived += $done;
-                    if ($done === 1) {
+                    if ($done === 1 && $row->kind !== 'engine') {
                         CommunityPoints::award(DB::table('archive')->where('id', $row->id)->value('uploader'), CommunityPoints::ARCHIVE, $row->id);
                     }
                 } catch (\Illuminate\Database\UniqueConstraintViolationException) {
@@ -277,11 +282,16 @@ final class MirrorFunctions
 
             $mirrors = DB::table('mirror')->where('enabled', true)->orderBy('id')->get(['id', 'base_url', 'public_key'])
                 ->map(fn ($m) => ['id' => $m->id, 'base_url' => $m->base_url, 'public_key' => $m->public_key])->all();
-            $archives = DB::table('archive')->where('state', 'listed')->orderBy('listed_at')->orderBy('id')->get()
+            $archives = DB::table('archive')->where('state', 'listed')->where('kind', '!=', 'engine')->orderBy('listed_at')->orderBy('id')->get()
                 ->map(fn ($a) => [
                     'kind' => $a->kind, 'size' => (int) $a->size, 'author' => $a->author, 'sha256' => $a->sha256,
                     'version' => $a->version, 'filename' => $a->filename, 'shortname' => $a->shortname,
                     'description' => $a->description, 'internal_name' => $a->internal_name,
+                ])->all();
+            $engines = DB::table('archive')->where('state', 'listed')->where('kind', 'engine')->orderBy('listed_at')->orderBy('id')->get()
+                ->map(fn ($a) => [
+                    'filename' => $a->filename, 'sha256' => $a->sha256, 'size' => (int) $a->size,
+                    'version' => $a->version, 'platform' => $a->platform, 'note' => $a->description,
                 ])->all();
             $removed = DB::table('archive')->where('state', 'removed')->orderBy('removed_at')->orderBy('id')->get()
                 ->map(fn ($a) => [
@@ -291,7 +301,7 @@ final class MirrorFunctions
 
             return [
                 'seq' => (int) $state->next_seq, 'changes' => (int) $state->changes,
-                'mirrors' => $mirrors, 'removed' => $removed, 'archives' => $archives,
+                'mirrors' => $mirrors, 'removed' => $removed, 'archives' => $archives, 'engines' => $engines,
             ];
         });
     }

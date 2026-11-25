@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Gallery;
 
+use App\Domain\Engines\EngineUploaders;
+use App\Domain\Moderation\Access;
 use App\Domain\Profile\Author;
 use App\Http\Controllers\Controller;
 use App\Support\Api;
@@ -28,6 +30,9 @@ class ProfileApiController extends Controller
             return $auth;
         }
 
-        return Api::json(['display_name' => Author::displayName($auth->client, $auth->userId)], 200, 'private, no-store');
+        return Api::json([
+            'display_name' => Author::displayName($auth->client, $auth->userId),
+            'can_upload_engines' => Access::isModerator($auth->client) || EngineUploaders::has($auth->userId),
+        ], 200, 'private, no-store');
     }
 }

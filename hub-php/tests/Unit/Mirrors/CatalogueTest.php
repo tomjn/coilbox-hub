@@ -48,6 +48,25 @@ class CatalogueTest extends TestCase
         $this->assertSame(self::fixture('catalogue-rotated.sig'), self::sigOf($body, $keys['rotated_hub_secret_key']));
     }
 
+    public function test_engines_follow_removed_in_order(): void
+    {
+        $engine = ['filename' => 'recoil_2026.09.03_arm64-macos.7z', 'sha256' => str_repeat('a', 64), 'size' => '43',
+            'version' => '2026.09.03', 'platform' => 'arm64-macos', 'note' => 'Test build.', 'extra' => 'dropped'];
+        $body = Catalogue::encode(['seq' => 3, 'mirrors' => [], 'archives' => [], 'removed' => [], 'engines' => [$engine]], 10, null);
+
+        $json = json_decode($body, true);
+        $this->assertSame(['v', 'seq', 'generated_at', 'mirrors', 'archives', 'removed', 'engines'], array_keys($json));
+        $this->assertSame(['filename', 'sha256', 'size', 'version', 'platform', 'note'], array_keys($json['engines'][0]));
+        $this->assertSame(43, $json['engines'][0]['size']);
+    }
+
+    public function test_no_engines_writes_no_engines_key(): void
+    {
+        $source = self::sourceFrom('catalogue.json', 1);
+
+        $this->assertSame(self::fixture('catalogue.json'), Catalogue::encode($source + ['engines' => []], 1794787200, null));
+    }
+
     public function test_empty_lists_encode_as_arrays(): void
     {
         $body = Catalogue::encode(['seq' => 3, 'mirrors' => [], 'archives' => [], 'removed' => []], 10, null);

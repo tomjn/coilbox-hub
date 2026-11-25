@@ -65,6 +65,15 @@ class HealthCheckTest extends TestCase
         Http::assertSent(fn (Request $r) => $r->url() === self::BASE.'/games/g.sd7');
     }
 
+    public function test_engine_candidate_uses_the_engines_folder(): void
+    {
+        Http::fake(['*' => Http::response('', 200, ['Content-Length' => '43'])]);
+
+        HealthCheck::check('https://m.test', ['filename' => 'recoil_2026.09.03_arm64-macos.7z', 'kind' => 'engine', 'size' => 43]);
+
+        Http::assertSent(fn (Request $r) => $r->method() === 'HEAD' && $r->url() === 'https://m.test/engines/recoil_2026.09.03_arm64-macos.7z');
+    }
+
     public function test_no_candidate_checks_listing_json(): void
     {
         Http::fake([self::BASE.'/listing.json' => Http::sequence()->push('{}', 200)->push('', 500)]);

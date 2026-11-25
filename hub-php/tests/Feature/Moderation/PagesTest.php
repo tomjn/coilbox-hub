@@ -183,13 +183,13 @@ class PagesTest extends ModerationTestCase
         $html = $this->signedIn()->get($path)->getContent();
         preg_match('#<nav aria-label="Moderation".*?</nav>#s', $html, $nav);
 
-        foreach (['/moderation', '/moderation/assets', '/moderation/maps', '/moderation/map-packs', '/moderation/games', '/moderation/archives', '/moderation/mirrors', '/moderation/authors', '/moderation/users', '/ops'] as $href) {
+        foreach (['/moderation', '/moderation/assets', '/moderation/maps', '/moderation/map-packs', '/moderation/games', '/moderation/archives', '/moderation/mirrors', '/moderation/engines', '/moderation/authors', '/moderation/users', '/ops'] as $href) {
             $this->assertStringContainsString('href="'.$href.'"', $nav[0]);
         }
         $this->assertSame(1, substr_count($nav[0], 'aria-current'));
         $this->assertMatchesRegularExpression('#href="'.preg_quote($current, '#').'"\s+aria-current="page"#', $nav[0]);
         preg_match_all('#class="[^"]*border-b-2[^"]*"#', $nav[0], $links);
-        $this->assertCount(10, $links[0]);
+        $this->assertCount(11, $links[0]);
         foreach ($links[0] as $link) {
             $this->assertSame(1, preg_match_all('/border-(transparent|neutral-500)/', $link));
         }
