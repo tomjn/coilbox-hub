@@ -149,13 +149,12 @@ Both pages use `'robots' => 'noindex'`. Neither appears in the nav or `App\Domai
 
 ## Mirror (`coilbox-mirror`)
 
-- Config gains `engines`, default `false`. Engine support is opt-in because each build is large. The macOS builds measured 28.7 MB each.
+- Every mirror on the new release takes engines. There is no setting. An engine build is no larger than many maps.
 - A new `engines/` folder, served by Apache with the same `.htaccess` as `maps/` and `games/`.
-- `Token`, `Paths`, `Listing`, `UploadHandler`, `Sync` and `Requirements` learn the `engine` kind. A mirror with `engines` off refuses an engine token and ignores the catalogue's `engines` list.
+- `Token`, `Paths`, `Listing`, `UploadHandler`, `Sync` and `Requirements` learn the `engine` kind.
 - `Catalogue` checks each entry of `engines` on its own. A bad entry is dropped and logged, and the rest of the catalogue is still accepted. One bad engine entry must not stop maps and games syncing.
-- Reports include `kinds`.
+- Reports include `kinds`, so the hub can tell mirrors on the new release from older ones.
 - `PROTOCOL.md` documents the `engines` list, the `engine` kind and `kinds` in reports.
-- The README explains the setting and the space it takes.
 
 ## Coilbox
 
@@ -185,7 +184,7 @@ Both pages use `'robots' => 'noindex'`. Neither appears in the nav or `App\Domai
 ## Testing
 
 - Hub: PHPUnit tests for the grant and its moderation list, each upload rule, the uniqueness rule across platforms, maps and games still refused on name and version, mirror choice by `holds_engines`, the catalogue `engines` list, `kinds` in reports, the engines API, `can_upload_engines`, both pages with `noindex`, absence from the sitemap, note editing and withdrawal.
-- Mirror: PHPUnit tests for the engine kind, the `engines` setting off and on, a bad engine entry dropped while maps still sync, and `kinds` in reports.
+- Mirror: PHPUnit tests for the engine kind, a bad engine entry dropped while maps still sync, and `kinds` in reports.
 - Coilbox: tests in that repository, covered by its own plan.
 - End to end: run the hub locally with two mirrors that take engines, upload a test engine, wait for both mirrors to hold it, withdraw it, and confirm both delete it. Then confirm a third mirror on the current release keeps syncing maps throughout.
 
@@ -201,4 +200,3 @@ The hub can ship before any mirror upgrades. Engine uploads are refused until a 
 
 - The hub trusts the version and platform in the filename. A build named for the wrong platform installs and fails to start. Only grant holders can upload, and removal is immediate.
 - A hub build that shares a version string with an official release can join lobbies on that version and desync if it differs. The warning says so, and the grant limits who can publish one.
-- Mirror operators who turn engines on take on more disk use and bandwidth than maps and games need.
