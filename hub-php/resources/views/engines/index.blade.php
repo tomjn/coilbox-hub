@@ -24,7 +24,7 @@
                         <li class="flex flex-col gap-1 rounded-md border border-neutral-800 bg-card p-4">
                             <div class="flex flex-wrap items-baseline justify-between gap-3">
                                 <a href="{{ Engines::pagePath($engine['version'], $engine['platform']) }}" class="break-all text-base font-medium {{ $link }}">{{ $engine['version'] }}</a>
-                                <span class="text-sm text-neutral-400">Listed <x-ui.date-time :value="$engine['listed_at']" /></span>
+                                <span class="text-sm text-neutral-400">{{ number_format($engine['size']) }} bytes, listed <x-ui.date-time :value="$engine['listed_at']" /></span>
                             </div>
                             <p class="whitespace-pre-line break-words text-sm text-neutral-400">{{ $engine['note'] }}</p>
                         </li>

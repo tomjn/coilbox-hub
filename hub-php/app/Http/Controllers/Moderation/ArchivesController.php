@@ -61,7 +61,7 @@ class ArchivesController extends ModerationController
     /** A path on this site: one leading slash, no second slash, backslash or scheme. */
     private function isLocalPath(string $path): bool
     {
-        return preg_match('#^/(?![/\\\\])[^\\\\:\r\n]*$#', $path) === 1;
+        return preg_match('#^/(?![/\\\\])[^\\\\:\r\n]*\z#', $path) === 1;
     }
 
     public function dismiss(Request $request): RedirectResponse

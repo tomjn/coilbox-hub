@@ -421,6 +421,7 @@ final class ArchiveFunctions
                 'kind' => $a->kind,
                 'internal_name' => $a->internal_name,
                 'version' => $a->version,
+                'platform' => $a->platform,
                 'shortname' => $a->shortname,
                 'author' => $a->author,
                 'size' => (int) $a->size,

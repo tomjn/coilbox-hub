@@ -104,6 +104,14 @@ class EngineUploadTest extends ModerationTestCase
         $this->assertSame(0, DB::table('archive')->count());
     }
 
+    public function test_a_user_without_the_grant_gets_403_even_with_a_malformed_engine_filename(): void
+    {
+        $this->fakeUploader();
+
+        $this->upload(['filename' => 'not an engine.7z'])->assertStatus(403)
+            ->assertJsonPath('reason', 'not_engine_uploader');
+    }
+
     public function test_only_a_mirror_that_takes_engines_is_chosen(): void
     {
         DB::table('mirror')->insert([

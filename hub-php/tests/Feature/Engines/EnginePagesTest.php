@@ -3,6 +3,7 @@
 namespace Tests\Feature\Engines;
 
 use App\Domain\Engines\Engines;
+use App\Http\Controllers\Moderation\ArchivesController;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -60,7 +61,8 @@ class EnginePagesTest extends ModerationTestCase
         $this->get('/engines')->assertOk()
             ->assertSee(Engines::WARNING)
             ->assertSeeInOrder(['amd64-linux', '2026.09.03', 'arm64-macos', '2026.09.04'])
-            ->assertSee('/engines/2026.09.03/amd64-linux', false);
+            ->assertSee('/engines/2026.09.03/amd64-linux', false)
+            ->assertSee('43 bytes');
     }
 
     public function test_the_list_and_page_are_noindex_and_not_in_the_sitemap(): void
@@ -233,6 +235,15 @@ class EnginePagesTest extends ModerationTestCase
         }
     }
 
+    public function test_a_return_with_a_trailing_newline_is_not_a_local_path(): void
+    {
+        // The request middleware trims input, so this calls the check directly.
+        $check = new \ReflectionMethod(ArchivesController::class, 'isLocalPath');
+
+        $this->assertTrue($check->invoke(new ArchivesController, '/engines'));
+        $this->assertFalse($check->invoke(new ArchivesController, "/engines\n"));
+    }
+
     public function test_the_moderation_removal_without_a_return_still_goes_back(): void
     {
         $this->supabase();
@@ -250,6 +261,7 @@ class EnginePagesTest extends ModerationTestCase
         $this->engine('2026.09.01-137-g15f18d5+mac', 'arm64-macos');
 
         $this->signedIn()->get('/moderation/archives')->assertOk()
-            ->assertSee('href="/engines/2026.09.01-137-g15f18d5%2Bmac/arm64-macos"', false);
+            ->assertSee('href="/engines/2026.09.01-137-g15f18d5%2Bmac/arm64-macos"', false)
+            ->assertSee(', platform arm64-macos');
     }
 }

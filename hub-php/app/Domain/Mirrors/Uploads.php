@@ -2,6 +2,7 @@
 
 namespace App\Domain\Mirrors;
 
+use App\Domain\Engines\EngineUploaders;
 use App\Domain\Engines\Engines;
 use App\Support\Bearer;
 use App\Support\Site;
@@ -24,6 +25,10 @@ final class Uploads
         $decoded = json_decode($raw, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
             return self::fail(400, 'The request body must be JSON.', 'bad_request');
+        }
+        // Engine uploads are refused before the facts are checked, so someone without the grant learns that first.
+        if (is_array($decoded) && ($decoded['kind'] ?? null) === 'engine' && ! self::isModerator($auth->client) && ! EngineUploaders::has($auth->userId)) {
+            return self::notEngineUploader();
         }
         $facts = UploadFacts::parse($decoded);
         if (is_string($facts)) {
@@ -130,6 +135,12 @@ final class Uploads
         ]]];
     }
 
+    /** @return array{status: int, body: array<string, mixed>} */
+    private static function notEngineUploader(): array
+    {
+        return self::fail(403, "You can't upload engines. Ask a moderator for the engine uploader grant.", 'not_engine_uploader');
+    }
+
     /**
      * @param  array<string, mixed>  $result
      * @param  array<string, mixed>  $facts
@@ -152,7 +163,7 @@ final class Uploads
             return self::fail(503, 'No mirror can take an upload just now.', 'no_mirror');
         }
         if ($reason === 'not_engine_uploader') {
-            return self::fail(403, "You can't upload engines. Ask a moderator for the engine uploader grant.", 'not_engine_uploader');
+            return self::notEngineUploader();
         }
         if ($reason === 'no_engine_mirror') {
             return self::fail(503, 'No mirror takes engines yet.', 'no_engine_mirror');
