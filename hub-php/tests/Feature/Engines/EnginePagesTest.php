@@ -200,6 +200,50 @@ class EnginePagesTest extends ModerationTestCase
             ->assertSee('/moderation/archives/remove', false)->assertSee('/note"', false);
     }
 
+    public function test_the_page_has_an_edit_note_heading_for_the_uploader(): void
+    {
+        $this->supabase(moderator: false);
+        $this->engine();
+
+        $this->signedIn()->get('/engines/2026.09.03/amd64-linux')->assertSee('Edit note');
+    }
+
+    public function test_a_moderator_removing_an_engine_from_its_page_lands_on_the_list_with_a_confirmation(): void
+    {
+        $this->supabase();
+        $this->engine(uploader: self::STRANGER);
+
+        $this->signedIn()->from('/engines/2026.09.03/amd64-linux')
+            ->post('/moderation/archives/remove', ['archive_id' => DB::table('archive')->value('id'), 'reason' => 'broken', 'return' => '/engines'])
+            ->assertRedirect('/engines');
+
+        $this->assertSame('removed', DB::table('archive')->value('state'));
+        $this->signedIn()->get('/engines')->assertOk()->assertSee('Removed. The hub stopped linking it');
+    }
+
+    public function test_a_return_that_is_not_a_local_path_falls_back_to_going_back(): void
+    {
+        $this->supabase();
+        $id = $this->engine(uploader: self::STRANGER);
+
+        foreach (['//evil.test', 'https://evil.test', '/\\evil.test', 'evil'] as $return) {
+            $this->signedIn()->from('/moderation/archives')
+                ->post('/moderation/archives/remove', ['archive_id' => $id, 'reason' => '', 'return' => $return])
+                ->assertRedirect('/moderation/archives');
+        }
+    }
+
+    public function test_the_moderation_removal_without_a_return_still_goes_back(): void
+    {
+        $this->supabase();
+        $id = $this->engine(uploader: self::STRANGER);
+
+        $this->signedIn()->from('/moderation/archives?q=recoil')
+            ->post('/moderation/archives/remove', ['archive_id' => $id, 'reason' => 'broken'])
+            ->assertRedirect('/moderation/archives?q=recoil');
+        $this->assertSame('removed', DB::table('archive')->value('state'));
+    }
+
     public function test_moderation_archives_links_an_engine_to_its_page(): void
     {
         $this->supabase(['/rest/v1/profile' => self::reply([['user_id' => self::MODERATOR, 'display_name' => 'Uploader']])]);

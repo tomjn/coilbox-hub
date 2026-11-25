@@ -32,7 +32,7 @@ class EnginesController extends Controller
         }
         ksort($byPlatform);
 
-        return view('engines.index', ['byPlatform' => $byPlatform, 'state' => session('enginesState')]);
+        return view('engines.index', ['byPlatform' => $byPlatform, 'state' => session('enginesState') ?? session('archivesState')]);
     }
 
     public function show(string $version, string $platform): View
@@ -45,7 +45,7 @@ class EnginesController extends Controller
             'engine' => $engine,
             'canEdit' => $user !== null && $engine['uploader'] === $user,
             'moderator' => $client !== null && Access::isModerator($client),
-            'state' => session('enginesState'),
+            'state' => session('enginesState') ?? session('archivesState'),
             // The moderator remove form reads these from the archive row.
             'a' => ['id' => $engine['id'], 'filename' => $engine['filename']],
         ]);

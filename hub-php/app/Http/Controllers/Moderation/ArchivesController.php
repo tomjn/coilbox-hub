@@ -52,7 +52,16 @@ class ArchivesController extends ModerationController
             $note === '' ? null : $note,
         );
 
-        return redirect()->back(fallback: '/moderation/archives')->with('archivesState', $state);
+        $return = (string) $request->input('return', '');
+        $redirect = $this->isLocalPath($return) ? redirect($return) : redirect()->back(fallback: '/moderation/archives');
+
+        return $redirect->with('archivesState', $state);
+    }
+
+    /** A path on this site: one leading slash, no second slash, backslash or scheme. */
+    private function isLocalPath(string $path): bool
+    {
+        return preg_match('#^/(?![/\\\\])[^\\\\:\r\n]*$#', $path) === 1;
     }
 
     public function dismiss(Request $request): RedirectResponse

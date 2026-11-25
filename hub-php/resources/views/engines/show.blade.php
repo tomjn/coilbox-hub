@@ -43,8 +43,9 @@
         </section>
 
         @if ($canEdit || $moderator)
-            <form method="post" action="{{ Engines::pagePath($engine['version'], $engine['platform']) }}/note" class="flex flex-col gap-3">
+            <form method="post" action="{{ Engines::pagePath($engine['version'], $engine['platform']) }}/note" class="flex flex-col gap-3" aria-labelledby="engine-note">
                 @csrf
+                <h2 id="engine-note" class="{{ $term }}">Edit note</h2>
                 <label class="flex flex-col gap-1.5 text-sm">
                     <span class="text-neutral-400">Note, up to {{ Engines::NOTE_MAX }} characters</span>
                     <textarea name="note" rows="4" required maxlength="{{ Engines::NOTE_MAX }}" class="{{ Ui::FIELD }}">{{ $engine['note'] }}</textarea>
@@ -63,7 +64,7 @@
         @if ($moderator)
             <section class="flex flex-col gap-3 border-t border-neutral-900 pt-6" aria-labelledby="engine-moderation">
                 <h2 id="engine-moderation" class="{{ $term }}">Moderation</h2>
-                @include('moderation.partials.archive-remove')
+                @include('moderation.partials.archive-remove', ['return' => '/engines'])
             </section>
         @endif
     </div>
