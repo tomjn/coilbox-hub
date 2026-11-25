@@ -282,11 +282,16 @@ final class MirrorFunctions
 
             $mirrors = DB::table('mirror')->where('enabled', true)->orderBy('id')->get(['id', 'base_url', 'public_key'])
                 ->map(fn ($m) => ['id' => $m->id, 'base_url' => $m->base_url, 'public_key' => $m->public_key])->all();
-            $archives = DB::table('archive')->where('state', 'listed')->orderBy('listed_at')->orderBy('id')->get()
+            $archives = DB::table('archive')->where('state', 'listed')->where('kind', '!=', 'engine')->orderBy('listed_at')->orderBy('id')->get()
                 ->map(fn ($a) => [
                     'kind' => $a->kind, 'size' => (int) $a->size, 'author' => $a->author, 'sha256' => $a->sha256,
                     'version' => $a->version, 'filename' => $a->filename, 'shortname' => $a->shortname,
                     'description' => $a->description, 'internal_name' => $a->internal_name,
+                ])->all();
+            $engines = DB::table('archive')->where('state', 'listed')->where('kind', 'engine')->orderBy('listed_at')->orderBy('id')->get()
+                ->map(fn ($a) => [
+                    'filename' => $a->filename, 'sha256' => $a->sha256, 'size' => (int) $a->size,
+                    'version' => $a->version, 'platform' => $a->platform, 'note' => $a->description,
                 ])->all();
             $removed = DB::table('archive')->where('state', 'removed')->orderBy('removed_at')->orderBy('id')->get()
                 ->map(fn ($a) => [
@@ -296,7 +301,7 @@ final class MirrorFunctions
 
             return [
                 'seq' => (int) $state->next_seq, 'changes' => (int) $state->changes,
-                'mirrors' => $mirrors, 'removed' => $removed, 'archives' => $archives,
+                'mirrors' => $mirrors, 'removed' => $removed, 'archives' => $archives, 'engines' => $engines,
             ];
         });
     }
