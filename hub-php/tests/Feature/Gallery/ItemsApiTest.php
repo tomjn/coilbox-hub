@@ -279,12 +279,12 @@ class ItemsApiTest extends TestCase
 
     public function test_the_profile_answers_with_the_display_name_uncacheable_by_anything_shared(): void
     {
-        $this->fakeWithAuth(['https://sb.test/rest/v1/profile*' => Http::response([['display_name' => 'Tom']], 200)]);
+        $this->fakeWithAuth(['https://sb.test/rest/v1/profile*' => Http::response([['display_name' => 'Tom']], 200), 'https://sb.test/rest/v1/rpc/is_moderator' => Http::response('false', 200)]);
 
         $response = $this->getJson('/api/v1/profile', ['Authorization' => 'Bearer good-token']);
 
         $response->assertOk();
-        $response->assertExactJson(['display_name' => 'Tom']);
+        $response->assertExactJson(['display_name' => 'Tom', 'can_upload_engines' => false]);
         $this->assertStringContainsString('private', $response->headers->get('Cache-Control'));
         $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
         $this->assertSame('*', $response->headers->get('Access-Control-Allow-Origin'));
@@ -294,12 +294,12 @@ class ItemsApiTest extends TestCase
 
     public function test_the_profile_has_a_null_display_name_when_the_account_has_no_profile_row(): void
     {
-        $this->fakeWithAuth(['https://sb.test/rest/v1/profile*' => Http::response([], 200)]);
+        $this->fakeWithAuth(['https://sb.test/rest/v1/profile*' => Http::response([], 200), 'https://sb.test/rest/v1/rpc/is_moderator' => Http::response('false', 200)]);
 
         $response = $this->getJson('/api/v1/profile', ['Authorization' => 'Bearer good-token']);
 
         $response->assertOk();
-        $response->assertExactJson(['display_name' => null]);
+        $response->assertExactJson(['display_name' => null, 'can_upload_engines' => false]);
     }
 
     public function test_a_missing_token_is_a_401_that_tells_the_client_what_to_send(): void

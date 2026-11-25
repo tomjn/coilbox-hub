@@ -124,7 +124,7 @@ class HubTokensTest extends TestCase
         $this->assertSame(1, DB::table('auth_user')->count());
 
         $this->getJson('/api/v1/profile', ['Authorization' => 'Bearer '.$body['access_token']])
-            ->assertOk()->assertExactJson(['display_name' => 'Alice']);
+            ->assertOk()->assertExactJson(['display_name' => 'Alice', 'can_upload_engines' => false]);
     }
 
     public function test_a_denied_sign_in_goes_back_to_coilbox_with_the_error(): void
