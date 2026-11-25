@@ -2,7 +2,9 @@
 
 namespace App\Domain\Engines;
 
+use App\Supabase\Local\MirrorFunctions;
 use App\Supabase\Local\MirrorSources;
+use App\Supabase\Local\Values;
 use App\Support\Site;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
@@ -48,6 +50,34 @@ final class Engines
         }
 
         return self::shape([$row])[0] + ['uploader' => $row->uploader];
+    }
+
+    /**
+     * Replaces the note on a listed engine. Its uploader or a moderator may.
+     * The change counts once in the catalogue, so mirrors and Coilbox see it.
+     *
+     * @return 'saved'|'not_allowed'|'not_found'|'bad_note'
+     */
+    public static function setNote(string $archiveId, string $userId, bool $moderator, string $note): string
+    {
+        $note = trim($note);
+
+        return DB::transaction(function () use ($archiveId, $userId, $moderator, $note) {
+            $row = DB::table('archive')->where('id', $archiveId)->where('kind', 'engine')->where('state', 'listed')->lockForUpdate()->first();
+            if ($row === null) {
+                return 'not_found';
+            }
+            if (! $moderator && $row->uploader !== $userId) {
+                return 'not_allowed';
+            }
+            if ($note === '' || mb_strlen($note) > self::NOTE_MAX) {
+                return 'bad_note';
+            }
+            MirrorFunctions::touch(DB::table('archive')->where('id', $archiveId), ['description' => $note], Values::now());
+            MirrorFunctions::bump();
+
+            return 'saved';
+        });
     }
 
     private static function query(): Builder

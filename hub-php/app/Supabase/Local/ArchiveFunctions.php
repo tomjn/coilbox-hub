@@ -2,6 +2,7 @@
 
 namespace App\Supabase\Local;
 
+use App\Domain\Engines\Engines;
 use App\Domain\Engines\EngineUploaders;
 use App\Domain\Points\CommunityPoints;
 use App\Supabase\Supabase;
@@ -408,9 +409,11 @@ final class ArchiveFunctions
 
         $rows = [];
         foreach ($byId as $id => $a) {
-            $page = $a->kind === 'map'
-                ? (isset($slugs[$a->internal_name]) ? '/map/'.MirrorSources::segment((string) $slugs[$a->internal_name]) : null)
-                : (isset($shortnames[$a->game_id]) ? '/games/'.MirrorSources::segment((string) $shortnames[$a->game_id]) : null);
+            $page = match ($a->kind) {
+                'map' => isset($slugs[$a->internal_name]) ? '/map/'.MirrorSources::segment((string) $slugs[$a->internal_name]) : null,
+                'engine' => Engines::pagePath((string) $a->version, (string) $a->platform),
+                default => isset($shortnames[$a->game_id]) ? '/games/'.MirrorSources::segment((string) $shortnames[$a->game_id]) : null,
+            };
             $rows[$id] = Values::jsonbKeys([
                 'id' => $a->id,
                 'sha256' => $a->sha256,
