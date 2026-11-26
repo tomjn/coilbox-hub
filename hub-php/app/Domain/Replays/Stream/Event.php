@@ -45,5 +45,7 @@ final readonly class Event
         public int $player,
         /** @var array<string, mixed> */
         public array $data = [],
+        /** Where the packet starts in the decompressed file, which orders events and orders that share a frame. */
+        public int $at = 0,
     ) {}
 }

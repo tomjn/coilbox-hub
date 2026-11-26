@@ -86,6 +86,16 @@ class DamagedReplayTest extends TestCase
         $this->assertSame(501, (new ReplayReader)->readBytes(self::bytes())->header->gameTime);
     }
 
+    public function test_a_file_that_decompresses_past_the_cap_is_refused(): void
+    {
+        $gz = gzencode(str_repeat("\0", ReplayReader::MAX_DECOMPRESSED + (1 << 20)));
+
+        $this->expectException(ReplayException::class);
+        $this->expectExceptionMessage('This replay is too large: it decompresses to more than 64 MB.');
+
+        (new ReplayReader)->readBytes($gz);
+    }
+
     public function test_a_missing_file_is_an_error(): void
     {
         $this->expectException(ReplayException::class);

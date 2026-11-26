@@ -31,5 +31,7 @@ final readonly class Order
         public bool $pairwise,
         /** @var list<Command> */
         public array $commands,
+        /** Where the packet starts in the decompressed file, as for `Event::$at`. */
+        public int $at = 0,
     ) {}
 }
