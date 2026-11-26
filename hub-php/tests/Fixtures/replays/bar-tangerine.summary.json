@@ -1,0 +1,3240 @@
+{
+    "v": 1,
+    "engine": "2026.09.03",
+    "game": "Beyond All Reason test-32071-e1cbffe",
+    "map": "Tangerine_Remake 1.0",
+    "started_at": 1795723837,
+    "duration": 935,
+    "players": [
+        {
+            "ally_team": 1,
+            "faction": "Armada",
+            "name": "ex0rc1st",
+            "team": 2
+        },
+        {
+            "ally_team": 0,
+            "faction": "Cortex",
+            "name": "Charlson",
+            "team": 3
+        },
+        {
+            "ally_team": 0,
+            "faction": "Cortex",
+            "name": "[Error]NoHorny",
+            "team": 4
+        },
+        {
+            "ally_team": 1,
+            "faction": "Armada",
+            "name": "Manathan",
+            "team": 1
+        },
+        {
+            "ally_team": 1,
+            "faction": "Armada",
+            "name": "Harith23",
+            "team": 0
+        },
+        {
+            "ally_team": 0,
+            "faction": "Armada",
+            "name": "[Error]MarketMaker",
+            "team": 5
+        }
+    ],
+    "spectators": [
+        "Slimelamp",
+        "SKALLBAG"
+    ],
+    "winners": [
+        0
+    ],
+    "totals": [
+        {
+            "damage_dealt": 533662.375,
+            "damage_received": 398278.34375,
+            "energy_excess": 11364.2421875,
+            "energy_produced": 10939.5009765625,
+            "energy_received": 17952.556640625,
+            "energy_sent": 18527.791015625,
+            "energy_used": 0.0,
+            "metal_excess": 12579.271484375,
+            "metal_produced": 88333.3828125,
+            "metal_received": 52442.5078125,
+            "metal_sent": 1689.4945068359375,
+            "metal_used": 129507.2578125,
+            "team": 0,
+            "units_captured": 0,
+            "units_died": 123,
+            "units_killed": 116,
+            "units_out_captured": 0,
+            "units_produced": 123,
+            "units_received": 0,
+            "units_sent": 0
+        },
+        {
+            "damage_dealt": 1432073.0,
+            "damage_received": 1234051.75,
+            "energy_excess": 17535.73828125,
+            "energy_produced": 20148.001953125,
+            "energy_received": 23089.150390625,
+            "energy_sent": 26701.498046875,
+            "energy_used": 0.0,
+            "metal_excess": 12724.37890625,
+            "metal_produced": 195160.1875,
+            "metal_received": 14974.251953125,
+            "metal_sent": 21121.654296875,
+            "metal_used": 179288.4375,
+            "team": 1,
+            "units_captured": 0,
+            "units_died": 417,
+            "units_killed": 360,
+            "units_out_captured": 0,
+            "units_produced": 417,
+            "units_received": 0,
+            "units_sent": 0
+        },
+        {
+            "damage_dealt": 748317.1875,
+            "damage_received": 1299408.625,
+            "energy_excess": 27547.08984375,
+            "energy_produced": 22359.5,
+            "energy_received": 24537.55078125,
+            "energy_sent": 20349.970703125,
+            "energy_used": 0.0,
+            "metal_excess": 23347.458984375,
+            "metal_produced": 303891.40625,
+            "metal_received": 8662.29296875,
+            "metal_sent": 53267.890625,
+            "metal_used": 238945.265625,
+            "team": 2,
+            "units_captured": 0,
+            "units_died": 653,
+            "units_killed": 100,
+            "units_out_captured": 0,
+            "units_produced": 653,
+            "units_received": 0,
+            "units_sent": 0
+        },
+        {
+            "damage_dealt": 1073799.625,
+            "damage_received": 997194.25,
+            "energy_excess": 7914.04150390625,
+            "energy_produced": 25737.501953125,
+            "energy_received": 57094.69140625,
+            "energy_sent": 50775.734375,
+            "energy_used": 0.0,
+            "metal_excess": 0.0,
+            "metal_produced": 958461.9375,
+            "metal_received": 37012.78515625,
+            "metal_sent": 12962.814453125,
+            "metal_used": 962855.1875,
+            "team": 3,
+            "units_captured": 0,
+            "units_died": 337,
+            "units_killed": 452,
+            "units_out_captured": 0,
+            "units_produced": 501,
+            "units_received": 0,
+            "units_sent": 0
+        },
+        {
+            "damage_dealt": 328485.3125,
+            "damage_received": 553253.375,
+            "energy_excess": 1176.494140625,
+            "energy_produced": 25341.111328125,
+            "energy_received": 37546.78125,
+            "energy_sent": 42436.52734375,
+            "energy_used": 0.0,
+            "metal_excess": 0.0,
+            "metal_produced": 513739.34375,
+            "metal_received": 21266.310546875,
+            "metal_sent": 6692.3203125,
+            "metal_used": 519901.9375,
+            "team": 4,
+            "units_captured": 0,
+            "units_died": 117,
+            "units_killed": 95,
+            "units_out_captured": 0,
+            "units_produced": 219,
+            "units_received": 0,
+            "units_sent": 0
+        },
+        {
+            "damage_dealt": 1415866.375,
+            "damage_received": 1287890.625,
+            "energy_excess": 3976.69287109375,
+            "energy_produced": 26237.5,
+            "energy_received": 48429.51953125,
+            "energy_sent": 49858.73046875,
+            "energy_used": 3000.0,
+            "metal_excess": 0.0,
+            "metal_produced": 1050611.125,
+            "metal_received": 15744.9609375,
+            "metal_sent": 54368.921875,
+            "metal_used": 994022.0625,
+            "team": 5,
+            "units_captured": 0,
+            "units_died": 277,
+            "units_killed": 399,
+            "units_out_captured": 0,
+            "units_produced": 485,
+            "units_received": 0,
+            "units_sent": 0
+        }
+    ],
+    "start_positions": [
+        {
+            "team": 0,
+            "x": 7182.08837890625,
+            "z": 6871.1025390625
+        },
+        {
+            "team": 1,
+            "x": 3150.021728515625,
+            "z": 5892.4833984375
+        },
+        {
+            "team": 2,
+            "x": 5314.6494140625,
+            "z": 7124.837890625
+        },
+        {
+            "team": 3,
+            "x": 5113.47314453125,
+            "z": 1628.724853515625
+        },
+        {
+            "team": 4,
+            "x": 3272.833984375,
+            "z": 699.89794921875
+        },
+        {
+            "team": 5,
+            "x": 2781.99267578125,
+            "z": 2325.90771484375
+        }
+    ],
+    "build_orders": [
+        {
+            "orders": [
+                {
+                    "frame": 468,
+                    "unit_def_id": 368
+                },
+                {
+                    "frame": 494,
+                    "unit_def_id": 368
+                },
+                {
+                    "frame": 532,
+                    "unit_def_id": 368
+                },
+                {
+                    "frame": 564,
+                    "unit_def_id": 368
+                },
+                {
+                    "frame": 986,
+                    "unit_def_id": 376
+                },
+                {
+                    "frame": 2168,
+                    "unit_def_id": 324
+                },
+                {
+                    "frame": 3120,
+                    "unit_def_id": 385
+                },
+                {
+                    "frame": 6135,
+                    "unit_def_id": 292
+                },
+                {
+                    "frame": 7196,
+                    "unit_def_id": 292
+                },
+                {
+                    "frame": 7826,
+                    "unit_def_id": 327
+                },
+                {
+                    "frame": 7826,
+                    "unit_def_id": 327
+                },
+                {
+                    "frame": 7826,
+                    "unit_def_id": 327
+                },
+                {
+                    "frame": 7826,
+                    "unit_def_id": 327
+                },
+                {
+                    "frame": 7826,
+                    "unit_def_id": 327
+                },
+                {
+                    "frame": 7826,
+                    "unit_def_id": 327
+                },
+                {
+                    "frame": 7826,
+                    "unit_def_id": 327
+                },
+                {
+                    "frame": 8960,
+                    "unit_def_id": 355
+                },
+                {
+                    "frame": 8960,
+                    "unit_def_id": 355
+                },
+                {
+                    "frame": 8960,
+                    "unit_def_id": 355
+                },
+                {
+                    "frame": 8960,
+                    "unit_def_id": 355
+                },
+                {
+                    "frame": 9479,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 9553,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 9553,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 9553,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 9553,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 9553,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 9553,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 11053,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 11053,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 11053,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 11053,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 11053,
+                    "unit_def_id": 382
+                },
+                {
+                    "frame": 12962,
+                    "unit_def_id": 341
+                },
+                {
+                    "frame": 16217,
+                    "unit_def_id": 322
+                },
+                {
+                    "frame": 16570,
+                    "unit_def_id": 322
+                },
+                {
+                    "frame": 18018,
+                    "unit_def_id": 574
+                },
+                {
+                    "frame": 18407,
+                    "unit_def_id": 341
+                },
+                {
+                    "frame": 19571,
+                    "unit_def_id": 562
+                },
+                {
+                    "frame": 19999,
+                    "unit_def_id": 562
+                },
+                {
+                    "frame": 20118,
+                    "unit_def_id": 562
+                },
+                {
+                    "frame": 20536,
+                    "unit_def_id": 383
+                },
+                {
+                    "frame": 24567,
+                    "unit_def_id": 383
+                },
+                {
+                    "frame": 25247,
+                    "unit_def_id": 565
+                },
+                {
+                    "frame": 25406,
+                    "unit_def_id": 565
+                },
+                {
+                    "frame": 27334,
+                    "unit_def_id": 372
+                }
+            ],
+            "team": 0
+        },
+        {
+            "orders": [
+                {
+                    "frame": 6,
+                    "unit_def_id": 508
+                },
+                {
+                    "frame": 6,
+                    "unit_def_id": 508
+                },
+                {
+                    "frame": 6,
+                    "unit_def_id": 508
+                },
+                {
+                    "frame": 6,
+                    "unit_def_id": 508
+                },
+                {
+                    "frame": 6,
+                    "unit_def_id": 508
+                },
+                {
+                    "frame": 6,
+                    "unit_def_id": 508
+                },
+                {
+                    "frame": 6,
+                    "unit_def_id": 508
+                },
+                {
+                    "frame": 6,
+                    "unit_def_id": 508
+                },
+                {
+                    "frame": 2361,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 2361,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 2361,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 2361,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 2361,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 2361,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 2361,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 2361,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 4321,
+                    "unit_def_id": 550
+                },
+                {
+                    "frame": 4321,
+                    "unit_def_id": 550
+                },
+                {
+                    "frame": 4321,
+                    "unit_def_id": 550
+                },
+                {
+                    "frame": 4432,
+                    "unit_def_id": 550
+                },
+                {
+                    "frame": 4432,
+                    "unit_def_id": 550
+                },
+                {
+                    "frame": 5094,
+                    "unit_def_id": 572
+                },
+                {
+                    "frame": 5194,
+                    "unit_def_id": 572
+                },
+                {
+                    "frame": 5244,
+                    "unit_def_id": 572
+                },
+                {
+                    "frame": 5924,
+                    "unit_def_id": 571
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 7207,
+                    "unit_def_id": 547
+                },
+                {
+                    "frame": 8841,
+                    "unit_def_id": 570
+                },
+                {
+                    "frame": 9099,
+                    "unit_def_id": 570
+                },
+                {
+                    "frame": 9528,
+                    "unit_def_id": 570
+                },
+                {
+                    "frame": 9571,
+                    "unit_def_id": 570
+                },
+                {
+                    "frame": 9608,
+                    "unit_def_id": 570
+                },
+                {
+                    "frame": 9650,
+                    "unit_def_id": 570
+                },
+                {
+                    "frame": 9694,
+                    "unit_def_id": 570
+                },
+                {
+                    "frame": 9733,
+                    "unit_def_id": 570
+                },
+                {
+                    "frame": 11080,
+                    "unit_def_id": 570
+                },
+                {
+                    "frame": 11080,
+                    "unit_def_id": 570
+                },
+                {
+                    "frame": 11610,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 11610,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 11610,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 11610,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 11610,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 11610,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 11610,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 12143,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 12143,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 12143,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 12143,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 12143,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 12143,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 12143,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 15295,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 15295,
+                    "unit_def_id": 526
+                },
+                {
+                    "frame": 16013,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16203,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16267,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16307,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16341,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16378,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16423,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16487,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16721,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16755,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16775,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16924,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16924,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16924,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 16924,
+                    "unit_def_id": 295
+                },
+                {
+                    "frame": 17406,
+                    "unit_def_id": 488
+                },
+                {
+                    "frame": 18190,
+                    "unit_def_id": 571
+                },
+                {
+                    "frame": 20010,
+                    "unit_def_id": 571
+                },
+                {
+                    "frame": 20946,
+                    "unit_def_id": 571
+                },
+                {
+                    "frame": 21406,
+                    "unit_def_id": 571
+                }
+            ],
+            "team": 1
+        },
+        {
+            "orders": [
+                {
+                    "frame": 1183,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 1804,
+                    "unit_def_id": 436
+                },
+                {
+                    "frame": 2731,
+                    "unit_def_id": 439
+                },
+                {
+                    "frame": 3025,
+                    "unit_def_id": 438
+                },
+                {
+                    "frame": 3520,
+                    "unit_def_id": 397
+                },
+                {
+                    "frame": 3831,
+                    "unit_def_id": 423
+                },
+                {
+                    "frame": 4191,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 4915,
+                    "unit_def_id": 445
+                },
+                {
+                    "frame": 5349,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 6480,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 7267,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 10243,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 10243,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 10243,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 11916,
+                    "unit_def_id": 426
+                },
+                {
+                    "frame": 12491,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13017,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 13018,
+                    "unit_def_id": 435
+                },
+                {
+                    "frame": 16153,
+                    "unit_def_id": 434
+                },
+                {
+                    "frame": 18111,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 18138,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 18170,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 18210,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 19778,
+                    "unit_def_id": 400
+                },
+                {
+                    "frame": 19778,
+                    "unit_def_id": 400
+                },
+                {
+                    "frame": 19778,
+                    "unit_def_id": 400
+                },
+                {
+                    "frame": 19778,
+                    "unit_def_id": 400
+                },
+                {
+                    "frame": 20352,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 20352,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 20352,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 20352,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 20352,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 20352,
+                    "unit_def_id": 294
+                },
+                {
+                    "frame": 21333,
+                    "unit_def_id": 431
+                },
+                {
+                    "frame": 24061,
+                    "unit_def_id": 431
+                }
+            ],
+            "team": 2
+        },
+        {
+            "orders": [
+                {
+                    "frame": 16,
+                    "unit_def_id": 530
+                },
+                {
+                    "frame": 16,
+                    "unit_def_id": 530
+                },
+                {
+                    "frame": 16,
+                    "unit_def_id": 530
+                },
+                {
+                    "frame": 16,
+                    "unit_def_id": 540
+                },
+                {
+                    "frame": 16,
+                    "unit_def_id": 540
+                },
+                {
+                    "frame": 16,
+                    "unit_def_id": 540
+                },
+                {
+                    "frame": 650,
+                    "unit_def_id": 540
+                },
+                {
+                    "frame": 1154,
+                    "unit_def_id": 520
+                },
+                {
+                    "frame": 1526,
+                    "unit_def_id": 541
+                },
+                {
+                    "frame": 1606,
+                    "unit_def_id": 541
+                },
+                {
+                    "frame": 1897,
+                    "unit_def_id": 532
+                },
+                {
+                    "frame": 1897,
+                    "unit_def_id": 532
+                },
+                {
+                    "frame": 1897,
+                    "unit_def_id": 532
+                },
+                {
+                    "frame": 2224,
+                    "unit_def_id": 506
+                },
+                {
+                    "frame": 2224,
+                    "unit_def_id": 506
+                },
+                {
+                    "frame": 2691,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 2691,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 2743,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 3134,
+                    "unit_def_id": 537
+                },
+                {
+                    "frame": 3436,
+                    "unit_def_id": 509
+                },
+                {
+                    "frame": 3436,
+                    "unit_def_id": 509
+                },
+                {
+                    "frame": 3436,
+                    "unit_def_id": 509
+                },
+                {
+                    "frame": 4115,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 4115,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 4115,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 4115,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 4174,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 4174,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 4174,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 4265,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 4265,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 4580,
+                    "unit_def_id": 552
+                },
+                {
+                    "frame": 4659,
+                    "unit_def_id": 552
+                },
+                {
+                    "frame": 4775,
+                    "unit_def_id": 552
+                },
+                {
+                    "frame": 5440,
+                    "unit_def_id": 558
+                },
+                {
+                    "frame": 5758,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 5840,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 5840,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 5954,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 5954,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 5954,
+                    "unit_def_id": 505
+                },
+                {
+                    "frame": 6322,
+                    "unit_def_id": 539
+                },
+                {
+                    "frame": 6633,
+                    "unit_def_id": 492
+                },
+                {
+                    "frame": 7487,
+                    "unit_def_id": 550
+                },
+                {
+                    "frame": 7681,
+                    "unit_def_id": 550
+                },
+                {
+                    "frame": 8184,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 8184,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 8282,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 8282,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 8282,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 8314,
+                    "unit_def_id": 535
+                },
+                {
+                    "frame": 8683,
+                    "unit_def_id": 495
+                },
+                {
+                    "frame": 9341,
+                    "unit_def_id": 550
+                },
+                {
+                    "frame": 9727,
+                    "unit_def_id": 528
+                },
+                {
+                    "frame": 10339,
+                    "unit_def_id": 489
+                },
+                {
+                    "frame": 10406,
+                    "unit_def_id": 489
+                },
+                {
+                    "frame": 10871,
+                    "unit_def_id": 530
+                },
+                {
+                    "frame": 10871,
+                    "unit_def_id": 530
+                },
+                {
+                    "frame": 10871,
+                    "unit_def_id": 530
+                },
+                {
+                    "frame": 10871,
+                    "unit_def_id": 530
+                },
+                {
+                    "frame": 11187,
+                    "unit_def_id": 528
+                },
+                {
+                    "frame": 11480,
+                    "unit_def_id": 512
+                },
+                {
+                    "frame": 12307,
+                    "unit_def_id": 495
+                },
+                {
+                    "frame": 12649,
+                    "unit_def_id": 495
+                },
+                {
+                    "frame": 13429,
+                    "unit_def_id": 512
+                },
+                {
+                    "frame": 13683,
+                    "unit_def_id": 528
+                },
+                {
+                    "frame": 14311,
+                    "unit_def_id": 556
+                },
+                {
+                    "frame": 14543,
+                    "unit_def_id": 556
+                },
+                {
+                    "frame": 14543,
+                    "unit_def_id": 556
+                },
+                {
+                    "frame": 14543,
+                    "unit_def_id": 556
+                },
+                {
+                    "frame": 14543,
+                    "unit_def_id": 556
+                },
+                {
+                    "frame": 14543,
+                    "unit_def_id": 556
+                },
+                {
+                    "frame": 15687,
+                    "unit_def_id": 495
+                },
+                {
+                    "frame": 15792,
+                    "unit_def_id": 495
+                },
+                {
+                    "frame": 15792,
+                    "unit_def_id": 495
+                },
+                {
+                    "frame": 15792,
+                    "unit_def_id": 495
+                },
+                {
+                    "frame": 17366,
+                    "unit_def_id": 528
+                },
+                {
+                    "frame": 17754,
+                    "unit_def_id": 499
+                },
+                {
+                    "frame": 17855,
+                    "unit_def_id": 499
+                },
+                {
+                    "frame": 17965,
+                    "unit_def_id": 499
+                },
+                {
+                    "frame": 18355,
+                    "unit_def_id": 495
+                },
+                {
+                    "frame": 19095,
+                    "unit_def_id": 510
+                },
+                {
+                    "frame": 19234,
+                    "unit_def_id": 513
+                },
+                {
+                    "frame": 20331,
+                    "unit_def_id": 511
+                },
+                {
+                    "frame": 21035,
+                    "unit_def_id": 515
+                },
+                {
+                    "frame": 21243,
+                    "unit_def_id": 515
+                },
+                {
+                    "frame": 21243,
+                    "unit_def_id": 515
+                },
+                {
+                    "frame": 21830,
+                    "unit_def_id": 518
+                },
+                {
+                    "frame": 21830,
+                    "unit_def_id": 518
+                },
+                {
+                    "frame": 21882,
+                    "unit_def_id": 518
+                },
+                {
+                    "frame": 21993,
+                    "unit_def_id": 518
+                },
+                {
+                    "frame": 23375,
+                    "unit_def_id": 511
+                },
+                {
+                    "frame": 24130,
+                    "unit_def_id": 531
+                },
+                {
+                    "frame": 24383,
+                    "unit_def_id": 531
+                },
+                {
+                    "frame": 24922,
+                    "unit_def_id": 494
+                },
+                {
+                    "frame": 25092,
+                    "unit_def_id": 494
+                },
+                {
+                    "frame": 25928,
+                    "unit_def_id": 511
+                },
+                {
+                    "frame": 25928,
+                    "unit_def_id": 511
+                },
+                {
+                    "frame": 25928,
+                    "unit_def_id": 511
+                },
+                {
+                    "frame": 27443,
+                    "unit_def_id": 494
+                }
+            ],
+            "team": 3
+        },
+        {
+            "orders": [
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 10,
+                    "unit_def_id": 420
+                },
+                {
+                    "frame": 3729,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 3729,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 3729,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 3729,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 3729,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 5880,
+                    "unit_def_id": 439
+                },
+                {
+                    "frame": 5880,
+                    "unit_def_id": 439
+                },
+                {
+                    "frame": 5880,
+                    "unit_def_id": 439
+                },
+                {
+                    "frame": 5880,
+                    "unit_def_id": 439
+                },
+                {
+                    "frame": 5880,
+                    "unit_def_id": 439
+                },
+                {
+                    "frame": 5880,
+                    "unit_def_id": 439
+                },
+                {
+                    "frame": 5880,
+                    "unit_def_id": 439
+                },
+                {
+                    "frame": 5880,
+                    "unit_def_id": 439
+                },
+                {
+                    "frame": 8880,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 8880,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 8880,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 8880,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 8880,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 8880,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 8880,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 8880,
+                    "unit_def_id": 425
+                },
+                {
+                    "frame": 11889,
+                    "unit_def_id": 432
+                },
+                {
+                    "frame": 11889,
+                    "unit_def_id": 432
+                },
+                {
+                    "frame": 11889,
+                    "unit_def_id": 432
+                },
+                {
+                    "frame": 11889,
+                    "unit_def_id": 432
+                },
+                {
+                    "frame": 11889,
+                    "unit_def_id": 432
+                },
+                {
+                    "frame": 11889,
+                    "unit_def_id": 432
+                },
+                {
+                    "frame": 11889,
+                    "unit_def_id": 432
+                },
+                {
+                    "frame": 11889,
+                    "unit_def_id": 432
+                },
+                {
+                    "frame": 12512,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 12512,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 12512,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 12512,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 12512,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 12512,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 15372,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 15372,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 15372,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 15372,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 15441,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 15441,
+                    "unit_def_id": 411
+                },
+                {
+                    "frame": 16601,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 16601,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 16601,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 16601,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 16601,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 16601,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 16601,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 16677,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 16761,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 16793,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21005,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21005,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21005,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21005,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21005,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21345,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21384,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 21424,
+                    "unit_def_id": 462
+                },
+                {
+                    "frame": 22471,
+                    "unit_def_id": 433
+                },
+                {
+                    "frame": 22471,
+                    "unit_def_id": 433
+                },
+                {
+                    "frame": 22471,
+                    "unit_def_id": 433
+                },
+                {
+                    "frame": 22471,
+                    "unit_def_id": 433
+                }
+            ],
+            "team": 4
+        },
+        {
+            "orders": [
+                {
+                    "frame": 8,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 8,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 8,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 8,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 8,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 8,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 8,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 8,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 8,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 934,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 934,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 934,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 934,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 934,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 934,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 934,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 934,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 934,
+                    "unit_def_id": 469
+                },
+                {
+                    "frame": 3031,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3031,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3031,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3031,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3031,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3031,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3363,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3530,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3530,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3530,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3530,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 3530,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 4644,
+                    "unit_def_id": 467
+                },
+                {
+                    "frame": 4874,
+                    "unit_def_id": 467
+                },
+                {
+                    "frame": 4874,
+                    "unit_def_id": 467
+                },
+                {
+                    "frame": 4874,
+                    "unit_def_id": 467
+                },
+                {
+                    "frame": 4874,
+                    "unit_def_id": 467
+                },
+                {
+                    "frame": 7213,
+                    "unit_def_id": 569
+                },
+                {
+                    "frame": 7665,
+                    "unit_def_id": 569
+                },
+                {
+                    "frame": 8759,
+                    "unit_def_id": 426
+                },
+                {
+                    "frame": 9581,
+                    "unit_def_id": 447
+                },
+                {
+                    "frame": 9581,
+                    "unit_def_id": 447
+                },
+                {
+                    "frame": 9581,
+                    "unit_def_id": 447
+                },
+                {
+                    "frame": 11155,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 11313,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 11339,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 11364,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 13603,
+                    "unit_def_id": 428
+                },
+                {
+                    "frame": 15023,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 15023,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 15023,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 15023,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 15023,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 15023,
+                    "unit_def_id": 575
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16205,
+                    "unit_def_id": 466
+                },
+                {
+                    "frame": 16974,
+                    "unit_def_id": 472
+                },
+                {
+                    "frame": 16974,
+                    "unit_def_id": 472
+                },
+                {
+                    "frame": 16974,
+                    "unit_def_id": 472
+                },
+                {
+                    "frame": 16974,
+                    "unit_def_id": 472
+                },
+                {
+                    "frame": 16974,
+                    "unit_def_id": 472
+                },
+                {
+                    "frame": 16974,
+                    "unit_def_id": 472
+                },
+                {
+                    "frame": 18323,
+                    "unit_def_id": 404
+                },
+                {
+                    "frame": 20830,
+                    "unit_def_id": 434
+                },
+                {
+                    "frame": 20958,
+                    "unit_def_id": 434
+                },
+                {
+                    "frame": 20958,
+                    "unit_def_id": 434
+                },
+                {
+                    "frame": 22359,
+                    "unit_def_id": 433
+                },
+                {
+                    "frame": 22484,
+                    "unit_def_id": 433
+                },
+                {
+                    "frame": 22484,
+                    "unit_def_id": 433
+                },
+                {
+                    "frame": 22484,
+                    "unit_def_id": 433
+                },
+                {
+                    "frame": 27612,
+                    "unit_def_id": 475
+                }
+            ],
+            "team": 5
+        }
+    ],
+    "units": [
+        {
+            "unit_def_id": 292,
+            "name": "cfaaarmflak",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 294,
+            "name": "cfaacorflak",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 295,
+            "name": "cfaalegflak",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 322,
+            "name": "cfarmfboy",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 324,
+            "name": "cfarmfido",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 327,
+            "name": "cfarmflea",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 341,
+            "name": "cfarmmanni",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 355,
+            "name": "cfarmpw",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 368,
+            "name": "cfarmsh",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 372,
+            "name": "cfarmsptkt4",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 376,
+            "name": "cfarmsubk",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 382,
+            "name": "cfarmwar",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 383,
+            "name": "cfarmyork",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 385,
+            "name": "cfarmzeus",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 397,
+            "name": "cfcorak",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 400,
+            "name": "cfcorape",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 404,
+            "name": "cfcorblackhy",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 411,
+            "name": "cfcorcrwh",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 420,
+            "name": "cfcorforge",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 423,
+            "name": "cfcorgarp",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 425,
+            "name": "cfcorgatreap",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 426,
+            "name": "cfcorgol",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 428,
+            "name": "cfcorhal",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 431,
+            "name": "cfcorjugg",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 432,
+            "name": "cfcorkarg",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 433,
+            "name": "cfcorkarganetht4",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 434,
+            "name": "cfcorkorg",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 435,
+            "name": "cfcorlevlr",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 436,
+            "name": "cfcormart",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 438,
+            "name": "cfcormist",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 439,
+            "name": "cfcormort",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 445,
+            "name": "cfcorpyro",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 447,
+            "name": "cfcorreap",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 462,
+            "name": "cfcorsok",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 466,
+            "name": "cfcorsumo",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 467,
+            "name": "cfcortermite",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 469,
+            "name": "cfcorthud",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 472,
+            "name": "cfcortrem",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 475,
+            "name": "cfcorves",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 488,
+            "name": "cflegaheattank",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 489,
+            "name": "cflegamcluster",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 492,
+            "name": "cfleganavyaaship",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 494,
+            "name": "cfleganavyartyship",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 495,
+            "name": "cfleganavybattleship",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 499,
+            "name": "cfleganavyheavysub",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 505,
+            "name": "cflegbal",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 506,
+            "name": "cflegbar",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 508,
+            "name": "cflegcar",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 509,
+            "name": "cflegcen",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 510,
+            "name": "cflegeallterrainmech",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 511,
+            "name": "cflegeheatraymech",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 512,
+            "name": "cflegehovertank",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 513,
+            "name": "cflegelrpcmech",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 515,
+            "name": "cflegeshotgunmech",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 518,
+            "name": "cflegfort",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 520,
+            "name": "cfleggat",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 526,
+            "name": "cfleginc",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 528,
+            "name": "cflegjav",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 530,
+            "name": "cflegkark",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 531,
+            "name": "cflegkeres",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 532,
+            "name": "cfleglob",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 535,
+            "name": "cflegmos",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 537,
+            "name": "cflegmrv",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 539,
+            "name": "cflegnavyartyship",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 540,
+            "name": "cflegnavydestro",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 541,
+            "name": "cflegnavyfrigate",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 547,
+            "name": "cflegrail",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 550,
+            "name": "cflegshot",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 552,
+            "name": "cflegspbomber",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 556,
+            "name": "cflegsrail",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 558,
+            "name": "cflegstr",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 562,
+            "name": "cftowerarmanni",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 565,
+            "name": "cftowerarmpb",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 569,
+            "name": "cftowercorvipe",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 570,
+            "name": "cftowerlegapopupdef",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 571,
+            "name": "cftowerlegbastion",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 572,
+            "name": "cftowerleglht",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 574,
+            "name": "cftreasuryarm",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 575,
+            "name": "cftreasurycor",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        }
+    ]
+}

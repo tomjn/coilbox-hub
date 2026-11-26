@@ -159,28 +159,28 @@ final class StreamReader
                     break;
                 case self::PAUSE:
                     $this->fixed($p, $len, 3);
-                    $events[] = new Event($this->frame, Event::PAUSE, ord($bytes[$p + 1]), ['paused' => $bytes[$p + 2] !== "\0"]);
+                    $events[] = new Event($this->frame, Event::PAUSE, ord($bytes[$p + 1]), ['paused' => $bytes[$p + 2] !== "\0"], $p);
                     break;
                 case self::PLAYERLEFT:
                     $this->fixed($p, $len, 3);
                     $code = ord($bytes[$p + 2]);
                     $events[] = new Event($this->frame, Event::PLAYER_LEFT, ord($bytes[$p + 1]), [
                         'reason' => [0 => 'lost_connection', 1 => 'left', 2 => 'kicked'][$code] ?? $code,
-                    ]);
+                    ], $p);
                     break;
                 case self::TEAM:
                     $this->fixed($p, $len, 5);
-                    $events[] = $this->teamAction(unpack('Cplayer/Caction/Cp1/Cp2', $bytes, $p + 1));
+                    $events[] = $this->teamAction(unpack('Cplayer/Caction/Cp1/Cp2', $bytes, $p + 1), $p);
                     break;
                 case self::GAMEOVER:
                     $this->sized8($p, $len, 3);
                     $events[] = new Event($this->frame, Event::GAME_OVER, ord($bytes[$p + 2]), [
                         'winning_ally_teams' => $len > 3 ? array_values(unpack('C*', substr($bytes, $p + 3, $len - 3))) : [],
-                    ]);
+                    ], $p);
                     break;
                 case self::PLAYERNAME:
                     $this->sized8($p, $len, 4);
-                    $events[] = new Event($this->frame, Event::PLAYER_NAME, ord($bytes[$p + 2]), ['name' => $this->cstr($p + 3, $p + $len)]);
+                    $events[] = new Event($this->frame, Event::PLAYER_NAME, ord($bytes[$p + 2]), ['name' => $this->cstr($p + 3, $p + $len)], $p);
                     break;
                 case self::CREATE_NEWPLAYER:
                     $this->sized16($p, $len, 7);
@@ -188,7 +188,7 @@ final class StreamReader
                         'spectator' => $bytes[$p + 4] !== "\0",
                         'team' => ord($bytes[$p + 5]),
                         'name' => $this->cstr($p + 6, $p + $len),
-                    ]);
+                    ], $p);
                     break;
             }
         }
@@ -231,7 +231,7 @@ final class StreamReader
                 $command = $this->command($r, $end, false);
                 $this->done($r, $end);
 
-                return new Order($this->frame, ord($bytes[$p + 3]), Order::SELECTION, null, null, [], false, [$command]);
+                return new Order($this->frame, ord($bytes[$p + 3]), Order::SELECTION, null, null, [], false, [$command], $p);
             case self::AICOMMANDS:
                 return $this->unitCommands($p, $len);
             default:
@@ -242,8 +242,8 @@ final class StreamReader
                 $this->done($r, $end);
 
                 return $ai === self::NO_AI
-                    ? new Order($this->frame, $player, Order::LUA, null, null, [$unit], false, [$command])
-                    : new Order($this->frame, $player, Order::AI, $ai, $team, [$unit], false, [$command]);
+                    ? new Order($this->frame, $player, Order::LUA, null, null, [$unit], false, [$command], $p)
+                    : new Order($this->frame, $player, Order::AI, $ai, $team, [$unit], false, [$command], $p);
         }
     }
 
@@ -317,18 +317,18 @@ final class StreamReader
         }
         $this->done($r, $end);
 
-        return new Order($this->frame, $h['player'], Order::LUA, null, null, $units, $h['pairwise'] !== 0, $commands);
+        return new Order($this->frame, $h['player'], Order::LUA, null, null, $units, $h['pairwise'] !== 0, $commands, $p);
     }
 
     /** @param array{player: int, action: int, p1: int, p2: int} $t */
-    private function teamAction(array $t): Event
+    private function teamAction(array $t, int $at): Event
     {
         return match ($t['action']) {
-            1 => new Event($this->frame, Event::GIVE_AWAY, $t['player'], ['to_team' => $t['p1'], 'from_team' => $t['p2']]),
-            2 => new Event($this->frame, Event::RESIGN, $t['player']),
-            3 => new Event($this->frame, Event::JOIN_TEAM, $t['player'], ['team' => $t['p1']]),
-            4 => new Event($this->frame, Event::TEAM_DIED, $t['player'], ['team' => $t['p1']]),
-            default => new Event($this->frame, Event::TEAM_ACTION, $t['player'], ['action' => $t['action'], 'param1' => $t['p1'], 'param2' => $t['p2']]),
+            1 => new Event($this->frame, Event::GIVE_AWAY, $t['player'], ['to_team' => $t['p1'], 'from_team' => $t['p2']], $at),
+            2 => new Event($this->frame, Event::RESIGN, $t['player'], [], $at),
+            3 => new Event($this->frame, Event::JOIN_TEAM, $t['player'], ['team' => $t['p1']], $at),
+            4 => new Event($this->frame, Event::TEAM_DIED, $t['player'], ['team' => $t['p1']], $at),
+            default => new Event($this->frame, Event::TEAM_ACTION, $t['player'], ['action' => $t['action'], 'param1' => $t['p1'], 'param2' => $t['p2']], $at),
         };
     }
 
