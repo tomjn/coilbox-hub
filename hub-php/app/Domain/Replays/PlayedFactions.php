@@ -2,40 +2,51 @@
 
 namespace App\Domain\Replays;
 
+use App\Domain\Replays\Lua\FactionPick;
 use App\Domain\Replays\Stream\Stream;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * The faction each player played (#679). The lobby writes a `side` into the
  * start script, and a game with its own faction picker lets the player change
- * it before the match starts. So the last pick before the first frame counts,
- * and the start script's side when there is none.
+ * it. So the last pick the game accepts counts, and the start script's side
+ * when there is none.
  *
  * Most games pick by start unit. The catalogue says which faction a start unit
  * belongs to. Where it does not, the faction is the unit's name, or null when
- * the replay cannot name the unit either. Neither is known well enough to check
- * a summary against.
+ * nothing names the unit. Neither is known well enough to check a summary
+ * against.
  */
 final class PlayedFactions
 {
     /**
+     * Games that take picks into the match, in a faction phase, by how their
+     * game type starts. Other games take them only before the first frame.
+     */
+    private const FACTION_PHASE_GAMES = ['SplinterFaction ', 'Total Annihilation: Recoil '];
+
+    /** The frame the faction phase ends at, from both games' `game_spawn.lua`. */
+    private const FACTION_PHASE_FRAMES = 900;
+
+    /** The frames the phase stays open for once every team has picked. */
+    private const FRAMES_AFTER_LAST_TEAM = 90;
+
+    /**
+     * @param  list<array{unit_def_id: int, name: string}>  $summaryUnits  names the start units of a replay with no unit list
      * @return array<int, array{faction: ?string, known: bool}> by player number, spectators left out.
      *                                                          `known` is false when a summary's faction cannot be checked.
      */
-    public static function of(Replay $replay): array
+    public static function of(Replay $replay, array $summaryUnits = []): array
     {
-        $picks = [];
-        foreach ($replay->stream->luaMessagesOf('faction_pick') as $message) {
-            if ($message->frame === Stream::PREGAME) {
-                $picks[$message->player] = $message->value;
-            }
-        }
+        $picks = self::picks($replay);
 
         $list = ReplayCheck::unitList($replay);
+        $named = array_column($summaryUnits, 'name', 'unit_def_id');
         $units = [];
         foreach ($picks as $player => $pick) {
             if ($pick->unitDefId !== null) {
-                $units[$player] = $list?->name($pick->unitDefId);
+                $units[$player] = $list === null ? $named[$pick->unitDefId] ?? null : $list->name($pick->unitDefId);
             }
         }
         $factions = self::catalogueFactions($replay->script->gameType, array_values(array_filter($units)));
@@ -57,6 +68,38 @@ final class PlayedFactions
         }
 
         return $out;
+    }
+
+    /** @return array<int, FactionPick> each player's last pick the game accepted, by player number */
+    private static function picks(Replay $replay): array
+    {
+        $phase = Str::startsWith($replay->script->gameType, self::FACTION_PHASE_GAMES);
+        // The first frame at which a pick is too late.
+        $closes = $phase ? self::FACTION_PHASE_FRAMES : Stream::PREGAME + 1;
+        $waiting = [];
+        foreach ($replay->script->players as $player) {
+            if (! $player->spectator) {
+                $waiting[$player->team] = true;
+            }
+        }
+
+        $picks = [];
+        foreach ($replay->stream->luaMessagesOf('faction_pick') as $message) {
+            if ($message->frame >= $closes) {
+                continue;
+            }
+            $picks[$message->player] = $message->value;
+            $team = $replay->script->players[$message->player]->team ?? null;
+            if ($phase && isset($waiting[$team])) {
+                unset($waiting[$team]);
+                if ($waiting === []) {
+                    // The game shortens the phase on the next frame.
+                    $closes = min($closes, $message->frame + 1 + self::FRAMES_AFTER_LAST_TEAM);
+                }
+            }
+        }
+
+        return $picks;
     }
 
     /**

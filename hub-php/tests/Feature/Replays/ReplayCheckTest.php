@@ -335,6 +335,61 @@ class ReplayCheckTest extends ModerationTestCase
         $this->assertRefused(self::SF, 'summary_mismatch', "The summary's start position for team 1");
     }
 
+    /** @return array<string, mixed> the Splinter Faction summary naming the start unit its player picked */
+    private static function pickedSummary(?string $faction): array
+    {
+        $summary = self::summary('sf-tumult');
+        $summary['units'][] = ['unit_def_id' => 19, 'name' => 'fedcommander', 'display_name' => null, 'metal' => 0, 'energy' => 0, 'build_time' => null, 'category' => null];
+        $summary['players'][0]['faction'] = $faction;
+
+        return $summary;
+    }
+
+    /** Splinter Faction in the catalogue, with its commander in a faction or in none. */
+    private function catalogueSplinterFaction(?string $factionKey): void
+    {
+        $now = '2026-08-21 10:00:00.000000';
+        $id = 'aaaaaaaa-0000-4000-8000-000000000001';
+        DB::table('game')->insert(['id' => $id, 'shortname' => 'SF', 'display_name' => 'SplinterFaction', 'start_units' => json_encode(['fedcommander']),
+            'links' => '[]', 'conquest_factions' => '[]', 'created_at' => $now, 'updated_at' => $now]);
+        DB::table('game_faction')->insert(['game_id' => $id, 'key' => 'fed', 'name' => 'Federation of Kala']);
+        DB::table('game_unit')->insert(['game_id' => $id, 'unit_name' => 'fedcommander', 'faction_key' => $factionKey,
+            'build_options' => '[]', 'stats' => '{}', 'facts_digest' => 'fed', 'morph_targets' => '[]',
+            'last_seen_at' => $now, 'created_at' => $now, 'updated_at' => $now]);
+    }
+
+    public function test_a_start_unit_the_summary_names_is_stored_as_the_catalogues_faction(): void
+    {
+        $this->catalogueSplinterFaction('fed');
+        $this->uploaded(self::SF, 'sf-tumult', self::pickedSummary('Federation of Kala'), 'Player');
+
+        $this->check(self::SF);
+
+        $this->assertSame('listed', DB::table('replay')->where('game_id', self::SF)->value('state'));
+        $this->assertSame('Federation of Kala', DB::table('replay_player')->where('game_id', self::SF)->where('kind', 'player')->value('faction'));
+    }
+
+    public function test_the_start_scripts_side_for_a_splinter_faction_pick_is_refused(): void
+    {
+        $this->catalogueSplinterFaction('fed');
+        $this->uploaded(self::SF, 'sf-tumult', self::pickedSummary(null), 'Player');
+
+        $this->check(self::SF);
+
+        $this->assertRefused(self::SF, 'summary_mismatch', "The summary's players are not the file's");
+    }
+
+    public function test_a_start_unit_with_no_catalogue_faction_is_stored_by_the_summarys_name(): void
+    {
+        $this->catalogueSplinterFaction(null);
+        $this->uploaded(self::SF, 'sf-tumult', self::pickedSummary(null), 'Player');
+
+        $this->check(self::SF);
+
+        $this->assertSame('listed', DB::table('replay')->where('game_id', self::SF)->value('state'));
+        $this->assertSame('fedcommander', DB::table('replay_player')->where('game_id', self::SF)->where('kind', 'player')->value('faction'));
+    }
+
     public function test_a_unit_name_that_is_not_the_replays_is_refused(): void
     {
         $summary = self::summary('bar-tangerine');
