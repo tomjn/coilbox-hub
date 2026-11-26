@@ -145,6 +145,7 @@ final class ReplayUploads
             // A lapsed reservation was only ever its uploader's.
             DB::table('replay_sender')->where('game_id', $gameId)->where('user_id', '<>', $user)->delete();
         }
+        ReplayListing::holdersChanged($request['sha256'], ...($row === null ? [] : [(string) $row->sha256]));
         DB::table('replay_sender')->upsert(
             [['game_id' => $gameId, 'user_id' => $user, 'name' => $request['name'], 'sent_at' => $now]],
             ['game_id', 'user_id'], ['name', 'sent_at'],
