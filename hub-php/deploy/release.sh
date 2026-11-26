@@ -42,5 +42,9 @@ test -L "$root/htdocs" || ln -s current/public "$root/htdocs"
 # clears it. The deploy user may run only this one command through sudo.
 sudo -n systemctl reload php8.4-fpm
 
+# The queue worker still runs the old release. This leaves a note in the cache
+# that makes it exit after its current job, and systemd starts it on `current`.
+php artisan queue:restart
+
 # Keep the five newest releases.
 ls -1dt "$root"/releases/* | tail -n +6 | xargs -r rm -rf

@@ -94,18 +94,87 @@ The hub lives at `/srv/www/hub.coilbox.org`. GitHub Actions builds each release,
 
 9. In the Supabase dashboard, under Authentication, URL Configuration, add `https://hub.coilbox.org/auth/callback` to the redirect URLs, and set the Site URL to `https://hub.coilbox.org`. Without the redirect URL, signing in on the website sends people back to the old address.
 
+10. After the first deploy, install the queue worker. See [Queue worker](#queue-worker).
+
 ## Deploying
 
 A push to `main` that changes `hub-php/` deploys. The Actions tab can also run the "Deploy the PHP hub" workflow by hand.
 
-To roll back, point `current` at an older release and reload PHP-FPM:
+To roll back, point `current` at an older release, reload PHP-FPM and restart the queue worker:
 
 ```
 ln -sfn /srv/www/hub.coilbox.org/releases/<older commit> /srv/www/hub.coilbox.org/current
 sudo systemctl reload php8.4-fpm
+php /srv/www/hub.coilbox.org/current/artisan queue:restart
 ```
 
 Rolling back past the release that moved the game catalogue (#597) makes the hub read games from Supabase again. Run `php artisan games:store supabase` first, so the newer releases agree.
+
+## Queue worker
+
+Work that should not keep a request waiting is queued in the `jobs` table. `deploy/hub-queue.service` runs `php artisan queue:work` under systemd as `www-data` to do it. systemd starts it at boot and starts it again whenever it stops. Each deploy runs `php artisan queue:restart`, which makes the worker finish its current job and exit, so the new one runs the new release.
+
+The worker reads `.env` through the cached config when it starts. After running `php artisan config:cache` by hand, also run `php artisan queue:restart`.
+
+### Install the worker
+
+Do this once, after the release that contains `deploy/hub-queue.service` has deployed.
+
+1. Check `grep QUEUE /srv/www/hub.coilbox.org/shared/.env` prints nothing, or only `QUEUE_CONNECTION=database`.
+2. Copy the unit: `sudo cp /srv/www/hub.coilbox.org/current/deploy/hub-queue.service /etc/systemd/system/`
+3. Load it: `sudo systemctl daemon-reload`
+4. Start it now and at every boot: `sudo systemctl enable --now hub-queue`
+5. Check `systemctl status hub-queue` says `active (running)`.
+
+A deploy does not copy the unit. After a change to `deploy/hub-queue.service`, repeat steps 2 and 3, then run `sudo systemctl restart hub-queue`.
+
+### Check it runs jobs
+
+In `/srv/www/hub.coilbox.org/current`:
+
+1. `php artisan jobs:test` queues a test job.
+2. Within a minute, `grep "Queue test job ran" storage/logs/laravel.log` shows a new line. It gives the seconds the job waited, the release the worker runs and the memory it used.
+
+If no line appears, `sudo journalctl -u hub-queue -n 50` shows what the worker did.
+
+To check it comes back after a restart, run `sudo reboot`, then repeat both steps. To check it picks up a deploy, run the "Deploy the PHP hub" workflow, then repeat both steps. The `release` in the new line is the new release folder.
+
+### Failed jobs
+
+A job that throws, or takes longer than 60 seconds, is not tried again. It is kept in the `failed_jobs` table. A job that ends the worker by running out of memory ends up there too, once the worker picks it up again 90 seconds or more after it started. In `/srv/www/hub.coilbox.org/current`:
+
+1. `php artisan queue:failed` lists them with their ids.
+2. `sudo journalctl -u hub-queue` and `storage/logs/laravel.log` say why. So does the `exception` column of `failed_jobs`.
+3. `php artisan queue:retry <id>` queues one again. `php artisan queue:retry all` queues all of them.
+4. `php artisan queue:forget <id>` removes one. `php artisan queue:flush` removes all of them.
+
+### Memory limits
+
+Measured on 26 November 2026 with `queue:work` running `jobs:test --replay` three times on a 4.8 MB replay of a 52 minute, 16 player Beyond All Reason match, on macOS with PHP 8.3 and MariaDB 11.8:
+
+| Measure | Result | Source |
+| --- | --- | --- |
+| Most PHP held during a job | 63.2 MB | `peak_memory_mb` in the log line |
+| PHP held between jobs | 32 MB | `memory_before_mb` in the log line |
+| Most the whole process held | 83 MB (87,212,032 bytes) | `maximum resident set size` from `/usr/bin/time -l` |
+
+The limits in the unit leave room above those figures. The margins are a choice, not a measurement.
+
+| Limit | Value | What happens past it |
+| --- | --- | --- |
+| `--memory` | 64 MB, twice what PHP held between jobs | The worker exits after the job and systemd starts a new one |
+| `memory_limit` | 256 MB, about four times the most PHP held | PHP ends the job and the worker, and systemd starts a new one |
+| `MemoryMax` | 384 MB, room for `memory_limit` and the rest of the process | Linux ends the worker, and systemd starts a new one |
+
+The droplet has 2 GB of RAM and had 43% in use on 26 November 2026, so a worker at `MemoryMax` still fits.
+
+To measure on the droplet, in `/srv/www/hub.coilbox.org/current`:
+
+1. Copy a long match's replay to `/tmp` on the droplet, and check `www-data` can read it with `chmod 644`.
+2. `sudo systemctl restart hub-queue`, so earlier jobs are not counted.
+3. Run `php artisan jobs:test --replay=/tmp/<name>.sdfz` twice. The second line's `memory_before_mb` is what a job leaves behind.
+4. `grep "Queue test job ran" storage/logs/laravel.log` gives the PHP figures.
+5. `systemctl status hub-queue` and `cat /sys/fs/cgroup/system.slice/hub-queue.service/memory.peak` give the memory the whole process used, the second as the peak in bytes.
 
 ## Game catalogue in MariaDB
 
