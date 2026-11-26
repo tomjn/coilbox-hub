@@ -179,6 +179,7 @@ final class ReplayChecks
                     'won' => in_array($team->allyTeam, $winners, true)] + $totals + [
                         'start_x' => $starts[$id]->x ?? null, 'start_z' => $starts[$id]->z ?? null,
                         'build_orders' => self::json($orders[$id] ?? []),
+                        'samples' => count($end->teams[$id] ?? []),
                     ];
             }
             DB::table('replay_team')->insert($teams);

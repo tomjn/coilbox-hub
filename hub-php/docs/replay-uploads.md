@@ -88,6 +88,8 @@ The hub fetches the file from the mirror it went to and reads it. It refuses the
 
 A refused replay is removed from the mirrors and its game id can be sent again. Moderators find the reason in `replay_refusal`.
 
+Once a replay is listed, anybody signed in can send an analysis run for it, as [replay-analyses.md](replay-analyses.md) says.
+
 ## Factions
 
 A player played the faction of their last pick that counts. A player with no such pick played their team's `side` in the start script. Which picks count depends on the game, as the game itself accepts them:
