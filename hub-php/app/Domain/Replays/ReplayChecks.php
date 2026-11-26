@@ -184,11 +184,13 @@ final class ReplayChecks
             DB::table('replay_team')->insert($teams);
 
             $seats = [];
+            $played = PlayedFactions::of($replay);
             foreach ($script->players as $id => $p) {
                 $figures = $p->spectator ? null : ($end->players[$id] ?? null);
+                $faction = $p->spectator ? $p->side : $played[$id]['faction'];
                 $seats[] = ['game_id' => $gameId, 'kind' => $p->spectator ? 'spectator' : 'player', 'number' => $id,
                     'name' => self::text($p->name), 'team' => $p->team, 'ally_team' => $p->allyTeam,
-                    'faction' => $p->side === null ? null : self::text($p->side),
+                    'faction' => $faction === null ? null : self::text($faction),
                     'won' => $p->spectator ? null : in_array($p->allyTeam, $winners, true),
                     'commands' => $figures?->commands, 'unit_commands' => $figures?->unitCommands, 'mouse_pixels' => $figures?->mousePixels,
                     'mouse_clicks' => $figures?->mouseClicks, 'key_presses' => $figures?->keyPresses];

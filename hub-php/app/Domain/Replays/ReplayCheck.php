@@ -59,15 +59,24 @@ final class ReplayCheck
     {
         $file = $players = [];
         $spectators = [];
-        foreach ($replay->script->players as $p) {
+        $unchecked = [];
+        $played = PlayedFactions::of($replay);
+        foreach ($replay->script->players as $id => $p) {
             if ($p->spectator) {
                 $spectators[] = $p->name;
-            } else {
-                $file[] = [$p->name, $p->team, $p->allyTeam, $p->side];
+
+                continue;
             }
+            $seat = [$p->name, $p->team, $p->allyTeam];
+            if (! $played[$id]['known']) {
+                $unchecked[] = $seat;
+            }
+            // False stands for a faction the hub cannot check, on both sides.
+            $file[] = [...$seat, $played[$id]['known'] ? $played[$id]['faction'] : false];
         }
         foreach ($summary['players'] as $p) {
-            $players[] = [$p['name'], $p['team'], $p['ally_team'], $p['faction'] ?? null];
+            $seat = [$p['name'], $p['team'], $p['ally_team']];
+            $players[] = [...$seat, in_array($seat, $unchecked, true) ? false : ($p['faction'] ?? null)];
         }
         if (self::sorted($players) !== self::sorted($file)) {
             return "The summary's players are not the file's: each player's name, team, ally team and faction have to match.";

@@ -77,7 +77,8 @@ Coilbox does nothing more. The mirror reports the file's hash to the hub, as it 
 The hub fetches the file from the mirror it went to and reads it. It refuses the replay when the file is not the one reported, cannot be read, decompresses to more than 64 MB, has another game id, has no game over or has no end of game block. It then compares the summary with the file, and any difference refuses it:
 
 - `engine`, `game`, `map`, `started_at` and `duration` must be the file's exactly.
-- `players` and `spectators` must be the start script's, in any order. `faction` is the player's team's `side` in the start script, or `null` when it has none. It is not the faction picked in the pregame.
+- `players` and `spectators` must be the start script's, in any order.
+- Each player's `faction` is the faction they played, as [Factions](#factions) says.
 - `winners` must be the end of game block's, in any order.
 - `totals` must have one entry for each team the end of game block has a sample for, with that team's last sample. Fractions are compared as the 32 bit floats the engine writes.
 - `start_positions` must have one entry for each team with a start position before the first frame, as 32 bit floats.
@@ -86,6 +87,20 @@ The hub fetches the file from the mirror it went to and reads it. It refuses the
 - The first sender's `name` must be a player or spectator in the file. A later sender whose name is not is dropped from the replay's senders.
 
 A refused replay is removed from the mirrors and its game id can be sent again. Moderators find the reason in `replay_refusal`.
+
+## Factions
+
+A player played the faction of their last pick before the first frame. A player who made no such pick played their team's `side` in the start script. A pick sent after the first frame does not count.
+
+| The last pick | `faction` the check expects | What the hub stores |
+|---|---|---|
+| None | The start script's `side`, or `null` when it has none | The same |
+| A faction name (`PICKFACTION\|`) | That name, exactly as sent | The same |
+| A start unit the hub's catalogue has a faction for | The faction's name in the catalogue, which is the game's own name for the side, such as `Legion` | The same |
+| A start unit the catalogue has no faction for | Not checked | The unit's name, such as `legcom` |
+| A start unit the replay cannot name | Not checked | `null` |
+
+The catalogue has a faction for a start unit when a game with the replay's game name lists the unit in its start units and puts it in one of its factions. The replay names a unit only when it carries a unit list, which Beyond All Reason's does.
 
 ## The summary
 
@@ -99,7 +114,7 @@ All keys are required. Numbers may be whole or have a fraction unless the table 
 | `map` | The map name, as in the start script's `mapname`. |
 | `started_at` | When the match started, in whole Unix seconds, from the header. |
 | `duration` | The match length in whole game seconds, from the header. `0` when there was no game over. |
-| `players` | One `{name, team, ally_team, faction}` for each player. `team` and `ally_team` are whole numbers from the start script. `faction` is text, or `null` when the replay does not say. |
+| `players` | One `{name, team, ally_team, faction}` for each player. `team` and `ally_team` are whole numbers from the start script. `faction` is the faction the player played (see [Factions](#factions)), as text, or `null` when the replay does not say. |
 | `spectators` | The spectators' names. |
 | `winners` | The winning ally team numbers, from the end of game block. |
 | `totals` | One entry for each team: `team`, then the team's last statistics sample, as `metal_used`, `energy_used`, `metal_produced`, `energy_produced`, `metal_excess`, `energy_excess`, `metal_received`, `energy_received`, `metal_sent`, `energy_sent`, `damage_dealt`, `damage_received`, `units_produced`, `units_died`, `units_received`, `units_sent`, `units_captured`, `units_out_captured` and `units_killed`. |

@@ -136,7 +136,8 @@ class ReplayCheckTest extends ModerationTestCase
         $players = DB::table('replay_player')->where('game_id', self::BAR)->orderBy('kind')->orderBy('number')->get();
         $this->assertSame(['player' => 6, 'spectator' => 2], $players->countBy('kind')->all());
         $charlson = $players->firstWhere('name', 'Charlson');
-        $this->assertSame([3, 0, 'Cortex', true], [(int) $charlson->team, (int) $charlson->ally_team, $charlson->faction, (bool) $charlson->won]);
+        // The start script says Cortex. Charlson picked Legion's commander.
+        $this->assertSame([3, 0, 'legcom', true], [(int) $charlson->team, (int) $charlson->ally_team, $charlson->faction, (bool) $charlson->won]);
         $this->assertNotNull($charlson->commands);
         $this->assertNull($players->firstWhere('name', 'Slimelamp')->won);
 
@@ -216,10 +217,113 @@ class ReplayCheckTest extends ModerationTestCase
         $this->assertRefused(self::SF, 'summary_mismatch', 'the summary has 34 orders and the file 35');
     }
 
-    public function test_a_changed_roster_or_start_position_is_refused(): void
+    /**
+     * Beyond All Reason in the catalogue, with its three factions and their commanders.
+     *
+     * @param  list<string>  $startUnits
+     */
+    private function catalogueFactions(array $startUnits = ['armcom', 'corcom', 'legcom']): void
+    {
+        $now = '2026-08-21 10:00:00.000000';
+        $id = 'bbbbbbbb-0000-4000-8000-000000000001';
+        DB::table('game')->insert(['id' => $id, 'shortname' => 'BYAR', 'display_name' => 'Beyond All Reason', 'start_units' => json_encode($startUnits),
+            'links' => '[]', 'conquest_factions' => '[]', 'created_at' => $now, 'updated_at' => $now]);
+        foreach (['armada' => ['Armada', 'armcom'], 'cortex' => ['Cortex', 'corcom'], 'legion' => ['Legion', 'legcom']] as $key => [$name, $unit]) {
+            DB::table('game_faction')->insert(['game_id' => $id, 'key' => $key, 'name' => $name]);
+            DB::table('game_unit')->insert(['game_id' => $id, 'unit_name' => $unit, 'faction_key' => $key,
+                'build_options' => '[]', 'stats' => '{}', 'facts_digest' => $unit, 'morph_targets' => '[]',
+                'last_seen_at' => $now, 'created_at' => $now, 'updated_at' => $now]);
+        }
+    }
+
+    /** @return array<string, mixed> the BAR summary with each player's faction as the catalogue names their pick */
+    private static function playedSummary(): array
     {
         $summary = self::summary('bar-tangerine');
-        $summary['players'][0]['faction'] = 'Legion';
+        $played = ['Manathan' => 'Legion', 'ex0rc1st' => 'Cortex', 'Charlson' => 'Legion', '[Error]MarketMaker' => 'Cortex'];
+        foreach ($summary['players'] as $i => $player) {
+            $summary['players'][$i]['faction'] = $played[$player['name']] ?? $player['faction'];
+        }
+
+        return $summary;
+    }
+
+    /** @return list<string> the BAR players' stored factions, by player number */
+    private function storedFactions(): array
+    {
+        return DB::table('replay_player')->where('game_id', self::BAR)->where('kind', 'player')->orderBy('number')->pluck('faction')->all();
+    }
+
+    public function test_a_pick_is_stored_as_the_catalogues_faction(): void
+    {
+        $this->catalogueFactions();
+        $this->uploaded(self::BAR, 'bar-tangerine', self::playedSummary(), 'Charlson');
+
+        $this->check(self::BAR);
+
+        $this->assertSame('listed', DB::table('replay')->where('game_id', self::BAR)->value('state'));
+        $this->assertSame(['Armada', 'Legion', 'Cortex', 'Legion', 'Cortex', 'Cortex'], $this->storedFactions());
+    }
+
+    public function test_the_start_scripts_side_for_a_player_who_picked_another_faction_is_refused(): void
+    {
+        $this->catalogueFactions();
+        $this->uploaded(self::BAR, 'bar-tangerine', self::summary('bar-tangerine'), 'Charlson');
+
+        $this->check(self::BAR);
+
+        $this->assertRefused(self::BAR, 'summary_mismatch', "The summary's players are not the file's");
+    }
+
+    public function test_a_pick_the_catalogue_cannot_name_is_stored_as_the_start_unit_and_not_checked(): void
+    {
+        $summary = self::summary('bar-tangerine');
+        $summary['players'][3]['faction'] = 'Legion';
+        $this->uploaded(self::BAR, 'bar-tangerine', $summary, 'Charlson');
+
+        $this->check(self::BAR);
+
+        $this->assertSame('listed', DB::table('replay')->where('game_id', self::BAR)->value('state'));
+        $this->assertSame(['Armada', 'legcom', 'corcom', 'legcom', 'Cortex', 'corcom'], $this->storedFactions());
+    }
+
+    public function test_a_unit_the_catalogue_does_not_start_a_player_with_names_no_faction(): void
+    {
+        $this->catalogueFactions(['armcom', 'corcom']);
+        $this->uploaded(self::BAR, 'bar-tangerine', self::playedSummary(), 'Charlson');
+
+        $this->check(self::BAR);
+
+        $this->assertSame(['Armada', 'legcom', 'Cortex', 'legcom', 'Cortex', 'Cortex'], $this->storedFactions());
+    }
+
+    public function test_a_hidden_game_names_no_faction(): void
+    {
+        $this->catalogueFactions();
+        DB::table('game')->update(['hidden_at' => '2026-08-22 10:00:00.000000']);
+        $this->uploaded(self::BAR, 'bar-tangerine', self::summary('bar-tangerine'), 'Charlson');
+
+        $this->check(self::BAR);
+
+        $this->assertSame(['Armada', 'legcom', 'corcom', 'legcom', 'Cortex', 'corcom'], $this->storedFactions());
+    }
+
+    public function test_a_changed_team_is_refused_for_a_player_whose_faction_is_not_checked(): void
+    {
+        $summary = self::summary('bar-tangerine');
+        $summary['players'][3]['team'] = 7;
+        $this->uploaded(self::BAR, 'bar-tangerine', $summary, 'Charlson');
+
+        $this->check(self::BAR);
+
+        $this->assertRefused(self::BAR, 'summary_mismatch', "The summary's players are not the file's");
+    }
+
+    public function test_a_changed_roster_or_start_position_is_refused(): void
+    {
+        // Harith23 picked nothing, so the start script's side is the faction.
+        $summary = self::summary('bar-tangerine');
+        $summary['players'][4]['faction'] = 'Legion';
         $this->uploaded(self::BAR, 'bar-tangerine', $summary, 'Charlson');
         $this->check(self::BAR);
         $this->assertRefused(self::BAR, 'summary_mismatch', "The summary's players are not the file's");
