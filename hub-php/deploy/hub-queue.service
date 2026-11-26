@@ -1,0 +1,30 @@
+# The hub's queue worker. Install as /etc/systemd/system/hub-queue.service
+# (see deploy/README.md, "Queue worker", which also gives the source of the
+# memory limits).
+
+[Unit]
+Description=Coilbox Hub queue worker
+After=network.target mariadb.service memcached.service
+# Keep restarting for as long as it takes. By default systemd gives up on a
+# unit that fails several times in a few seconds, such as while MariaDB is down.
+StartLimitIntervalSec=0
+
+[Service]
+# The same user as PHP-FPM, so both can write the logs and storage.
+User=www-data
+Group=www-data
+UMask=0002
+# `current` is resolved when the worker starts, so it stays on that release
+# until `queue:restart` in release.sh makes it exit and systemd starts it again.
+WorkingDirectory=/srv/www/hub.coilbox.org/current
+ExecStart=/usr/bin/php8.4 -d memory_limit=256M artisan queue:work --memory=64
+# Also after a clean exit, which is how `queue:restart` and --memory stop it.
+Restart=always
+RestartSec=5
+# The most the worker may take from the web server, whatever PHP thinks it uses.
+MemoryMax=384M
+# Past that it is ended, rather than left to fill the droplet's swap.
+MemorySwapMax=0
+
+[Install]
+WantedBy=multi-user.target
