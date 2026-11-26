@@ -2,6 +2,7 @@
 
 namespace App\Domain\Mirrors;
 
+use App\Domain\Replays\ReplayUploads;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
 use App\Support\HubCache;
@@ -45,6 +46,14 @@ final class Reports
             }
             if ($outcome !== 'recorded') {
                 return self::error(503, 'unavailable');
+            }
+
+            // Replays are only ever in MariaDB, whichever database holds the mirrors.
+            // The next sync report carries the same hashes, so a failure here waits for that.
+            try {
+                ReplayUploads::received($opened['mirror'], $payload['held']);
+            } catch (\Throwable $e) {
+                Log::warning('Marking replays received after a report failed: '.$e->getMessage());
             }
 
             $check = is_array($result['check'] ?? null) ? $result['check'] : null;
