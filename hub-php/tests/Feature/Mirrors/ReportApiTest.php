@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Mirrors;
 
+use App\Domain\Mirrors\B64;
 use App\Support\HubCache;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -63,6 +64,7 @@ class ReportApiTest extends TestCase
                 'outcome' => 'recorded', 'listed' => 1,
                 'check' => ['filename' => 'Test Map (v1.2) é.sd7', 'kind' => 'map', 'size' => 43],
             ]),
+            'https://mirror.test/engines/' => Http::response('', 200),
             'https://mirror.test/maps/*' => Http::response('', 200, ['Content-Length' => '43']),
             'https://sb.test/rest/v1/rpc/set_mirror_health' => Http::response(null, 204),
         ]);
@@ -81,12 +83,30 @@ class ReportApiTest extends TestCase
             && $r['p_mirror'] === 'jj-darkstars' && $r['p_healthy'] === true);
     }
 
+    public function test_a_report_with_engine_in_kinds_and_no_engines_folder_marks_the_mirror_unhealthy(): void
+    {
+        $this->assertContains('engine', json_decode(B64::decode(json_decode(self::fixture('report-sync.json'), true)['payload']), true)['kinds']);
+        Http::fake($this->currentCatalogue() + [
+            'https://sb.test/rest/v1/mirror*' => Http::response([$this->mirrorRow()]),
+            'https://sb.test/rest/v1/rpc/record_mirror_report' => Http::response(['outcome' => 'recorded', 'listed' => 0, 'check' => null]),
+            'https://mirror.test/engines/' => Http::response('', 404),
+            'https://mirror.test/listing.json' => Http::response('{}', 200),
+            'https://sb.test/rest/v1/rpc/set_mirror_health' => Http::response(null, 204),
+        ]);
+
+        $this->send('report-sync.json')->assertOk();
+
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'rpc/set_mirror_health')
+            && $r['p_mirror'] === 'jj-darkstars' && $r['p_healthy'] === false);
+    }
+
     /** Whether a map page and a game page, cached under their loaders' tags before the report, are still served after it. */
     private function cachedPagesSurvive(array $recorded, mixed $healthChanged): bool
     {
         Http::fake($this->currentCatalogue() + [
             'https://sb.test/rest/v1/mirror*' => Http::response([$this->mirrorRow()]),
             'https://sb.test/rest/v1/rpc/record_mirror_report' => Http::response(['outcome' => 'recorded', 'listed' => 0, 'check' => null] + $recorded),
+            'https://mirror.test/engines/' => Http::response('', 200),
             'https://mirror.test/listing.json' => Http::response('{}', 200),
             'https://sb.test/rest/v1/rpc/set_mirror_health' => Http::response(json_encode($healthChanged), 200),
         ]);
@@ -125,6 +145,7 @@ class ReportApiTest extends TestCase
         Http::fake([
             'https://sb.test/rest/v1/catalogue_state*' => Http::response(['message' => 'down'], 500),
             'https://sb.test/rest/v1/mirror*' => Http::response([$this->mirrorRow()]),
+            'https://mirror.test/engines/' => Http::response('', 200),
             'https://sb.test/rest/v1/rpc/record_mirror_report' => Http::response(['outcome' => 'recorded', 'listed' => 0, 'check' => null]),
             'https://mirror.test/listing.json' => Http::response('{}', 200),
             'https://sb.test/rest/v1/rpc/set_mirror_health' => Http::response(null, 204),
