@@ -72,6 +72,21 @@ The token's kind is `replay`. The upload must start by `start_by`. If it has not
 
 Coilbox does nothing more. The mirror reports the file's hash to the hub, as it does for archives. The hub then queues the check in #663.
 
+## The check
+
+The hub fetches the file from the mirror it went to and reads it. It refuses the replay when the file is not the one reported, cannot be read, decompresses to more than 64 MB, has another game id, has no game over or has no end of game block. It then compares the summary with the file, and any difference refuses it:
+
+- `engine`, `game`, `map`, `started_at` and `duration` must be the file's exactly.
+- `players` and `spectators` must be the start script's, in any order. `faction` is the player's team's `side` in the start script, or `null` when it has none. It is not the faction picked in the pregame.
+- `winners` must be the end of game block's, in any order.
+- `totals` must have one entry for each team the end of game block has a sample for, with that team's last sample. Fractions are compared as the 32 bit floats the engine writes.
+- `start_positions` must have one entry for each team with a start position before the first frame, as 32 bit floats.
+- `build_orders` must hold each team's orders as Coilbox's `build_orders.rs` reads them, in order. A team with no orders may be left out.
+- For Beyond All Reason, each unit's `name` must be the one the replay's unit list gives its `unit_def_id`. For another game, when the hub's catalogue has the exact release in full, each `name` must be one of its units. Costs, `display_name`, `build_time` and `category` are not checked.
+- The first sender's `name` must be a player or spectator in the file. A later sender whose name is not is dropped from the replay's senders.
+
+A refused replay is removed from the mirrors and its game id can be sent again. Moderators find the reason in `replay_refusal`.
+
 ## The summary
 
 All keys are required. Numbers may be whole or have a fraction unless the table says whole. Entries in `build_orders[].orders` may carry more keys than these, and the hub keeps them.

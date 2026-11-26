@@ -1,0 +1,28 @@
+{
+    "v": 1,
+    "engine": "2026.09.01-70-g811d477 macos/integration-next",
+    "game": "Metal Factions v2.58",
+    "map": "Valles Marineris 2.6.1",
+    "started_at": 1792175181,
+    "duration": 0,
+    "players": [
+        {
+            "ally_team": 0,
+            "faction": "aven",
+            "name": "probe",
+            "team": 0
+        }
+    ],
+    "spectators": [],
+    "winners": [],
+    "totals": [],
+    "start_positions": [
+        {
+            "team": 0,
+            "x": 672.0,
+            "z": 6135.0
+        }
+    ],
+    "build_orders": [],
+    "units": []
+}

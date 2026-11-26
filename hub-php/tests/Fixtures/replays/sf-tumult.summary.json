@@ -1,0 +1,290 @@
+{
+    "v": 1,
+    "engine": "2026.09.01",
+    "game": "SplinterFaction 0.1.95",
+    "map": "Tumult",
+    "started_at": 1792538012,
+    "duration": 501,
+    "players": [
+        {
+            "ally_team": 0,
+            "faction": null,
+            "name": "Player",
+            "team": 0
+        }
+    ],
+    "spectators": [],
+    "winners": [
+        0
+    ],
+    "totals": [
+        {
+            "damage_dealt": 8850.0,
+            "damage_received": 0.0,
+            "energy_excess": 3940.23583984375,
+            "energy_produced": 47487.5,
+            "energy_received": 0.0,
+            "energy_sent": 0.0,
+            "energy_used": 43139.8125,
+            "metal_excess": 78.0,
+            "metal_produced": 9363.98046875,
+            "metal_received": 0.0,
+            "metal_sent": 0.0,
+            "metal_used": 7424.65087890625,
+            "team": 0,
+            "units_captured": 0,
+            "units_died": 6,
+            "units_killed": 1,
+            "units_out_captured": 0,
+            "units_produced": 71,
+            "units_received": 0,
+            "units_sent": 0
+        },
+        {
+            "damage_dealt": 0.0,
+            "damage_received": 8850.0,
+            "energy_excess": 12550.0,
+            "energy_produced": 13550.0,
+            "energy_received": 0.0,
+            "energy_sent": 0.0,
+            "energy_used": 0.0,
+            "metal_excess": 3012.0,
+            "metal_produced": 4012.0,
+            "metal_received": 0.0,
+            "metal_sent": 0.0,
+            "metal_used": 0.0,
+            "team": 1,
+            "units_captured": 0,
+            "units_died": 1,
+            "units_killed": 0,
+            "units_out_captured": 0,
+            "units_produced": 1,
+            "units_received": 0,
+            "units_sent": 0
+        }
+    ],
+    "start_positions": [
+        {
+            "team": 0,
+            "x": 2537.0,
+            "z": 918.0
+        },
+        {
+            "team": 1,
+            "x": 4631.0,
+            "z": 6250.0
+        }
+    ],
+    "build_orders": [
+        {
+            "orders": [
+                {
+                    "frame": 362,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 836,
+                    "unit_def_id": 60
+                },
+                {
+                    "frame": 836,
+                    "unit_def_id": 60
+                },
+                {
+                    "frame": 836,
+                    "unit_def_id": 137
+                },
+                {
+                    "frame": 836,
+                    "unit_def_id": 60
+                },
+                {
+                    "frame": 1946,
+                    "unit_def_id": 9
+                },
+                {
+                    "frame": 2024,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 2665,
+                    "unit_def_id": 33
+                },
+                {
+                    "frame": 2678,
+                    "unit_def_id": 33
+                },
+                {
+                    "frame": 2896,
+                    "unit_def_id": 59
+                },
+                {
+                    "frame": 2917,
+                    "unit_def_id": 59
+                },
+                {
+                    "frame": 3104,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3257,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3257,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3257,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3257,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3494,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3624,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3624,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3624,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3624,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3739,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 3739,
+                    "unit_def_id": 48
+                },
+                {
+                    "frame": 4231,
+                    "unit_def_id": 137
+                },
+                {
+                    "frame": 4231,
+                    "unit_def_id": 137
+                },
+                {
+                    "frame": 5478,
+                    "unit_def_id": 9
+                },
+                {
+                    "frame": 5820,
+                    "unit_def_id": 33
+                },
+                {
+                    "frame": 5826,
+                    "unit_def_id": 33
+                },
+                {
+                    "frame": 8651,
+                    "unit_def_id": 59
+                },
+                {
+                    "frame": 8658,
+                    "unit_def_id": 59
+                },
+                {
+                    "frame": 8664,
+                    "unit_def_id": 59
+                },
+                {
+                    "frame": 8753,
+                    "unit_def_id": 59
+                },
+                {
+                    "frame": 8759,
+                    "unit_def_id": 59
+                },
+                {
+                    "frame": 8764,
+                    "unit_def_id": 59
+                },
+                {
+                    "frame": 13162,
+                    "unit_def_id": 12
+                }
+            ],
+            "team": 0
+        }
+    ],
+    "units": [
+        {
+            "unit_def_id": 9,
+            "name": "unit9",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 12,
+            "name": "unit12",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 33,
+            "name": "unit33",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 48,
+            "name": "unit48",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 59,
+            "name": "unit59",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 60,
+            "name": "unit60",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        },
+        {
+            "unit_def_id": 137,
+            "name": "unit137",
+            "display_name": null,
+            "metal": 0,
+            "energy": 0,
+            "build_time": null,
+            "category": null
+        }
+    ]
+}
