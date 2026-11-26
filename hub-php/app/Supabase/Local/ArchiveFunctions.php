@@ -5,6 +5,7 @@ namespace App\Supabase\Local;
 use App\Domain\Engines\Engines;
 use App\Domain\Engines\EngineUploaders;
 use App\Domain\Points\CommunityPoints;
+use App\Domain\Replays\ReplayListing;
 use App\Supabase\Supabase;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -112,6 +113,8 @@ final class ArchiveFunctions
 
                 return ['outcome' => 'refused', 'reason' => 'duplicate'] + (self::duplicate($facts) ?? ['check' => $check, 'existing' => null]);
             }
+
+            ReplayListing::holdersChanged((string) $fact('sha256'));
 
             return ['id' => $id, 'outcome' => 'created', 'base_url' => $mirror->base_url, 'mirror_id' => $mirror->id, 'reserved_until' => $epoch];
         });

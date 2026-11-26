@@ -6,7 +6,7 @@ namespace App\Domain\Mirrors;
 final class Catalogue
 {
     /**
-     * @param  array{seq: int, mirrors: list<array<string, mixed>>, archives: list<array<string, mixed>>, removed: list<array<string, mixed>>, engines?: list<array<string, mixed>>}  $source  The result of `catalogue_source`.
+     * @param  array{seq: int, mirrors: list<array<string, mixed>>, archives: list<array<string, mixed>>, removed: list<array<string, mixed>>, engines?: list<array<string, mixed>>, replays?: list<array<string, mixed>>}  $source  The result of `catalogue_source`.
      * @param  array{public_key: string, sig: string}|null  $nextKey
      */
     public static function encode(array $source, int $generatedAt, ?array $nextKey): string
@@ -49,6 +49,15 @@ final class Catalogue
                 'platform' => $e['platform'],
                 'note' => $e['note'],
             ], $engines));
+        }
+
+        $replays = $source['replays'] ?? [];
+        if ($replays !== []) {
+            $catalogue['replays'] = array_values(array_map(fn (array $r) => [
+                'filename' => $r['filename'],
+                'sha256' => $r['sha256'],
+                'size' => (int) $r['size'],
+            ], $replays));
         }
 
         if ($nextKey !== null) {

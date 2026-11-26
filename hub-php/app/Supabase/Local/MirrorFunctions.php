@@ -3,6 +3,7 @@
 namespace App\Supabase\Local;
 
 use App\Domain\Points\CommunityPoints;
+use App\Domain\Replays\ReplayListing;
 use App\Supabase\Client;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -302,7 +303,8 @@ final class MirrorFunctions
 
             return [
                 'seq' => (int) $state->next_seq, 'changes' => (int) $state->changes,
-                'mirrors' => $mirrors, 'removed' => $removed, 'archives' => $archives, 'engines' => $engines,
+                'mirrors' => $mirrors, 'removed' => [...$removed, ...ReplayListing::removals()],
+                'archives' => $archives, 'engines' => $engines, 'replays' => ReplayListing::listed(),
             ];
         });
     }
