@@ -159,6 +159,7 @@ class ReplayCheckTest extends ModerationTestCase
         $ai = DB::table('replay_player')->where('game_id', self::SF)->where('kind', 'ai')->first();
         $this->assertSame(['Enemy', 1, false], [$ai->name, (int) $ai->team, (bool) $ai->won]);
         $this->assertSame(2, DB::table('replay_team')->where('game_id', self::SF)->count());
+        $this->assertSame([35, 35], DB::table('replay_team')->where('game_id', self::SF)->orderBy('team')->pluck('samples')->map(fn ($s) => (int) $s)->all());
     }
 
     public function test_one_changed_winner_is_refused_and_the_game_id_can_be_sent_again(): void
