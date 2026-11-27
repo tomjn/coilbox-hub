@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('replays/uploads', [ReplayUploadController::class, 'store']);
 Route::options('replays/uploads', [ReplayUploadController::class, 'preflight']);
+Route::get('replays/{gameId}/uploads/status', [ReplayUploadController::class, 'status']);
+Route::options('replays/{gameId}/uploads/status', [ReplayUploadController::class, 'preflight']);
 Route::post('replays/{gameId}/analyses', [ReplayAnalysisController::class, 'store']);
 Route::options('replays/{gameId}/analyses', [ReplayAnalysisController::class, 'preflight']);
 Route::get('replays/{gameId}/tracks', [ReplayTrackController::class, 'index']);

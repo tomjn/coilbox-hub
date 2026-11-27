@@ -4,6 +4,7 @@ namespace Tests\Feature\Replays;
 
 use App\Domain\Mirrors\B64;
 use App\Domain\Mirrors\Signing;
+use App\Domain\Replays\ReplayChecks;
 use App\Domain\Replays\ReplaySummary;
 use App\Jobs\CheckReplay;
 use Carbon\CarbonImmutable;
@@ -293,5 +294,143 @@ class ReplayUploadTest extends ModerationTestCase
     public function test_the_upload_route_answers_a_preflight(): void
     {
         $this->call('OPTIONS', '/api/v1/replays/uploads')->assertNoContent();
+    }
+
+    private function ask(string $token = 'alice', string $gameId = self::GAME_ID): TestResponse
+    {
+        return $this->call('GET', '/api/v1/replays/'.$gameId.'/uploads/status', [], [], [], ['HTTP_AUTHORIZATION' => 'Bearer '.$token]);
+    }
+
+    /** @return array<string, mixed> */
+    private static function answer(string $state, array $over = []): array
+    {
+        return ['replay' => $over + ['game_id' => self::GAME_ID, 'state' => $state, 'url' => null, 'reserved_until' => null, 'refusal' => null]];
+    }
+
+    public function test_status_says_a_reserved_replay_is_uploading_without_renewing_it(): void
+    {
+        $this->send()->assertCreated();
+        $until = CarbonImmutable::now('UTC')->addMinute();
+        DB::table('replay')->update(['reserved_until' => $until->format('Y-m-d H:i:s.u')]);
+        $before = [DB::table('replay')->get()->all(), DB::table('replay_sender')->get()->all()];
+
+        $this->ask()->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+            ->assertExactJson(self::answer('uploading', ['reserved_until' => $until->getTimestamp()]));
+
+        $this->assertEquals($before, [DB::table('replay')->get()->all(), DB::table('replay_sender')->get()->all()]);
+    }
+
+    public function test_status_says_an_unfinished_upload_lapsed_without_reserving_it_again(): void
+    {
+        $this->send()->assertCreated();
+        DB::table('replay')->update(['reserved_until' => '2020-01-01 00:00:00.000000']);
+
+        $this->ask()->assertOk()->assertExactJson(self::answer('lapsed', ['reserved_until' => 1577836800]));
+
+        $this->assertSame('2020-01-01 00:00:00.000000', DB::table('replay')->value('reserved_until'));
+    }
+
+    public function test_status_says_a_sender_whose_lapsed_match_was_taken_did_not_send_it(): void
+    {
+        $this->send()->assertCreated();
+        DB::table('replay')->update(['reserved_until' => '2020-01-01 00:00:00.000000']);
+        $this->send('bob')->assertCreated();
+
+        $this->ask()->assertNotFound()->assertJsonPath('reason', 'not_sent');
+    }
+
+    public function test_status_follows_a_sent_replay_through_its_check(): void
+    {
+        $this->send()->assertCreated();
+        $this->report([self::SHA]);
+        $this->send('bob')->assertOk();
+
+        $this->ask()->assertOk()->assertExactJson(self::answer('checking'));
+        $this->ask('bob')->assertOk()->assertExactJson(self::answer('checking'));
+
+        DB::table('replay')->update(['state' => 'listed']);
+
+        $this->ask()->assertOk()->assertExactJson(self::answer('listed', ['url' => 'https://hub.test/replays/'.self::GAME_ID]));
+    }
+
+    public function test_status_gives_every_sender_of_a_refused_replay_a_readable_reason(): void
+    {
+        $this->send()->assertCreated();
+        $this->report([self::SHA]);
+        $this->send('bob')->assertOk();
+        ReplayChecks::failed(self::GAME_ID, 'cURL error 7 at https://mirror.test');
+        $this->assertDatabaseCount('replay', 0);
+
+        foreach (['alice', 'bob'] as $sender) {
+            $response = $this->ask($sender)->assertOk()->assertExactJson(self::answer('refused', ['refusal' => [
+                'reason' => 'check_failed',
+                'message' => 'The hub could not finish checking the replay. You can send it again.',
+                'refused_at' => CarbonImmutable::parse(DB::table('replay_refusal')->value('refused_at'), 'UTC')->getTimestamp(),
+            ]]));
+            $this->assertStringNotContainsString('cURL', $response->getContent());
+        }
+        $this->assertDatabaseCount('replay', 0);
+    }
+
+    public function test_status_keeps_a_senders_refusal_while_somebody_else_sends_the_match(): void
+    {
+        $this->send()->assertCreated();
+        $this->report([self::SHA]);
+        ReplayChecks::failed(self::GAME_ID, 'no answer');
+        $this->send('bob')->assertCreated();
+
+        $this->ask()->assertOk()->assertJsonPath('replay.state', 'refused');
+        $this->ask('bob')->assertOk()->assertJsonPath('replay.state', 'uploading');
+
+        $this->report([self::SHA]);
+        DB::table('replay')->update(['state' => 'listed']);
+
+        $this->ask()->assertOk()->assertJsonPath('replay.state', 'refused');
+    }
+
+    public function test_status_follows_a_new_send_after_a_refusal(): void
+    {
+        $this->send()->assertCreated();
+        $this->report([self::SHA]);
+        ReplayChecks::failed(self::GAME_ID, 'no answer');
+        $this->send()->assertCreated();
+
+        $this->ask()->assertOk()->assertJsonPath('replay.state', 'uploading')->assertJsonPath('replay.refusal', null);
+    }
+
+    public function test_status_reads_a_refusal_kept_before_later_senders_were(): void
+    {
+        DB::table('replay_refusal')->insert([
+            'game_id' => self::GAME_ID, 'sha256' => self::SHA, 'uploader' => self::ALICE, 'reason' => 'summary_mismatch',
+            'detail' => 'secret detail', 'summary' => '{}', 'refused_at' => '2026-11-26 09:00:00.000000',
+        ]);
+
+        $this->ask()->assertOk()
+            ->assertJsonPath('replay.refusal.reason', 'summary_mismatch')
+            ->assertJsonPath('replay.refusal.message', 'What was sent about the match does not agree with the replay file.');
+        $this->ask('bob')->assertNotFound();
+    }
+
+    public function test_status_tells_somebody_who_never_sent_a_match_only_whether_it_is_listed(): void
+    {
+        $this->ask('bob')->assertNotFound()->assertExactJson(['error' => 'You have not sent the hub this match.', 'reason' => 'not_sent']);
+
+        $this->send()->assertCreated();
+        $this->ask('bob')->assertNotFound();
+        $this->report([self::SHA]);
+        $this->ask('bob')->assertNotFound();
+        DB::table('replay')->update(['state' => 'removed']);
+        $this->ask('bob')->assertNotFound();
+        $this->ask()->assertOk()->assertExactJson(self::answer('removed'));
+
+        DB::table('replay')->update(['state' => 'listed']);
+        $this->ask('bob')->assertOk()->assertJsonPath('replay.state', 'listed');
+        $this->assertSame(1, DB::table('replay_sender')->count());
+    }
+
+    public function test_signed_out_senders_cannot_ask_for_a_status(): void
+    {
+        $this->call('GET', '/api/v1/replays/'.self::GAME_ID.'/uploads/status')->assertStatus(401);
+        $this->call('OPTIONS', '/api/v1/replays/'.self::GAME_ID.'/uploads/status')->assertNoContent();
     }
 }
