@@ -58,7 +58,7 @@ final class ReplayReader
         }
 
         $script = StartScript::parse(substr($bytes, $scriptAt, $h->scriptSize));
-        $stream = (new StreamReader(LuaDecoders::all()))->read($bytes, $streamAt, $endAt);
+        $stream = (new StreamReader(LuaDecoders::for($script->gameType)))->read($bytes, $streamAt, $endAt);
         $endOfGame = $size === $endAt ? null : EndOfGame::parse($bytes, $endAt, $h);
 
         return new Replay($h, $script, $stream, $endOfGame);
