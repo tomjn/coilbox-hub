@@ -113,6 +113,7 @@ final class ReplayPage
         $teamName = fn (?int $team) => $team !== null && isset($byTeam[$team]) ? self::andList($byTeam[$team]) : 'Team '.(($team ?? -1) + 1);
         $map = ReplayList::maps([(string) $row->map])[$row->map] ?? null;
         $facts = self::facts($gameId);
+        $tracks = array_values(array_filter(Tracks::listed($gameId), fn ($t) => $t['url'] !== null));
         $recorded = self::awards(json_decode((string) $row->extra, true)['bar.awards'] ?? [], $teamName);
         $analysed = $recorded === [] && $facts !== null ? self::analysedAwards($facts['awards']['awards'], $teamName) : [];
 
@@ -138,10 +139,14 @@ final class ReplayPage
             'builds' => self::builds($teams, $teamName),
             'units' => $units,
             'timeline' => self::timeline($gameId, json_decode((string) $row->events, true) ?: [], $seats, $teamName),
-            'map_card' => self::mapCard($row, $map, $teams, $teamName, $facts),
+            'map_card' => self::mapCard($row, $map, $teams, $teamName, $facts) + ['track' => $tracks === [] ? null : [
+                'url' => $tracks[0]['url'],
+                // The page's team colours, so a unit is the colour its team is everywhere else on the page.
+                'colours' => $teams->mapWithKeys(fn ($t) => [(int) $t->team => $t->colour])->filter()->all(),
+            ]],
             'downloads' => [
                 'replay' => self::replayUrl($row),
-                'tracks' => array_values(array_filter(Tracks::listed($gameId), fn ($t) => $t['url'] !== null)),
+                'tracks' => $tracks,
             ],
         ];
     }
