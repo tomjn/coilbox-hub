@@ -51,7 +51,10 @@ final class ReplayChecks
             return self::refuse($row, ...$refusal);
         }
 
-        return self::store($replay, $row, $summary) ? 'listed' : null;
+        // Read before the transaction: the catalogue may be another database.
+        $mapSize = ReplayPageFacts::mapSize($replay->script->map);
+
+        return self::store($replay, $row, $summary, $mapSize) ? 'listed' : null;
     }
 
     /**
@@ -92,7 +95,8 @@ final class ReplayChecks
         return null;
     }
 
-    private static function fetch(object $row): string
+    /** The replay's file from the mirror it was uploaded to. */
+    public static function fetch(object $row): string
     {
         $base = DB::table('mirror')->where('id', $row->upload_mirror_id)->value('base_url');
         if ($base === null) {
@@ -132,9 +136,9 @@ final class ReplayChecks
     }
 
     /** Writes what the file confirmed and lists the replay. False when it stopped being checked meanwhile. */
-    private static function store(Replay $replay, object $row, array $summary): bool
+    private static function store(Replay $replay, object $row, array $summary, ?array $mapSize): bool
     {
-        return DB::transaction(function () use ($replay, $row, $summary) {
+        return DB::transaction(function () use ($replay, $row, $summary, $mapSize) {
             $gameId = $row->game_id;
             if (DB::table('replay')->where('game_id', $gameId)->where('state', 'checking')->lockForUpdate()->doesntExist()) {
                 return false;
@@ -161,7 +165,7 @@ final class ReplayChecks
                 'extra' => self::json($awards instanceof Awards ? ['bar.awards' => array_map(
                     fn ($a) => ['name' => $a->name, 'team' => $a->team, 'value' => $a->value], $awards->awards)] : (object) []),
                 'checked_at' => Values::now(),
-            ]);
+            ] + ReplayPageFacts::replay($replay, $mapSize));
 
             $orders = [];
             foreach ($summary['build_orders'] as $entry) {
@@ -181,7 +185,7 @@ final class ReplayChecks
                         'build_orders' => self::json($orders[$id] ?? []),
                         'samples' => count($end->teams[$id] ?? []),
                         'leader_name' => self::text($script->players[$team->leader ?? -1]->name ?? ''),
-                    ];
+                    ] + ReplayPageFacts::team($replay, $id);
             }
             DB::table('replay_team')->insert($teams);
 
