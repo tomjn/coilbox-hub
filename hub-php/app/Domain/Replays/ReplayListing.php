@@ -25,6 +25,7 @@ final class ReplayListing
                 ->update(['state' => 'listed', 'updated_at' => Values::now()]);
             if ($listed === 1) {
                 MapTotals::refresh($gameId);
+                GameTotals::refresh($gameId);
             }
             MirrorFunctions::bump($listed);
 
@@ -48,8 +49,9 @@ final class ReplayListing
             }
             $now = Values::now();
             DB::table('replay')->where('game_id', $gameId)->update(['state' => 'removed', 'updated_at' => $now]);
-            // Takes its share back out of the map totals.
+            // Takes its share back out of the map and game totals.
             MapTotals::refresh($gameId);
+            GameTotals::refresh($gameId);
             self::record($replay->sha256, $gameId, 'replay', $reason, $now);
             // A replay's tracks go with it, including one still on its way.
             $tracks = DB::table('replay_track')->where('game_id', $gameId)->where('state', '!=', 'removed');

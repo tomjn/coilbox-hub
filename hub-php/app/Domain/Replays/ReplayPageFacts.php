@@ -90,6 +90,7 @@ final class ReplayPageFacts
                 DB::table('replay_team')->where('game_id', $gameId)->where('team', $team)->update(self::team($replay, (int) $team));
             }
             MapTotals::refresh($gameId);
+            GameTotals::refresh($gameId);
         });
     }
 
