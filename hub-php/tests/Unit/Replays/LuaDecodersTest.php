@@ -134,4 +134,48 @@ class LuaDecodersTest extends TestCase
         $this->assertNull($decoder->decode('unitdefs:'.gzcompress('{"a":"b"}')));
         $this->assertNull($decoder->decode('unitdefs:'.gzcompress('["a",1]')));
     }
+
+    public function test_a_unit_list_coilbox_ignores_is_not_read(): void
+    {
+        $name = str_repeat('é', 128);
+        $this->assertSame([$name, 'a,"]\\ b'], $this->unitNames(json_encode([$name, 'a,"]\\ b'])));
+        $this->assertSame(['armcom'], $this->unitNames(" \t\r\n[ \"arm\\u0063om\" ]\n "));
+
+        $ignored = [
+            '[]', '[""]', '["a",""]', json_encode([$name.'a']), '["a\nb"]', '["\u0000"]', '["\u007f"]', '["\u0085"]',
+            "[\"\xFF\"]", '["\ud800"]', '{}', '{"0":"a"}', '[["a"]]', '["a",]', '[,"a"]', '["a" "b"]', '["a"', '["a"]x', '"a"', '',
+        ];
+        foreach ($ignored as $json) {
+            $this->assertNull($this->unitNames($json), $json);
+        }
+    }
+
+    public function test_a_unit_list_holds_at_most_65536_names(): void
+    {
+        $this->assertCount(65536, $this->unitNames(json_encode(array_fill(0, 65536, 'a'))));
+        $this->assertNull($this->unitNames(json_encode(array_fill(0, 65537, 'a'))));
+    }
+
+    public function test_a_unit_list_is_inflated_only_as_far_as_coilbox_reads(): void
+    {
+        $limit = 65536 * 259;
+        $pad = fn (int $length) => str_repeat(' ', $length);
+
+        // Coilbox cuts the JSON at the limit and reads what is left.
+        $this->assertSame(['a'], $this->unitNames('["a"]'.$pad($limit)));
+        $this->assertSame(['a'], $this->unitNames($pad($limit - 5).'["a"]'));
+        $this->assertNull($this->unitNames($pad($limit - 4).'["a"]'));
+    }
+
+    public function test_a_unit_list_cut_short_is_not_read(): void
+    {
+        // Every byte of the JSON inflates, and the checksum is missing.
+        $this->assertNull((new BarUnitList)->decode('unitdefs:'.substr(gzcompress('["a"]'), 0, -4)));
+    }
+
+    /** @return list<string>|null */
+    private function unitNames(string $json): ?array
+    {
+        return (new BarUnitList)->decode('unitdefs:'.gzcompress($json))?->names;
+    }
 }

@@ -423,6 +423,25 @@ class ReplayCheckTest extends ModerationTestCase
         $this->assertRefused(self::BAR, 'summary_mismatch', '"armmadeup" and the replay\'s unit list says');
     }
 
+    public function test_a_unit_list_coilbox_ignores_is_passed_over_for_the_next(): void
+    {
+        // An empty list and one with an unusable name, ahead of the replay's own.
+        $b = gzdecode(self::file('bar-tangerine'));
+        $packets = '';
+        foreach (['[]', '[""]'] as $json) {
+            $data = 'unitdefs:'.gzcompress($json);
+            $payload = chr(50).pack('v', 7 + strlen($data)).chr(0).pack('v', 100).chr(0).$data;
+            $packets .= pack('g', 0.0).pack('V', strlen($payload)).$payload;
+        }
+        $start = 352 + unpack('V', $b, 304)[1];
+        $b = substr_replace($b, pack('V', unpack('V', $b, 308)[1] + strlen($packets)), 308, 4);
+        $this->uploaded(self::BAR, 'bar-tangerine', self::summary('bar-tangerine'), 'Charlson', bytes: gzencode(substr_replace($b, $packets, $start, 0)));
+
+        $this->check(self::BAR);
+
+        $this->assertSame('listed', DB::table('replay')->where('game_id', self::BAR)->value('state'));
+    }
+
     public function test_unit_names_are_checked_against_a_release_the_catalogue_has_in_full(): void
     {
         $now = '2026-08-21 10:00:00.000000';
