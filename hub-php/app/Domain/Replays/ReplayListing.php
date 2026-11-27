@@ -65,16 +65,32 @@ final class ReplayListing
         });
     }
 
-    /** Lists a track that passed its check. False when it is not being checked. */
+    /**
+     * Lists a track that passed its check. One from a newer recorder takes the
+     * listed one's place, and the old file is recorded for the mirrors to
+     * delete (#687). False when it is not being checked.
+     */
     public static function publishTrack(string $gameId, int $formatVersion, int $recorderVersion): bool
     {
         return DB::transaction(function () use ($gameId, $formatVersion, $recorderVersion) {
             $now = Values::now();
-            $listed = DB::table('replay_track')->where('game_id', $gameId)->where('format_version', $formatVersion)->where('state', 'checking')
-                ->update(['state' => 'listed', 'recorder_version' => $recorderVersion, 'checked_at' => $now, 'updated_at' => $now]);
-            MirrorFunctions::bump($listed);
+            $tracks = fn () => DB::table('replay_track')->where('game_id', $gameId)->where('format_version', $formatVersion);
+            $track = $tracks()->where('state', 'checking')->lockForUpdate()->first();
+            if ($track === null) {
+                return false;
+            }
+            if ($track->replacing) {
+                $old = $tracks()->where('replacing', false)->lockForUpdate()->first();
+                if ($old !== null) {
+                    $tracks()->where('replacing', false)->delete();
+                    self::record($old->sha256, $gameId, 'track', 'replaced', $now);
+                }
+            }
+            $tracks()->where('state', 'checking')
+                ->update(['state' => 'listed', 'replacing' => false, 'recorder_version' => $recorderVersion, 'checked_at' => $now, 'updated_at' => $now]);
+            MirrorFunctions::bump();
 
-            return $listed === 1;
+            return true;
         });
     }
 

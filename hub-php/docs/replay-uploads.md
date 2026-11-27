@@ -215,29 +215,32 @@ All keys are required. Numbers may be whole or have a fraction unless the table 
 
 ## Tracks
 
-A track is Coilbox's recording of where everything was during a replay, as `docs/reference/replay-track-format.md` in tomjn/coilbox sets out (#665). The hub keeps one track for each replay and track format version, the first that passes its check. It takes format version 1 only.
+A track is Coilbox's recording of where everything was during a replay, as `docs/reference/replay-track-format.md` in tomjn/coilbox sets out (#665). The hub keeps one track for each replay and track format version, the first that passes its check. A track from a newer recorder version replaces it once that one passes (#687). It takes format version 1 only.
 
 ### Starting a track upload
 
 `POST /api/v1/replays/{game_id}/tracks/uploads` with the signed in user's bearer token and a JSON body:
 
 ```json
-{ "format_version": 1, "sha256": "c019be55a4d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4", "size": 233823 }
+{ "format_version": 1, "recorder_version": 5, "sha256": "c019be55a4d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4", "size": 233823 }
 ```
 
 | Field | What it is |
 |---|---|
 | `format_version` | The format version in the track's header. |
+| `recorder_version` | The recorder version in the track's header. Optional. Without it the hub never replaces a track it has. |
 | `sha256` | The SHA-256 of the `.cbtrack` file, as 64 lower case hex characters. |
 | `size` | The file's size in bytes. The mirror refuses a file of any other size. |
 
 Any signed in user can send a track. They need not have been in the match.
 
+When the hub has a listed track from an older recorder version, it answers `upload` for one from a newer version. The listed track stays until the new one passes its check. Then the new one takes its place and the old file is removed from the mirrors. For the same or an older recorder version the hub answers `track`. It also answers `track` while no mirror can replace a file it holds, which needs tomjn/coilbox-mirror to support the `replace_track` feature below.
+
 | Status | Body | What Coilbox does |
 |---|---|---|
 | `201` | `upload` | Upload the file to the mirror with the token, as for archives. |
 | `200` | `upload` | The same sender asked again while their upload is reserved. Use the new token. For the same `sha256` and `size` the upload `id` is unchanged, so the mirror resumes what it holds. |
-| `200` | `track` | The hub already has a track for this replay. Upload nothing. |
+| `200` | `track` | The hub already has a track for this replay, from the same or a newer recorder version, or is checking one that would replace it. Upload nothing. |
 | `409` | `reason: "uploading"` | Someone else is uploading this track. Ask again after `reserved_until`, in Unix seconds, or sooner. |
 | `409` | `reason: "no_analysis"` | No analysis of this replay has passed yet. Send one first, and ask again once its check has finished. |
 | `404` | `reason: "not_listed"` | The hub has no listed replay with this game id. |
@@ -262,7 +265,7 @@ Any signed in user can send a track. They need not have been in the match.
 }
 ```
 
-`state` is `checking` or `listed`. `recorder_version` is the one in the track's header, and is `null` while `checking`. `url` is where to download the file. It is `null` while `checking`, and while the mirror the track was uploaded to is switched off or unhealthy.
+`state` is `checking` or `listed`. `recorder_version` is the one in the track's header, and is `null` while `checking`. `url` is where to download the file. It is `null` while `checking`, and while the mirror the track was uploaded to is switched off or unhealthy. It is also `null` while a newer track is checked on that mirror, because the mirror then serves the new file under the same name.
 
 ### Getting a replay's track
 
@@ -280,6 +283,13 @@ When the mirror reports the file's hash, the hub queues the check. It fetches th
 | `wrong_game_id` | The header's game id is not the replay's. |
 | `length_mismatch` | The track is not at 30 frames a second, or its frames from first to last do not come to the replay's `duration` in whole seconds. One frame more is allowed, for the block the recorder writes at game over. |
 | `team_mismatch` | A team in the replay's start script is missing, is on another ally team, or has another leader name. Or the track has any other team, apart from one with no leader numbered after the last, which is the engine's Gaia team. |
+| `not_newer` | The track would replace the listed one, but its header's recorder version is not newer. |
 | `check_failed` | The check did not finish in three tries. |
 
-A refused track is removed from the mirrors, and another can be sent. Moderators find the reason in `replay_track_refusal`. Removing a replay removes its tracks.
+A refused track is removed from the mirrors, and another can be sent. Moderators find the reason in `replay_track_refusal`. Removing a replay removes its tracks, including one waiting to replace another.
+
+### Replacing a track on the mirrors
+
+A mirror names a track by the game id alone, so the old and new files have the same name. A mirror refuses an upload whose name it already holds, and never fetches a file whose name it holds with other bytes. So the hub sends a replacement only to a mirror whose last report has `replace_track` in a `features` list. Its token has a ninth key, `replaces`, the SHA-256 of the listed file. The mirror moves the new file over a file of that name only when the file it holds has that hash. The mirror side of this is tomjn/coilbox-mirror#10.
+
+Once the new track passes, the catalogue's `tracks` gives the new hash, and `removed` gives the old hash with the reason `replaced`. Removals match by hash here, so every other mirror deletes the old file and fetches the new one in the same sync. If the new track is refused, its mirror deletes it and fetches the old file back from another mirror at its next sync. Until then the listed track's link on that mirror gives a 404.
