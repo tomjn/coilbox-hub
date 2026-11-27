@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers\Replays;
 
+use App\Auth\HubSession;
 use App\Domain\Gallery\SearchParams;
+use App\Domain\Moderation\Access;
 use App\Domain\Replays\HeatPicture;
 use App\Domain\Replays\ReplayList;
+use App\Domain\Replays\ReplayModeration;
 use App\Domain\Replays\ReplayPage;
 use App\Http\Controllers\Controller;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
@@ -58,7 +62,19 @@ class ReplaysController extends Controller
             'heat' => isset($replay['map_card']['layers'][$heat]) ? $heat : array_key_first($replay['map_card']['layers']),
             // What the living value chart counts.
             'value' => $value === 'energy' ? 'energy' : 'metal',
+            'signedIn' => HubSession::userId() !== null,
+            // A moderator sees the forms that hide chat and take the replay down.
+            'moderator' => Access::isModerator(HubSession::client()),
         ]);
+    }
+
+    /** The report form's target. The answer comes back on the replay page. */
+    public function report(Request $request, string $gameId): RedirectResponse
+    {
+        $state = ReplayModeration::report(HubSession::client(), HubSession::userId(), $gameId, $request->input('reason'));
+
+        return redirect('/replays/'.rawurlencode($gameId).'#replay-report')->with('replayReport', $state)
+            ->withInput($state['ok'] ? [] : $request->only('reason'));
     }
 
     /** A heat layer drawn for the map card, one pixel per grid cell: orders, or deaths or damage from an analysis. */

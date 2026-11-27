@@ -1,6 +1,7 @@
 @extends('layouts.app', ['title' => 'Reports - Moderation'])
 @use('App\Domain\Maps\Labels')
 @use('App\Domain\Maps\Report')
+@use('App\Domain\Replays\ReplayModeration')
 @use('App\Support\Ui')
 @php
     $card = 'flex flex-col gap-3 rounded-md border border-neutral-800 bg-card p-5';
@@ -13,14 +14,53 @@
     <x-moderation.nav current="reports" />
     <div class="relative z-10 mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
         <h1 class="text-3xl font-semibold tracking-tight">Reports</h1>
+        @if (session('replayModeration'))
+            <p role="{{ session('replayModeration')['ok'] ? 'status' : 'alert' }}" class="text-sm {{ session('replayModeration')['ok'] ? 'text-neutral-300' : 'text-red-400' }}">{{ session('replayModeration')['message'] }}</p>
+        @endif
 
         @if ($reports === [])
             <p class="rounded-md border border-neutral-800 bg-card p-6 text-sm text-neutral-400">Nothing waiting.</p>
         @else
             <ul class="flex flex-col gap-4">
                 @foreach ($reports as $r)
-                    @php $item = $r['item'] ?? null; $map = $r['map'] ?? null; @endphp
-                    @if ($r['map_id'])
+                    @php $item = $r['item'] ?? null; $map = $r['map'] ?? null; $replay = isset($r['replay_id']) ? ($replays[$r['replay_id']] ?? null) : null; @endphp
+                    @if ($r['replay_id'] ?? null)
+                        <li class="{{ $card }}">
+                            <div class="flex items-baseline justify-between gap-3">
+                                @if ($replay && $replay['state'] === 'listed')
+                                    <a href="/replays/{{ $r['replay_id'] }}" class="break-words text-base font-medium hover:underline active:underline">Replay on {{ $replay['map'] ?? 'an unknown map' }}</a>
+                                @else
+                                    <span class="text-base font-medium">A replay that is no longer on the hub</span>
+                                @endif
+                                <span class="text-sm text-neutral-400"><x-ui.date-time :value="$r['created_at']" /></span>
+                            </div>
+                            <p class="text-sm uppercase tracking-wide text-neutral-400">Replay{{ $replay && $replay['game'] ? ': '.$replay['game'] : '' }}</p>
+                            <p class="whitespace-pre-wrap text-sm text-neutral-400">{{ $r['reason'] }}</p>
+                            <div class="flex flex-wrap items-end gap-3">
+                                @if ($replay && $replay['state'] === 'listed')
+                                    <form method="post" action="/moderation/replays/remove" class="flex flex-wrap items-end gap-3">
+                                        @csrf
+                                        <input type="hidden" name="game_id" value="{{ $r['replay_id'] }}">
+                                        <label class="flex flex-col gap-1 text-sm text-neutral-400">
+                                            Why it is coming down
+                                            <select name="reason" required class="rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+                                                @foreach (ReplayModeration::REASONS as $code => $label)
+                                                    <option value="{{ $code }}">{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                        </label>
+                                        <button type="submit" class="{{ Ui::button() }}">Remove the replay</button>
+                                    </form>
+                                @endif
+                                <form method="post" action="/moderation/reports">
+                                    @csrf
+                                    <input type="hidden" name="report_id" value="{{ $r['id'] }}">
+                                    <input type="hidden" name="outcome" value="dismissed">
+                                    <button type="submit" class="rounded-md px-4 py-2 text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">Leave it</button>
+                                </form>
+                            </div>
+                        </li>
+                    @elseif ($r['map_id'])
                         <li class="{{ $card }}">
                             <div class="flex items-baseline justify-between gap-3">
                                 @if ($map)

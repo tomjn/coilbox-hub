@@ -9,6 +9,7 @@ use App\Http\Controllers\Moderation\MapsController;
 use App\Http\Controllers\Moderation\MirrorsController;
 use App\Http\Controllers\Moderation\OpsController;
 use App\Http\Controllers\Moderation\PicturesController;
+use App\Http\Controllers\Moderation\ReplaysController;
 use App\Http\Controllers\Moderation\ReportsController;
 use App\Http\Controllers\Moderation\TrailController;
 use App\Http\Controllers\Moderation\UsersController;
@@ -19,6 +20,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/moderation', [ReportsController::class, 'index']);
 Route::post('/moderation/reports', [ReportsController::class, 'act']);
+Route::post('/moderation/replays/remove', [ReplaysController::class, 'remove']);
+Route::post('/moderation/replays/chat', [ReplaysController::class, 'hideChat']);
 
 Route::get('/moderation/assets', [PicturesController::class, 'index']);
 Route::post('/moderation/assets/approve', [PicturesController::class, 'approve']);

@@ -36,6 +36,7 @@ The hub has no limit of its own on the body. The web server refuses bodies over 
 | `200` | `upload` | The same sender asked again while their upload is reserved. Use the new token. For the same `sha256` and `size` the upload `id` is unchanged, so the mirror resumes what it holds. |
 | `200` | `replay` | The hub already holds this match. Upload nothing. The sender is recorded. |
 | `409` | `reason: "uploading"` | Someone else is uploading this match. Ask again after `reserved_until`, in Unix seconds, or sooner. The sender is not recorded. |
+| `410` | `reason: "removed"` | A moderator took this match down (#671), or took down the same file under another game id. Upload nothing, and do not send it again. The sender is not recorded. |
 | `422` | `reason: "not_in_replay"` | `name` is not a player or spectator in the summary. |
 | `400` | `reason: "bad_request"` | `error` says what is wrong. |
 | `401` | | Not signed in. |
@@ -107,7 +108,7 @@ Coilbox sends nothing more. The mirror reports the file's hash to the hub, as it
 | `checking` | The hub holds the file and is checking it. | Ask again. |
 | `listed` | The replay is on the hub at `url`. | Link it. |
 | `refused` | The check refused the replay, as `refusal` says. The game id can be sent again. | Show `refusal.message`. |
-| `removed` | The hub took the replay down after listing or while checking it. | Tell the player it was removed, and do not send it again. |
+| `removed` | A moderator took the replay down (#671). Only its senders see this. To anyone else the match is `not_sent`. | Tell the player it was removed, and do not send it again. |
 
 `url` is `null` unless `state` is `listed`. `reserved_until`, in Unix seconds, is `null` unless `state` is `uploading` or `lapsed`. `refusal` is `null` unless `state` is `refused`.
 

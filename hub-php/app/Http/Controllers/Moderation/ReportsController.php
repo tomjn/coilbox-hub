@@ -6,6 +6,8 @@ use App\Auth\HubSession;
 use App\Domain\Moderation\Access;
 use App\Domain\Moderation\Meters;
 use App\Domain\Points\CommunityPoints;
+use App\Domain\Replays\ReplayModeration;
+use App\Supabase\Local\ItemStore;
 use App\Supabase\SupabaseException;
 use App\Support\HubCache;
 use Illuminate\Http\RedirectResponse;
@@ -25,13 +27,16 @@ class ReportsController extends ModerationController
             return Access::refuse('/moderation');
         }
 
+        // Supabase's copy of the table has no replay_id (#671).
+        $replayColumn = ItemStore::state() === 'mariadb' ? ',replay_id' : '';
         try {
             $reports = $supabase->from('report')
-                ->select('id,item_id,map_id,kind,reason,created_at,item(id,title,kind,deleted_at),map(slug,map_name,display_name,map_version)')
+                ->select('id,item_id,map_id,kind,reason,created_at'.$replayColumn.',item(id,title,kind,deleted_at),map(slug,map_name,display_name,map_version)')
                 ->is('handled_at', null)->order('created_at', ascending: false)->limit(100)->get();
         } catch (SupabaseException) {
             $reports = [];
         }
+        $replays = ReplayModeration::reported(array_values(array_filter(array_column($reports, 'replay_id'))));
         // Featuring happens on an item's own page. This is the way back to one.
         try {
             $featured = $supabase->from('item')->select('id,title,featured_at')
@@ -40,7 +45,7 @@ class ReportsController extends ModerationController
             $featured = [];
         }
 
-        return view('moderation.reports', ['reports' => $reports, 'featured' => $featured]);
+        return view('moderation.reports', ['reports' => $reports, 'replays' => $replays, 'featured' => $featured]);
     }
 
     /**
@@ -52,7 +57,7 @@ class ReportsController extends ModerationController
     {
         // Row level security refuses a stranger too. This refuses them before
         // any write is sent, as every other moderation action does.
-        $supabase = \App\Domain\Moderation\Access::moderatorClient();
+        $supabase = Access::moderatorClient();
         $userId = HubSession::userId();
         if ($supabase === null || $userId === null) {
             return $this->back('/moderation');

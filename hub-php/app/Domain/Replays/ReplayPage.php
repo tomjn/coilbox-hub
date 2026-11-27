@@ -445,7 +445,7 @@ final class ReplayPage
      * Events and chat in match order, as `ReplayEventList` lists them. Chat a
      * moderator hid is left out, and private messages were never kept.
      *
-     * @return list<array{frame: int, time: string, kind: string, text: string}>
+     * @return list<array{frame: int, time: string, kind: string, text: string, seq: ?int}>
      */
     private static function timeline(string $gameId, array $events, $seats, callable $teamName): array
     {
@@ -477,7 +477,7 @@ final class ReplayPage
                 default => null,
             };
             if ($text !== null) {
-                $rows[] = ['frame' => (int) $e['frame'], 'order' => [0, $i], 'kind' => 'Player', 'text' => $text];
+                $rows[] = ['frame' => (int) $e['frame'], 'order' => [0, $i], 'kind' => 'Player', 'text' => $text, 'seq' => null];
             }
         }
         $chat = DB::table('replay_chat')->where('game_id', $gameId)->whereNull('hidden_at')->orderBy('seq')->get();
@@ -485,11 +485,11 @@ final class ReplayPage
             $to = match ($m->audience) {
                 ChatMessage::ALLIES => ' to allies', ChatMessage::SPECTATORS => ' to spectators', default => '',
             };
-            $rows[] = ['frame' => (int) $m->frame, 'order' => [1, (int) $m->seq], 'kind' => 'Chat', 'text' => ($m->name !== '' ? $m->name : 'Player '.$m->player).$to.': '.$m->text];
+            $rows[] = ['frame' => (int) $m->frame, 'order' => [1, (int) $m->seq], 'kind' => 'Chat', 'text' => ($m->name !== '' ? $m->name : 'Player '.$m->player).$to.': '.$m->text, 'seq' => (int) $m->seq];
         }
         usort($rows, fn ($a, $b) => [$a['frame'], $a['order']] <=> [$b['frame'], $b['order']]);
 
-        return array_map(fn ($r) => ['frame' => $r['frame'], 'time' => self::time($r['frame']), 'kind' => $r['kind'], 'text' => $r['text']], $rows);
+        return array_map(fn ($r) => ['frame' => $r['frame'], 'time' => self::time($r['frame']), 'kind' => $r['kind'], 'text' => $r['text'], 'seq' => $r['seq']], $rows);
     }
 
     /**
