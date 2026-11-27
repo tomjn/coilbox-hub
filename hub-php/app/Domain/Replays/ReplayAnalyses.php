@@ -124,6 +124,7 @@ final class ReplayAnalyses
         DB::table('replay_analysis')->where('game_id', $gameId)->where('sha256', $kept->sha256)
             ->update(['facts' => json_encode(AnalysisFacts::of($log, $replay, $teams), JSON_PRESERVE_ZERO_FRACTION)]);
         MapTotals::refresh($gameId);
+        GameTotals::refresh($gameId);
 
         return true;
     }
@@ -151,8 +152,9 @@ final class ReplayAnalyses
                     'game_id' => $row->game_id, 'logger_version' => $version, 'submission_id' => $row->id, 'sha256' => $row->sha256,
                     'events' => $row->events, 'counts' => json_encode($log->counts()), 'facts' => json_encode($facts, JSON_PRESERVE_ZERO_FRACTION), 'kept_at' => $now,
                 ]], ['game_id'], ['logger_version', 'submission_id', 'sha256', 'events', 'counts', 'facts', 'kept_at']);
-                // Swaps the replay's share, so its deaths and damage are counted once.
+                // Swaps the replay's shares, so what the analysis adds is counted once.
                 MapTotals::refresh($row->game_id);
+                GameTotals::refresh($row->game_id);
             }
             DB::table('replay_analysis_submission')->where('id', $row->id)->update(['state' => $state, 'events' => null, 'checked_at' => $now]);
 

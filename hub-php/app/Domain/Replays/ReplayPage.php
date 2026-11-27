@@ -392,19 +392,14 @@ final class ReplayPage
             $last = $minutes * 60 * self::FRAMES_PER_SECOND;
             $orders = array_values(array_filter($orders, fn ($o) => $o['frame'] <= $last));
         }
-        $entries = [];
+        $entries = array_map(fn ($e) => [
+            'time' => self::time($e['frame']), 'label' => $units[$e['unit_def_id']]['label'] ?? 'Unit '.$e['unit_def_id'], 'count' => $e['count'],
+        ], self::folded($orders));
         $split = array_fill_keys(['economy', 'defence', 'offence', 'other', 'unclassified'], ['metal' => 0.0, 'energy' => 0.0]);
         $metal = $energy = 0.0;
         $unpriced = 0;
-        $previous = null;
         foreach ($orders as $order) {
             $id = (int) $order['unit_def_id'];
-            if ($previous === $id) {
-                $entries[array_key_last($entries)]['count']++;
-            } else {
-                $entries[] = ['time' => self::time((int) $order['frame']), 'label' => $units[$id]['label'] ?? 'Unit '.$id, 'count' => 1];
-            }
-            $previous = $id;
             $unit = $units[$id] ?? null;
             if ($unit === null || ! $unit['priced']) {
                 $unpriced++;
@@ -420,6 +415,30 @@ final class ReplayPage
         }
 
         return ['entries' => $entries, 'metal' => $metal, 'energy' => $energy, 'unpriced' => $unpriced, 'split' => $split];
+    }
+
+    /**
+     * Orders in the order given, with repeats of one unit folded into one
+     * entry that starts at the first, as `collapseOrders` folds them.
+     *
+     * @param  list<array{frame: int, unit_def_id: int}>  $orders
+     * @return list<array{frame: int, unit_def_id: int, count: int}>
+     */
+    public static function folded(array $orders): array
+    {
+        $entries = [];
+        $previous = null;
+        foreach ($orders as $order) {
+            $id = (int) $order['unit_def_id'];
+            if ($previous === $id) {
+                $entries[array_key_last($entries)]['count']++;
+            } else {
+                $entries[] = ['frame' => (int) $order['frame'], 'unit_def_id' => $id, 'count' => 1];
+            }
+            $previous = $id;
+        }
+
+        return $entries;
     }
 
     /**
