@@ -1,0 +1,10 @@
+# Runs Laravel's scheduler once a minute, which runs the hub's scheduled
+# commands, such as the weekly replay data files. Install as
+# /etc/cron.d/hub-schedule (see deploy/README.md, "Scheduled commands").
+#
+# As www-data, the same user as PHP-FPM and the queue worker, so the files it
+# writes in shared storage stay readable and writable by the hub.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+* * * * * www-data cd /srv/www/hub.coilbox.org/current && /usr/bin/php8.4 artisan schedule:run >> /dev/null 2>&1

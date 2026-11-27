@@ -176,6 +176,30 @@ To measure on the droplet, in `/srv/www/hub.coilbox.org/current`:
 4. `grep "Queue test job ran" storage/logs/laravel.log` gives the PHP figures.
 5. `systemctl status hub-queue` and `cat /sys/fs/cgroup/system.slice/hub-queue.service/memory.peak` give the memory the whole process used, the second as the peak in bytes.
 
+## Scheduled commands
+
+Laravel's scheduler, in `routes/console.php`, runs commands at set times. `deploy/hub-schedule.cron` runs `php artisan schedule:run` once a minute as `www-data`, and the scheduler starts whatever is due. Today that is `replays:data` every Monday at 04:00 UTC, which writes the files `/replays/data` links.
+
+### Install the cron entry
+
+Do this once, after the release that contains `deploy/hub-schedule.cron` has deployed.
+
+1. Copy it: `sudo cp /srv/www/hub.coilbox.org/current/deploy/hub-schedule.cron /etc/cron.d/hub-schedule`
+2. Make it owned by root and not group writable, or cron ignores it: `sudo chown root:root /etc/cron.d/hub-schedule && sudo chmod 644 /etc/cron.d/hub-schedule`
+3. In `/srv/www/hub.coilbox.org/current`, `php artisan schedule:list` shows `replays:data` and when it next runs.
+
+A deploy does not copy the file. After a change to `deploy/hub-schedule.cron`, repeat steps 1 and 2. A change to the schedule in `routes/console.php` needs nothing, because each run reads `current`.
+
+### Replay data files
+
+`replays:data` writes three CSV files of the listed replays into `shared/storage/app/replay-data/<date>/`, and keeps the newest four sets. To write a set now, without waiting for Monday, run it as `www-data` so the hub can replace the files later:
+
+1. `sudo -u www-data php artisan replays:data --dry-run` says how many replays it would write.
+2. `sudo -u www-data php artisan replays:data` writes them, and prints each file's rows.
+3. `/replays/data` links the new set.
+
+If nothing appears on a Monday, `journalctl -u cron --since today | grep schedule:run` shows whether cron ran the scheduler, and `storage/logs/laravel.log` shows any error.
+
 ## Game catalogue in MariaDB
 
 Games, releases, sides and units live in MariaDB once `php artisan games:copy` has run. Until then the hub reads them from Supabase. Run these in `/srv/www/hub.coilbox.org/current`:
