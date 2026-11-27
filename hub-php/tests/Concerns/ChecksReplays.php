@@ -44,10 +44,13 @@ trait ChecksReplays
         return json_decode(file_get_contents(base_path('tests/Fixtures/replays/'.$fixture.'.summary.json')), true);
     }
 
-    /** A replay waiting for its check, uploaded by USER as `$name`, with the mirror serving `$served`. */
-    private function uploaded(string $gameId, string $fixture, array $summary, string $name, string|PromiseInterface|null $served = null): void
+    /**
+     * A replay waiting for its check, uploaded by USER as `$name`, with the
+     * mirror serving `$served`. `$bytes` replaces the fixture's file.
+     */
+    private function uploaded(string $gameId, string $fixture, array $summary, string $name, string|PromiseInterface|null $served = null, ?string $bytes = null): void
     {
-        $bytes = self::file($fixture);
+        $bytes ??= self::file($fixture);
         DB::table('replay')->insert([
             'game_id' => $gameId, 'state' => 'checking', 'uploader' => self::USER, 'sha256' => hash('sha256', $bytes),
             'size' => strlen($bytes), 'upload_mirror_id' => 'jj-darkstars', 'upload_id' => '33333333-3333-4333-8333-333333333333',

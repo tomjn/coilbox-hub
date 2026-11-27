@@ -92,7 +92,7 @@ Once a replay is listed, anybody signed in can send an analysis run for it, as [
 
 ## Factions
 
-A player played the faction of their last pick that counts. A player with no such pick played their team's `side` in the start script. Which picks count depends on the game, as the game itself accepts them:
+A player played the faction of their last pick that counts. A player with no such pick played their team's `side` in the start script, except in Splinter Faction and TA Recoil with the faction choice on. Which picks count depends on the game, as the game itself accepts them:
 
 | The game type starts with | A pick counts when it is sent |
 |---|---|
@@ -101,9 +101,19 @@ A player played the faction of their last pick that counts. A player with no suc
 
 A pick's frame is the number of the last new frame or key frame packet before it, or `-1` before the first.
 
+Splinter Faction and TA Recoil give each team one faction. In these two games a player's last pick is the last pick that counts from any player on their team, spectators left out. The faction choice is on unless the start script's mod options turn it off:
+
+| The game type starts with | The faction choice is off when |
+|---|---|
+| `SplinterFaction ` | `skipfactionchooser` is `1` or `true` |
+| `Total Annihilation: Recoil ` | `factionchoice` is `0` or `false`, or `skippregame` is a number other than `0` |
+
+With the faction choice off, no pick counts and every player played their team's `side`. With it on, the game gives a team with no pick a random faction when the phase closes. The file does not say which, so the hub does not know that player's faction.
+
 | The last pick | `faction` the check expects | What the hub stores |
 |---|---|---|
-| None | The start script's `side`, or `null` when it has none | The same |
+| None, in Splinter Faction or TA Recoil with the faction choice on | Not checked | `null` |
+| None, in any other match | The start script's `side`, or `null` when it has none | The same |
 | A faction name (`PICKFACTION\|`) | That name, exactly as sent | The same |
 | A start unit the hub's catalogue has a faction for | The faction's name in the catalogue, which is the game's own name for the side, such as `Legion` | The same |
 | A start unit the catalogue has no faction for | Not checked | The unit's name, such as `legcom` |

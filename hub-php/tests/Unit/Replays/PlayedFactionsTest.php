@@ -114,6 +114,89 @@ class PlayedFactionsTest extends TestCase
         $this->assertSame('arm_commander', PlayedFactions::of($replay, self::units([19 => 'arm_commander']))[0]['faction']);
     }
 
+    /**
+     * The tumult script with a second player, Other, on the AI's team, sides
+     * for both teams, and these mod options.
+     *
+     * @return array<string, string>
+     */
+    private static function twoTeams(string $game = 'SplinterFaction 0.1.95', string $modOptions = '', int $otherTeam = 1): array
+    {
+        return [
+            'SplinterFaction 0.1.95' => $game,
+            '[allyteam0]' => "[player1]\n{\nname=Other;\nteam=$otherTeam;\nspectator=0;\n}\n[allyteam0]",
+            "[team0]\n{\n" => "[team0]\n{\nside=Loz;\n",
+            "[team1]\n{\n" => "[team1]\n{\nside=Fed;\n",
+            'allowuserwidgets=1;' => 'allowuserwidgets=1;'.$modOptions,
+        ];
+    }
+
+    public function test_a_splinter_faction_team_with_no_pick_has_no_known_faction(): void
+    {
+        $replay = $this->read('sf-tumult', script: self::twoTeams());
+
+        $this->assertSame('Fed', $replay->script->teams[1]->side);
+        $this->assertSame([
+            0 => ['faction' => 'fedcommander', 'known' => false],
+            1 => ['faction' => null, 'known' => false],
+        ], PlayedFactions::of($replay, self::units([19 => 'fedcommander'])));
+    }
+
+    public function test_a_ta_recoil_team_with_no_pick_has_no_known_faction(): void
+    {
+        $replay = $this->read('sf-tumult', script: self::twoTeams('Total Annihilation: Recoil 1.0.0'));
+
+        $this->assertSame(['faction' => null, 'known' => false], PlayedFactions::of($replay, self::units([19 => 'arm_commander']))[1]);
+    }
+
+    public function test_a_player_takes_the_pick_of_a_teammate(): void
+    {
+        $replay = $this->read('sf-tumult', script: self::twoTeams(otherTeam: 0));
+
+        $this->assertSame(['faction' => 'fedcommander', 'known' => false], PlayedFactions::of($replay, self::units([19 => 'fedcommander']))[1]);
+    }
+
+    public function test_splinter_faction_with_the_faction_chooser_skipped_takes_no_pick_and_keeps_the_sides(): void
+    {
+        $replay = $this->read('sf-tumult', script: self::twoTeams(modOptions: "\nskipfactionchooser=1;"));
+
+        $this->assertSame([
+            0 => ['faction' => 'Loz', 'known' => true],
+            1 => ['faction' => 'Fed', 'known' => true],
+        ], PlayedFactions::of($replay, self::units([19 => 'fedcommander'])));
+    }
+
+    public function test_splinter_faction_ignores_ta_recoils_mod_option(): void
+    {
+        $replay = $this->read('sf-tumult', script: self::twoTeams(modOptions: "\nfactionchoice=0;"));
+
+        $this->assertNull(PlayedFactions::of($replay, self::units([19 => 'fedcommander']))[1]['faction']);
+    }
+
+    public function test_ta_recoil_with_faction_choice_off_takes_no_pick_and_keeps_the_sides(): void
+    {
+        foreach (["\nfactionchoice=0;", "\nfactionchoice=false;", "\nskippregame=1;"] as $option) {
+            $replay = $this->read('sf-tumult', script: self::twoTeams('Total Annihilation: Recoil 1.0.0', $option));
+
+            $this->assertSame([
+                0 => ['faction' => 'Loz', 'known' => true],
+                1 => ['faction' => 'Fed', 'known' => true],
+            ], PlayedFactions::of($replay, self::units([19 => 'arm_commander'])), $option);
+        }
+    }
+
+    public function test_ta_recoil_with_faction_choice_on_by_its_mod_options_takes_picks(): void
+    {
+        foreach (["\nfactionchoice=1;", "\nskippregame=0;", "\nskipfactionchooser=1;"] as $option) {
+            $replay = $this->read('sf-tumult', script: self::twoTeams('Total Annihilation: Recoil 1.0.0', $option));
+
+            $this->assertSame([
+                0 => ['faction' => 'arm_commander', 'known' => false],
+                1 => ['faction' => null, 'known' => false],
+            ], PlayedFactions::of($replay, self::units([19 => 'arm_commander'])), $option);
+        }
+    }
+
     public function test_another_game_with_the_same_message_takes_no_pick_after_the_first_frame(): void
     {
         $replay = $this->read('sf-tumult', script: ['SplinterFaction 0.1.95' => 'Total Atomic Power v4.0.7.2']);
