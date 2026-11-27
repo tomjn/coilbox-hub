@@ -101,22 +101,22 @@ test("a file that is not a track is refused by name", () => {
 test("ranges are asked for by header, and a server that ignores them is read once", async () => {
   const asked: (string | null)[] = [];
   const answer = (status: number, body: ArrayBuffer) => new Response(body, { status });
-  const ranged = httpFetcher("https://mirror.test/t.cbtrack", (async (_url: string, init?: RequestInit) => {
-    asked.push(new Headers(init?.headers).get("Range"));
+  const ranged = httpFetcher("https://mirror.test/t.cbtrack", async (_url, init) => {
+    asked.push(new Headers(init.headers).get("Range"));
     return answer(206, file.slice(0, 96));
-  }) as typeof fetch);
+  });
   expect((await ranged(0, 95)).byteLength).toBe(96);
   expect(asked).toEqual(["bytes=0-95"]);
 
   let calls = 0;
-  const whole = httpFetcher("https://mirror.test/t.cbtrack", (async () => {
+  const whole = httpFetcher("https://mirror.test/t.cbtrack", async () => {
     calls++;
     return answer(200, file);
-  }) as typeof fetch);
+  });
   expect(new Uint8Array(await whole(4, 7))).toEqual(new Uint8Array(file.slice(4, 8)));
   await whole(100, 200);
   expect(calls).toBe(1);
 
-  const refused = httpFetcher("https://mirror.test/t.cbtrack", (async () => answer(404, new ArrayBuffer(0))) as typeof fetch);
+  const refused = httpFetcher("https://mirror.test/t.cbtrack", async () => answer(404, new ArrayBuffer(0)));
   expect(refused(0, 95)).rejects.toThrow("The mirror answered 404 for the track.");
 });

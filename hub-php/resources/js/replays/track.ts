@@ -457,7 +457,7 @@ export class Track {
  * Fetches byte ranges of a track at `url`. A server that ignores the range and
  * sends the whole file is read from that one copy after.
  */
-export function httpFetcher(url: string, fetchImpl: typeof fetch = fetch): Fetcher {
+export function httpFetcher(url: string, fetchImpl: (url: string, init: RequestInit) => Promise<Response> = fetch): Fetcher {
   let whole: Promise<ArrayBuffer> | null = null;
   return async (start, end) => {
     if (whole) return (await whole).slice(start, end + 1);
