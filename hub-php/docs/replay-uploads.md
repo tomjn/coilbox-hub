@@ -121,6 +121,7 @@ While the hub holds the match for you, you get its current state. Otherwise your
 | `wrong_file` | The file that reached the hub was not the one Coilbox described. You can send it again. |
 | `unreadable` | The hub could not read the replay file. It may be damaged or too large. |
 | `wrong_game_id` | The replay file belongs to a different match. |
+| `remix` | The file sent was a remix, a copy of a replay changed to run on another game. The hub only takes the original replay. |
 | `no_game_over` | The replay stops before the match ended. The hub only takes finished matches. |
 | `no_end_of_game` | The replay has no end of match results. The hub only takes finished matches. |
 | `summary_mismatch` | What was sent about the match does not agree with the replay file. |
@@ -142,6 +143,8 @@ The hub fetches the file from the mirror it went to and reads it. It refuses the
 - `build_orders` must hold each team's orders as Coilbox's `build_orders.rs` reads them, in order. A team with no orders may be left out.
 - For Beyond All Reason, each unit's `name` must be the one the replay's unit list gives its `unit_def_id`. For another game, when the hub's catalogue has the exact release in full, each `name` must be one of its units. Costs, `display_name`, `build_time` and `category` are not checked.
 - The first sender's `name` must be a player or spectator in the file. A later sender whose name is not is dropped from the replay's senders.
+
+The hub refuses a remix, a copy of a replay that Coilbox has pointed at another game (#700). A file is a remix when the `[coilbox]` section of its start script's `[game]` has `remix=1`. A remix keeps the original match's game id and the hub holds one replay for each match, so it would take the original's place. This is a backstop, since Coilbox never sends a remix. The start request cannot tell one apart, so the check refuses it after the upload, and the original can then be sent.
 
 The unit list and the end of game awards are Lua messages in the replay too. The hub reads them only from a game whose type starts with `Beyond All Reason `, and only when sent to LuaRules (script `100`), as Coilbox does. Any other replay has no unit list and no awards.
 

@@ -74,6 +74,12 @@ final class ReplayChecks
         if ($replay->header->gameId !== $row->game_id) {
             return ['wrong_game_id', "The file's game id is {$replay->header->gameId}, not the one reserved."];
         }
+        // A remix keeps the match's game id, so listing it would take the original's place.
+        if ($replay->script->isRemix()) {
+            $source = $replay->script->game->children['coilbox']->get('source') ?? 'a game it does not name';
+
+            return ['remix', "The file is a remix, running on {$replay->script->gameType}, of a replay recorded on {$source}."];
+        }
         if ($replay->stream->eventsOf(Event::GAME_OVER) === [] || $replay->header->gameTime === 0) {
             return ['no_game_over', 'The file has no game over.'];
         }

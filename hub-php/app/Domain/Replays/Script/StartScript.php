@@ -106,6 +106,12 @@ final readonly class StartScript
         );
     }
 
+    /** Whether this is a copy of a replay that Coilbox pointed at another game, as its `[coilbox]` section says. */
+    public function isRemix(): bool
+    {
+        return ($this->game->children['coilbox'] ?? null)?->get('remix') === '1';
+    }
+
     private static function nonEmpty(?string $v): ?string
     {
         return $v === null || $v === '' ? null : $v;

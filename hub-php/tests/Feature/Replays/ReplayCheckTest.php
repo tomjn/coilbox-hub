@@ -141,6 +141,33 @@ class ReplayCheckTest extends ModerationTestCase
         $again->assertStatus(201)->assertJsonPath('upload.state', 'uploading');
     }
 
+    public function test_a_remix_is_refused_with_a_reason_and_the_original_can_be_sent(): void
+    {
+        // The match pointed at another build, with the marker Coilbox puts first in [game].
+        $b = gzdecode(self::file('bar-tangerine'));
+        $size = unpack('V', $b, 304)[1];
+        $marker = "[coilbox]\n{\nremix=1;\nsource=Beyond All Reason test-32071-e1cbffe;\norigin=match.sdfz;\n}\n";
+        $text = strtr(substr($b, 352, $size), ['gametype=Beyond All Reason test-32071-e1cbffe;' => 'gametype=Beyond All Reason test-99999-0000000;']);
+        $text = substr_replace($text, "\n".$marker, strpos($text, '{') + 1, 0);
+        $remix = gzencode(substr_replace(substr($b, 0, 352), pack('V', strlen($text)), 304, 4).$text.substr($b, 352 + $size));
+        // Everything in the summary agrees with the remixed file.
+        $summary = self::summary('bar-tangerine');
+        $summary['game'] = 'Beyond All Reason test-99999-0000000';
+        $this->uploaded(self::BAR, 'bar-tangerine', $summary, 'Charlson', bytes: $remix);
+
+        $this->check(self::BAR);
+
+        $this->assertRefused(self::BAR, 'remix', 'Beyond All Reason test-32071-e1cbffe');
+        $this->supabase(['/auth/v1/user' => fn () => self::reply(['id' => self::USER])]);
+        $this->call('GET', '/api/v1/replays/'.self::BAR.'/uploads/status', [], [], [], ['HTTP_AUTHORIZATION' => 'Bearer sender'])
+            ->assertOk()->assertJsonPath('replay.state', 'refused')->assertJsonPath('replay.refusal.reason', 'remix')
+            ->assertJsonPath('replay.refusal.message', 'The file sent was a remix, a copy of a replay changed to run on another game. The hub only takes the original replay.');
+        $original = self::file('bar-tangerine');
+        $this->call('POST', '/api/v1/replays/uploads', [], [], [], ['HTTP_AUTHORIZATION' => 'Bearer sender', 'CONTENT_TYPE' => 'application/json'],
+            json_encode(['game_id' => self::BAR, 'sha256' => hash('sha256', $original), 'size' => strlen($original), 'name' => 'Charlson', 'summary' => self::summary('bar-tangerine')], JSON_PRESERVE_ZERO_FRACTION))
+            ->assertStatus(201)->assertJsonPath('upload.state', 'uploading');
+    }
+
     public function test_one_changed_total_is_refused(): void
     {
         $summary = self::summary('bar-tangerine');
