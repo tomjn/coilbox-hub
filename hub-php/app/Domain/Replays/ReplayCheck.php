@@ -60,7 +60,7 @@ final class ReplayCheck
         $file = $players = [];
         $spectators = [];
         $unchecked = [];
-        $played = PlayedFactions::of($replay);
+        $played = PlayedFactions::of($replay, $summary['units']);
         foreach ($replay->script->players as $id => $p) {
             if ($p->spectator) {
                 $spectators[] = $p->name;

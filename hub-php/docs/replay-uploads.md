@@ -92,7 +92,14 @@ Once a replay is listed, anybody signed in can send an analysis run for it, as [
 
 ## Factions
 
-A player played the faction of their last pick before the first frame. A player who made no such pick played their team's `side` in the start script. A pick sent after the first frame does not count.
+A player played the faction of their last pick that counts. A player with no such pick played their team's `side` in the start script. Which picks count depends on the game, as the game itself accepts them:
+
+| The game type starts with | A pick counts when it is sent |
+|---|---|
+| `SplinterFaction ` or `Total Annihilation: Recoil ` | While the faction phase is open: before frame 900, and before frame `n + 91` once every team with a player has picked, where `n` is the frame of the pick by the last team to make its first |
+| Anything else | Before the first frame |
+
+A pick's frame is the number of the last new frame or key frame packet before it, or `-1` before the first.
 
 | The last pick | `faction` the check expects | What the hub stores |
 |---|---|---|
@@ -100,9 +107,9 @@ A player played the faction of their last pick before the first frame. A player 
 | A faction name (`PICKFACTION\|`) | That name, exactly as sent | The same |
 | A start unit the hub's catalogue has a faction for | The faction's name in the catalogue, which is the game's own name for the side, such as `Legion` | The same |
 | A start unit the catalogue has no faction for | Not checked | The unit's name, such as `legcom` |
-| A start unit the replay cannot name | Not checked | `null` |
+| A start unit nothing names | Not checked | `null` |
 
-The catalogue has a faction for a start unit when a game with the replay's game name lists the unit in its start units and puts it in one of its factions. The replay names a unit only when it carries a unit list, which Beyond All Reason's does.
+The catalogue has a faction for a start unit when a game with the replay's game name lists the unit in its start units and puts it in one of its factions. A start unit's name comes from the replay's unit list, which Beyond All Reason's carries. For a replay with no unit list it comes from the summary's `units`, so list each start unit a counted pick names there, even though no build order has it. The hub checks that name as it does the other [unit names](#the-check).
 
 ## The summary
 

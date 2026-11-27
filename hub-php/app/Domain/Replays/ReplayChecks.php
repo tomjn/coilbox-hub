@@ -185,7 +185,7 @@ final class ReplayChecks
             DB::table('replay_team')->insert($teams);
 
             $seats = [];
-            $played = PlayedFactions::of($replay);
+            $played = PlayedFactions::of($replay, $summary['units']);
             foreach ($script->players as $id => $p) {
                 $figures = $p->spectator ? null : ($end->players[$id] ?? null);
                 $faction = $p->spectator ? $p->side : $played[$id]['faction'];
