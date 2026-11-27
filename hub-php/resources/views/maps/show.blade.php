@@ -82,6 +82,13 @@
 
             <x-maps.mirrors :links="$mirrors" />
 
+            @if ($replayCount > 0)
+                <section class="flex flex-wrap items-baseline justify-between gap-3 border-t border-neutral-900 pt-6">
+                    <h2 class="text-xl font-semibold tracking-tight">Replays</h2>
+                    <a href="{{ \App\Domain\Replays\ReplayList::href([], ['map' => $mapName]) }}" class="py-1 text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">{{ $replayCount === 1 ? 'See the 1 shared match on this map' : 'See the '.$replayCount.' shared matches on this map' }}</a>
+                </section>
+            @endif
+
             <x-maps.played-on :map-name="$mapName" :items="$played" :picture="$picture" :origin="$origin" />
 
             <x-maps.ownership-ask :slug="$facts['slug'] ?? request()->route('slug')" :targets="$ownershipTargets" />
