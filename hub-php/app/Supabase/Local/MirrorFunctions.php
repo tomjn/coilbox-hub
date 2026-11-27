@@ -180,6 +180,7 @@ final class MirrorFunctions
                 'last_report_at' => $now,
                 'takes_engines' => in_array('engine', $kinds, true),
                 'takes_replays' => in_array('replay', $kinds, true),
+                'takes_tracks' => in_array('track', $kinds, true),
                 'last_report_sent_at' => $sentAt,
                 'last_catalogue_seq' => $number('catalogue_seq'),
                 'last_catalogue_generated_at' => $number('catalogue_generated_at'),
@@ -305,6 +306,7 @@ final class MirrorFunctions
                 'seq' => (int) $state->next_seq, 'changes' => (int) $state->changes,
                 'mirrors' => $mirrors, 'removed' => [...$removed, ...ReplayListing::removals()],
                 'archives' => $archives, 'engines' => $engines, 'replays' => ReplayListing::listed(),
+                'tracks' => ReplayListing::listedTracks(),
             ];
         });
     }

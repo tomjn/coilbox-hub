@@ -169,10 +169,15 @@ final class ReplayUploads
         ]]];
     }
 
-    /** An enabled, healthy mirror that takes replays: this one when it qualifies, otherwise any at random. */
-    private static function mirror(?string $id): ?object
+    /**
+     * An enabled, healthy mirror that takes this kind: the one asked for when
+     * it qualifies, otherwise any at random.
+     *
+     * @param  string  $takes  the mirror's column for the kind, such as `takes_replays`
+     */
+    public static function mirror(?string $id, string $takes = 'takes_replays'): ?object
     {
-        $query = DB::table('mirror')->where('enabled', true)->where('healthy', true)->where('takes_replays', true);
+        $query = DB::table('mirror')->where('enabled', true)->where('healthy', true)->where($takes, true);
         if ($id !== null) {
             $mirror = (clone $query)->where('id', $id)->first();
             if ($mirror !== null) {
