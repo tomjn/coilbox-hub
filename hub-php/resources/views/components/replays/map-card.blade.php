@@ -1,14 +1,15 @@
 {{--
     ReplayMapCard. Its heat mode is the minimap with one heat layer, the start
     boxes and the start positions on it, in Coilbox's layer order. `card` is
-    ReplayPage's map card and `heat` the layer shown. Each layer is a link that
-    keeps the rest of the address, so it works without JavaScript.
+    ReplayPage's map card, or MapTotals' on a map's page, and `heat` the layer
+    shown. Each layer is a link that keeps the rest of the address, so it works
+    without JavaScript. A start with a `number` is drawn as a numbered marker.
 
     With a track, `resources/js/replays/units.ts` adds the units mode
     (ReplayMapUnits): the units moving over the minimap with a timeline. Its
     switch and controls stay hidden until the script shows them.
 --}}
-@props(['card', 'title', 'heat', 'base'])
+@props(['card', 'title', 'heat', 'base', 'heading' => null, 'tag' => 'h2', 'anchor' => ''])
 @use('App\Domain\Maps\Js')
 @use('App\Domain\Replays\HeatPicture')
 @php
@@ -17,11 +18,12 @@
     $ratio = $map === null ? '1 / 1' : Js::number($map['width']).' / '.Js::number($map['height']);
     $layer = $heat === null ? null : $card['layers'][$heat];
     $gradient = $layer === null ? '' : implode(', ', array_map(fn ($c, $i) => $c.' '.round($i / (count($layer['ramp']) - 1) * 100).'%', $layer['ramp'], array_keys($layer['ramp'])));
-    $layerHref = fn (string $key) => $base.'?'.http_build_query(array_merge(request()->query(), ['heat' => $key]));
+    $layerHref = fn (string $key) => $base.'?'.http_build_query(array_merge(request()->query(), ['heat' => $key])).$anchor;
+    $startsLabel = $card['starts_label'] ?? 'Start positions';
     $shown = array_keys(array_filter([
         $layer['label'] ?? '' => $layer !== null,
         'Start boxes' => $card['boxes'] !== [],
-        'Start positions' => $card['starts'] !== [],
+        $startsLabel => $card['starts'] !== [],
     ]));
     // With more than one heat layer, the heat layers are links of their own.
     $keys = count($card['layers']) > 1 ? array_values(array_diff($shown, [$layer['label']])) : $shown;
@@ -31,7 +33,7 @@
 @endphp
 <section class="flex min-w-0 flex-col gap-2" aria-labelledby="replay-map"
     @if ($track !== null) data-replay-units data-track="{{ $track['url'] }}" data-colours="{{ json_encode((object) $track['colours']) }}" @endif>
-    <h2 id="replay-map" class="text-sm font-medium">Map &middot; {{ $title }}</h2>
+    <{{ $tag }} id="replay-map" class="scroll-mt-4 text-sm font-medium">@if ($heading === null)Map &middot; {{ $title }}@else{{ $heading }}@endif</{{ $tag }}>
     <div class="flex flex-col gap-3 rounded-lg border border-neutral-800 bg-card p-3">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
         <figure class="relative mx-auto w-full max-w-[36rem] overflow-hidden rounded-md bg-black" style="aspect-ratio: {{ $ratio }}">
@@ -59,7 +61,11 @@
                 @endforeach
             @endif
             @foreach ($card['starts'] as $start)
-                <span class="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1.5px_rgba(9,13,22,.9)]" style="left: {{ $start['left'] }}%; top: {{ $start['top'] }}%; background: {{ $start['colour'] }}" title="{{ $start['name'] }}"></span>
+                @if (isset($start['number']))
+                    <span class="absolute flex h-4 min-w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-neutral-950 shadow-[0_0_0_1.5px_rgba(9,13,22,.9)]" style="left: {{ $start['left'] }}%; top: {{ $start['top'] }}%; background: {{ $start['colour'] }}" title="{{ $start['name'] }}" aria-hidden="true">{{ $start['number'] }}</span>
+                @else
+                    <span class="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1.5px_rgba(9,13,22,.9)]" style="left: {{ $start['left'] }}%; top: {{ $start['top'] }}%; background: {{ $start['colour'] }}" title="{{ $start['name'] }}"></span>
+                @endif
             @endforeach
             </div>
             @if ($track !== null)
@@ -70,7 +76,7 @@
             @endif
             <figcaption class="sr-only">
                 Minimap of {{ $title }}@if ($shown !== []), showing {{ strtolower(implode(', ', $shown)) }}@endif.
-                @foreach ($card['starts'] as $start) {{ $start['name'] }} started at {{ round($start['left']) }}% across and {{ round($start['top']) }}% down. @endforeach
+                @foreach ($card['starts'] as $start) {{ $start['caption'] ?? $start['name'].' started at '.round($start['left']).'% across and '.round($start['top']).'% down.' }} @endforeach
             </figcaption>
         </figure>
 
@@ -108,10 +114,10 @@
             @elseif ($map === null)
                 <p class="text-xs text-neutral-400">The hub's map catalogue does not have this map, so there is no heat and no start positions.</p>
             @else
-                <p class="text-xs text-neutral-400">This replay has no order heat yet.</p>
+                <p class="text-xs text-neutral-400">{{ $card['no_heat'] }}</p>
             @endif
-            @if ($card['boxes'] === [])
-                <p class="text-xs text-neutral-400">This match set no start boxes.</p>
+            @if ($card['boxes'] === [] && $card['no_boxes'] !== null)
+                <p class="text-xs text-neutral-400">{{ $card['no_boxes'] }}</p>
             @endif
             </div>
         </div>

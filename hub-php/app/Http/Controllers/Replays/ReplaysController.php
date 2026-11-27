@@ -7,7 +7,6 @@ use App\Domain\Replays\HeatPicture;
 use App\Domain\Replays\ReplayList;
 use App\Domain\Replays\ReplayPage;
 use App\Http\Controllers\Controller;
-use App\Support\HubCache;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
@@ -67,13 +66,7 @@ class ReplaysController extends Controller
     {
         $layer = ReplayPage::heat($gameId, (string) $request->query('layer', 'orders'));
         abort_if($layer === null, 404);
-        ['heat' => $heat, 'ramp' => $ramp] = $layer;
-        $png = HubCache::remember('replays:heat:'.md5(json_encode($layer)), [], HubCache::WEEKS, fn () => base64_encode(HeatPicture::png($heat, $ramp)));
 
-        return response(base64_decode($png), 200, [
-            'Content-Type' => 'image/png',
-            // The link carries the heat's hash, so a changed heat is a new address.
-            'Cache-Control' => 'public, max-age='.HubCache::WEEKS,
-        ]);
+        return HeatPicture::response($layer);
     }
 }

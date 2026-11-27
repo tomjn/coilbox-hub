@@ -2,6 +2,9 @@
 
 namespace App\Domain\Replays;
 
+use App\Support\HubCache;
+use Illuminate\Http\Response;
+
 /**
  * Order heat drawn as Coilbox draws it: each cell's count spread into a soft
  * round blob (`buildHeatFieldFromCounts` in `src/lib/heatField.ts`) and
@@ -12,7 +15,7 @@ namespace App\Domain\Replays;
 final class HeatPicture
 {
     /** `DEFAULT_RADIUS_FRACTION`: the blob's reach as a share of the map's shorter side. */
-    private const RADIUS_FRACTION = 1 / 32;
+    public const RADIUS_FRACTION = 1 / 32;
 
     /** `SIGMA_PER_RADIUS`. */
     private const SIGMA_PER_RADIUS = 1 / 2.5;
@@ -76,6 +79,22 @@ final class HeatPicture
         }
 
         return ['values' => $values, 'peak' => $peak, 'radius' => $radius, 'peak_within_radius' => $within, 'counted' => $counted];
+    }
+
+    /**
+     * A layer's picture as a response, drawn once and kept.
+     *
+     * @param  array{heat: array<string, mixed>, ramp: list<string>}  $layer
+     */
+    public static function response(array $layer): Response
+    {
+        $png = HubCache::remember('replays:heat:'.md5(json_encode($layer)), [], HubCache::WEEKS, fn () => base64_encode(self::png($layer['heat'], $layer['ramp'])));
+
+        return response(base64_decode($png), 200, [
+            'Content-Type' => 'image/png',
+            // The page's link carries the heat's hash, so a changed heat is a new address.
+            'Cache-Control' => 'public, max-age='.HubCache::WEEKS,
+        ]);
     }
 
     /**
