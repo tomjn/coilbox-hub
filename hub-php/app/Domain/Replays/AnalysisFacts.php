@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
  * - deaths and damage on the heat grid, `replayEventLayers.ts` and `replayDamage.ts`
  * - each team's living unit value over time, `replayLivingValue.ts`
  * - finished buildings and units, kills and losses per team
+ * - units finished and metal destroyed by each kind of unit, for the game's
+ *   page (#670)
  * - awards for every game, `replayAwards.ts` (tomjn/coilbox#5492)
  *
  * Coilbox keeps the engine's unit list apart from the log it sends, so a unit
@@ -67,6 +69,8 @@ final class AnalysisFacts
             'living' => self::living($lines, $units, self::period($teams), (int) $endFrame),
             'teams' => self::perTeam($lines, $units, $allies),
             'awards' => self::awards($lines, $units, $allies),
+            // Added within version 1, so facts kept earlier lack it. `replays:game-totals` fills it in.
+            'by_unit' => self::byUnit($lines, $units, $allies),
         ];
     }
 
@@ -74,7 +78,7 @@ final class AnalysisFacts
      * Each unit the replay's summary lists, by unit def id: its cost, which
      * kind of unit it is and whether it moves, null when nothing says.
      *
-     * @return array<int, array{metal: float, energy: float, priced: bool, bucket: string, category: ?string, mobile: ?bool}>
+     * @return array<int, array{name: ?string, metal: float, energy: float, priced: bool, bucket: string, category: ?string, mobile: ?bool}>
      */
     public static function units(object $replay): array
     {
@@ -105,6 +109,7 @@ final class AnalysisFacts
             $category = is_string($u['category'] ?? null) ? $u['category'] : null;
             $speed = self::num($known['maxVelocity'] ?? null);
             $out[$u['unit_def_id']] = [
+                'name' => is_string($u['name'] ?? null) ? $u['name'] : null,
                 'metal' => $metal, 'energy' => $energy, 'priced' => $metal > 0 || $energy > 0,
                 'bucket' => in_array($category, ['economy', 'defence', 'offence', 'unclassified'], true) ? $category : ($category === null ? 'unclassified' : 'other'),
                 'category' => $category,
@@ -324,6 +329,71 @@ final class AnalysisFacts
         ksort($out);
 
         return array_values($out);
+    }
+
+    /**
+     * What each team's units did, by unit name: how many it finished, and the
+     * metal each of its units destroyed. A kill counts as for the awards, a
+     * finished enemy unit with a price. Start units were not built, so they are
+     * not finished here. Only units the summary lists have a name, and the rest
+     * are added up apart.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @param  array<int, array<string, mixed>>  $units
+     * @param  array<int, int>  $allies
+     * @return list<array{team: int, finished: list<array{0: string, 1: int}>, kills: list<array{0: string, 1: float}>, unnamed_finished: int, unnamed_kills: float}>
+     */
+    private static function byUnit(array $lines, array $units, array $allies): array
+    {
+        $out = [];
+        foreach (array_keys($allies) as $team) {
+            $out[$team] = ['team' => $team, 'finished' => [], 'kills' => [], 'unnamed_finished' => 0, 'unnamed_kills' => 0.0];
+        }
+        $finished = [];
+        $rank = array_flip(self::AWARD_KINDS);
+        usort($lines, fn ($a, $b) => [(self::num($a['frame'] ?? null) ?? 0), $rank[$a['kind']] ?? -1] <=> [(self::num($b['frame'] ?? null) ?? 0), $rank[$b['kind']] ?? -1]);
+        foreach ($lines as $line) {
+            $id = self::num($line['unit'] ?? null);
+            $team = self::num($line['team'] ?? null);
+            if ($id === null || $team === null || ! isset($out[(int) $team])) {
+                continue;
+            }
+            [$id, $team] = [(int) $id, (int) $team];
+            if ($line['kind'] === 'unit_created') {
+                unset($finished[$id]);
+            } elseif ($line['kind'] === 'unit_finished' && ! isset($finished[$id])) {
+                $finished[$id] = true;
+                if (($line['startUnit'] ?? false) === true) {
+                    continue;
+                }
+                $name = $units[(int) ($line['def'] ?? -1)]['name'] ?? null;
+                if ($name === null) {
+                    $out[$team]['unnamed_finished']++;
+                } else {
+                    $out[$team]['finished'][$name] = ($out[$team]['finished'][$name] ?? 0) + 1;
+                }
+            } elseif ($line['kind'] === 'unit_destroyed') {
+                $wasFinished = isset($finished[$id]);
+                unset($finished[$id]);
+                $by = self::num($line['attackerTeam'] ?? null);
+                $metal = $units[(int) ($line['def'] ?? -1)]['metal'] ?? 0.0;
+                if (! $wasFinished || $metal <= 0 || $by === null || ! isset($out[(int) $by]) || $allies[(int) $by] === $allies[$team]) {
+                    continue;
+                }
+                $by = (int) $by;
+                $name = $units[(int) ($line['attackerDef'] ?? -1)]['name'] ?? null;
+                if ($name === null) {
+                    $out[$by]['unnamed_kills'] += $metal;
+                } else {
+                    $out[$by]['kills'][$name] = ($out[$by]['kills'][$name] ?? 0.0) + $metal;
+                }
+            }
+        }
+        ksort($out);
+        // Pairs, since a unit name made of digits would not stay a text key.
+        $pairs = fn (array $by) => array_map(fn ($name, $amount) => [(string) $name, $amount], array_keys($by), array_values($by));
+
+        return array_values(array_map(fn ($t) => ['finished' => $pairs($t['finished']), 'kills' => $pairs($t['kills'])] + $t, $out));
     }
 
     /**
