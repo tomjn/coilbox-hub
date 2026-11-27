@@ -299,7 +299,7 @@ final class ReplayList
      * @param  list<string>  $factions
      * @return array<string, array<string, string>>
      */
-    private static function unitNames(array $rows, array $factions): array
+    public static function unitNames(array $rows, array $factions): array
     {
         if ($factions === []) {
             return [];
