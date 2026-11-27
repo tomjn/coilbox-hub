@@ -144,7 +144,7 @@ The hub fetches the file from the mirror it went to and reads it. It refuses the
 - For Beyond All Reason, each unit's `name` must be the one the replay's unit list gives its `unit_def_id`. For another game, when the hub's catalogue has the exact release in full, each `name` must be one of its units. Costs, `display_name`, `build_time` and `category` are not checked.
 - The first sender's `name` must be a player or spectator in the file. A later sender whose name is not is dropped from the replay's senders.
 
-The hub refuses a remix, a copy of a replay that Coilbox has pointed at another game (#700). A file is a remix when the `[coilbox]` section of its start script's `[game]` has `remix=1`. A remix keeps the original match's game id and the hub holds one replay for each match, so it would take the original's place. The start request cannot tell a remix apart, so the check refuses it after the upload, and the original can then be sent. Do not send a remix.
+The hub refuses a remix, a copy of a replay that Coilbox has pointed at another game (#700). A file is a remix when the `[coilbox]` section of its start script's `[game]` has `remix=1`. A remix keeps the original match's game id and the hub holds one replay for each match, so it would take the original's place. This is a backstop, since Coilbox never sends a remix. The start request cannot tell one apart, so the check refuses it after the upload, and the original can then be sent.
 
 The unit list and the end of game awards are Lua messages in the replay too. The hub reads them only from a game whose type starts with `Beyond All Reason `, and only when sent to LuaRules (script `100`), as Coilbox does. Any other replay has no unit list and no awards.
 
