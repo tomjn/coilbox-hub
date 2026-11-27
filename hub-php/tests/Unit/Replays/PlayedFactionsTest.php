@@ -79,6 +79,14 @@ class PlayedFactionsTest extends TestCase
         $this->assertSame([0 => ['faction' => 'aven', 'known' => true]], PlayedFactions::of($replay));
     }
 
+    public function test_a_game_with_no_picks_read_keeps_the_start_scripts_side(): void
+    {
+        $replay = $this->read('mf-valles', before: ['PICKFACTION|zaal'], script: ['Metal Factions ' => 'Other Factions ']);
+
+        $this->assertStringStartsWith('Other Factions ', $replay->script->gameType);
+        $this->assertSame([0 => ['faction' => 'aven', 'known' => true]], PlayedFactions::of($replay));
+    }
+
     public function test_a_splinter_faction_pick_in_the_faction_phase_counts(): void
     {
         $replay = $this->read('sf-tumult');

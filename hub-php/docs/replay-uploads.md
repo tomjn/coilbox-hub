@@ -92,7 +92,17 @@ Once a replay is listed, anybody signed in can send an analysis run for it, as [
 
 ## Factions
 
-A player played the faction of their last pick that counts. A player with no such pick played their team's `side` in the start script, except in Splinter Faction and TA Recoil with the faction choice on. Which picks count depends on the game, as the game itself accepts them:
+A player played the faction of their last pick that counts. A player with no such pick played their team's `side` in the start script, except in Splinter Faction and TA Recoil with the faction choice on.
+
+A pick is a Lua message in the replay. The hub reads one format for each of these games, the same as Coilbox does, and no pick in any other game:
+
+| The game type starts with | A pick is |
+|---|---|
+| `Beyond All Reason ` | `changeStartUnit` and the start unit's def id in digits |
+| `SplinterFaction `, `Total Annihilation: Recoil ` or `Total Atomic Power ` | The byte `0x8A` and the start unit's def id in digits |
+| `Metal Factions ` | `PICKFACTION\|` and the faction's name |
+
+Which picks count depends on the game, as the game itself accepts them:
 
 | The game type starts with | A pick counts when it is sent |
 |---|---|

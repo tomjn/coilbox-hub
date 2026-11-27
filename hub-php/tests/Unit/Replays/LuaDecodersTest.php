@@ -12,12 +12,26 @@ use PHPUnit\Framework\TestCase;
 
 class LuaDecodersTest extends TestCase
 {
-    public function test_every_decoder_is_in_the_list(): void
+    public function test_each_game_has_only_its_own_pick_decoder(): void
     {
-        $this->assertSame(
-            [['faction_pick', 'changeStartUnit'], ['faction_pick', "\x8A"], ['faction_pick', 'PICKFACTION|'], ['awards', "\xA1"], ['unit_list', 'unitdefs:']],
-            array_map(fn ($d) => [$d->kind(), $d->prefix()], LuaDecoders::all()),
-        );
+        $picks = [
+            'Beyond All Reason test-32071-e1cbffe' => ['changeStartUnit'],
+            'SplinterFaction 0.1.97' => ["\x8A"],
+            'Total Annihilation: Recoil 1.0.0' => ["\x8A"],
+            'Total Atomic Power v4.0.7.2' => ["\x8A"],
+            'Metal Factions v2.58' => ['PICKFACTION|'],
+            'Zero-K v1.12' => [],
+            // The space before the version is part of what is matched.
+            'Metal Factions' => [],
+        ];
+
+        foreach ($picks as $game => $prefixes) {
+            $this->assertSame(
+                [...array_map(fn ($prefix) => ['faction_pick', $prefix], $prefixes), ['awards', "\xA1"], ['unit_list', 'unitdefs:']],
+                array_map(fn ($d) => [$d->kind(), $d->prefix()], LuaDecoders::for($game)),
+                $game,
+            );
+        }
     }
 
     public function test_start_unit_picks_need_digits(): void

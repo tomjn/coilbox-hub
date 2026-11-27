@@ -4,7 +4,7 @@ namespace App\Domain\Replays\Lua;
 
 /**
  * Reads one kind of Lua message a game writes into the replay on purpose.
- * Add a decoder to `LuaDecoders::all()` to read another.
+ * Add a decoder to `LuaDecoders::for()` to read another.
  */
 interface LuaDecoder
 {
