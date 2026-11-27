@@ -1,21 +1,27 @@
 {{--
-    ReplayMapCard in its heat mode: the minimap with where orders were aimed,
-    the start boxes and the start positions on it, in Coilbox's layer order.
-    `card` is ReplayPage's map card. Drawn without JavaScript.
+    ReplayMapCard in its heat mode: the minimap with one heat layer, the start
+    boxes and the start positions on it, in Coilbox's layer order. `card` is
+    ReplayPage's map card and `heat` the layer shown. Each layer is a link that
+    keeps the rest of the address, so it works without JavaScript.
 --}}
-@props(['card', 'title'])
+@props(['card', 'title', 'heat', 'base'])
 @use('App\Domain\Maps\Js')
 @use('App\Domain\Replays\HeatPicture')
 @php
     $map = $card['map'];
     $picture = $card['picture'];
     $ratio = $map === null ? '1 / 1' : Js::number($map['width']).' / '.Js::number($map['height']);
-    $gradient = implode(', ', array_map(fn ($c, $i) => $c.' '.round($i / (count(HeatPicture::RAMP) - 1) * 100).'%', HeatPicture::RAMP, array_keys(HeatPicture::RAMP)));
-    $keys = array_filter([
-        'Order density' => $card['heat'] !== null,
+    $layer = $heat === null ? null : $card['layers'][$heat];
+    $gradient = $layer === null ? '' : implode(', ', array_map(fn ($c, $i) => $c.' '.round($i / (count($layer['ramp']) - 1) * 100).'%', $layer['ramp'], array_keys($layer['ramp'])));
+    $layerHref = fn (string $key) => $base.'?'.http_build_query(array_merge(request()->query(), ['heat' => $key]));
+    $shown = array_keys(array_filter([
+        $layer['label'] ?? '' => $layer !== null,
         'Start boxes' => $card['boxes'] !== [],
         'Start positions' => $card['starts'] !== [],
-    ]);
+    ]));
+    // With more than one heat layer, the heat layers are links of their own.
+    $keys = count($card['layers']) > 1 ? array_values(array_diff($shown, [$layer['label']])) : $shown;
+    $focus = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400';
 @endphp
 <section class="flex min-w-0 flex-col gap-2" aria-labelledby="replay-map">
     <h2 id="replay-map" class="text-sm font-medium">Map &middot; {{ $title }}</h2>
@@ -26,9 +32,9 @@
             @else
                 <img src="{{ $picture['url'] }}" alt="Minimap of {{ $title }}" decoding="async" class="absolute inset-0 size-full object-fill">
             @endif
-            @if ($card['heat'] !== null)
+            @if ($layer !== null)
                 {{-- One pixel a grid cell, stretched and smoothed by the browser as Coilbox's canvas is. --}}
-                <img src="{{ $card['heat'] }}" alt="" class="absolute inset-0 size-full object-fill [filter:drop-shadow(0_0_1px_rgb(0_0_0/.8))_drop-shadow(0_0_3px_rgb(0_0_0/.5))]">
+                <img src="{{ $layer['url'] }}" alt="" class="absolute inset-0 size-full object-fill [filter:drop-shadow(0_0_1px_rgb(0_0_0/.8))_drop-shadow(0_0_3px_rgb(0_0_0/.5))]">
             @endif
             @if ($card['boxes'] !== [])
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="absolute inset-0 size-full" aria-hidden="true">
@@ -47,24 +53,33 @@
                 <span class="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1.5px_rgba(9,13,22,.9)]" style="left: {{ $start['left'] }}%; top: {{ $start['top'] }}%; background: {{ $start['colour'] }}" title="{{ $start['name'] }}"></span>
             @endforeach
             <figcaption class="sr-only">
-                Minimap of {{ $title }}@if ($keys !== []), showing {{ strtolower(implode(', ', array_keys($keys))) }}@endif.
+                Minimap of {{ $title }}@if ($shown !== []), showing {{ strtolower(implode(', ', $shown)) }}@endif.
                 @foreach ($card['starts'] as $start) {{ $start['name'] }} started at {{ round($start['left']) }}% across and {{ round($start['top']) }}% down. @endforeach
             </figcaption>
         </figure>
 
         <div class="flex flex-col gap-3 text-sm sm:w-48 sm:shrink-0">
+            @if (count($card['layers']) > 1)
+                <nav aria-label="Heat layer">
+                    <ul class="flex flex-col gap-1.5">
+                        @foreach ($card['layers'] as $key => $l)
+                            <li><a href="{{ $layerHref($key) }}" @if ($key === $heat) aria-current="true" @endif class="block rounded-md px-3 py-1.5 transition-colors {{ $focus }} {{ $key === $heat ? 'bg-neutral-700 text-white' : 'bg-neutral-900 text-neutral-400 hover:text-neutral-100 active:text-neutral-100' }}">{{ $l['label'] }}</a></li>
+                        @endforeach
+                    </ul>
+                </nav>
+            @endif
             @if ($keys !== [])
                 <ul class="flex flex-col gap-1.5" aria-label="Layers">
-                    @foreach (array_keys($keys) as $key)
+                    @foreach ($keys as $key)
                         <li class="rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-200">{{ $key }}</li>
                     @endforeach
                 </ul>
             @endif
-            @if ($card['legend'] !== null)
+            @if ($layer !== null)
                 <div class="flex flex-col gap-1">
-                    <p class="text-xs font-medium">Where orders were aimed</p>
+                    <p class="text-xs font-medium">{{ $layer['title'] }}</p>
                     <span class="h-2 rounded-full opacity-90" style="background: linear-gradient(to right, {{ $gradient }})" aria-hidden="true"></span>
-                    <p class="text-xs text-neutral-400">{{ number_format($card['legend']['within']) }} {{ $card['legend']['within'] === 1 ? 'order' : 'orders' }} within {{ number_format($card['legend']['radius']) }} elmos of one spot</p>
+                    <p class="text-xs text-neutral-400">{{ $layer['legend'] }}</p>
                 </div>
             @elseif ($map === null)
                 <p class="text-xs text-neutral-400">The hub's map catalogue does not have this map, so there is no heat and no start positions.</p>

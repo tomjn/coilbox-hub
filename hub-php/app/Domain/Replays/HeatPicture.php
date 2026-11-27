@@ -20,6 +20,9 @@ final class HeatPicture
     /** `HEAT_RAMPS.orders`, least to most. */
     public const RAMP = ['#00788f', '#00a0b8', '#0ac8dc', '#54e4f2', '#aaf6fc'];
 
+    /** `HEAT_RAMPS.deaths`, which Coilbox's deaths and damage layers share. */
+    public const DEATHS_RAMP = ['#7a3b00', '#b05a00', '#e07a00', '#ff9f40', '#ffd070'];
+
     private const THRESHOLD = 0.04;
 
     private const GAMMA = 0.5;
@@ -29,11 +32,11 @@ final class HeatPicture
     private const ALPHA_MAX = 0.9;
 
     /**
-     * The smoothed field and what its legend says: how many orders were aimed
-     * within `radius` elmos of the brightest spot.
+     * The smoothed field and what its legend says: how much was counted
+     * within `radius` elmos of the brightest spot, such as orders aimed.
      *
-     * @param  array{width: int, height: int, world_width: int, world_height: int, cells: list<array{0: int, 1: int}>}  $heat
-     * @return array{values: list<float>, peak: float, radius: float, peak_within_radius: int, counted: int}
+     * @param  array{width: int, height: int, world_width: int, world_height: int, cells: list<array{0: int, 1: int|float}>}  $heat
+     * @return array{values: list<float>, peak: float, radius: float, peak_within_radius: int|float, counted: int|float}
      */
     public static function field(array $heat): array
     {
@@ -76,11 +79,13 @@ final class HeatPicture
     }
 
     /**
-     * The field as a PNG, one pixel per cell, transparent under the threshold.
+     * The field as a PNG, one pixel per cell, transparent under the threshold,
+     * coloured with `$ramp`.
      *
-     * @param  array{width: int, height: int, world_width: int, world_height: int, cells: list<array{0: int, 1: int}>}  $heat
+     * @param  array{width: int, height: int, world_width: int, world_height: int, cells: list<array{0: int, 1: int|float}>}  $heat
+     * @param  list<string>  $ramp
      */
-    public static function png(array $heat): string
+    public static function png(array $heat, array $ramp = self::RAMP): string
     {
         $field = self::field($heat);
         $image = imagecreatetruecolor($heat['width'], $heat['height']);
@@ -93,7 +98,7 @@ final class HeatPicture
                 $colour = imagecolorallocatealpha($image, 0, 0, 0, 127);
             } else {
                 $drawn = min(1.0, max(0.0, $t)) ** self::GAMMA;
-                [$r, $g, $b] = self::rampAt($drawn);
+                [$r, $g, $b] = self::rampAt($ramp, $drawn);
                 $alpha = self::ALPHA_MIN + (self::ALPHA_MAX - self::ALPHA_MIN) * $drawn;
                 $colour = imagecolorallocatealpha($image, $r, $g, $b, (int) round(127 - $alpha * 127));
             }
@@ -105,15 +110,15 @@ final class HeatPicture
         return (string) ob_get_clean();
     }
 
-    /** @return array{0: int, 1: int, 2: int} */
-    private static function rampAt(float $t): array
+    /** @param list<string> $ramp @return array{0: int, 1: int, 2: int} */
+    private static function rampAt(array $ramp, float $t): array
     {
-        $at = $t * (count(self::RAMP) - 1);
+        $at = $t * (count($ramp) - 1);
         $lo = (int) floor($at);
-        $hi = min(count(self::RAMP) - 1, $lo + 1);
+        $hi = min(count($ramp) - 1, $lo + 1);
         $f = $at - $lo;
-        $a = sscanf(self::RAMP[$lo], '#%02x%02x%02x');
-        $b = sscanf(self::RAMP[$hi], '#%02x%02x%02x');
+        $a = sscanf($ramp[$lo], '#%02x%02x%02x');
+        $b = sscanf($ramp[$hi], '#%02x%02x%02x');
 
         return array_map(fn ($i) => (int) round($a[$i] + ($b[$i] - $a[$i]) * $f), [0, 1, 2]);
     }

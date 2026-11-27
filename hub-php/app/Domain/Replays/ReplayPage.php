@@ -45,6 +45,30 @@ final class ReplayPage
         'sleep' => 'Longest time without a kill',
     ];
 
+    /** `ReplayAwards`' titles for awards worked out from an analysis. */
+    public const ANALYSED_AWARDS = [
+        'economyKilled' => 'Most enemy economy destroyed',
+        'fightingKilled' => 'Most enemy fighting units destroyed',
+        'efficiency' => 'Most efficient',
+        'produced' => 'Most metal produced',
+        'damageTaken' => 'Most damage taken',
+        'noKill' => 'Longest time without a kill',
+        'everything' => 'Won every award',
+    ];
+
+    /**
+     * The map card's heat layers, in Coilbox's layer order, with the ramp
+     * and legend of each (`deathLegend` and `damageLegend`).
+     */
+    public const HEAT_LAYERS = [
+        'orders' => ['label' => 'Order density', 'title' => 'Where orders were aimed', 'ramp' => HeatPicture::RAMP,
+            'one' => '%s order within %s elmos of one spot', 'many' => '%s orders within %s elmos of one spot'],
+        'deaths' => ['label' => 'Deaths', 'title' => 'Where units died', 'ramp' => HeatPicture::DEATHS_RAMP,
+            'one' => '%s death within %s elmos of one spot', 'many' => '%s deaths within %s elmos of one spot'],
+        'damage' => ['label' => 'Damage dealt', 'title' => 'Where damage landed', 'ramp' => HeatPicture::DEATHS_RAMP,
+            'one' => '%s damage landed within %s elmos of one spot', 'many' => '%s damage landed within %s elmos of one spot'],
+    ];
+
     private const FRAMES_PER_SECOND = 30;
 
     /** `CHART_PALETTE` in Coilbox's `src/lib/chartPalette.ts`. */
@@ -88,6 +112,9 @@ final class ReplayPage
         }
         $teamName = fn (?int $team) => $team !== null && isset($byTeam[$team]) ? self::andList($byTeam[$team]) : 'Team '.(($team ?? -1) + 1);
         $map = ReplayList::maps([(string) $row->map])[$row->map] ?? null;
+        $facts = self::facts($gameId);
+        $recorded = self::awards(json_decode((string) $row->extra, true)['bar.awards'] ?? [], $teamName);
+        $analysed = $recorded === [] && $facts !== null ? self::analysedAwards($facts['awards']['awards'], $teamName) : [];
 
         return [
             'game_id' => $gameId,
@@ -103,12 +130,15 @@ final class ReplayPage
             'sides' => self::sides($players, $teams, $winners, $factions, (int) $row->duration),
             'spectators' => $seats->where('kind', 'spectator')->pluck('name')->all(),
             'tiles' => self::tiles($teams, $players, (int) $row->duration, self::result($winners)),
-            'awards' => self::awards(json_decode((string) $row->extra, true)['bar.awards'] ?? [], $teamName),
+            // Awards the game recorded win over ones worked out from an analysis, and the two are never mixed (`pickAwards`).
+            'awards' => $recorded !== [] ? $recorded : $analysed,
+            'awards_source' => $recorded !== [] ? 'recorded' : 'analysis',
+            'analysis' => $facts === null ? null : self::analysis($gameId, $facts, $teams, $teamName),
             'history' => self::history($teams, $teamName),
             'builds' => self::builds($teams, $teamName),
             'units' => $units,
             'timeline' => self::timeline($gameId, json_decode((string) $row->events, true) ?: [], $seats, $teamName),
-            'map_card' => self::mapCard($row, $map, $teams, $teamName),
+            'map_card' => self::mapCard($row, $map, $teams, $teamName, $facts),
             'downloads' => [
                 'replay' => self::replayUrl($row),
                 'tracks' => array_values(array_filter(Tracks::listed($gameId), fn ($t) => $t['url'] !== null)),
@@ -440,12 +470,15 @@ final class ReplayPage
 
     /**
      * `ReplayMapCard` in its heat mode: the minimap with start boxes, start
-     * positions and order heat. Start positions need the map's size, so a map
-     * the catalogue does not publish shows the boxes only.
+     * positions and a heat layer. Order heat and start positions need the
+     * map's size, so a map the catalogue does not publish shows the boxes
+     * only. Deaths and damage come from a kept analysis, whose log gives the
+     * map's size itself.
      *
+     * @param  array<string, mixed>|null  $facts
      * @return array<string, mixed>
      */
-    private static function mapCard(object $row, ?array $map, $teams, callable $teamName): array
+    private static function mapCard(object $row, ?array $map, $teams, callable $teamName, ?array $facts): array
     {
         $boxes = [];
         $allyColours = [];
@@ -468,15 +501,26 @@ final class ReplayPage
                 }
             }
         }
-        $heat = json_decode((string) $row->order_heat, true);
-        $legend = null;
-        if (is_array($heat) && $heat['cells'] !== []) {
+
+        $layers = [];
+        foreach (self::HEAT_LAYERS as $key => $layer) {
+            $heat = $key === 'orders' ? json_decode((string) $row->order_heat, true) : self::analysisHeat($facts, $key);
+            if (! is_array($heat) || $heat['cells'] === []) {
+                continue;
+            }
+            $hash = md5(json_encode($heat));
             // The blur is the slow part of a page view, and the heat never changes.
-            $legend = HubCache::remember('replays:heat-legend:'.md5((string) $row->order_heat), [], HubCache::WEEKS, function () use ($heat) {
+            $legend = HubCache::remember('replays:heat-legend:'.$hash, [], HubCache::WEEKS, function () use ($heat) {
                 $field = HeatPicture::field($heat);
 
                 return ['within' => $field['peak_within_radius'], 'radius' => (int) round($field['radius'])];
             });
+            $within = (int) round($legend['within']);
+            $layers[$key] = [
+                'label' => $layer['label'], 'title' => $layer['title'], 'ramp' => $layer['ramp'],
+                'url' => '/replays/'.$row->game_id.'/heat.png?'.($key === 'orders' ? '' : 'layer='.$key.'&').'v='.substr($hash, 0, 8),
+                'legend' => sprintf($within === 1 ? $layer['one'] : $layer['many'], number_format($within), number_format($legend['radius'])),
+            ];
         }
 
         return [
@@ -484,9 +528,83 @@ final class ReplayPage
             'picture' => $map['picture'] ?? ReplayList::placeholder((string) $row->map),
             'boxes' => $boxes,
             'starts' => $starts,
-            'heat' => $legend === null ? null : '/replays/'.$row->game_id.'/heat.png?v='.substr(md5((string) $row->order_heat), 0, 8),
-            'legend' => $legend,
+            'layers' => $layers,
         ];
+    }
+
+    /**
+     * Deaths or damage from an analysis's facts as a heat grid, or null when
+     * it has none.
+     *
+     * @param  array<string, mixed>|null  $facts
+     * @return array<string, mixed>|null
+     */
+    private static function analysisHeat(?array $facts, string $layer): ?array
+    {
+        if ($facts === null || $facts['grid'] === null || ! in_array($layer, ['deaths', 'damage'], true)) {
+            return null;
+        }
+
+        return $facts['grid'] + ['cells' => $facts[$layer]];
+    }
+
+    /**
+     * The facts the page draws from the replay's kept analysis, or null when
+     * it has none or they are not worked out in this shape yet.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function facts(string $gameId): ?array
+    {
+        $facts = json_decode((string) DB::table('replay_analysis')->where('game_id', $gameId)->value('facts'), true);
+
+        return is_array($facts) && ($facts['v'] ?? null) === AnalysisFacts::VERSION ? $facts : null;
+    }
+
+    /**
+     * The analysis parts of the Summary tab: how many people's runs agreed,
+     * each team's living value and its finished units, kills and losses.
+     *
+     * @param  array<string, mixed>  $facts
+     * @return array<string, mixed>
+     */
+    private static function analysis(string $gameId, array $facts, $teams, callable $teamName): array
+    {
+        $named = fn (int $team) => ['name' => $teamName($team), 'colour' => $teams[$team]->colour ?? null];
+        $living = $facts['living'];
+
+        return [
+            'agreements' => ReplayAnalyses::agreements($gameId),
+            'living' => [
+                'period' => $living['period'], 'seconds' => $living['seconds'], 'finished' => $living['finished'], 'unpriced' => $living['unpriced'],
+                'teams' => array_map(fn ($t) => $named($t['team']) + ['samples' => $t['samples']], $living['teams']),
+            ],
+            'teams' => array_map(fn ($t) => $named($t['team']) + $t, $facts['teams']),
+            'unpriced_kills' => $facts['awards']['unpriced'],
+        ];
+    }
+
+    /**
+     * Awards worked out from an analysis, in the recorded awards' shape.
+     *
+     * @param  list<array{id: string, places: list<array{place: int, team: int, score: float|null}>}>  $awards
+     * @return list<array{title: string, places: list<array{place: int, team: string, value: ?string}>}>
+     */
+    private static function analysedAwards(array $awards, callable $teamName): array
+    {
+        return array_map(fn ($award) => [
+            'title' => self::ANALYSED_AWARDS[$award['id']] ?? $award['id'],
+            'places' => array_map(fn ($p) => [
+                'place' => $p['place'],
+                'team' => $teamName($p['team']),
+                'value' => $p['score'] === null ? null : match ($award['id']) {
+                    'efficiency' => rtrim(rtrim(number_format($p['score'], 2), '0'), '.').' metal destroyed for each metal spent',
+                    'damageTaken' => self::total($p['score']).' damage',
+                    'noKill' => self::duration((int) round($p['score'])),
+                    default => self::total($p['score']).' metal',
+                },
+            ], $award['places']),
+        ], $awards);
     }
 
     /**
@@ -502,17 +620,23 @@ final class ReplayPage
     }
 
     /**
-     * The order heat for the picture route, or null when the replay has none.
+     * One heat layer for the picture route, with the ramp to draw it in, or
+     * null when the replay has none.
      *
-     * @return array<string, mixed>|null
+     * @return array{heat: array<string, mixed>, ramp: list<string>}|null
      */
-    public static function heat(string $gameId): ?array
+    public static function heat(string $gameId, string $layer = 'orders'): ?array
     {
-        if (! self::isGameId($gameId)) {
+        if (! self::isGameId($gameId) || ! isset(self::HEAT_LAYERS[$layer])) {
             return null;
         }
-        $heat = json_decode((string) DB::table('replay')->where('game_id', $gameId)->where('state', 'listed')->value('order_heat'), true);
+        if (DB::table('replay')->where('game_id', $gameId)->where('state', 'listed')->doesntExist()) {
+            return null;
+        }
+        $heat = $layer === 'orders'
+            ? json_decode((string) DB::table('replay')->where('game_id', $gameId)->value('order_heat'), true)
+            : self::analysisHeat(self::facts($gameId), $layer);
 
-        return is_array($heat) && $heat['cells'] !== [] ? $heat : null;
+        return is_array($heat) && $heat['cells'] !== [] ? ['heat' => $heat, 'ramp' => self::HEAT_LAYERS[$layer]['ramp']] : null;
     }
 }
