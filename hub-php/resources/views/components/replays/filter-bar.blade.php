@@ -11,7 +11,7 @@
     $label = 'text-sm uppercase tracking-wide text-neutral-400';
     $chevron = '<svg aria-hidden="true" viewBox="0 0 16 16" class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>';
     $focus = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400';
-    $more = array_filter(array_intersect_key($filters, array_flip(['min_players', 'max_players', 'min_length', 'max_length', 'from', 'to', 'analysis'])), fn ($value) => $value !== null) !== [];
+    $more = array_filter(array_intersect_key($filters, array_flip(['min_players', 'max_players', 'min_length', 'max_length', 'from', 'to', 'analysis', 'track'])), fn ($value) => $value !== null) !== [];
     // A linked game or map with no replay stays chosen, so the next search keeps it.
     $choices = fn (array $held, ?string $chosen) => $chosen === null || in_array($chosen, $held, true) ? $held : [$chosen, ...$held];
     $numbers = [
@@ -56,16 +56,18 @@
                     <input id="replays-{{ $name }}" type="date" class="{{ $control }} [color-scheme:dark]" name="{{ $name }}" value="{{ $filters[$name] ?? '' }}">
                 </div>
             @endforeach
-            <div class="flex min-w-0 flex-col gap-1.5">
-                <label for="replays-analysis" class="{{ $label }}">Analysis</label>
-                <div class="relative">
-                    <select id="replays-analysis" name="analysis" class="{{ $control }} appearance-none pr-9">
-                        <option value="">With or without</option>
-                        <option value="yes" @selected($filters['analysis'] === 'yes')>With an analysis</option>
-                        <option value="no" @selected($filters['analysis'] === 'no')>Without an analysis</option>
-                    </select>{!! $chevron !!}
+            @foreach (['analysis' => ['Analysis', 'an analysis'], 'track' => ['Track', 'a track']] as $name => [$title, $thing])
+                <div class="flex min-w-0 flex-col gap-1.5">
+                    <label for="replays-{{ $name }}" class="{{ $label }}">{{ $title }}</label>
+                    <div class="relative">
+                        <select id="replays-{{ $name }}" name="{{ $name }}" class="{{ $control }} appearance-none pr-9">
+                            <option value="">With or without</option>
+                            <option value="yes" @selected($filters[$name] === 'yes')>With {{ $thing }}</option>
+                            <option value="no" @selected($filters[$name] === 'no')>Without {{ $thing }}</option>
+                        </select>{!! $chevron !!}
+                    </div>
                 </div>
-            </div>
+            @endforeach
         </div>
     </details>
 </form>

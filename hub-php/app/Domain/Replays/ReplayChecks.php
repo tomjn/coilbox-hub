@@ -180,6 +180,7 @@ final class ReplayChecks
                         'start_x' => $starts[$id]->x ?? null, 'start_z' => $starts[$id]->z ?? null,
                         'build_orders' => self::json($orders[$id] ?? []),
                         'samples' => count($end->teams[$id] ?? []),
+                        'leader_name' => self::text($script->players[$team->leader ?? -1]->name ?? ''),
                     ];
             }
             DB::table('replay_team')->insert($teams);
