@@ -49,7 +49,7 @@ final class ReplayCheck
         return array_values(array_unique($names));
     }
 
-    /** The unit list the replay carries, which only Beyond All Reason sends today. */
+    /** The unit list the replay carries, read only from Beyond All Reason's. */
     public static function unitList(Replay $replay): ?UnitList
     {
         return $replay->stream->luaMessagesOf('unit_list')[0]->value ?? null;

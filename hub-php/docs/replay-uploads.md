@@ -142,6 +142,8 @@ The hub fetches the file from the mirror it went to and reads it. It refuses the
 - For Beyond All Reason, each unit's `name` must be the one the replay's unit list gives its `unit_def_id`. For another game, when the hub's catalogue has the exact release in full, each `name` must be one of its units. Costs, `display_name`, `build_time` and `category` are not checked.
 - The first sender's `name` must be a player or spectator in the file. A later sender whose name is not is dropped from the replay's senders.
 
+The unit list and the end of game awards are Lua messages in the replay too. The hub reads them only from a game whose type starts with `Beyond All Reason `, and only when sent to LuaRules (script `100`), as Coilbox does. Any other replay has no unit list and no awards.
+
 A refused replay is removed from the mirrors and its game id can be sent again. Moderators find the reason in `replay_refusal`, and everyone who sent it can [ask why](#asking-what-became-of-a-replay).
 
 Once a replay is listed, anybody signed in can send an analysis run for it, as [replay-analyses.md](replay-analyses.md) says. Once an analysis has passed, anybody signed in can send the replay's [track](#tracks).
@@ -150,7 +152,7 @@ Once a replay is listed, anybody signed in can send an analysis run for it, as [
 
 A player played the faction of their last pick that counts. A player with no such pick played their team's `side` in the start script, except in Splinter Faction and TA Recoil with the faction choice on.
 
-A pick is a Lua message in the replay. The hub reads one format for each of these games, the same as Coilbox does, and no pick in any other game:
+A pick is a Lua message in the replay, sent to LuaRules (script `100`). The hub reads one format for each of these games, the same as Coilbox does, and no pick in any other game:
 
 | The game type starts with | A pick is |
 |---|---|

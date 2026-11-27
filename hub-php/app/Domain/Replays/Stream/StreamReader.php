@@ -45,6 +45,9 @@ final class StreamReader
 
     private const LUAMSG = 50;
 
+    /** The script id a Lua message to LuaRules carries, from the engine's `LuaHandle.h`. */
+    private const LUA_RULES = 100;
+
     private const TEAM = 51;
 
     private const CREATE_NEWPLAYER = 75;
@@ -249,10 +252,16 @@ final class StreamReader
 
     /**
      * `u16 size, u8 player, u16 script, u8 mode`, then the message. Only a
-     * message whose first byte starts a decoder's prefix gets here.
+     * message whose first byte starts a decoder's prefix gets here. Every
+     * decoder reads what was sent to LuaRules and nothing else, as Coilbox
+     * does (#696).
      */
     private function lua(int $p, int $len): ?LuaMessage
     {
+        ['player' => $player, 'script' => $script, 'mode' => $mode] = unpack('Cplayer/vscript/Cmode', $this->b, $p + 3);
+        if ($script !== self::LUA_RULES) {
+            return null;
+        }
         $data = substr($this->b, $p + 7, $len - 7);
         foreach ($this->decoders[$data[0]] as $decoder) {
             if (! str_starts_with($data, $decoder->prefix())) {
@@ -260,8 +269,6 @@ final class StreamReader
             }
             $value = $decoder->decode($data);
             if ($value !== null) {
-                ['player' => $player, 'script' => $script, 'mode' => $mode] = unpack('Cplayer/vscript/Cmode', $this->b, $p + 3);
-
                 return new LuaMessage($this->frame, $player, $script, $mode, $decoder->kind(), $value);
             }
         }

@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 
 class LuaDecodersTest extends TestCase
 {
-    public function test_each_game_has_only_its_own_pick_decoder(): void
+    public function test_each_game_has_only_its_own_decoders(): void
     {
         $picks = [
             'Beyond All Reason test-32071-e1cbffe' => ['changeStartUnit'],
@@ -26,8 +26,9 @@ class LuaDecodersTest extends TestCase
         ];
 
         foreach ($picks as $game => $prefixes) {
+            $barOnly = str_starts_with($game, 'Beyond All Reason ') ? [['awards', "\xA1"], ['unit_list', 'unitdefs:']] : [];
             $this->assertSame(
-                [...array_map(fn ($prefix) => ['faction_pick', $prefix], $prefixes), ['awards', "\xA1"], ['unit_list', 'unitdefs:']],
+                [...array_map(fn ($prefix) => ['faction_pick', $prefix], $prefixes), ...$barOnly],
                 array_map(fn ($d) => [$d->kind(), $d->prefix()], LuaDecoders::for($game)),
                 $game,
             );
@@ -57,21 +58,56 @@ class LuaDecodersTest extends TestCase
 
     public function test_a_metal_factions_pick_is_read_from_the_stream(): void
     {
-        // The Metal Factions fixture has no pick, so one is added as the last
-        // packet of its stream and the header's stream size moved with it.
-        $b = gzdecode(file_get_contents(__DIR__.'/../../Fixtures/replays/mf-valles.sdfz'));
-        $data = 'PICKFACTION|zaal';
-        $payload = chr(50).pack('v', 7 + strlen($data)).chr(0).pack('v', 100).chr(0).$data;
-        $packet = pack('g', 3.0).pack('V', strlen($payload)).$payload;
-        $end = 352 + unpack('V', $b, 304)[1] + unpack('V', $b, 308)[1];
-        $b = substr_replace($b, pack('V', unpack('V', $b, 308)[1] + strlen($packet)), 308, 4);
-        $b = substr($b, 0, $end).$packet.substr($b, $end);
+        // The Metal Factions fixture has no pick, so one is added.
+        $b = $this->withMessage('mf-valles', 100, 'PICKFACTION|zaal');
 
         $stream = (new ReplayReader)->readBytes($b)->stream;
         $picks = $stream->luaMessagesOf('faction_pick');
         $this->assertCount(1, $picks);
         $this->assertSame([90, 0, 100, 'zaal'], [$picks[0]->frame, $picks[0]->player, $picks[0]->script, $picks[0]->value->faction]);
         $this->assertSame(95, $stream->luaMessageCount);
+    }
+
+    public function test_a_pick_sent_to_luaui_is_not_read(): void
+    {
+        $b = $this->withMessage('mf-valles', 2000, 'PICKFACTION|zaal');
+
+        $this->assertSame([], (new ReplayReader)->readBytes($b)->stream->luaMessages);
+    }
+
+    public function test_the_unit_list_and_awards_are_not_read_in_another_game(): void
+    {
+        foreach (['unitdefs:'.gzcompress('["armcom"]'), "\xA11:2"] as $data) {
+            $b = $this->withMessage('mf-valles', 100, $data);
+
+            $this->assertSame([], (new ReplayReader)->readBytes($b)->stream->luaMessages);
+        }
+    }
+
+    public function test_beyond_all_reasons_messages_are_read_only_from_luarules(): void
+    {
+        $counts = fn (string $b) => array_count_values(array_map(fn ($m) => $m->kind, (new ReplayReader)->readBytes($b)->stream->luaMessages));
+        $real = $counts(gzdecode(file_get_contents(__DIR__.'/../../Fixtures/replays/bar-tangerine.sdfz')));
+
+        foreach (['faction_pick' => 'changeStartUnit5', 'unit_list' => 'unitdefs:'.gzcompress('["armcom"]'), 'awards' => "\xA11:2"] as $kind => $data) {
+            $this->assertEquals($real, $counts($this->withMessage('bar-tangerine', 2000, $data)), $kind);
+            $this->assertSame($real[$kind] + 1, $counts($this->withMessage('bar-tangerine', 100, $data))[$kind], $kind);
+        }
+    }
+
+    /**
+     * A fixture's bytes with a Lua message from player 0 added as the last
+     * packet of its stream, and the header's stream size moved with it.
+     */
+    private function withMessage(string $fixture, int $script, string $data): string
+    {
+        $b = gzdecode(file_get_contents(__DIR__."/../../Fixtures/replays/{$fixture}.sdfz"));
+        $payload = chr(50).pack('v', 7 + strlen($data)).chr(0).pack('v', $script).chr(0).$data;
+        $packet = pack('g', 3.0).pack('V', strlen($payload)).$payload;
+        $end = 352 + unpack('V', $b, 304)[1] + unpack('V', $b, 308)[1];
+        $b = substr_replace($b, pack('V', unpack('V', $b, 308)[1] + strlen($packet)), 308, 4);
+
+        return substr($b, 0, $end).$packet.substr($b, $end);
     }
 
     public function test_awards_must_fit_their_layout(): void

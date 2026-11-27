@@ -8,21 +8,20 @@ use Illuminate\Support\Str;
 final class LuaDecoders
 {
     /**
-     * A faction pick is read only for the games Coilbox reads it for (#695),
-     * by how their game type starts. The summary of any other game has the
-     * lobby's faction, even when the game sends a message that looks the same.
+     * Each message is read only for the games Coilbox reads it for (#695,
+     * #696), by how their game type starts. The summary of any other game has
+     * the lobby's faction and no awards, even when the game sends messages that
+     * look the same.
      *
      * @return list<LuaDecoder>
      */
     public static function for(string $gameType): array
     {
-        $picks = match (true) {
-            Str::startsWith($gameType, 'Beyond All Reason ') => [new StartUnitPick('changeStartUnit')],
+        return match (true) {
+            Str::startsWith($gameType, 'Beyond All Reason ') => [new StartUnitPick('changeStartUnit'), new BarAwards, new BarUnitList],
             Str::startsWith($gameType, ['SplinterFaction ', 'Total Annihilation: Recoil ', 'Total Atomic Power ']) => [new StartUnitPick("\x8A")],
             Str::startsWith($gameType, 'Metal Factions ') => [new FactionNamePick],
             default => [],
         };
-
-        return [...$picks, new BarAwards, new BarUnitList];
     }
 }
