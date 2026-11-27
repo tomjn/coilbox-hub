@@ -133,7 +133,7 @@ A deploy does not copy the unit. After a change to `deploy/hub-queue.service`, r
 In `/srv/www/hub.coilbox.org/current`:
 
 1. `php artisan jobs:test` queues a test job.
-2. Within a minute, `grep "Queue test job ran" storage/logs/laravel.log` shows a new line. It gives the seconds the job waited, the release the worker runs and the memory it used.
+2. Within a minute, `grep "Queue test job ran" storage/logs/queue-test.log` shows a new line. It gives the seconds the job waited, the release the worker runs and the memory it used.
 
 If no line appears, `sudo journalctl -u hub-queue -n 50` shows what the worker did.
 
@@ -144,7 +144,7 @@ To check it comes back after a restart, run `sudo reboot`, then repeat both step
 A job that throws, or takes longer than 60 seconds, is not tried again. It is kept in the `failed_jobs` table. A job that ends the worker by running out of memory ends up there too, once the worker picks it up again 90 seconds or more after it started. In `/srv/www/hub.coilbox.org/current`:
 
 1. `php artisan queue:failed` lists them with their ids.
-2. `sudo journalctl -u hub-queue` and `storage/logs/laravel.log` say why. So does the `exception` column of `failed_jobs`.
+2. `sudo journalctl -u hub-queue` and `storage/logs/laravel-<date>.log` say why. So does the `exception` column of `failed_jobs`.
 3. `php artisan queue:retry <id>` queues one again. `php artisan queue:retry all` queues all of them.
 4. `php artisan queue:forget <id>` removes one. `php artisan queue:flush` removes all of them.
 
@@ -173,7 +173,7 @@ To measure on the droplet, in `/srv/www/hub.coilbox.org/current`:
 1. Copy a long match's replay to `/tmp` on the droplet, and check `www-data` can read it with `chmod 644`.
 2. `sudo systemctl restart hub-queue`, so earlier jobs are not counted.
 3. Run `php artisan jobs:test --replay=/tmp/<name>.sdfz` twice. The second line's `memory_before_mb` is what a job leaves behind.
-4. `grep "Queue test job ran" storage/logs/laravel.log` gives the PHP figures.
+4. `grep "Queue test job ran" storage/logs/queue-test.log` gives the PHP figures.
 5. `systemctl status hub-queue` and `cat /sys/fs/cgroup/system.slice/hub-queue.service/memory.peak` give the memory the whole process used, the second as the peak in bytes.
 
 ## Scheduled commands
@@ -198,7 +198,7 @@ A deploy does not copy the file. After a change to `deploy/hub-schedule.cron`, r
 2. `sudo -u www-data php artisan replays:data` writes them, and prints each file's rows.
 3. `/replays/data` links the new set.
 
-If nothing appears on a Monday, `journalctl -u cron --since today | grep schedule:run` shows whether cron ran the scheduler, and `storage/logs/laravel.log` shows any error.
+If nothing appears on a Monday, `journalctl -u cron --since today | grep schedule:run` shows whether cron ran the scheduler, and `storage/logs/laravel-<date>.log` shows any error.
 
 ## Game catalogue in MariaDB
 

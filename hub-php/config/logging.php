@@ -73,6 +73,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Where `php artisan jobs:test` reports, whatever LOG_LEVEL hides.
+        'queue-test' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/queue-test.log'),
+            'level' => 'debug',
+            'replace_placeholders' => true,
+        ],
+
         'monthly' => [
             'driver' => 'monthly',
             'path' => storage_path('logs/laravel.log'),

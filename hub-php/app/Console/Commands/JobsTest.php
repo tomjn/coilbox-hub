@@ -27,7 +27,7 @@ class JobsTest extends Command
 
         QueueTestJob::dispatch(time(), $replay);
 
-        $this->line('Queued. The worker logs "Queue test job ran." in storage/logs/laravel.log when it runs it.');
+        $this->line('Queued. The worker logs "Queue test job ran." in storage/logs/queue-test.log when it runs it.');
 
         return self::SUCCESS;
     }

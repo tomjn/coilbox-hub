@@ -49,6 +49,7 @@ class QueueTestJobTest extends TestCase
     {
         $this->travelTo(now()->startOfSecond());
         $job = new QueueTestJob(time() - 3);
+        Log::shouldReceive('channel')->with('queue-test')->andReturnSelf();
         Log::shouldReceive('info')->once()->with('Queue test job ran.', Mockery::on(
             fn (array $context) => $context['waited_seconds'] >= 3
                 && $context['release'] === base_path()
@@ -60,9 +61,29 @@ class QueueTestJobTest extends TestCase
         app()->call([$job, 'handle']);
     }
 
+    public function test_the_job_writes_its_line_when_the_hub_logs_only_warnings(): void
+    {
+        $path = storage_path('logs/queue-test-'.uniqid().'.log');
+        // As in production, where LOG_LEVEL=warning.
+        config([
+            'logging.default' => 'daily',
+            'logging.channels.daily.level' => 'warning',
+            'logging.channels.queue-test.path' => $path,
+        ]);
+
+        try {
+            app()->call([new QueueTestJob(time()), 'handle']);
+
+            $this->assertStringContainsString('Queue test job ran.', file_get_contents($path));
+        } finally {
+            @unlink($path);
+        }
+    }
+
     public function test_the_job_reads_a_replay_and_records_it(): void
     {
         $job = new QueueTestJob(time(), realpath(self::REPLAY));
+        Log::shouldReceive('channel')->with('queue-test')->andReturnSelf();
         Log::shouldReceive('info')->once()->with('Queue test job ran.', Mockery::on(
             fn (array $context) => $context['replay'] === realpath(self::REPLAY) && $context['packets'] > 0
         ));

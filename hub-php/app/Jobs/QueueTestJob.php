@@ -36,7 +36,7 @@ class QueueTestJob implements ShouldQueue
         }
         $context['peak_memory_mb'] = $this->megabytes(memory_get_peak_usage(true));
 
-        Log::info('Queue test job ran.', $context);
+        Log::channel('queue-test')->info('Queue test job ran.', $context);
     }
 
     private function megabytes(int $bytes): float
