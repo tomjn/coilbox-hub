@@ -29,6 +29,30 @@ The `/api/v1` responses are a contract with the Coilbox desktop app. A field ren
 - The lead session starts and stops local services with `scripts/local-services.sh up` and `down`. `up dev` runs this app at `http://localhost:8100`, `up mariadb` starts MariaDB on port 3307 and `up supabase` starts local Supabase. Other sessions do not start, stop or restart them, and do not run `php artisan serve` themselves.
 - `php artisan test` runs the tests. Tests fake Supabase with `Http::fake()` and never call the network.
 - `bun run build` rebuilds the CSS after adding Tailwind classes in new files.
+- Run `vendor/bin/pint` only on your own files, with their paths or `--dirty`. Over the whole folder it reformats dozens of unrelated files. On `app/Supabase/Local/MirrorFunctions.php` it also rewrites unrelated imports, so revert those hunks.
+- Migration names are dated ahead of today. Check the latest name in `database/migrations` and date a new one after it.
+- Inside `hub-php`, a git-safe hook can reject `scripts/local-services.sh` by relative path. Call it by its absolute path.
+- A fresh worktree needs `composer install`, an `APP_KEY` (an env var, or a `.env` made from `deploy/env.example` plus `php artisan key:generate`, never committed) and `public/build` copied from the main checkout. Without them many tests fail.
+
+## Deploys
+
+Agents have no SSH access to the droplet. Deploys run only through the "Deploy the PHP hub" GitHub Actions workflow, which runs `deploy/release.sh`. A deploy does not install files outside the release, such as systemd units and cron files. Anything the owner must do on the droplet by hand goes in `deploy/README.md` as steps, and the pull request says which steps they must run. A backfill command gets a `--dry-run` the owner runs first.
+
+## Replay notes
+
+- Real replays for testing are in the local Coilbox checkout at `~/dev/coilbox`, such as `docs/reports/replay-research/bar-demo/*.sdfz` and `docs/reports/sf3984/fixture-0.1.96.sdfz`. Coilbox's reader is in `crates/tauri-plugin-coilbox-content/src/demo.rs`, `demo/stream.rs` and `model.rs`. The formats are described in `docs/reference/replay-data-sources.md` and `docs/reference/replay-track-format.md` there. The SF, TA Recoil and TAP game archives with their Lua are in `~/.spring/games`.
+- The test fixture `tests/Fixtures/replays/mf-valles.sdfz` is a short test run with no game over and no faction pick (#673). Tests that need a finished Metal Factions game use rows shaped like the check's output.
+- Loop over `$stream->orders` once and keep only what you need. Each pass decodes the file again.
+- Lua messages come only from LuaRules (script 100), through `$stream->luaMessagesOf('faction_pick' | 'awards' | 'unit_list')`. Add or test decoders through `LuaDecoders::for($gameType)`. Picks decode only for their own games, and awards and the unit list only for Beyond All Reason.
+- `replay_player.faction` is a side name, a unit name such as `legcom` when the catalogue has no faction for it, or null. In SF and TA Recoil with the faction choice on, a team with no pick is null. Pages and totals must handle all three, and leave nulls out of win rates or show them as unknown. `PlayedFactions::of()` takes the summary's units.
+- Read analysis numbers from `replay_analysis.facts`, not by parsing the raw log on each page view.
+- Anything new worked out from a replay file must also be deleted in `ReplayModeration::remove`.
+- `replay_track` can hold a waiting replacement row (`replacing` true) beside the listed track, so queries by game and format must filter on `replacing` or `state`. Replacement stays off until a mirror reports the `replace_track` feature and Coilbox sends `recorder_version`.
+- Mirrors send no CORS headers on `tracks/` until tomjn/coilbox-mirror#9 ships. Do not proxy tracks through the hub.
+- Order positions are not stored. The order heat grid is counted at check time with `OrderHeat`.
+- `CheckReplay` has an 80 second timeout. A job that reads a whole replay must measure its real memory and timeout, and say in the pull request if `deploy/hub-queue.service` needs changing, because the owner copies that file by hand.
+- Test helpers are in `tests/Concerns/ChecksReplays`. Call `uploaded()` without a prior `$this->supabase()`, whose catch-all answers 500 to the mirror fetch. `uploaded()` takes an optional `$bytes` that replaces the fixture's file.
+- Upload, summary and analysis shapes are defined by the hub in `docs/replay-uploads.md` and `docs/replay-analyses.md`, and Coilbox builds to them. Keep those docs exact, and file a tomjn/coilbox issue for anything Coilbox must change.
 
 ## Checking a change
 
