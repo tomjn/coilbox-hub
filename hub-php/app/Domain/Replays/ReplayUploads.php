@@ -102,6 +102,11 @@ final class ReplayUploads
         $gameId = $request['game_id'];
         $row = DB::table('replay')->where('game_id', $gameId)->lockForUpdate()->first();
 
+        // A moderator took this match, or this file under another game id, down (#671).
+        if ($row?->state === 'removed' || DB::table('replay')->where('sha256', $request['sha256'])->where('state', 'removed')->exists()) {
+            return self::fail(410, 'A moderator took this match down from the hub, so it cannot be sent again.', 'removed');
+        }
+
         if ($row !== null && $row->state !== 'uploading') {
             DB::table('replay_sender')->insertOrIgnore([
                 'game_id' => $gameId, 'user_id' => $user, 'name' => $request['name'], 'sent_at' => $now,

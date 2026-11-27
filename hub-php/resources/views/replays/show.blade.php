@@ -134,10 +134,15 @@
                 @elseif ($tab === 'builds')
                     <x-replays.build-orders :builds="$replay['builds']" :units="$replay['units']" :minutes="$minutes" :action="$base" />
                 @else
-                    <x-replays.event-list :timeline="$replay['timeline']" :show="$show" :base="$base" />
+                    <x-replays.event-list :timeline="$replay['timeline']" :show="$show" :base="$base" :moderator="$moderator" :game-id="$replay['game_id']" />
                 @endif
             </section>
         </div>
+
+        <x-replays.report-button :game-id="$replay['game_id']" :signed-in="$signedIn" :state="session('replayReport')" />
+        @if ($moderator)
+            <x-replays.moderate :game-id="$replay['game_id']" :chat-count="count(array_filter($replay['timeline'], fn ($r) => $r['kind'] === 'Chat'))" />
+        @endif
     </div>
 </main>
 @endsection

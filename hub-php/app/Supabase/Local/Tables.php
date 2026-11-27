@@ -35,7 +35,7 @@ final class Tables
     public const ITEMS = ['item', 'report', 'profile', 'user_capability', 'item_facet'];
 
     /** Columns real Supabase does not have, so a copy from it must not select them. @var array<string, list<string>> */
-    public const MARIADB_ONLY = ['report' => ['outcome']];
+    public const MARIADB_ONLY = ['report' => ['outcome', 'replay_id']];
 
     /** Views worked out by {@see MapViews}. Read only. */
     public const MAP_VIEWS = ['map_browse', 'map_listing', 'map_pack_entry', 'author_spelling', 'author_display_name', 'author_map_count'];
@@ -214,7 +214,7 @@ final class Tables
         'report' => [
             'id' => 'uuid', 'item_id' => 'uuid', 'reporter_id' => 'uuid', 'reason' => 'text', 'created_at' => 'ts',
             'handled_at' => 'ts', 'handled_by' => 'uuid', 'map_id' => 'uuid', 'kind' => 'text',
-            'outcome' => 'text',
+            'outcome' => 'text', 'replay_id' => 'text',
         ],
         'profile' => ['user_id' => 'uuid', 'display_name' => 'text', 'created_at' => 'ts', 'updated_at' => 'ts'],
         'user_capability' => ['user_id' => 'uuid', 'capability' => 'text', 'granted_at' => 'ts', 'granted_by' => 'uuid'],
@@ -255,8 +255,8 @@ final class Tables
         'map_download_source' => ['map_id', 'map', 'id'],
         'map_ownership_request' => ['map_id', 'map', 'id'],
         'map_source_conflict' => ['map_id', 'map', 'id'],
-        // A report names an item or a map.
-        'report' => [['item_id', 'item', 'id'], ['map_id', 'map', 'id']],
+        // A report names an item, a map or a replay.
+        'report' => [['item_id', 'item', 'id'], ['map_id', 'map', 'id'], ['replay_id', 'replay', 'game_id']],
     ];
 
     /**

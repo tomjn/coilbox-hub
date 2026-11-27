@@ -41,7 +41,8 @@ final class ItemRules
             if (array_key_exists('map_id', $row) && ($v('kind') !== null) !== ($v('map_id') !== null)) {
                 return 'report_kind_matches_target_check';
             }
-            if ((array_key_exists('item_id', $row) || array_key_exists('map_id', $row)) && ($v('item_id') === null) === ($v('map_id') === null)) {
+            $targets = ['item_id', 'map_id', 'replay_id'];
+            if (array_intersect($targets, array_keys($row)) !== [] && count(array_filter($targets, fn ($t) => $v($t) !== null)) !== 1) {
                 return 'report_one_target_check';
             }
         }
@@ -95,25 +96,21 @@ final class ItemRules
     }
 
     /**
-     * `dedupe_open_report`: whether an open report on the same item or map is
+     * `dedupe_open_report`: whether an open report on the same item, map or replay is
      * already held, in which case the new one is dropped without an error.
      *
      * @param  array<string, mixed>  $row
      */
     public static function openReportHeld(array $row): bool
     {
-        $item = $row['item_id'] ?? null;
-        $map = $row['map_id'] ?? null;
-        if ($item === null && $map === null) {
+        $targets = array_filter(['item_id' => $row['item_id'] ?? null, 'map_id' => $row['map_id'] ?? null, 'replay_id' => $row['replay_id'] ?? null], fn ($id) => $id !== null);
+        if ($targets === []) {
             return false;
         }
 
-        return DB::table('report')->whereNull('handled_at')->where(function (Builder $same) use ($item, $map) {
-            if ($item !== null) {
-                $same->orWhere('item_id', (string) $item);
-            }
-            if ($map !== null) {
-                $same->orWhere('map_id', (string) $map);
+        return DB::table('report')->whereNull('handled_at')->where(function (Builder $same) use ($targets) {
+            foreach ($targets as $column => $id) {
+                $same->orWhere($column, (string) $id);
             }
         })->exists();
     }
