@@ -138,6 +138,10 @@
             </ul>
         </section>
 
+        @if ($replayTotals)
+            <x-games.replay-totals :totals="$replayTotals" :base="'/games/'.$page['shortname']" />
+        @endif
+
         @if ($page['mutators'] !== [])
             <section class="flex flex-col gap-3" aria-labelledby="game-mutators">
                 <h2 id="game-mutators" class="text-sm uppercase tracking-wide text-neutral-400">Mutators</h2>

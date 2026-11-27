@@ -9,9 +9,11 @@ use App\Domain\Games\Js;
 use App\Domain\Games\Labels;
 use App\Domain\Games\Query;
 use App\Domain\Games\RichText;
+use App\Domain\Replays\GameTotals;
 use App\Domain\Replays\ReplayList;
 use App\Http\Controllers\Controller;
 use App\Support\Nav;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /** The games listing and one game's page. */
@@ -36,7 +38,7 @@ class GamesController extends Controller
     }
 
     /** One game's page, `app/games/[shortname]/page.tsx`. */
-    public function show(string $shortname): View
+    public function show(Request $request, string $shortname): View
     {
         $page = Cached::gamePage($shortname);
         if ($page === null) {
@@ -70,7 +72,11 @@ class GamesController extends Controller
             $onward[] = ['href' => ReplayList::href([], ['game' => $name]), 'name' => 'Replays', 'detail' => $replays === 1 ? '1 shared match' : $replays.' shared matches'];
         }
 
+        $version = $request->query('version');
+
         return view('games.show', [
+            // Read outside the cached page too, for the same reason.
+            'replayTotals' => $name === '' ? null : GameTotals::page($name, is_string($version) ? $version : null),
             'page' => $page,
             'title' => $title,
             'metaDescription' => $page['description'] ? $plain : $page['faction_count'].' factions and '.$page['unit_count'].' units on the hub.',
