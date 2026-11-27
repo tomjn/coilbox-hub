@@ -88,7 +88,7 @@ The hub fetches the file from the mirror it went to and reads it. It refuses the
 
 A refused replay is removed from the mirrors and its game id can be sent again. Moderators find the reason in `replay_refusal`.
 
-Once a replay is listed, anybody signed in can send an analysis run for it, as [replay-analyses.md](replay-analyses.md) says.
+Once a replay is listed, anybody signed in can send an analysis run for it, as [replay-analyses.md](replay-analyses.md) says. Once an analysis has passed, anybody signed in can send the replay's [track](#tracks).
 
 ## Factions
 
@@ -130,3 +130,74 @@ All keys are required. Numbers may be whole or have a fraction unless the table 
 | `start_positions` | One `{team, x, z}` for each start position chosen. |
 | `build_orders` | One `{team, orders}` for each team. `orders` is a list of `{frame, unit_def_id}`, in the order given. Both are whole numbers. |
 | `units` | One `{unit_def_id, name, display_name, metal, energy, build_time, category}` for each unit the match used. `name` is the unit's internal name. `display_name`, `build_time` and `category` may be `null`. Every `unit_def_id` in `build_orders` must be listed here, once. |
+
+## Tracks
+
+A track is Coilbox's recording of where everything was during a replay, as `docs/reference/replay-track-format.md` in tomjn/coilbox sets out (#665). The hub keeps one track for each replay and track format version, the first that passes its check. It takes format version 1 only.
+
+### Starting a track upload
+
+`POST /api/v1/replays/{game_id}/tracks/uploads` with the signed in user's bearer token and a JSON body:
+
+```json
+{ "format_version": 1, "sha256": "c019be55a4d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4", "size": 233823 }
+```
+
+| Field | What it is |
+|---|---|
+| `format_version` | The format version in the track's header. |
+| `sha256` | The SHA-256 of the `.cbtrack` file, as 64 lower case hex characters. |
+| `size` | The file's size in bytes. The mirror refuses a file of any other size. |
+
+Any signed in user can send a track. They need not have been in the match.
+
+| Status | Body | What Coilbox does |
+|---|---|---|
+| `201` | `upload` | Upload the file to the mirror with the token, as for archives. |
+| `200` | `upload` | The same sender asked again while their upload is reserved. Use the new token. For the same `sha256` and `size` the upload `id` is unchanged, so the mirror resumes what it holds. |
+| `200` | `track` | The hub already has a track for this replay. Upload nothing. |
+| `409` | `reason: "uploading"` | Someone else is uploading this track. Ask again after `reserved_until`, in Unix seconds, or sooner. |
+| `409` | `reason: "no_analysis"` | No analysis of this replay has passed yet. Send one first, and ask again once its check has finished. |
+| `404` | `reason: "not_listed"` | The hub has no listed replay with this game id. |
+| `422` | `reason: "unknown_format"` | The hub does not take this format version. |
+| `400` | `reason: "bad_request"` | `error` says what is wrong. |
+| `401` | | Not signed in. |
+| `503` | `reason: "no_track_mirror"` or `"not_configured"` | No mirror takes tracks yet. |
+
+`upload` has the same keys as a replay's, and `format_version`. Its `filename` is the game id followed by `.cbtrack`, and the token's kind is `track`. A reservation lapses at `reserved_until` as a replay's does.
+
+`track` is:
+
+```json
+{
+  "game_id": "9f2c4b1ad07e5386c1f4a92b6e8d0375",
+  "format_version": 1,
+  "state": "listed",
+  "recorder_version": 5,
+  "size": 233823,
+  "sha256": "c019be55...",
+  "url": "https://mirror.example/tracks/9f2c4b1ad07e5386c1f4a92b6e8d0375.cbtrack"
+}
+```
+
+`state` is `checking` or `listed`. `recorder_version` is the one in the track's header, and is `null` while `checking`. `url` is where to download the file. It is `null` while `checking`, and while the mirror the track was uploaded to is switched off or unhealthy.
+
+### Getting a replay's track
+
+`GET /api/v1/replays/{game_id}/tracks` needs no sign in. It answers `200` with `{"tracks": [track, ...]}`, one entry for each listed format version, newest first, and an empty list when there is none. It answers `404` with `reason: "not_listed"` for a game id with no listed replay.
+
+### The track check
+
+When the mirror reports the file's hash, the hub queues the check. It fetches the file and reads its header and info chunk. It refuses the track for these reasons:
+
+| Reason | When |
+|---|---|
+| `wrong_file` | The file is not the one reported. |
+| `unreadable` | The file is not a track, or its header or info chunk cannot be read. |
+| `unknown_format` | The header's format version is not 1. |
+| `wrong_game_id` | The header's game id is not the replay's. |
+| `length_mismatch` | The track is not at 30 frames a second, or its frames from first to last do not come to the replay's `duration` in whole seconds. One frame more is allowed, for the block the recorder writes at game over. |
+| `team_mismatch` | A team in the replay's start script is missing, is on another ally team, or has another leader name. Or the track has any other team, apart from one with no leader numbered after the last, which is the engine's Gaia team. |
+| `check_failed` | The check did not finish in three tries. |
+
+A refused track is removed from the mirrors, and another can be sent. Moderators find the reason in `replay_track_refusal`. Removing a replay removes its tracks.
