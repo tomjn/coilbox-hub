@@ -13,6 +13,9 @@
     @case('games')
         <path d="M6 9h4" /><path d="M8 7v4" /><path d="M15 8h0.01" /><path d="M18 11h0.01" /><path d="M17.3 5H6.7a4.7 4.7 0 0 0-4.66 5.28l.72 5.76A2.94 2.94 0 0 0 7.87 18l1.63-2h5l1.63 2a2.94 2.94 0 0 0 5.11-1.96l.72-5.76A4.7 4.7 0 0 0 17.3 5z" />
         @break
+    @case('replays')
+        <circle cx="12" cy="12" r="9" /><path d="M10 8l6 4-6 4V8z" />
+        @break
     @case('publish')
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" />
         @break

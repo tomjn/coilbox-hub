@@ -9,6 +9,7 @@ use App\Domain\Maps\Labels;
 use App\Domain\Maps\Listing;
 use App\Domain\Maps\MapEdits;
 use App\Domain\Maps\MapPage;
+use App\Domain\Replays\ReplayList;
 use App\Http\Controllers\Controller;
 use App\Support\Nav;
 use App\Support\Site;
@@ -64,6 +65,8 @@ class MapsController extends Controller
             'slug' => $slug,
             'canEdit' => $canEdit,
             'ownershipTargets' => $ownershipTargets,
+            // Counted outside the cached page, which a new replay does not refresh.
+            'replayCount' => ReplayList::countOf('map', $page['mapName']),
             // Read outside the cached page, which a download ping never refreshes.
             'downloadCounts' => Downloads::counts('map', $page['mapId']),
             'title' => $title,

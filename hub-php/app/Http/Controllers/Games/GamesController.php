@@ -7,8 +7,9 @@ use App\Domain\Games\Cached;
 use App\Domain\Games\GameArt;
 use App\Domain\Games\Js;
 use App\Domain\Games\Labels;
-use App\Domain\Games\RichText;
 use App\Domain\Games\Query;
+use App\Domain\Games\RichText;
+use App\Domain\Replays\ReplayList;
 use App\Http\Controllers\Controller;
 use App\Support\Nav;
 use Illuminate\View\View;
@@ -62,6 +63,12 @@ class GamesController extends Controller
             $onward[] = ['href' => '/games/'.$shortname.'/changes', 'name' => 'Release changes', 'detail' => 'What each release added, removed and changed'];
         }
         $onward[] = ['href' => '/gallery?game='.Js::encodeURIComponent($shortname), 'name' => 'Community items', 'detail' => Labels::itemCardLabel($page['item_count'])];
+        // A replay names its game as the catalogue does. Counted outside the cached page, which a new replay does not refresh.
+        $name = (string) $page['display_name'];
+        $replays = $name === '' ? 0 : ReplayList::countOf('game', $name);
+        if ($replays > 0) {
+            $onward[] = ['href' => ReplayList::href([], ['game' => $name]), 'name' => 'Replays', 'detail' => $replays === 1 ? '1 shared match' : $replays.' shared matches'];
+        }
 
         return view('games.show', [
             'page' => $page,
