@@ -513,19 +513,7 @@ final class ReplayPage
             if (! is_array($heat) || $heat['cells'] === []) {
                 continue;
             }
-            $hash = md5(json_encode($heat));
-            // The blur is the slow part of a page view, and the heat never changes.
-            $legend = HubCache::remember('replays:heat-legend:'.$hash, [], HubCache::WEEKS, function () use ($heat) {
-                $field = HeatPicture::field($heat);
-
-                return ['within' => $field['peak_within_radius'], 'radius' => (int) round($field['radius'])];
-            });
-            $within = (int) round($legend['within']);
-            $layers[$key] = [
-                'label' => $layer['label'], 'title' => $layer['title'], 'ramp' => $layer['ramp'],
-                'url' => '/replays/'.$row->game_id.'/heat.png?'.($key === 'orders' ? '' : 'layer='.$key.'&').'v='.substr($hash, 0, 8),
-                'legend' => sprintf($within === 1 ? $layer['one'] : $layer['many'], number_format($within), number_format($legend['radius'])),
-            ];
+            $layers[$key] = self::cardLayer($key, $heat, '/replays/'.$row->game_id.'/heat.png');
         }
 
         return [
@@ -534,6 +522,35 @@ final class ReplayPage
             'boxes' => $boxes,
             'starts' => $starts,
             'layers' => $layers,
+            'no_heat' => 'This replay has no order heat yet.',
+            'no_boxes' => 'This match set no start boxes.',
+        ];
+    }
+
+    /**
+     * One heat layer as the map card shows it, with the legend of its
+     * brightest spot and the picture's address under `$picture`.
+     *
+     * @param  array<string, mixed>  $heat
+     * @return array{label: string, title: string, ramp: list<string>, url: string, legend: string}
+     */
+    public static function cardLayer(string $key, array $heat, string $picture): array
+    {
+        $layer = self::HEAT_LAYERS[$key];
+        $hash = md5(json_encode($heat));
+        // The blur is the slow part of a page view, and one grid always reads the same.
+        $legend = HubCache::remember('replays:heat-legend:'.$hash, [], HubCache::WEEKS, function () use ($heat) {
+            $field = HeatPicture::field($heat);
+
+            return ['within' => $field['peak_within_radius'], 'radius' => (int) round($field['radius'])];
+        });
+        $within = (int) round($legend['within']);
+
+        return [
+            'label' => $layer['label'], 'title' => $layer['title'], 'ramp' => $layer['ramp'],
+            // The link carries the heat's hash, so a changed heat is a new address.
+            'url' => $picture.'?'.($key === 'orders' ? '' : 'layer='.$key.'&').'v='.substr($hash, 0, 8),
+            'legend' => sprintf($within === 1 ? $layer['one'] : $layer['many'], number_format($within), number_format($legend['radius'])),
         ];
     }
 
@@ -544,7 +561,7 @@ final class ReplayPage
      * @param  array<string, mixed>|null  $facts
      * @return array<string, mixed>|null
      */
-    private static function analysisHeat(?array $facts, string $layer): ?array
+    public static function analysisHeat(?array $facts, string $layer): ?array
     {
         if ($facts === null || $facts['grid'] === null || ! in_array($layer, ['deaths', 'damage'], true)) {
             return null;
@@ -554,12 +571,12 @@ final class ReplayPage
     }
 
     /**
-     * The facts the page draws from the replay's kept analysis, or null when
+     * The facts the pages draw from the replay's kept analysis, or null when
      * it has none or they are not worked out in this shape yet.
      *
      * @return array<string, mixed>|null
      */
-    private static function facts(string $gameId): ?array
+    public static function facts(string $gameId): ?array
     {
         $facts = json_decode((string) DB::table('replay_analysis')->where('game_id', $gameId)->value('facts'), true);
 

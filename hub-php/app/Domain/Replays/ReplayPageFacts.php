@@ -89,6 +89,7 @@ final class ReplayPageFacts
             foreach (DB::table('replay_team')->where('game_id', $gameId)->pluck('team') as $team) {
                 DB::table('replay_team')->where('game_id', $gameId)->where('team', $team)->update(self::team($replay, (int) $team));
             }
+            MapTotals::refresh($gameId);
         });
     }
 

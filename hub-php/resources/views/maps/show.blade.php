@@ -83,9 +83,14 @@
             <x-maps.mirrors :links="$mirrors" />
 
             @if ($replayCount > 0)
-                <section class="flex flex-wrap items-baseline justify-between gap-3 border-t border-neutral-900 pt-6">
-                    <h2 class="text-xl font-semibold tracking-tight">Replays</h2>
-                    <a href="{{ \App\Domain\Replays\ReplayList::href([], ['map' => $mapName]) }}" class="py-1 text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">{{ $replayCount === 1 ? 'See the 1 shared match on this map' : 'See the '.$replayCount.' shared matches on this map' }}</a>
+                <section class="flex flex-col gap-4 border-t border-neutral-900 pt-6">
+                    <div class="flex flex-wrap items-baseline justify-between gap-3">
+                        <h2 class="text-xl font-semibold tracking-tight">Replays</h2>
+                        <a href="{{ \App\Domain\Replays\ReplayList::href([], ['map' => $mapName]) }}" class="py-1 text-sm text-neutral-400 transition-colors hover:text-neutral-300 active:text-neutral-300">{{ $replayCount === 1 ? 'See the 1 shared match on this map' : 'See the '.$replayCount.' shared matches on this map' }}</a>
+                    </div>
+                    @if ($replayTotals)
+                        <x-maps.replay-totals :totals="$replayTotals" :title="$title" :heat="$heat" :base="'/map/'.rawurlencode($slug)" />
+                    @endif
                 </section>
             @endif
 
