@@ -16,6 +16,7 @@
         <div class="flex flex-col gap-2">
             <h1 class="text-3xl font-semibold tracking-tight">Replays</h1>
             <p class="text-neutral-400">Matches that players shared from Coilbox, newest first. Each one is checked against its replay file.</p>
+            <p class="text-sm text-neutral-400">To analyse them yourself, <a class="text-neutral-200 underline underline-offset-4 transition-colors hover:text-white active:text-white" href="/replays/data">download the replay data</a>.</p>
         </div>
 
         <x-replays.filter-bar :filters="$filters" :options="$options" />

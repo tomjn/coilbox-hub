@@ -109,6 +109,7 @@ class ReplayListTest extends ModerationTestCase
     {
         $this->get('/replays')->assertOk()
             ->assertSee('Nobody has shared a replay yet.')
+            ->assertSee('href="/replays/data"', false)
             ->assertDontSee('Clear the filters')
             ->assertSeeInOrder(['href="/games"', 'href="/replays"', 'aria-current="page"'], false);
         $this->get('/replays?player=nobody')->assertOk()->assertSee('No replay matches that.')->assertSee('Clear the filters');
