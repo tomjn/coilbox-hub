@@ -68,6 +68,62 @@ class ReplayAnalysisPageTest extends ModerationTestCase
         $this->get('/replays/'.self::SF.'/heat.png?layer=deaths')->assertNotFound();
     }
 
+    /** The real Tumult track, listed on the mirror the replay was uploaded to. */
+    private function tracked(): void
+    {
+        DB::table('replay_track')->insert([
+            'game_id' => self::SF, 'format_version' => 1, 'state' => 'listed', 'uploader' => self::USER,
+            'sha256' => hash_file('sha256', base_path('tests/Fixtures/replays/sf-tumult.cbtrack')),
+            'size' => filesize(base_path('tests/Fixtures/replays/sf-tumult.cbtrack')), 'upload_mirror_id' => 'jj-darkstars',
+            'upload_id' => '44444444-4444-4444-8444-444444444444', 'recorder_version' => 5,
+            'created_at' => '2026-11-26 09:00:00', 'updated_at' => '2026-11-26 09:00:00',
+        ]);
+    }
+
+    public function test_a_replay_with_neither_has_no_units_mode(): void
+    {
+        $this->get('/replays/'.self::SF)->assertOk()
+            ->assertDontSee('data-replay-units', false)
+            ->assertDontSee('data-units-canvas', false)
+            ->assertDontSee('resources/js/replays/units.ts', false)
+            ->assertDontSee('Download the track');
+    }
+
+    public function test_a_replay_with_a_track_has_the_units_mode_reading_it_from_its_mirror(): void
+    {
+        $this->tracked();
+
+        $page = $this->get('/replays/'.self::SF)->assertOk()
+            ->assertSee('data-replay-units data-track="https://mirror.test/tracks/'.self::SF.'.cbtrack"', false)
+            // The page's own team colours, which are Coilbox's chart palette for this match.
+            ->assertSee('data-colours="{&quot;0&quot;:&quot;#b979c5&quot;,&quot;1&quot;:&quot;#27a902&quot;}"', false)
+            ->assertSee('<canvas data-units-canvas hidden', false)
+            ->assertSee('data-units-modes hidden', false)
+            ->assertSee('data-units-controls hidden', false)
+            ->assertSeeInOrder(['data-play', 'data-scrub', 'data-time', 'data-speed'], false)
+            // What shows in place of the player when a browser cannot read the track.
+            ->assertSee('The track could not be read from its mirror in this browser')
+            ->assertSee('<a href="https://mirror.test/tracks/'.self::SF.'.cbtrack" download', false);
+        // The heat mode is still what shows without JavaScript.
+        $this->assertSame(2, substr_count($page->getContent(), 'data-heat-view'));
+        $this->assertMatchesRegularExpression('#<script type="module" src="[^"]*units[^"]*\.js"#', $page->getContent());
+
+        // With the mirror unhealthy the hub knows of no copy to read.
+        DB::table('mirror')->update(['healthy' => false]);
+        $this->get('/replays/'.self::SF)->assertOk()->assertDontSee('data-replay-units', false)->assertDontSee('units-', false);
+    }
+
+    public function test_a_replay_with_an_analysis_and_a_track_has_both(): void
+    {
+        $this->analysed();
+        $this->tracked();
+
+        $this->get('/replays/'.self::SF)->assertOk()
+            ->assertSee('data-replay-units', false)
+            ->assertSee('aria-label="Heat layer"', false)
+            ->assertSee('Value of living units');
+    }
+
     public function test_the_kept_analysis_has_its_facts_worked_out_from_the_real_log(): void
     {
         $this->assertSame('kept', $this->analysed());

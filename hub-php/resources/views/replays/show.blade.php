@@ -141,3 +141,9 @@
     </div>
 </main>
 @endsection
+
+@if ($replay['map_card']['track'] !== null)
+    @push('scripts')
+        @vite('resources/js/replays/units.ts')
+    @endpush
+@endif
