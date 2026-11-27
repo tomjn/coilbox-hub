@@ -103,12 +103,15 @@ class ReplayTrackTest extends ModerationTestCase
             json_encode($over + ['format_version' => 1, 'sha256' => hash('sha256', $this->served), 'size' => strlen($this->served)]));
     }
 
-    /** @param list<string> $held */
-    private function report(array $held, array $kinds = ['map', 'game', 'engine', 'replay', 'track']): TestResponse
+    /**
+     * @param  list<string>  $held
+     * @param  list<string>  $features
+     */
+    private function report(array $held, array $kinds = ['map', 'game', 'engine', 'replay', 'track'], array $features = ['replace_track']): TestResponse
     {
         $payload = json_encode([
             'v' => 1, 'mirror' => 'jj-darkstars', 'event' => 'sync', 'upload' => null, 'sent_at' => 1794787260,
-            'catalogue_seq' => null, 'catalogue_generated_at' => null, 'held' => $held, 'unknown' => [], 'kinds' => $kinds,
+            'catalogue_seq' => null, 'catalogue_generated_at' => null, 'held' => $held, 'unknown' => [], 'kinds' => $kinds, 'features' => $features,
         ]);
         $sig = Signing::sign(Signing::CTX_REPORT, $payload, B64::decode(self::fixtureKeys()['mirror_secret_key']));
 
@@ -336,7 +339,7 @@ class ReplayTrackTest extends ModerationTestCase
         $this->analysed();
 
         $this->postJson('/api/v1/replays/'.self::SF.'/tracks/uploads', [])->assertUnauthorized();
-        foreach ([['format_version' => '1'], ['sha256' => 'abc'], ['size' => 0]] as $over) {
+        foreach ([['format_version' => '1'], ['sha256' => 'abc'], ['size' => 0], ['recorder_version' => 0], ['recorder_version' => '6']] as $over) {
             $this->send(over: $over)->assertStatus(400)->assertJsonPath('reason', 'bad_request');
         }
         $this->send(over: ['format_version' => 2])->assertStatus(422)->assertJsonPath('reason', 'unknown_format');
@@ -388,5 +391,110 @@ class ReplayTrackTest extends ModerationTestCase
         DB::table('mirror')->update(['healthy' => false]);
 
         $this->get('/api/v1/replays/'.self::SF.'/tracks')->assertJsonPath('tracks.0.url', null);
+    }
+
+    /** Lists the recorder version 5 track, then serves the same track as if another recorder version made it. */
+    private function listedThenRecordedBy(int $recorder): string
+    {
+        $this->analysed();
+        $this->assertSame('listed', $this->checked());
+        $old = hash('sha256', $this->served);
+        $this->served = self::patched($this->served, 8, pack('v', $recorder));
+
+        return $old;
+    }
+
+    /** @param array<string, mixed> $over */
+    private function sendServed(string $token, array $over = []): TestResponse
+    {
+        return $this->send($token, $over + ['sha256' => hash('sha256', $this->served), 'size' => strlen($this->served)]);
+    }
+
+    public function test_a_track_from_a_newer_recorder_replaces_the_listed_one(): void
+    {
+        $old = $this->listedThenRecordedBy(6);
+        $new = hash('sha256', $this->served);
+        $url = 'https://mirror.test/tracks/'.self::SF.'.cbtrack';
+
+        $upload = $this->sendServed('bob', ['recorder_version' => 6])->assertCreated()->assertJsonPath('upload.filename', self::SF.'.cbtrack')->json('upload');
+        $token = json_decode(B64::decode(explode('.', $upload['token'])[0]), true);
+        $this->assertSame([$new, $old], [$token['sha256'], $token['replaces']]);
+        $this->get('/api/v1/replays/'.self::SF.'/tracks')->assertJsonPath('tracks.0.sha256', $old)->assertJsonPath('tracks.0.url', $url);
+
+        // The mirror now serves the new file under the listed one's name.
+        $this->report([$new])->assertOk();
+        $this->get('/api/v1/replays/'.self::SF.'/tracks')->assertJsonPath('tracks.0.sha256', $old)->assertJsonPath('tracks.0.url', null);
+        $this->sendServed('alice', ['recorder_version' => 6])->assertOk()->assertJsonPath('track.state', 'checking');
+
+        $this->assertSame('listed', TrackChecks::check(self::SF, 1));
+        $this->get('/api/v1/replays/'.self::SF.'/tracks')->assertOk()->assertExactJson(['tracks' => [[
+            'game_id' => self::SF, 'format_version' => 1, 'state' => 'listed', 'recorder_version' => 6,
+            'size' => strlen($this->served), 'sha256' => $new, 'url' => $url,
+        ]]]);
+        $catalogue = $this->catalogue();
+        $this->assertSame([['filename' => self::SF.'.cbtrack', 'sha256' => $new, 'size' => strlen($this->served)]], $catalogue['tracks']);
+        $this->assertSame([[self::SF.'.cbtrack.removed', $old, 'replaced']], array_map(fn ($r) => [$r['filename'], $r['sha256'], $r['reason']], $catalogue['removed']));
+        $this->assertSame([self::BOB], DB::table('replay_track')->pluck('uploader')->all());
+    }
+
+    /** @return array<string, array{?int}> */
+    public static function notNewer(): array
+    {
+        return ['the same recorder' => [5], 'an older recorder' => [4], 'no recorder version sent' => [null]];
+    }
+
+    #[DataProvider('notNewer')]
+    public function test_a_track_from_the_same_or_an_older_recorder_uploads_nothing(?int $recorder): void
+    {
+        $old = $this->listedThenRecordedBy(6);
+
+        $this->sendServed('bob', ['recorder_version' => $recorder])->assertOk()
+            ->assertJsonPath('track.sha256', $old)->assertJsonPath('track.recorder_version', 5)->assertJsonMissingPath('upload');
+        $this->assertDatabaseCount('replay_track', 1);
+        $this->assertSame([], $this->catalogue()['removed']);
+    }
+
+    public function test_a_newer_track_uploads_nothing_until_a_mirror_can_replace_one(): void
+    {
+        $old = $this->listedThenRecordedBy(6);
+        $this->report([$old], features: [])->assertOk();
+
+        $this->sendServed('bob', ['recorder_version' => 6])->assertOk()->assertJsonPath('track.sha256', $old)->assertJsonMissingPath('upload');
+        $this->assertDatabaseCount('replay_track', 1);
+
+        $this->report([$old])->assertOk();
+        $this->sendServed('bob', ['recorder_version' => 6])->assertCreated();
+    }
+
+    public function test_a_replacement_that_is_not_newer_is_refused_and_the_listed_track_kept(): void
+    {
+        $old = $this->listedThenRecordedBy(4);
+        $refused = hash('sha256', $this->served);
+
+        // Coilbox said 6, but the file says 4.
+        $this->sendServed('bob', ['recorder_version' => 6])->assertCreated();
+        $this->report([$refused])->assertOk();
+        $this->assertSame('not_newer', TrackChecks::check(self::SF, 1));
+
+        $this->assertSame('The track is from recorder version 4, and the listed one is from 5.', DB::table('replay_track_refusal')->value('detail'));
+        $this->get('/api/v1/replays/'.self::SF.'/tracks')->assertJsonPath('tracks.0.sha256', $old)->assertJsonPath('tracks.0.recorder_version', 5);
+        $catalogue = $this->catalogue();
+        $this->assertSame($old, $catalogue['tracks'][0]['sha256']);
+        $this->assertSame([[$refused, 'refused']], array_map(fn ($r) => [$r['sha256'], $r['reason']], $catalogue['removed']));
+    }
+
+    public function test_removing_a_replay_while_its_track_is_replaced_removes_both_files(): void
+    {
+        $old = $this->listedThenRecordedBy(6);
+        $new = hash('sha256', $this->served);
+        $this->sendServed('bob', ['recorder_version' => 6])->assertCreated();
+        $this->report([$new])->assertOk();
+
+        ReplayListing::remove(self::SF, 'rights');
+
+        $tracks = array_filter($this->catalogue()['removed'], fn ($r) => $r['filename'] === self::SF.'.cbtrack.removed');
+        $this->assertEqualsCanonicalizing([$old, $new], array_column($tracks, 'sha256'));
+        $this->assertSame(['removed', 'removed'], DB::table('replay_track')->pluck('state')->all());
+        $this->assertNull(TrackChecks::check(self::SF, 1));
     }
 }

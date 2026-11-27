@@ -67,6 +67,13 @@ final class TrackChecks
         if ($track->gameId !== $row->game_id) {
             return ['wrong_game_id', "The track was recorded from game {$track->gameId}."];
         }
+        if ($row->replacing) {
+            $listed = DB::table('replay_track')->where('game_id', $row->game_id)->where('format_version', $row->format_version)
+                ->where('replacing', false)->where('state', 'listed')->value('recorder_version');
+            if ($listed !== null && $track->recorderVersion <= (int) $listed) {
+                return ['not_newer', "The track is from recorder version {$track->recorderVersion}, and the listed one is from {$listed}."];
+            }
+        }
         $duration = (int) DB::table('replay')->where('game_id', $row->game_id)->value('duration');
         $frames = $track->lastFrame - $track->firstFrame;
         // The recorder writes one more block at game over, which can be a frame past the one the engine timed the match at.

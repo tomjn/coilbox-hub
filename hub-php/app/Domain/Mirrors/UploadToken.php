@@ -14,7 +14,10 @@ final class UploadToken
         string $kind,
         int $startBy,
         string $secretKey,
+        ?string $replaces = null,
     ): string {
+        // A ninth key only for a mirror whose report has replace_track (#687). Others refuse it as bad_token.
+        $extra = $replaces === null ? [] : ['replaces' => $replaces];
         // Key order and escaping flags are part of the signed bytes, so they must not change.
         $payload = json_encode([
             'v' => 1,
@@ -25,7 +28,7 @@ final class UploadToken
             'filename' => $filename,
             'kind' => $kind,
             'start_by' => $startBy,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        ] + $extra, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
         $sig = Signing::sign(Signing::CTX_TOKEN, $payload, $secretKey);
 

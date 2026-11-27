@@ -44,11 +44,18 @@ final class Tracks
     /**
      * Where to download a listed track. The mirror it was uploaded to is the
      * one the hub knows holds it, so this is null while that mirror is off or
-     * unhealthy, and until the track is listed.
+     * unhealthy, and until the track is listed. It is also null while a
+     * replacement is checked on that mirror, which then holds the new file
+     * under the same name (#687).
      */
     public static function url(object $row): ?string
     {
         if ($row->state !== 'listed') {
+            return null;
+        }
+        $replaced = DB::table('replay_track')->where('game_id', $row->game_id)->where('format_version', $row->format_version)
+            ->where('replacing', true)->where('state', 'checking')->where('upload_mirror_id', $row->upload_mirror_id)->exists();
+        if ($replaced) {
             return null;
         }
         $base = DB::table('mirror')->where('id', $row->upload_mirror_id)->where('enabled', true)->where('healthy', true)->value('base_url');
