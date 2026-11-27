@@ -3,6 +3,7 @@
 namespace Tests\Feature\Replays;
 
 use App\Domain\Replays\ReplayAnalyses;
+use App\Domain\Replays\TrackChecks;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -263,6 +264,28 @@ class ReplayListTest extends ModerationTestCase
         $this->assertSame([self::BAR], $this->listed('?analysis=no'));
         $this->assertSame(1, substr_count($this->get('/replays')->getContent(), '>Analysis</li>'));
         $this->get('/replays?analysis=no')->assertDontSee('>Analysis</li>', false);
+    }
+
+    public function test_the_track_filter_and_mark_count_only_a_listed_track(): void
+    {
+        $this->listBoth();
+        $bytes = file_get_contents(base_path('tests/Fixtures/replays/sf-tumult.cbtrack'));
+        DB::table('replay_track')->insert([
+            'game_id' => self::SF, 'format_version' => 1, 'state' => 'checking', 'uploader' => self::USER, 'sha256' => hash('sha256', $bytes),
+            'size' => strlen($bytes), 'upload_mirror_id' => 'jj-darkstars', 'upload_id' => '44444444-4444-4444-8444-444444444444',
+            'created_at' => '2026-11-26 11:00:00.000000', 'updated_at' => '2026-11-26 11:00:00.000000',
+        ]);
+        $this->assertSame([], $this->listed('?track=yes'));
+        $this->get('/replays')->assertDontSee('>Track</li>', false);
+
+        Http::fake(['https://mirror.test/tracks/'.self::SF.'.cbtrack' => Http::response($bytes)]);
+        $this->assertSame('listed', TrackChecks::check(self::SF, 1));
+
+        $this->assertSame([self::SF], $this->listed('?track=yes'));
+        $this->assertSame([self::BAR], $this->listed('?track=no'));
+        $this->assertSame(1, substr_count($this->get('/replays')->getContent(), '>Track</li>'));
+        $this->get('/replays?track=no')->assertDontSee('>Track</li>', false)->assertSee('<option value="no" selected>Without a track</option>', false);
+        $this->get('/replays?track=maybe')->assertDontSee('Clear');
     }
 
     public function test_a_value_that_makes_no_sense_is_not_applied(): void

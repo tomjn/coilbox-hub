@@ -38,6 +38,9 @@
             @if ($replay['analysis'])
                 <li class="rounded border border-neutral-700 px-2 text-neutral-200">Analysis</li>
             @endif
+            @if ($replay['track'])
+                <li class="rounded border border-neutral-700 px-2 text-neutral-200">Track</li>
+            @endif
         </ul>
     </div>
 

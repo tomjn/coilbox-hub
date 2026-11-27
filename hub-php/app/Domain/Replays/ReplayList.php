@@ -21,17 +21,19 @@ use Illuminate\Support\Facades\DB;
  *
  * Filters are an array with `game`, `map`, `player`, `min_players`,
  * `max_players`, `min_length` and `max_length` (minutes), `from` and `to`
- * (days in UTC, both included), `analysis` (`yes` or `no`) and `page`.
+ * (days in UTC, both included), `analysis` and `track` (`yes` or `no`) and
+ * `page`.
  */
 final class ReplayList
 {
     public const PAGE_SIZE = GalleryQuery::PAGE_SIZE;
 
-    public const ANALYSIS = ['yes', 'no'];
+    /** What the `analysis` and `track` filters may say. */
+    public const HAS = ['yes', 'no'];
 
     private const COUNTS = ['min_players', 'max_players', 'min_length', 'max_length'];
 
-    private const KEYS = ['game', 'map', 'player', 'min_players', 'max_players', 'min_length', 'max_length', 'from', 'to', 'analysis', 'page'];
+    private const KEYS = ['game', 'map', 'player', 'min_players', 'max_players', 'min_length', 'max_length', 'from', 'to', 'analysis', 'track', 'page'];
 
     /**
      * Reads filters out of the query string. A value this cannot make sense of
@@ -58,8 +60,10 @@ final class ReplayList
             $day = $value === null ? false : DateTimeImmutable::createFromFormat('!Y-m-d', $value);
             $filters[$key] = $day !== false && $day->format('Y-m-d') === $value ? $value : null;
         }
-        $analysis = $one('analysis');
-        $filters['analysis'] = in_array($analysis, self::ANALYSIS, true) ? $analysis : null;
+        foreach (['analysis', 'track'] as $key) {
+            $value = $one($key);
+            $filters[$key] = in_array($value, self::HAS, true) ? $value : null;
+        }
         $filters['page'] = GalleryQuery::parsePage($one('page'), self::PAGE_SIZE) ?? 1;
 
         return $filters;
@@ -123,8 +127,9 @@ final class ReplayList
             ->get(['game_id', 'kind', 'name', 'ally_team', 'faction'])->groupBy('game_id');
         $units = self::unitNames($rows, $seats->flatten(1)->pluck('faction')->filter()->unique()->values()->all());
         $analysed = DB::table('replay_analysis')->whereIn('game_id', $ids)->pluck('game_id')->flip();
+        $tracked = DB::table('replay_track')->where('state', 'listed')->whereIn('game_id', $ids)->pluck('game_id')->flip();
 
-        return ['count' => $count, 'replays' => array_map(function (object $row) use ($seats, $units, $analysed) {
+        return ['count' => $count, 'replays' => array_map(function (object $row) use ($seats, $units, $analysed, $tracked) {
             $winners = json_decode((string) $row->winners, true) ?: [];
             $sides = [];
             foreach ($seats[$row->game_id] ?? [] as $seat) {
@@ -148,6 +153,7 @@ final class ReplayList
                 'player_count' => (int) $row->player_count,
                 'decided' => $winners !== [],
                 'analysis' => isset($analysed[$row->game_id]),
+                'track' => isset($tracked[$row->game_id]),
                 'sides' => array_values($sides),
             ];
         }, $rows)];
@@ -271,6 +277,14 @@ final class ReplayList
                 fn (Builder $q) => $q->from('replay_analysis as a')->whereColumn('a.game_id', 'r.game_id'),
                 'and',
                 $filters['analysis'] === 'no',
+            );
+        }
+        // A track that is still on its way or being checked is not there to download.
+        if ($filters['track'] !== null) {
+            $query->whereExists(
+                fn (Builder $q) => $q->from('replay_track as t')->whereColumn('t.game_id', 'r.game_id')->where('t.state', 'listed'),
+                'and',
+                $filters['track'] === 'no',
             );
         }
 
