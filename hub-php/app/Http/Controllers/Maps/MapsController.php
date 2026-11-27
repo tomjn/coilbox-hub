@@ -9,11 +9,14 @@ use App\Domain\Maps\Labels;
 use App\Domain\Maps\Listing;
 use App\Domain\Maps\MapEdits;
 use App\Domain\Maps\MapPage;
+use App\Domain\Replays\HeatPicture;
+use App\Domain\Replays\MapTotals;
 use App\Domain\Replays\ReplayList;
 use App\Http\Controllers\Controller;
 use App\Support\Nav;
 use App\Support\Site;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 /**
@@ -40,7 +43,7 @@ class MapsController extends Controller
     }
 
     /** Everything the catalog holds about one map. A takedown is not found, like a map nobody has heard of. */
-    public function show(string $slug): View
+    public function show(Request $request, string $slug): View
     {
         $page = MapPage::cached($slug);
         abort_if($page === null, 404);
@@ -61,12 +64,18 @@ class MapsController extends Controller
         $canEdit = Nav::current() !== null && MapEdits::canEdit(HubSession::client(), (string) $page['mapId']);
         $ownershipTargets = Nav::current() !== null && (! $canEdit || Nav::moderates()) ? MapEdits::ownershipTargets($page) : [];
 
+        // Counted outside the cached page, which a new replay does not refresh.
+        $totals = MapTotals::page($slug, $page['mapName'], $facts, $page['picture']);
+        $heat = (string) $request->query('heat', '');
+
         return view('maps.show', $page + [
             'slug' => $slug,
             'canEdit' => $canEdit,
             'ownershipTargets' => $ownershipTargets,
-            // Counted outside the cached page, which a new replay does not refresh.
             'replayCount' => ReplayList::countOf('map', $page['mapName']),
+            'replayTotals' => $totals,
+            // The map card's heat layer, the first it has when the address names none it has.
+            'heat' => isset($totals['card']['layers'][$heat]) ? $heat : array_key_first($totals['card']['layers'] ?? []),
             // Read outside the cached page, which a download ping never refreshes.
             'downloadCounts' => Downloads::counts('map', $page['mapId']),
             'title' => $title,
@@ -75,5 +84,16 @@ class MapsController extends Controller
             'ogType' => 'article',
             'origin' => Site::importOrigin(),
         ]);
+    }
+
+    /** One of the map's replay heat layers drawn for its card, one pixel per grid cell. A taken down map has none. */
+    public function heat(Request $request, string $slug): Response
+    {
+        $page = MapPage::cached($slug);
+        abort_if($page === null, 404);
+        $layer = MapTotals::heat($page['mapName'], $page['facts'], (string) $request->query('layer', 'orders'));
+        abort_if($layer === null, 404);
+
+        return HeatPicture::response($layer);
     }
 }

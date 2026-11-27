@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/maps', [MapsController::class, 'index']);
 Route::get('/maps/filtered', [MapsController::class, 'index']);
 Route::get('/map/{slug}', [MapsController::class, 'show']);
+Route::get('/map/{slug}/heat.png', [MapsController::class, 'heat']);
 // Counted, then sent on to the file.
 Route::get('/map/{slug}/download/{n}', [DownloadRedirectController::class, 'map'])->whereNumber('n');
 Route::get('/map/{slug}/mirror', [DownloadRedirectController::class, 'mapMirror']);
