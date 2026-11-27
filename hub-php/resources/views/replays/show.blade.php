@@ -49,7 +49,7 @@
         </header>
 
         <div class="flex flex-col gap-4 xl:grid xl:grid-cols-2 xl:items-start">
-            <x-replays.map-card :card="$replay['map_card']" :title="$title" />
+            <x-replays.map-card :card="$replay['map_card']" :title="$title" :heat="$heat" :base="$base" />
 
             <section aria-label="Match" class="flex min-w-0 flex-col gap-4">
                 {{-- Coilbox's tabs, as links so each works without JavaScript and keeps its place in the address. --}}
@@ -85,8 +85,8 @@
                                         <div class="flex flex-col gap-1">
                                             <dt class="text-xs {{ $muted }}">{{ $award['title'] }}</dt>
                                             @foreach ($award['places'] as $place)
-                                                <dd class="flex items-baseline justify-between gap-3">
-                                                    <span class="min-w-0 break-words"><span class="tabular-nums {{ $muted }}">{{ $place['place'] }}.</span> {{ $place['team'] }}</span>
+                                                <dd class="flex flex-wrap items-baseline justify-between gap-x-3">
+                                                    <span class="min-w-0 flex-[1_1_8rem] break-words"><span class="tabular-nums {{ $muted }}">{{ $place['place'] }}.</span> {{ $place['team'] }}</span>
                                                     @if ($place['value'] !== null)
                                                         <span class="shrink-0 tabular-nums {{ $muted }}">{{ $place['value'] }}</span>
                                                     @endif
@@ -95,7 +95,11 @@
                                         </div>
                                     @endforeach
                                 </dl>
-                                <p class="text-xs {{ $muted }}">As {{ $replay['game'] }} recorded them in the replay.</p>
+                                @if ($replay['awards_source'] === 'recorded')
+                                    <p class="text-xs {{ $muted }}">As {{ $replay['game'] }} recorded them in the replay.</p>
+                                @else
+                                    <p class="text-xs {{ $muted }}">Worked out from the analysis below, as Coilbox works them out. Amounts are in metal.@if ($replay['analysis']['unpriced_kills'] > 0) {{ $replay['analysis']['unpriced_kills'] === 1 ? 'One enemy unit destroyed has no known cost and counts nothing.' : number_format($replay['analysis']['unpriced_kills']).' enemy units destroyed have no known cost and count nothing.' }}@endif</p>
+                                @endif
                             </section>
                         @endif
 
@@ -108,7 +112,10 @@
                                 <dt class="{{ $muted }}">File size</dt><dd>{{ number_format($replay['size'] / 1048576, 1) }} MB</dd>
                             </dl>
                         </section>
-                        {{-- The analysis parts (#668) go here, after Details, where Coilbox's Summary tab has them. --}}
+                        {{-- The analysis parts, after Details, where Coilbox's Summary tab has them. --}}
+                        @if ($replay['analysis'] !== null)
+                            <x-replays.analysis :analysis="$replay['analysis']" :value="$value" :base="$base" />
+                        @endif
                     </div>
                 @elseif ($tab === 'economy')
                     <section class="flex flex-col gap-3">

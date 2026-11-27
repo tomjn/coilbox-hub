@@ -46,6 +46,8 @@ class ReplaysController extends Controller
         }
         $show = (string) $request->query('show', 'all');
         $minutes = trim((string) $request->query('minutes', ''));
+        $heat = (string) $request->query('heat', '');
+        $value = (string) $request->query('value', 'metal');
 
         return view('replays.show', [
             'replay' => $replay,
@@ -53,15 +55,20 @@ class ReplaysController extends Controller
             'show' => isset(ReplayPage::SHOW[$show]) ? $show : 'all',
             // Coilbox's `parseCutMinutes`: anything that is not a number from zero up is the whole match.
             'minutes' => is_numeric($minutes) && (float) $minutes >= 0 ? (float) $minutes : null,
+            // The map card's heat layer, the first it has when the address names none it has.
+            'heat' => isset($replay['map_card']['layers'][$heat]) ? $heat : array_key_first($replay['map_card']['layers']),
+            // What the living value chart counts.
+            'value' => $value === 'energy' ? 'energy' : 'metal',
         ]);
     }
 
-    /** The order heat drawn for the map card, one pixel per grid cell. */
-    public function heat(string $gameId): Response
+    /** A heat layer drawn for the map card, one pixel per grid cell: orders, or deaths or damage from an analysis. */
+    public function heat(Request $request, string $gameId): Response
     {
-        $heat = ReplayPage::heat($gameId);
-        abort_if($heat === null, 404);
-        $png = HubCache::remember('replays:heat:'.md5(json_encode($heat)), [], HubCache::WEEKS, fn () => base64_encode(HeatPicture::png($heat)));
+        $layer = ReplayPage::heat($gameId, (string) $request->query('layer', 'orders'));
+        abort_if($layer === null, 404);
+        ['heat' => $heat, 'ramp' => $ramp] = $layer;
+        $png = HubCache::remember('replays:heat:'.md5(json_encode($layer)), [], HubCache::WEEKS, fn () => base64_encode(HeatPicture::png($heat, $ramp)));
 
         return response(base64_decode($png), 200, [
             'Content-Type' => 'image/png',
