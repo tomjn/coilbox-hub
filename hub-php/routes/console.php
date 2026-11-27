@@ -25,6 +25,7 @@ use App\Supabase\SupabaseException;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -614,3 +615,6 @@ Artisan::command('promotion:token', function () {
 
     return 0;
 })->purpose('Make a token for the daily promotion job, and the hash the hub keeps');
+
+// Run by `schedule:run` each minute, from deploy/hub-schedule.cron.
+Schedule::command('replays:data')->weeklyOn(1, '04:00')->withoutOverlapping();
