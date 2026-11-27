@@ -70,7 +70,63 @@ The token's kind is `replay`. The upload must start by `start_by`. If it has not
 
 ## When the upload has finished
 
-Coilbox does nothing more. The mirror reports the file's hash to the hub, as it does for archives. The hub then queues the check in #663.
+Coilbox sends nothing more. The mirror reports the file's hash to the hub, as it does for archives. The hub then queues the check in #663. To learn how it went, [ask for the replay's status](#asking-what-became-of-a-replay).
+
+## Asking what became of a replay
+
+`GET /api/v1/replays/{game_id}/uploads/status` with the signed in user's bearer token (#694). It changes nothing: it records no sender, and neither reserves the match nor renews a reservation. Use it to wait for the check, not another `POST`.
+
+| Status | Body | When |
+|---|---|---|
+| `200` | `replay` | You sent this match, or it is listed. |
+| `401` | | Not signed in. |
+| `404` | `reason: "not_sent"` | The match is not listed and the hub has no record that you sent it. This includes an upload of yours that lapsed and that another sender then took over. |
+
+`replay` always has these keys:
+
+```json
+{
+  "replay": {
+    "game_id": "9f2c4b1ad07e5386c1f4a92b6e8d0375",
+    "state": "refused",
+    "url": null,
+    "reserved_until": null,
+    "refusal": {
+      "reason": "summary_mismatch",
+      "message": "What was sent about the match does not agree with the replay file.",
+      "refused_at": 1794787900
+    }
+  }
+}
+```
+
+| `state` | What it means | What Coilbox does |
+|---|---|---|
+| `uploading` | The match is reserved for your upload until `reserved_until`, and the mirror has not reported the file. | Finish the upload, or keep asking. |
+| `lapsed` | The reservation ran out at `reserved_until` and the mirror has not reported the file. If the report still arrives before anyone else takes the match, the state becomes `checking`. | Tell the player the upload did not finish. Sending it again starts a new reservation. |
+| `checking` | The hub holds the file and is checking it. | Ask again. |
+| `listed` | The replay is on the hub at `url`. | Link it. |
+| `refused` | The check refused the replay, as `refusal` says. The game id can be sent again. | Show `refusal.message`. |
+| `removed` | The hub took the replay down after listing or while checking it. | Tell the player it was removed, and do not send it again. |
+
+`url` is `null` unless `state` is `listed`. `reserved_until`, in Unix seconds, is `null` unless `state` is `uploading` or `lapsed`. `refusal` is `null` unless `state` is `refused`.
+
+While the hub holds the match for you, you get its current state. Otherwise your latest refusal for this game id comes before somebody else's listed copy.
+
+`refusal.message` is a sentence a player can read. `refusal.reason` is one of these codes, and more may be added:
+
+| `reason` | `message` |
+|---|---|
+| `wrong_file` | The file that reached the hub was not the one Coilbox described. You can send it again. |
+| `unreadable` | The hub could not read the replay file. It may be damaged or too large. |
+| `wrong_game_id` | The replay file belongs to a different match. |
+| `no_game_over` | The replay stops before the match ended. The hub only takes finished matches. |
+| `no_end_of_game` | The replay has no end of match results. The hub only takes finished matches. |
+| `summary_mismatch` | What was sent about the match does not agree with the replay file. |
+| `sender_not_in_replay` | The name this match was sent under did not play or watch it. |
+| `check_failed` | The hub could not finish checking the replay. You can send it again. |
+
+A replay refused before this route existed answers `refused` only to the player who uploaded it.
 
 ## The check
 
@@ -86,7 +142,7 @@ The hub fetches the file from the mirror it went to and reads it. It refuses the
 - For Beyond All Reason, each unit's `name` must be the one the replay's unit list gives its `unit_def_id`. For another game, when the hub's catalogue has the exact release in full, each `name` must be one of its units. Costs, `display_name`, `build_time` and `category` are not checked.
 - The first sender's `name` must be a player or spectator in the file. A later sender whose name is not is dropped from the replay's senders.
 
-A refused replay is removed from the mirrors and its game id can be sent again. Moderators find the reason in `replay_refusal`.
+A refused replay is removed from the mirrors and its game id can be sent again. Moderators find the reason in `replay_refusal`, and everyone who sent it can [ask why](#asking-what-became-of-a-replay).
 
 Once a replay is listed, anybody signed in can send an analysis run for it, as [replay-analyses.md](replay-analyses.md) says. Once an analysis has passed, anybody signed in can send the replay's [track](#tracks).
 

@@ -125,10 +125,13 @@ final class ReplayChecks
             if (! ReplayListing::remove($row->game_id, 'refused')) {
                 return;
             }
-            DB::table('replay_refusal')->insert([
+            $refusalId = DB::table('replay_refusal')->insertGetId([
                 'game_id' => $row->game_id, 'sha256' => $row->sha256, 'uploader' => $row->uploader, 'reason' => $reason,
                 'detail' => self::text($detail, 2000), 'summary' => $row->summary, 'refused_at' => Values::now(),
             ]);
+            // The senders go with the replay's row, and each may ask why (#694).
+            DB::table('replay_refusal_sender')->insert(DB::table('replay_sender')->where('game_id', $row->game_id)->pluck('user_id')
+                ->map(fn ($user) => ['refusal_id' => $refusalId, 'user_id' => $user])->all());
             DB::table('replay')->where('game_id', $row->game_id)->delete();
         });
 
