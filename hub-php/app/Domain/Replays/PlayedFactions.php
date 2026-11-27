@@ -13,6 +13,12 @@ use Illuminate\Support\Str;
  * it. So the last pick the game accepts counts, and the start script's side
  * when there is none.
  *
+ * Splinter Faction and TA Recoil set a faction for each team, so a player
+ * takes the last pick that counts from anybody on their team. With their
+ * faction choice on, the game gives a team with no pick a random faction and
+ * the file does not say which (#684), so the faction is null and not checked.
+ * With it off, the game takes no picks and every team plays its side.
+ *
  * Most games pick by start unit. The catalogue says which faction a start unit
  * belongs to. Where it does not, the faction is the unit's name, or null when
  * nothing names the unit. Neither is known well enough to check a summary
@@ -39,7 +45,9 @@ final class PlayedFactions
      */
     public static function of(Replay $replay, array $summaryUnits = []): array
     {
-        $picks = self::picks($replay);
+        $phase = Str::startsWith($replay->script->gameType, self::FACTION_PHASE_GAMES);
+        $choice = $phase && self::factionChoice($replay->script->modOptions, $replay->script->gameType);
+        $picks = $phase && ! $choice ? [] : self::picks($replay, $phase);
 
         $list = ReplayCheck::unitList($replay);
         $named = array_column($summaryUnits, 'name', 'unit_def_id');
@@ -58,7 +66,7 @@ final class PlayedFactions
             }
             $pick = $picks[$id] ?? null;
             if ($pick === null) {
-                $out[$id] = ['faction' => $player->side, 'known' => true];
+                $out[$id] = $choice ? ['faction' => null, 'known' => false] : ['faction' => $player->side, 'known' => true];
             } elseif ($pick->faction !== null) {
                 $out[$id] = ['faction' => $pick->faction, 'known' => true];
             } else {
@@ -70,10 +78,33 @@ final class PlayedFactions
         return $out;
     }
 
-    /** @return array<int, FactionPick> each player's last pick the game accepted, by player number */
-    private static function picks(Replay $replay): array
+    /**
+     * Whether the faction phase is on, read the way each game's
+     * `game_spawn.lua` reads its mod options.
+     *
+     * @param  array<string, string>  $modOptions
+     */
+    private static function factionChoice(array $modOptions, string $gameType): bool
     {
-        $phase = Str::startsWith($replay->script->gameType, self::FACTION_PHASE_GAMES);
+        if (str_starts_with($gameType, 'SplinterFaction ')) {
+            return ! in_array($modOptions['skipfactionchooser'] ?? null, ['1', 'true'], true);
+        }
+        $skip = $modOptions['skippregame'] ?? null;
+        if (is_numeric($skip) && (float) $skip != 0) {
+            return false;
+        }
+
+        return ! in_array($modOptions['factionchoice'] ?? null, ['0', 'false'], true);
+    }
+
+    /**
+     * Each player's last pick the game accepted, by player number. In a game
+     * with a faction phase it is the last pick by anybody on the player's team.
+     *
+     * @return array<int, FactionPick>
+     */
+    private static function picks(Replay $replay, bool $phase): array
+    {
         // The first frame at which a pick is too late.
         $closes = $phase ? self::FACTION_PHASE_FRAMES : Stream::PREGAME + 1;
         $waiting = [];
@@ -83,13 +114,17 @@ final class PlayedFactions
             }
         }
 
-        $picks = [];
+        $picks = $teams = [];
         foreach ($replay->stream->luaMessagesOf('faction_pick') as $message) {
             if ($message->frame >= $closes) {
                 continue;
             }
             $picks[$message->player] = $message->value;
-            $team = $replay->script->players[$message->player]->team ?? null;
+            $sender = $replay->script->players[$message->player] ?? null;
+            $team = $sender?->spectator ? null : $sender?->team;
+            if ($team !== null) {
+                $teams[$team] = $message->value;
+            }
             if ($phase && isset($waiting[$team])) {
                 unset($waiting[$team]);
                 if ($waiting === []) {
@@ -98,8 +133,17 @@ final class PlayedFactions
                 }
             }
         }
+        if (! $phase) {
+            return $picks;
+        }
+        $out = [];
+        foreach ($replay->script->players as $id => $player) {
+            if (! $player->spectator && isset($teams[$player->team])) {
+                $out[$id] = $teams[$player->team];
+            }
+        }
 
-        return $picks;
+        return $out;
     }
 
     /**

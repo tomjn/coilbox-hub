@@ -350,6 +350,68 @@ class ReplayCheckTest extends ModerationTestCase
         $this->assertSame('fedcommander', DB::table('replay_player')->where('game_id', self::SF)->where('kind', 'player')->value('faction'));
     }
 
+    /**
+     * The Splinter Faction file with a second player, Other, who never picks,
+     * on the AI's team, whose lobby side is `Fed`, and these mod options.
+     */
+    private static function otherOnTeamOne(string $modOptions = ''): string
+    {
+        $b = gzdecode(self::file('sf-tumult'));
+        $size = unpack('V', $b, 304)[1];
+        $text = strtr(substr($b, 352, $size), [
+            '[allyteam0]' => "[player1]\n{\nname=Other;\nteam=1;\nspectator=0;\n}\n[allyteam0]",
+            "[team1]\n{\n" => "[team1]\n{\nside=Fed;\n",
+            'allowuserwidgets=1;' => 'allowuserwidgets=1;'.$modOptions,
+        ]);
+
+        return gzencode(substr_replace(substr($b, 0, 352), pack('V', strlen($text)), 304, 4).$text.substr($b, 352 + $size));
+    }
+
+    /** @return array<string, mixed> the Splinter Faction summary with Other, as `otherOnTeamOne` adds them */
+    private static function otherSummary(?string $faction): array
+    {
+        $summary = self::pickedSummary('fedcommander');
+        $summary['players'][] = ['name' => 'Other', 'team' => 1, 'ally_team' => 1, 'faction' => $faction];
+
+        return $summary;
+    }
+
+    public function test_a_splinter_faction_player_with_no_pick_is_stored_with_no_faction_and_not_checked(): void
+    {
+        // The lobby's side, another faction, or none: the summary may name any.
+        foreach (['Fed', 'Loz', null] as $faction) {
+            DB::table('replay')->where('game_id', self::SF)->delete();
+            $this->uploaded(self::SF, 'sf-tumult', self::otherSummary($faction), 'Player', bytes: self::otherOnTeamOne());
+
+            $this->check(self::SF);
+
+            $this->assertSame('listed', DB::table('replay')->where('game_id', self::SF)->value('state'), (string) $faction);
+            $this->assertNull(DB::table('replay_player')->where('game_id', self::SF)->where('name', 'Other')->value('faction'));
+        }
+    }
+
+    public function test_a_splinter_faction_player_with_the_faction_chooser_skipped_is_stored_with_the_lobbys_side(): void
+    {
+        $bytes = self::otherOnTeamOne("\nskipfactionchooser=1;");
+        $summary = self::otherSummary('Fed');
+        // The game takes no pick, and the lobby set no side for Player's team.
+        $summary['players'][0]['faction'] = null;
+        $this->uploaded(self::SF, 'sf-tumult', $summary, 'Player', bytes: $bytes);
+
+        $this->check(self::SF);
+
+        $this->assertSame('listed', DB::table('replay')->where('game_id', self::SF)->value('state'));
+        $this->assertSame(['Other' => 'Fed', 'Player' => null], DB::table('replay_player')->where('game_id', self::SF)->where('kind', 'player')->orderBy('name')->pluck('faction', 'name')->all());
+
+        DB::table('replay')->where('game_id', self::SF)->delete();
+        $summary['players'][1]['faction'] = 'Loz';
+        $this->uploaded(self::SF, 'sf-tumult', $summary, 'Player', bytes: $bytes);
+
+        $this->check(self::SF);
+
+        $this->assertRefused(self::SF, 'summary_mismatch', "The summary's players are not the file's");
+    }
+
     public function test_a_unit_name_that_is_not_the_replays_is_refused(): void
     {
         $summary = self::summary('bar-tangerine');
