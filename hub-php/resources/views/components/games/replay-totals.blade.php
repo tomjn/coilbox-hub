@@ -149,7 +149,7 @@
                     @foreach ($totals['openings'] as $opening)
                         <li class="flex flex-col gap-1 border-b border-neutral-900 py-2 text-sm">
                             <span class="break-words text-neutral-100">{{ $sequence($opening['entries']) }}</span>
-                            <span class="text-neutral-400">{{ number_format($opening['times']) }} of {{ number_format($totals['openings_of']) }} openings, in {{ $from($opening['replays']) }}</span>
+                            <span class="text-neutral-400">{{ number_format($opening['times']) }} of {{ number_format($totals['openings_of']) }} {{ $totals['openings_of'] === 1 ? 'opening' : 'openings' }}, in {{ $from($opening['replays']) }}</span>
                         </li>
                     @endforeach
                 </ol>

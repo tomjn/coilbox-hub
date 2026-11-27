@@ -2,6 +2,7 @@
 
 namespace App\Domain\Replays;
 
+use App\Domain\Games\Factions;
 use App\Supabase\Local\Values;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -233,6 +234,12 @@ final class GameTotals
     {
         $seats = DB::table('replay_player')->where('game_id', $replay->game_id)->where('kind', '!=', 'spectator')
             ->orderByDesc('kind')->orderBy('number')->get(['kind', 'team', 'ally_team', 'faction', 'won']);
+        foreach ($seats as $seat) {
+            // The start script's side when a player left the choice to the game, which does not say what it chose.
+            if ($seat->faction !== null && Factions::isRandomFaction(['key' => $seat->faction, 'name' => $seat->faction])) {
+                $seat->faction = null;
+            }
+        }
         $players = $seats->where('kind', 'player');
         $humans = $players->pluck('team')->filter(fn ($t) => $t !== null)->flip();
         $decided = (json_decode((string) $replay->winners, true) ?: []) !== [];

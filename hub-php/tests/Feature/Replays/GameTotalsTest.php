@@ -178,6 +178,17 @@ class GameTotalsTest extends ModerationTestCase
         $this->assertSame([null, 7], [$this->page('0.0')['version'], $this->page('0.0')['matches']]);
     }
 
+    public function test_a_random_side_is_no_known_faction(): void
+    {
+        $this->listed();
+        $this->another(self::SECOND, [['Random', 0, true], ['Loz', 1, false]]);
+
+        $page = $this->page();
+        $this->assertSame(['Loz'], array_column($page['factions'], 'name'));
+        $this->assertSame(['players' => 2, 'replays' => 2], $page['unknown']);
+        $this->assertSame([], $page['pairs']);
+    }
+
     public function test_removing_replays_takes_their_shares_back_out(): void
     {
         $this->listed();
