@@ -21,6 +21,7 @@ final class ReplayStatus
         'wrong_file' => 'The file that reached the hub was not the one Coilbox described. You can send it again.',
         'unreadable' => 'The hub could not read the replay file. It may be damaged or too large.',
         'wrong_game_id' => 'The replay file belongs to a different match.',
+        'remix' => 'The file sent was a remix, a copy of a replay changed to run on another game. The hub only takes the original replay.',
         'no_game_over' => 'The replay stops before the match ended. The hub only takes finished matches.',
         'no_end_of_game' => 'The replay has no end of match results. The hub only takes finished matches.',
         'summary_mismatch' => 'What was sent about the match does not agree with the replay file.',
