@@ -80,7 +80,7 @@ final class ReplayAnalyses
             return self::refuse($row, ...$difference);
         }
 
-        return self::keep($row, $log);
+        return self::keep($row, $log, AnalysisFacts::of($log, $replay, $teams));
     }
 
     /** Refuses an analysis whose check failed on every try. */
@@ -107,9 +107,30 @@ final class ReplayAnalyses
             ->whereIn('state', ['kept', 'agreed'])->distinct()->count('user_id');
     }
 
-    private static function keep(object $row, AnalysisLog $log): string
+    /**
+     * Works out the page's facts again from a kept analysis's log, for
+     * analyses kept before they were stored. Answers false when the replay
+     * has no kept analysis or its log no longer reads.
+     */
+    public static function writeFacts(string $gameId): bool
     {
-        return DB::transaction(function () use ($row, $log) {
+        $kept = DB::table('replay_analysis')->where('game_id', $gameId)->first();
+        $replay = DB::table('replay')->where('game_id', $gameId)->first();
+        $log = $kept === null ? null : AnalysisLog::parse((string) $kept->events);
+        if ($replay === null || ! $log instanceof AnalysisLog) {
+            return false;
+        }
+        $teams = DB::table('replay_team')->where('game_id', $gameId)->orderBy('team')->get()->all();
+        DB::table('replay_analysis')->where('game_id', $gameId)->where('sha256', $kept->sha256)
+            ->update(['facts' => json_encode(AnalysisFacts::of($log, $replay, $teams), JSON_PRESERVE_ZERO_FRACTION)]);
+
+        return true;
+    }
+
+    /** @param array<string, mixed> $facts */
+    private static function keep(object $row, AnalysisLog $log, array $facts): string
+    {
+        return DB::transaction(function () use ($row, $log, $facts) {
             if (DB::table('replay_analysis_submission')->where('id', $row->id)->where('state', 'checking')->lockForUpdate()->doesntExist()) {
                 return 'checked';
             }
@@ -127,8 +148,8 @@ final class ReplayAnalyses
                 }
                 DB::table('replay_analysis')->upsert([[
                     'game_id' => $row->game_id, 'logger_version' => $version, 'submission_id' => $row->id, 'sha256' => $row->sha256,
-                    'events' => $row->events, 'counts' => json_encode($log->counts()), 'kept_at' => $now,
-                ]], ['game_id'], ['logger_version', 'submission_id', 'sha256', 'events', 'counts', 'kept_at']);
+                    'events' => $row->events, 'counts' => json_encode($log->counts()), 'facts' => json_encode($facts, JSON_PRESERVE_ZERO_FRACTION), 'kept_at' => $now,
+                ]], ['game_id'], ['logger_version', 'submission_id', 'sha256', 'events', 'counts', 'facts', 'kept_at']);
             }
             DB::table('replay_analysis_submission')->where('id', $row->id)->update(['state' => $state, 'events' => null, 'checked_at' => $now]);
 
