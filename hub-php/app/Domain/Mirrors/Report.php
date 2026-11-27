@@ -72,13 +72,17 @@ final class Report
             }
         }
 
-        if (array_key_exists('kinds', $payload)) {
-            $kinds = $payload['kinds'];
-            if (! is_array($kinds) || ! array_is_list($kinds)) {
+        // features: what a mirror can do beyond its kinds, such as replace_track (#687).
+        foreach (['kinds', 'features'] as $key) {
+            if (! array_key_exists($key, $payload)) {
+                continue;
+            }
+            $list = $payload[$key];
+            if (! is_array($list) || ! array_is_list($list)) {
                 return false;
             }
-            foreach ($kinds as $kind) {
-                if (! is_string($kind)) {
+            foreach ($list as $item) {
+                if (! is_string($item)) {
                     return false;
                 }
             }

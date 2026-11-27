@@ -174,6 +174,7 @@ final class MirrorFunctions
             }
             $held = array_values(array_unique(array_map('strval', is_array($payload['held'] ?? null) ? $payload['held'] : [])));
             $kinds = is_array($payload['kinds'] ?? null) ? $payload['kinds'] : [];
+            $features = is_array($payload['features'] ?? null) ? $payload['features'] : [];
             $number = fn (string $key) => isset($payload[$key]) ? (int) $payload[$key] : null;
 
             DB::table('mirror')->where('id', $mirrorId)->update([
@@ -181,6 +182,7 @@ final class MirrorFunctions
                 'takes_engines' => in_array('engine', $kinds, true),
                 'takes_replays' => in_array('replay', $kinds, true),
                 'takes_tracks' => in_array('track', $kinds, true),
+                'replaces_tracks' => in_array('track', $kinds, true) && in_array('replace_track', $features, true),
                 'last_report_sent_at' => $sentAt,
                 'last_catalogue_seq' => $number('catalogue_seq'),
                 'last_catalogue_generated_at' => $number('catalogue_generated_at'),
