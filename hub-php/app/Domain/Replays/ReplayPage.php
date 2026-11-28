@@ -121,8 +121,11 @@ final class ReplayPage
             'game_id' => $gameId,
             'game' => $row->game,
             'game_version' => $row->game_version,
+            // A replay names its game as the catalogue does. A hidden game has no page to link to.
+            'game_shortname' => DB::table('game')->whereNull('hidden_at')->where('display_name', $row->game)->value('shortname'),
             'map' => $row->map,
             'map_title' => $map['title'] ?? $row->map,
+            'map_slug' => $map['slug'] ?? null,
             'engine' => $row->engine,
             'started_at' => str_replace(' ', 'T', substr((string) $row->started_at, 0, 19)).'Z',
             'duration' => (int) $row->duration,

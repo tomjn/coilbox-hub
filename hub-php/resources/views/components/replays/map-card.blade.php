@@ -9,7 +9,7 @@
     (ReplayMapUnits): the units moving over the minimap with a timeline. Its
     switch and controls stay hidden until the script shows them.
 --}}
-@props(['card', 'title', 'heat', 'base', 'heading' => null, 'tag' => 'h2', 'anchor' => ''])
+@props(['card', 'title', 'heat', 'base', 'heading' => null, 'tag' => 'h2', 'anchor' => '', 'href' => null])
 @use('App\Domain\Maps\Js')
 @use('App\Domain\Replays\HeatPicture')
 @php
@@ -33,7 +33,7 @@
 @endphp
 <section class="flex min-w-0 flex-col gap-2" aria-labelledby="replay-map"
     @if ($track !== null) data-replay-units data-track="{{ $track['url'] }}" data-colours="{{ json_encode((object) $track['colours']) }}" @endif>
-    <{{ $tag }} id="replay-map" class="scroll-mt-4 text-sm font-medium">@if ($heading === null)Map &middot; {{ $title }}@else{{ $heading }}@endif</{{ $tag }}>
+    <{{ $tag }} id="replay-map" class="scroll-mt-4 text-sm font-medium">@if ($heading === null)Map &middot; @if ($href !== null)<a href="{{ $href }}" class="underline-offset-4 hover:underline active:underline {{ $focus }}">{{ $title }}</a>@else{{ $title }}@endif @else{{ $heading }}@endif</{{ $tag }}>
     <div class="flex flex-col gap-3 rounded-lg border border-neutral-800 bg-card p-3">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
         <figure class="relative mx-auto w-full max-w-[36rem] overflow-hidden rounded-md bg-black" style="aspect-ratio: {{ $ratio }}">

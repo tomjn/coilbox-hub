@@ -29,7 +29,11 @@
                 <a href="/replays" class="w-fit text-xs {{ $muted }} underline-offset-4 hover:text-neutral-200 hover:underline active:text-neutral-200 {{ $focus }}">&larr; Replays</a>
                 <h1 class="break-words text-2xl font-semibold tracking-tight">{{ $title }}</h1>
                 <ul aria-label="Replay facts" class="flex flex-wrap gap-1.5">
-                    <li class="{{ $pill }}">{{ $gameLine }}</li>
+                    @if ($replay['game_shortname'] !== null)
+                        <li><a href="/games/{{ $replay['game_shortname'] }}" class="{{ $pill }} block underline-offset-4 transition-colors hover:border-neutral-600 hover:text-neutral-100 hover:underline active:text-neutral-100 {{ $focus }}">{{ $gameLine }}</a></li>
+                    @else
+                        <li class="{{ $pill }}">{{ $gameLine }}</li>
+                    @endif
                     <li class="{{ $pill }}"><span class="sr-only">Engine </span>{{ $replay['engine'] }}</li>
                     <li class="{{ $pill }}"><x-ui.date-time :value="$replay['started_at']" /></li>
                     <li class="{{ $pill }}"><span class="sr-only">Length </span>{{ ReplayPage::duration($replay['duration']) }}</li>
@@ -49,7 +53,7 @@
         </header>
 
         <div class="flex flex-col gap-4 xl:grid xl:grid-cols-2 xl:items-start">
-            <x-replays.map-card :card="$replay['map_card']" :title="$title" :heat="$heat" :base="$base" />
+            <x-replays.map-card :card="$replay['map_card']" :title="$title" :heat="$heat" :base="$base" :href="$replay['map_slug'] === null ? null : '/map/'.$replay['map_slug']" />
 
             <section aria-label="Match" class="flex min-w-0 flex-col gap-4">
                 {{-- Coilbox's tabs, as links so each works without JavaScript and keeps its place in the address. --}}
@@ -107,7 +111,7 @@
                             <h2 class="{{ $h2 }}">Details</h2>
                             <dl class="{{ $card }} grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-1.5 p-3 text-sm">
                                 <dt class="{{ $muted }}">Game id</dt><dd class="break-all font-mono text-xs leading-5">{{ $replay['game_id'] }}</dd>
-                                <dt class="{{ $muted }}">Map</dt><dd class="break-words">{{ $replay['map'] }}</dd>
+                                <dt class="{{ $muted }}">Map</dt><dd class="break-words">@if ($replay['map_slug'] !== null)<a href="/map/{{ $replay['map_slug'] }}" class="underline underline-offset-4 hover:text-white active:text-white {{ $focus }}">{{ $replay['map'] }}</a>@else{{ $replay['map'] }}@endif</dd>
                                 <dt class="{{ $muted }}">Played</dt><dd>{{ Dates::format($replay['started_at'], true) }} UTC</dd>
                                 <dt class="{{ $muted }}">File size</dt><dd>{{ number_format($replay['size'] / 1048576, 1) }} MB</dd>
                             </dl>
