@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\Concerns\ChecksReplays;
+use Tests\Concerns\SeedsGameCatalogue;
 use Tests\Feature\Moderation\ModerationTestCase;
 
 /**
@@ -23,6 +24,7 @@ class ReplayPageTest extends ModerationTestCase
 {
     use ChecksReplays;
     use RefreshDatabase;
+    use SeedsGameCatalogue;
 
     protected function setUp(): void
     {
@@ -120,7 +122,7 @@ class ReplayPageTest extends ModerationTestCase
             ->assertDontSee('Won every award')
             ->assertSee('Details')
             // The map card in heat mode.
-            ->assertSee('Map &middot; Tangerine', false)
+            ->assertSeeInOrder(['Map &middot; ', '>Tangerine</a>'], false)
             ->assertSee('maps/tangerine.webp')
             ->assertSee('/replays/'.self::BAR.'/heat.png?v=', false)
             ->assertSee('Where orders were aimed')
@@ -128,6 +130,23 @@ class ReplayPageTest extends ModerationTestCase
             // No history, so no Economy tab.
             ->assertDontSee('>Economy</a>', false);
         $this->assertMatchesRegularExpression('#aria-current="page"\s+class="block whitespace-nowrap[^"]*">Summary</a>#', $page->getContent());
+    }
+
+    public function test_the_game_and_map_link_to_their_pages(): void
+    {
+        $this->listBar();
+        // Before the game is in the catalogue, its name is plain text.
+        $this->get('/replays/'.self::BAR)->assertOk()->assertDontSee('href="/games/', false);
+
+        DB::table('game')->insert($this->gameRow('dddddddd-0000-4000-8000-000000000001', 'BYAR', ['display_name' => 'Beyond All Reason']));
+        $page = $this->get('/replays/'.self::BAR)->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('#<a href="/games/BYAR"[^>]*>Beyond All Reason test-32071-e1cbffe</a>#', $page);
+        $this->assertMatchesRegularExpression('#<a href="/map/tangerine"[^>]*>Tangerine</a>#', $page);
+        $this->assertSame(2, substr_count($page, 'href="/map/tangerine"'));
+
+        // A hidden game has no page to link to.
+        DB::table('game')->update(['hidden_at' => '2026-11-27 10:00:00']);
+        $this->get('/replays/'.self::BAR)->assertOk()->assertDontSee('href="/games/', false);
     }
 
     public function test_the_events_tab_lists_events_and_chat_but_no_hidden_chat(): void

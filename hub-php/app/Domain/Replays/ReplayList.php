@@ -192,12 +192,12 @@ final class ReplayList
     }
 
     /**
-     * The title, size and minimap of each map the catalogue publishes, by map
+     * The slug, title, size and minimap of each map the catalogue publishes, by map
      * name. A map it does not publish is left out, so a taken down map shows no
      * picture here either.
      *
      * @param  list<string>  $names
-     * @return array<string, array{title: string, width: int|float, height: int|float, picture: array<string, mixed>}>
+     * @return array<string, array{slug: string, title: string, width: int|float, height: int|float, picture: array<string, mixed>}>
      */
     public static function maps(array $names): array
     {
@@ -208,18 +208,20 @@ final class ReplayList
         sort($names);
         try {
             // A failed read throws out of the loader, so an error answer is never cached.
-            return HubCache::remember('replays:maps:'.md5(json_encode($names)), [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($names) {
+            // The key's version changes when the shape does, so entries cached in an older shape are not read.
+            return HubCache::remember('replays:maps:v2:'.md5(json_encode($names)), [HubCache::MAPS, HubCache::ASSETS], HubCache::WEEKS, function () use ($names) {
                 $supabase = Supabase::anon();
                 $published = Lookup::publishedNames(Supabase::admin(), $names);
                 if ($published === null) {
                     throw new SupabaseException('The licence gate could not be read.');
                 }
                 $rows = $published === [] ? [] : $supabase->from('map_browse')
-                    ->select('map_name,display_name,map_version,width_elmos,height_elmos')->in('map_name', $published)->get();
+                    ->select('map_name,slug,display_name,map_version,width_elmos,height_elmos')->in('map_name', $published)->get();
                 $pictures = Listing::pictures($supabase, $rows);
                 $maps = [];
                 foreach ($rows as $row) {
                     $maps[$row['map_name']] = [
+                        'slug' => $row['slug'],
                         'title' => Labels::title($row['display_name'], $row['map_name'], $row['map_version'] ?? null),
                         'width' => $row['width_elmos'],
                         'height' => $row['height_elmos'],
