@@ -269,7 +269,7 @@ class MapEditTest extends TestCase
         $this->moderator = true;
         $this->answers['map_ownership_request'] = [['map_id' => null, 'author_key' => 'beherith', 'state' => 'open', 'requested_by' => self::VISITOR, 'map' => null]];
 
-        $this->signedIn('granted')->post('/moderation/games/decide-map', ['request_id' => '3', 'approve' => 'true'])->assertRedirect('/moderation/games');
+        $this->signedIn('granted')->post('/moderation/maps/decide-ownership', ['request_id' => '3', 'approve' => 'true'])->assertRedirect('/moderation/maps');
 
         $writes = $this->writes();
         $this->assertCount(3, $writes);
@@ -290,8 +290,8 @@ class MapEditTest extends TestCase
         $this->answers['map_ownership_request'] = [['map_id' => null, 'author_key' => 'beherith', 'state' => 'open', 'requested_by' => self::VISITOR, 'map' => null]];
         $this->refuseOwnerInsert = true;
 
-        $this->signedIn('granted')->post('/moderation/games/decide-map', ['request_id' => '3', 'approve' => 'true'])
-            ->assertRedirect('/moderation/games')
+        $this->signedIn('granted')->post('/moderation/maps/decide-ownership', ['request_id' => '3', 'approve' => 'true'])
+            ->assertRedirect('/moderation/maps')
             ->assertSessionHas('mapOwnerError');
     }
 
@@ -300,7 +300,7 @@ class MapEditTest extends TestCase
         $this->moderator = true;
         $this->answers['map_ownership_request'] = [['map_id' => 'map-1', 'author_key' => null, 'state' => 'open', 'requested_by' => self::VISITOR, 'map' => ['slug' => 'comet']]];
 
-        $this->signedIn('granted')->post('/moderation/games/decide-map', ['request_id' => '3', 'approve' => 'true']);
+        $this->signedIn('granted')->post('/moderation/maps/decide-ownership', ['request_id' => '3', 'approve' => 'true']);
 
         $writes = $this->writes();
         $this->assertCount(2, $writes);
@@ -311,7 +311,7 @@ class MapEditTest extends TestCase
     public function test_a_non_moderator_decides_nothing(): void
     {
         $this->answers['map_ownership_request'] = [['map_id' => 'map-1', 'author_key' => null, 'state' => 'open', 'requested_by' => self::VISITOR, 'map' => ['slug' => 'comet']]];
-        $this->signedIn()->post('/moderation/games/decide-map', ['request_id' => '3', 'approve' => 'true']);
+        $this->signedIn()->post('/moderation/maps/decide-ownership', ['request_id' => '3', 'approve' => 'true']);
         $this->assertSame([], $this->writes());
     }
 

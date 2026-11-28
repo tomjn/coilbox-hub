@@ -6,6 +6,7 @@ use App\Auth\HubSession;
 use App\Domain\Moderation\Access;
 use App\Domain\Moderation\GameDecisions;
 use App\Domain\Moderation\MapModeration;
+use App\Domain\Moderation\MapOwnership;
 use App\Domain\Moderation\Queue;
 use App\Supabase\Supabase;
 use App\Supabase\SupabaseException;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 /**
- * `/moderation/maps` and `/moderation/maps/<slug>`, with their three writes,
+ * `/moderation/maps` and `/moderation/maps/<slug>`, with their writes and the map and author ownership requests,
  * from `app/moderation/maps` (issues #193 and #394).
  *
  * Each write asks `is_moderator()` of the caller's own session, then writes
@@ -41,8 +42,17 @@ class MapsController extends ModerationController
             $featured = [];
         }
 
+        try {
+            $ownershipQueue = $supabase->from('map_ownership_request')
+                ->select('id,note,created_at,requested_by_name,author_key,map(slug,map_name)')
+                ->eq('state', 'open')->order('created_at')->get();
+        } catch (SupabaseException) {
+            $ownershipQueue = [];
+        }
+
         return view('moderation.maps', [
             'term' => $term,
+            'ownershipQueue' => $ownershipQueue,
             'conflicts' => MapModeration::conflicts(Supabase::admin()),
             'matches' => MapModeration::search($supabase, $term),
             'featured' => $featured,
@@ -61,6 +71,24 @@ class MapsController extends ModerationController
         }
 
         return view('moderation.map', ['map' => $map]);
+    }
+
+    public function decideOwnership(Request $request): RedirectResponse
+    {
+        $session = HubSession::client();
+        $userId = HubSession::userId();
+        if ($session !== null && $userId !== null) {
+            try {
+                $admin = Supabase::admin();
+            } catch (SupabaseException) {
+                return $this->back('/moderation/maps');
+            }
+            if (! MapOwnership::decideRequest($session, $admin, $userId, (string) $request->input('request_id', ''), $request->input('approve') === 'true')) {
+                return redirect('/moderation/maps')->with('mapOwnerError', 'The request is approved, but the ownership change was not saved. The request has left the queue, so ask the requester to send it again.');
+            }
+        }
+
+        return redirect('/moderation/maps');
     }
 
     /** Forget what the hub holds about one map. One map per post, never several. */
